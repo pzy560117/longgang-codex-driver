@@ -14,6 +14,29 @@
       "mode": "fresh-process",
       "carry_forward_summary": false
     },
+    "handoff": {
+      "feature_id": "FEAT-EXPORT-PLATFORM-001",
+      "truth_sources": {
+        "product": [
+          "docs/product/prd-lite.md",
+          "docs/product/acceptance-criteria.md",
+          "docs/product/requirement-interface-matrix.md",
+          "docs/product/state-matrix.yaml"
+        ],
+        "plan": "plans/features/export-platform.dev-plan.md",
+        "testing": "docs/testing/verify-matrix.md"
+      },
+      "driver_boundary": {
+        "queue_entry": "task.json",
+        "execution_mode": "single",
+        "managed_scope": "Driver 只执行 tasks[] 中声明且 execution.mode=single 的正式任务。",
+        "excluded_scope": [
+          "仅存在于聊天上下文的需求补充",
+          "模板占位任务",
+          "前端视觉设计类任务"
+        ]
+      }
+    },
     "subagents": {
       "mode": "guided",
       "allowed_roles": [

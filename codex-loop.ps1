@@ -686,7 +686,7 @@ function Test-RecoverableCodexCompletion {
     return $false
   }
 
-  if (Test-CodexBlocked -Output $Output) {
+  if (Test-CodexBlocked -Output $LastMessage) {
     return $false
   }
 
@@ -1870,7 +1870,7 @@ function Invoke-OneTask {
   $prompt = New-ImplementationPrompt -Task $task -ExecutionPolicy $executionPolicy -TaskSessionId $taskSessionId
   Write-Step "Codex 执行中，完整日志将写入 $taskLogDirectory"
   $codexResult = Invoke-CodexTask -Prompt $prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId $task.id -Sandbox "danger-full-access" -ActivityLabel "实现阶段" -CaptureJsonEvents:$CaptureJsonEvents
-  $codexBlocked = Test-CodexBlocked -Output $codexResult.Output
+  $codexBlocked = Test-CodexBlocked -Output $codexResult.LastMessage
   $codexRecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $codexResult.ExitCode -Output $codexResult.Output -LastMessage $codexResult.LastMessage
 
   if ($codexRecoverableCompletion -and $codexResult.ExitCode -ne 0) {
