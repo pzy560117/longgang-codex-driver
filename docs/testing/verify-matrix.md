@@ -29,6 +29,25 @@
 - `verify`: `powershell -NoProfile -Command "npm run test:verify"` 或等价整体验证命令，待实现任务定义后补充。
 - 以上命令仅为后续占位，不表示当前仓库已存在对应脚本或 package scripts。
 
+## Requirement 验证入口
+
+| Req ID | 后续验证类型 | 占位命令 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- | --- |
+| FR-001 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr001"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-002 | backend / query | `powershell -NoProfile -Command "npm run test:export-platform:fr002"` | planned | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md`、`traces/` |
+| FR-003 | contract / file | `powershell -NoProfile -Command "npm run test:export-platform:fr003"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-004 | backend / query | `powershell -NoProfile -Command "npm run test:export-platform:fr004"` | planned | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-005 | backend / scheduler | `powershell -NoProfile -Command "npm run test:export-platform:fr005"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-006 | backend / sample | `powershell -NoProfile -Command "npm run test:export-platform:fr006"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-007 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr007"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-008 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr008"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-009 | backend / auth | `powershell -NoProfile -Command "npm run test:export-platform:fr009"` | planned | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-010 | backend / audit | `powershell -NoProfile -Command "npm run test:export-platform:fr010"` | planned | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-011 | backend / file | `powershell -NoProfile -Command "npm run test:export-platform:fr011"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-012 | backend / state-machine | `powershell -NoProfile -Command "npm run test:export-platform:fr012"` | planned | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-013 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr013"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-014 | sample / pressure | `powershell -NoProfile -Command "npm run test:export-platform:fr014"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+
 ## 最终规则
 
 - ANALYSIS-001 只负责补齐追溯、测试数据、测试计划和验证占位，不把占位命令伪装成可执行实现。

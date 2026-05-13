@@ -1,0 +1,59 @@
+SUCCESS: The process with PID 360 (child process of PID 11960) has been terminated.
+SUCCESS: The process with PID 28168 (child process of PID 27816) has been terminated.
+SUCCESS: The process with PID 27816 (child process of PID 33644) has been terminated.
+SUCCESS: The process with PID 33644 (child process of PID 33772) has been terminated.
+SUCCESS: The process with PID 33772 (child process of PID 11860) has been terminated.
+SUCCESS: The process with PID 23644 (child process of PID 37668) has been terminated.
+SUCCESS: The process with PID 37668 (child process of PID 34812) has been terminated.
+SUCCESS: The process with PID 34812 (child process of PID 11036) has been terminated.
+SUCCESS: The process with PID 11036 (child process of PID 21520) has been terminated.
+SUCCESS: The process with PID 21520 (child process of PID 11860) has been terminated.
+SUCCESS: The process with PID 38196 (child process of PID 32488) has been terminated.
+SUCCESS: The process with PID 32488 (child process of PID 12780) has been terminated.
+SUCCESS: The process with PID 12780 (child process of PID 34344) has been terminated.
+SUCCESS: The process with PID 34344 (child process of PID 11860) has been terminated.
+SUCCESS: The process with PID 29968 (child process of PID 23940) has been terminated.
+SUCCESS: The process with PID 23940 (child process of PID 5520) has been terminated.
+SUCCESS: The process with PID 5520 (child process of PID 42640) has been terminated.
+SUCCESS: The process with PID 42640 (child process of PID 11860) has been terminated.
+SUCCESS: The process with PID 33160 (child process of PID 11744) has been terminated.
+SUCCESS: The process with PID 11744 (child process of PID 13160) has been terminated.
+SUCCESS: The process with PID 13160 (child process of PID 20664) has been terminated.
+SUCCESS: The process with PID 20664 (child process of PID 36928) has been terminated.
+SUCCESS: The process with PID 36928 (child process of PID 11860) has been terminated.
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 补齐测试左移可执行性：每个 seed 显式标注为 `planned fixture`，避免误认为已有测试工厂。
+- 在验证矩阵新增逐 FR 反查入口，覆盖 FR-001 至 FR-014 的后续验证类型、占位命令、状态和证据路径。
+- 补强 DEV-PLAN 中 FR-002 查询进度/详情的任务覆盖。
+
+## Files Changed
+- [docs/testing/TEST_DATA_MATRIX.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/TEST_DATA_MATRIX.md:9): 标注 planned fixture 和后续数据边界。
+- [docs/testing/verify-matrix.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:32): 新增 Requirement 验证入口。
+- [plans/features/export-platform.dev-plan.md](/E:/2026/alpha-project/longgang-codex-driver/plans/features/export-platform.dev-plan.md:20): 明确 FR-002 落入 task-api / registry-config 后续实现链路。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`: PASS - `Verification passed.`；仅有 LF/CRLF 提示。
+
+## Evidence
+- [docs/testing/verify-matrix.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:36): FR-001 至 FR-014 的验证入口表。
+- [docs/testing/TEST_DATA_MATRIX.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/TEST_DATA_MATRIX.md:9): planned fixture 数据入口。
+- [docs/context/repo-map.md](/E:/2026/alpha-project/longgang-codex-driver/docs/context/repo-map.md:20): 已确认 `contracts/`、`tests/`、`src/`、`packages/` 当前不存在。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 分析材料和验证入口沉淀 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 文档只写可验证入口与边界 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前仓库仍无业务实现、契约和测试目录；`verify-matrix.md` 中命令是后续占位，不代表已可执行。
+- 本轮未提交：Driver Context 明确禁止执行 `git add`、`git commit`、`git push`，该约束覆盖了自动提交偏好。

@@ -143,7 +143,7 @@
                       "dependencies":  [
                                            "INIT-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "context_files":  [
                                             "docs/product/prd-lite.md",
                                             "docs/product/page-inventory.md",

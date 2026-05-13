@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| ANALYSIS-001-S1-F001 | MEDIUM | state_gap | product | `docs/product/requirement-interface-matrix.md:16` 使用 `datasource_error / query_error`，但 `docs/product/state-matrix.yaml:282`、`:288` 与 `docs/testing/test-matrix.md:16` 使用 `datasource_unavailable / query_execution_error` | 将 FR-008 在 product matrix 中的状态/错误口径统一为 `datasource_unavailable / query_execution_error`，避免后续 contract worker 生成错误枚举 | `rg -n "datasource_error|query_error|datasource_unavailable|query_execution_error" docs/product docs/testing` |
+| ANALYSIS-001-S1-F002 | MEDIUM | state_gap | product | `docs/product/requirement-interface-matrix.md:20` 的 FR-012 状态缺少 `EXECUTING`，但 `docs/product/acceptance-criteria.md:20`、`docs/product/prd-lite.md:101`、`docs/testing/test-matrix.md:20` 都要求 EXECUTING 批次边界取消 | 在 FR-012 product matrix 状态列补入 `EXECUTING`，保持取消/重试状态机与验收口径一致 | `rg -n "FR-012|EXECUTING|批次边界取消" docs/product docs/testing` |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| ANALYSIS-001-S1-F001 | product | docs-worker | 1 | false |
+| ANALYSIS-001-S1-F002 | product | docs-worker | 1 | false |

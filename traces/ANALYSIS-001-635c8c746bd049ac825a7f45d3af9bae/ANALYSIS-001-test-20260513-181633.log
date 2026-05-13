@@ -1,0 +1,5 @@
+﻿Running: git diff --check
+warning: in the working copy of 'docs/testing/TEST_DATA_MATRIX.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+Verification passed.
