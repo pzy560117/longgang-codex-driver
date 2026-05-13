@@ -248,7 +248,7 @@ function Invoke-AgentPackageFreshnessCheck {
   $packageRoot = Join-Path $Root "agent"
   $packageConfig = Join-Path $packageRoot ".ai-sync.yml"
   $refreshScript = Join-Path $Root "refresh-agent-package.ps1"
-  $packageSourceMarker = Join-Path $Root "agent\docs\codex-harness-engineering\templates\package-assets\root\install-agent.ps1"
+  $packageSourceMarker = Join-Path $Root "docs\codex-harness-engineering\templates\package-assets\root\install-agent.ps1"
 
   if (-not (Test-Path -LiteralPath $packageConfig -PathType Leaf)) {
     return
