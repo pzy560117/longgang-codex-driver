@@ -1489,6 +1489,8 @@ function Invoke-CodexTask {
     $Sandbox,
     "--color",
     "never",
+    "--disable",
+    "hooks",
     "--output-last-message",
     $lastMessagePath,
     "-C",

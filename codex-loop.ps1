@@ -1502,6 +1502,8 @@ function Invoke-CodexTask {
   $arguments += @(
     "--color",
     "never",
+    "--disable",
+    "hooks",
     "--output-last-message",
     $lastMessagePath,
     "-C",
