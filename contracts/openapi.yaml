@@ -463,6 +463,12 @@ paths:
                       sensitive: true
                       exportable: true
                       maskingRuleCode: phone_mask
+                  maskingPolicy:
+                    rules:
+                      phone_mask:
+                        type: PHONE
+                        preservePrefix: 3
+                        preserveSuffix: 4
                   dataScopeTemplate: "tenant_id = :tenantId and org_id in (:orgScope)"
                   cursorField: orderId
                   orderBy:
@@ -1379,6 +1385,7 @@ components:
         - parameterSchema
         - queryTemplate
         - fieldMappings
+        - maskingPolicy
         - dataScopeTemplate
         - cursorField
         - orderBy
@@ -1432,6 +1439,7 @@ components:
         maskingPolicy:
           type: object
           additionalProperties: true
+          description: Required masking policy. Any fieldMappings item with sensitive=true must reference a maskingRuleCode covered by this policy.
         dataScopeTemplate:
           type: string
           description: Data scope expression using tenantId, operatorId, roleCodes and orgScope.
