@@ -54,9 +54,8 @@ paths:
                   fileFormat: XLSX
                   clientRequestId: req-20260513-0001
                   queryParams:
-                    createdAtRange:
-                      from: "2026-05-01T00:00:00+08:00"
-                      to: "2026-05-13T23:59:59+08:00"
+                    createdAtFrom: "2026-05-01T00:00:00+08:00"
+                    createdAtTo: "2026-05-13T23:59:59+08:00"
                     orderStatus: APPROVED
                     supplierId: SUP-001
                     purchaseOrgId: ORG-001
@@ -99,7 +98,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
         "400":
-          $ref: "#/components/responses/ValidationError"
+          $ref: "#/components/responses/TaskDisabled"
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
@@ -110,14 +109,13 @@ paths:
           $ref: "#/components/responses/IdempotencyConflict"
         "413":
           $ref: "#/components/responses/QueryParamsTooLarge"
-        "422":
-          $ref: "#/components/responses/ExportLimitExceeded"
-        "423":
-          $ref: "#/components/responses/TaskDisabled"
-        "503":
-          $ref: "#/components/responses/DatasourceUnavailable"
         "500":
-          $ref: "#/components/responses/InternalError"
+          $ref: "#/components/responses/DatasourceUnavailable"
+      x-contract-errorResponseStatus:
+        TASK_DISABLED: 400
+        EXPORT_LIMIT_EXCEEDED: 400
+        DATASOURCE_UNAVAILABLE: 500
+        INTERNAL_ERROR: 500
     get:
       tags: [ExportTasks]
       summary: Search task history
@@ -431,10 +429,14 @@ paths:
                   supportedFormats: [XLSX, ZIP]
                   datasourceCode: purchase_ro
                   parameterSchema:
-                    required: [createdAtRange]
+                    required: [createdAtFrom, createdAtTo]
                     properties:
-                      createdAtRange:
-                        type: object
+                      createdAtFrom:
+                        type: string
+                        format: date-time
+                      createdAtTo:
+                        type: string
+                        format: date-time
                       orderStatus:
                         type: string
                       supplierId:
@@ -481,7 +483,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportRegistryEnvelope"
         "400":
-          $ref: "#/components/responses/ValidationError"
+          $ref: "#/components/responses/ExportLimitExceeded"
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
@@ -1269,7 +1271,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/FileMetadata"
         - type: object
-          required: [deliveryMode]
+          required: [deliveryMode, expiresAt]
           properties:
             deliveryMode:
               $ref: "#/components/schemas/DeliveryMode"
@@ -1288,6 +1290,7 @@ components:
         - checksum
         - checksumAlgorithm
         - storageKey
+        - expiresAt
         - attemptNo
       properties:
         fileName:
@@ -1303,6 +1306,10 @@ components:
           type: string
         storageKey:
           type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: Published file retention expiry time. Signed URL responses also use expiresAt for URL expiry.
         checksum:
           type: string
         checksumAlgorithm:
@@ -1470,10 +1477,25 @@ components:
       allOf:
         - $ref: "#/components/schemas/ExportRegistryUpsertRequest"
         - type: object
-          required: [configSnapshotDigest, updatedAt, updatedBy]
+          required:
+            - configSnapshotDigest
+            - parameterSchemaDigest
+            - fieldMappingDigest
+            - maskingPolicyDigest
+            - updatedAt
+            - updatedBy
           properties:
             configSnapshotDigest:
               type: string
+            parameterSchemaDigest:
+              type: string
+              description: Digest of the effective parameter schema used by future config snapshots.
+            fieldMappingDigest:
+              type: string
+              description: Digest of ordered field mappings and exportable whitelist.
+            maskingPolicyDigest:
+              type: string
+              description: Digest of masking policy and sensitive field rules.
             updatedAt:
               type: string
               format: date-time
@@ -1523,6 +1545,12 @@ components:
           enum: [ASC, DESC]
     BatchCheckpoint:
       type: object
+      required:
+        - attemptNo
+        - lockOwner
+        - lockExpireAt
+        - leaseRenewedAt
+        - databaseTime
       properties:
         lastCursor:
           type: string
@@ -1541,6 +1569,24 @@ components:
           type: integer
         backoffMs:
           type: integer
+        lockOwner:
+          type: string
+          description: Worker identity that owns the database lease for the current attempt.
+        lockExpireAt:
+          type: string
+          format: date-time
+          description: Lease expiry based on database time; default lease is five minutes unless registry config overrides it.
+        leaseRenewedAt:
+          type: string
+          format: date-time
+          description: Last successful lease renewal time based on database time.
+        databaseTime:
+          type: string
+          format: date-time
+          description: Database clock snapshot used for lock acquisition, renewal and takeover decisions.
+        takeoverRule:
+          type: string
+          description: Workers may take over only after database time is later than lockExpireAt; takeover keeps the same attemptNo.
     AuditEvent:
       type: object
       required:
@@ -1550,6 +1596,7 @@ components:
         - operatorId
         - action
         - result
+        - errorCode
         - requestId
         - occurredAt
       properties:
