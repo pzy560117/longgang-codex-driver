@@ -19,12 +19,16 @@
       "truth_sources": {
         "product": [
           "docs/product/prd-lite.md",
+          "docs/product/page-inventory.md",
+          "docs/product/difficulty-research.md",
           "docs/product/acceptance-criteria.md",
           "docs/product/requirement-interface-matrix.md",
           "docs/product/state-matrix.yaml"
         ],
-        "plan": "plans/features/export-platform.dev-plan.md",
         "testing": "docs/testing/verify-matrix.md"
+      },
+      "future_entries": {
+        "plan": "plans/features/export-platform.dev-plan.md"
       },
       "driver_boundary": {
         "queue_entry": "task.json",
@@ -79,6 +83,8 @@
         "project-task-template.json",
         "docs/harness/task-session-strategy.md",
         "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
         "docs/product/acceptance-criteria.md",
         "docs/product/requirement-interface-matrix.md",
         "docs/product/state-matrix.yaml",
