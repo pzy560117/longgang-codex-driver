@@ -25,7 +25,16 @@
           "docs/product/requirement-interface-matrix.md",
           "docs/product/state-matrix.yaml"
         ],
-        "testing": "docs/testing/verify-matrix.md"
+        "testing": {
+          "current_entry": "docs/testing/verify-matrix.md",
+          "analysis_outputs": [
+            "docs/testing/ACCEPTANCE_CRITERIA.md",
+            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+            "docs/testing/TRACEABILITY_MATRIX.md",
+            "docs/testing/TEST_DATA_MATRIX.md",
+            "docs/testing/test-matrix.md"
+          ]
+        }
       },
       "future_entries": {
         "plan": "plans/features/export-platform.dev-plan.md"
@@ -92,14 +101,16 @@
         "task.json"
       ],
       "owned_paths": [
-        "task.json"
+        "task.json",
+        "docs/testing/verify-matrix.md"
       ],
       "requirement_ids": [
         "FR-001",
         "FR-014"
       ],
       "produces_artifacts": [
-        "task.json"
+        "task.json",
+        "docs/testing/verify-matrix.md"
       ],
       "execution": {
         "mode": "single"
