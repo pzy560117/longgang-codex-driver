@@ -145,3 +145,78 @@
 ## 12. Knowledge Outputs
 
 - none
+
+## 13. ARCH-001 统一架构决策
+
+本节作为 `ARCH-001` 的架构落点，面向后续契约、测试和实现任务。当前阶段只定义后端平台能力，不引入前端页面范围。
+
+### 13.1 服务边界
+
+统一导出平台按独立后端服务建设，对外暴露任务、注册配置、下载、取消和重试 API；对内由调度 worker、查询执行、文件服务、清理 job 和审计链路协作完成异步导出。子系统只通过 HTTP/Feign 提交任务、传递认证上下文和符合注册 schema 的业务查询参数，不向平台注入业务 JAR、原始 SQL 或文件渲染实现。
+
+| 边界 | 平台负责 | 子系统负责 | 不允许 |
+| --- | --- | --- | --- |
+| 任务入口 | 创建、幂等、状态机、进度、历史、下载、取消、重试 | 调用 API，传递 `taskCode`、`queryParams`、`clientRequestId` 和认证上下文 | 子系统直接写平台任务表 |
+| 注册配置 | taskCode、启停、并发、保留期、阈值、格式、数据源、模板、字段、脱敏、游标和排序 | 提供业务查询参数和注册资料 | 执行调用方传入的原始 SQL |
+| 调度执行 | MySQL 轮询、DB 抢锁、租约续租、接管、并发限制 | 无 | 用内存锁替代 DB 租约 |
+| 查询与数据范围 | 参数化模板、只读数据源、游标分页、数据范围叠加、批次检查点 | 保证查询条件语义与注册 schema 对齐 | 绕过 `tenantId`、`operatorId`、`roleCodes`、`orgScope` |
+| 文件交付 | XLSX/ZIP、临时对象、校验、发布、下载签名、stream 元信息 | 下载已授权文件 | 返回未发布对象或无校验文件 |
+| 审计与清理 | 阶段事件、审计日志、下载日志、过期标记、对象清理重试 | 保留调用侧 requestId | 静默吞掉失败原因 |
+
+### 13.2 模块与实施落点
+
+后续实现任务应按模块拆 owned paths，避免把所有逻辑落进单个 `src/` 目录或单个契约文件。
+
+| 模块 | 后续契约 owned paths | 后续测试 owned paths | 后续实现 owned paths | 首要覆盖 |
+| --- | --- | --- | --- | --- |
+| `task-api` | `contracts/openapi.yaml`、`contracts/api/` | `tests/contract/`、`tests/backend/` | `src/task-api/` | FR-001、FR-002、FR-003、FR-004、FR-012、FR-013 |
+| `registry-config` | `contracts/api/`、`contracts/query/` | `tests/contract/`、`tests/backend/`、`tests/query/` | `src/registry-config/` | FR-007、FR-008、FR-013 |
+| `scheduler` | `contracts/scheduler/` | `tests/scheduler/` | `src/scheduler/` | FR-005、FR-013 |
+| `query-executor` | `contracts/query/` | `tests/query/` | `src/query-executor/` | FR-006、FR-008、FR-009、FR-014 |
+| `file-service` | `contracts/file/` | `tests/file/` | `src/file-service/` | FR-003、FR-006、FR-011 |
+| `cleanup-job` | `contracts/file/` | `tests/file/`、`tests/scheduler/` | `src/cleanup-job/` | FR-011 |
+| `audit-log` | `contracts/audit/` | `tests/backend/`、`tests/contract/` | `src/audit-log/` | FR-010、FR-013 |
+| `sample-purchase-order` | `contracts/sample/`、`contracts/query/` | `tests/sample/`、`tests/query/`、`tests/file/` | `src/sample-purchase-order/` | FR-014 |
+
+当前仓库已存在 `contracts/README.md`，但尚未创建 `contracts/openapi.yaml`、分区契约目录、`tests/` 或 `src/`。后续任务创建这些路径时，应在任务 owned paths 中显式列出对应分区。
+
+### 13.3 任务聚合与配置快照
+
+任务创建时必须聚合并持久化三类快照，后续调度、取消、重试、下载和审计均引用同一任务快照：
+
+- 请求摘要：规范化后的 `taskCode + fileFormat + queryParams`，用于 `clientRequestId` 幂等冲突判断。
+- 认证上下文摘要：`operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`，用于任务可见性、操作权限、下载权限和查询数据范围。
+- 注册配置快照：数据源编码、模板版本、参数 schema 摘要、字段映射摘要、脱敏策略摘要、游标字段、排序规则、批大小、行数阈值、保留期、支持格式和并发限制。
+
+配置变更只影响新任务；已创建任务、锁接管和 FAILED 重试都沿用创建时快照。快照与查询模板或字段映射冲突时，按 `QUERY_TEMPLATE_INVALID` 或 `FIELD_MAPPING_INVALID` 收口，不得静默放宽字段范围、格式或阈值。
+
+### 13.4 调度、锁与执行尝试
+
+调度 worker 采用 `MySQL 轮询 + DB 抢锁`。锁模型统一为 `lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。默认租约 5 分钟，worker 只能在批次边界续租。
+
+- 抢锁成功后任务进入 `EXECUTING`，记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和 `leaseRenewedAt`。
+- 同一任务同一时刻只允许一个活跃执行尝试。
+- 租约过期后的实例接管延续当前 `attemptNo`，从最近批次检查点继续，并记录接管审计。
+- 只有用户或系统对 `FAILED` 任务发起重试时才递增 `attemptNo`。
+- `PENDING/EXECUTING` 收到重试请求时返回非法状态错误，不得重复派发执行。
+
+批次检查点至少包含 `lastCursor`、`processedCount`、`filePartNo`、`attemptNo`、`batchSize`、`batchRowCount`、`retryCount` 和 `backoffMs`。查询批次默认 30 秒超时，最多 3 次指数退避；重试耗尽后映射为 `QUERY_EXECUTION_ERROR`。
+
+### 13.5 查询、文件发布与清理
+
+`query-executor` 只执行注册配置声明的参数化模板，且只能绑定参数 schema 允许字段。每批数据写入文件前必须校验字段白名单、字段顺序和敏感字段脱敏结果。
+
+`file-service` 采用两段式发布模型：
+
+1. 写入 `tempStorageKey`，按 `attemptNo` 隔离文件片段和失败证据。
+2. 校验文件元信息、内容校验值和字段脱敏结果。
+3. 发布为 `publishedStorageKey`，记录 `checksumVerifiedAt`、`publishedAt` 和 `deliveryReadyAt`。
+4. 下载接口只返回已发布且未过期对象的签名 URL 或等价 stream 元信息。
+
+对象路径默认为 `exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName}`；校验算法默认 `SHA-256`；签名 URL 默认有效期 10 分钟。清理 job 必须先标记任务或文件引用不可下载，再删除对象；删除失败保留可重试记录和审计。
+
+### 13.6 审计链路与阶段事件
+
+所有关键动作必须写入审计日志：`CREATE`、`DISPATCH`、`EXECUTE_START`、`EXECUTE_SUCCESS`、`EXECUTE_FAILED`、`CANCEL_REQUEST`、`CANCEL_DONE`、`RETRY_REQUEST`、`DOWNLOAD`、`EXPIRE_MARK`、`CLEANUP_FAILED`。审计字段至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。
+
+执行阶段事件固定为 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。事件必须能通过 `taskId`、`attemptNo`、`requestId`、`queryTemplateVersion`、`datasourceCode` 和 `batchCheckpoint` 串联，作为 FR-010、FR-013 和 FR-014 的证据骨架。

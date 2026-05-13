@@ -52,7 +52,8 @@
 ## 5. Owned Paths 建议
 
 - 当前仓库真实已存在且可直接写入的落点：`docs/context/`、`docs/testing/`、`docs/product/`、`plans/features/`。
-- 后续需要创建但当前不存在的实现落点：`contracts/`、`tests/`、`src/`、`packages/`。
+- 当前已有契约入口：`contracts/README.md`。
+- 后续需要创建但当前不存在的实现落点：`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/`、`tests/`、`src/`、`packages/`。
 - 不要把 `src/` 当成唯一 owned path；当前仓库还没有业务代码目录，后续任务应先按契约和测试骨架创建落点。
 
 ## 6. Knowledge References

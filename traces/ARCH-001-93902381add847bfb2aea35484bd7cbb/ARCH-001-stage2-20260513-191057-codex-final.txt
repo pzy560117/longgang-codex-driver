@@ -1,0 +1,31 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| ARCH-001-S2-F001 | LOW | maintainability | docs | `plans/features/export-platform.dev-plan.md:88`、`docs/context/feature-pack.md:21/32/35/38/40/43`、`docs/context/repo-map.md:52` 仍使用旧模块名 `file-renderer`，而新增架构口径使用 `file-service` / `src/file-service/` | 下一轮文档修复中统一为 `file-service`，或明确 `file-renderer` 只是 `file-service` 内部职责而非 owned path | `rg -n "file-renderer\|file-service\|src/file" docs/context plans/features/export-platform.dev-plan.md contracts/README.md`; `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `git diff --name-only`
+  - `git diff -- contracts/README.md docs/context/architecture-brief.md docs/context/feature-pack.md docs/context/repo-map.md plans/features/export-platform.dev-plan.md`
+  - `rg -n "TODO|FIXME|console\.log|debug|password|token|secret|密钥|私钥" ...`
+  - `rg -n "file-renderer|file-service|src/file" docs/context plans/features/export-platform.dev-plan.md contracts/README.md`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`
+- 结果摘要:
+  - 文档类改动，无 TypeScript/后端代码类型风险。
+  - 未发现硬编码密钥、调试输出、TODO/FIXME。
+  - `git diff --check` 退出码 0，`Verification passed.`；仅有 LF/CRLF 工作区警告。
+  - 测试证据与本轮文档/架构输出匹配；后续契约与实现测试仍按 `blocked-by-contract` 留给后续任务。
+
+## Verdict
+
+- Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| ARCH-001-S2-F001 | docs | docs-worker | 1 | No |

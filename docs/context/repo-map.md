@@ -15,7 +15,7 @@
 | `docs/context/` | 已创建 | feature pack、repo map、architecture brief |
 | `plans/` | 已创建 | 后续 dev-plan 落点 |
 | `docs/knowledge/` | 已存在 | 项目知识目录；本任务只引用现有条目，不新增知识条目 |
-| `contracts/` | 当前不存在 | 后续 OpenAPI / schema / 契约测试落点 |
+| `contracts/` | 已存在，当前含 `README.md` | 后续 OpenAPI / schema / 契约测试落点 |
 | `tests/` | 当前不存在 | 后续契约、后端、调度、查询、文件、样板测试落点 |
 | `src/` | 当前不存在 | 后续服务实现落点，不可假设已存在 |
 | `packages/` | 当前不存在 | 后续若拆分共享包或客户端，可作为候选落点 |
@@ -33,12 +33,13 @@
 | 测试矩阵 | `docs/testing/test-matrix.md` | planned / blocked-by-contract 占位 |
 | 验证矩阵 | `docs/testing/verify-matrix.md` | 后续验证命令占位与证据路径 |
 | 开发计划 | `plans/features/export-platform.dev-plan.md` | 供后续实现任务直接执行 |
+| 契约入口 | `contracts/README.md` | 已创建；用于约束后续契约分区和 owned paths |
 
 ## 3. 后续需创建目录
 
 | 目录 | 作用 | 备注 |
 | --- | --- | --- |
-| `contracts/` | OpenAPI、schema、契约测试输入 | 当前不存在，后续先创建 |
+| `contracts/` | OpenAPI、schema、契约测试输入 | 目录和 `README.md` 已存在；后续补 `openapi.yaml` 和能力分区 |
 | `tests/` | 契约、后端、调度、查询、文件、样板测试 | 当前不存在，后续先创建 |
 | `src/` | 服务实现 | 当前不存在，不应在分析阶段假设存在 |
 | `packages/` | 共享包、客户端、领域抽象 | 仅作为候选，不应强行预设 |
@@ -46,7 +47,7 @@
 
 ## 4. 创建顺序
 
-1. 先创建 `contracts/`，把 FR-001、FR-003、FR-005、FR-008、FR-013、FR-014 的接口和状态锚住。
+1. 先复核 `contracts/README.md` 并补 `contracts/openapi.yaml` 与能力分区，把 FR-001、FR-003、FR-005、FR-008、FR-013、FR-014 的接口和状态锚住。
 2. 再创建 `tests/`，先落契约、数据、测试矩阵，再补后端/调度/查询/文件/样板测试骨架。
 3. 之后才允许创建 `src/`，并按 task-api、registry-config、scheduler、query-executor、file-renderer、cleanup-job 的顺序推进。
 4. 只有在共享抽象确实被多个实现模块复用时，才创建 `packages/`。
@@ -55,7 +56,7 @@
 
 - 当前仓库无业务代码目录，不能把 `src/` 写成唯一 owned path。
 - 当前所有验证矩阵都必须明确 `planned` 或 `blocked-by-contract`，否则会误导后续实现任务。
-- `contracts/` 和 `tests/` 的创建顺序应早于 `src/`，否则后续实现缺少契约锚点。
+- `contracts/` 契约补齐和 `tests/` 创建顺序应早于 `src/`，否则后续实现缺少契约锚点。
 - 根仓库的 `.agents/` 和 `agent/` 都是规则、技能、harness 包资产，不应与业务实现目录混为一谈。
 
 ## 6. Knowledge References

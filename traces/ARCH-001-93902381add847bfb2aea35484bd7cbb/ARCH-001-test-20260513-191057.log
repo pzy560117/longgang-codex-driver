@@ -1,0 +1,7 @@
+﻿Running: git diff --check
+warning: in the working copy of 'contracts/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/context/architecture-brief.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/context/feature-pack.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/context/repo-map.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+Verification passed.
