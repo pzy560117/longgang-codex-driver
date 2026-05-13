@@ -121,7 +121,8 @@ else {
     "feature_design",
     "feature_plan",
     "feature_impl",
-    "release"
+    "release",
+    "archive"
   )
   $allowedGateProfiles = @(
     "lightweight",
@@ -137,7 +138,8 @@ else {
     "design",
     "plan",
     "testing",
-    "contract"
+    "contract",
+    "knowledge"
   )
 
   $taskIds = @{}

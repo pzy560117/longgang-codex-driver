@@ -6,7 +6,9 @@
     "run_profile": ".codex\\task-run-profile.json",
     "git": {
       "require_clean_workspace": true,
-      "non_blocking_dirty_paths": []
+      "non_blocking_dirty_paths": [
+        "traces/"
+      ]
     },
     "session": {
       "mode": "fresh-process",
@@ -76,13 +78,13 @@
       "steps": [
         "确认 docs/product 下四份统一导出平台真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
         "锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks",
-        "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含前端视觉类任务或模板占位"
+        "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围"
       ],
       "test_command": "git diff --check",
       "acceptance": [
         "task.json 成为统一导出平台的正式 driver 队列入口",
         "首轮 driver 可在不补充聊天上下文的前提下识别真实 truth source、计划入口和测试入口",
-        "任务队列不保留 <feature-slug>、REQ-REPLACE、FR-REPLACE、领域示例占位或 frontend/design 视觉类任务"
+        "任务队列不保留功能标识占位符、需求编号替换占位符、领域示例占位文本或前端视觉设计类任务"
       ]
     },
     {
@@ -699,11 +701,11 @@
     {
       "id": "ARCHIVE-001",
       "description": "归档统一导出平台本轮交付知识与可复用规则候选",
-      "task_kind": "harness",
+      "task_kind": "archive",
       "phase": "archive",
       "gate_profile": "lightweight",
       "required_truth_sources": [
-        "testing"
+        "knowledge"
       ],
       "priority": 90,
       "dependencies": [
