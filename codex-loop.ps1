@@ -1482,11 +1482,17 @@ function Invoke-CodexTask {
 
   Set-Content -LiteralPath $promptPath -Value $Prompt -Encoding UTF8
 
-  $arguments = @(
-    "exec",
-    "--full-auto",
-    "--sandbox",
-    $Sandbox,
+  $arguments = @("exec")
+  if ($Sandbox -eq "danger-full-access") {
+    $arguments += "--dangerously-bypass-approvals-and-sandbox"
+  }
+  else {
+    $arguments += @(
+      "--sandbox",
+      $Sandbox
+    )
+  }
+  $arguments += @(
     "--color",
     "never",
     "--output-last-message",
