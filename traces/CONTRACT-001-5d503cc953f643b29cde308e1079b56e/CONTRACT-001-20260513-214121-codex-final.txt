@@ -1,0 +1,34 @@
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已复核 `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md`，现有契约已覆盖本任务要求的创建、详情、历史、下载、取消、重试、注册/启停/配置接口。
+- 对外状态仅包含 `PENDING / EXECUTING / COMPLETED / FAILED / CANCELED / EXPIRED`，未暴露内部取消状态。
+- 本轮未产生文件改动；契约验证已通过。
+
+## Files Changed
+- none，本轮仅验证现有产物。
+
+## Validation
+- `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"`: PASS - `git diff --check` 通过，Redocly 校验 `contracts/openapi.yaml` 有效。
+
+## Evidence
+- `contracts/openapi.yaml`: API、状态枚举、错误码、请求/响应样例契约。
+- `contracts/README.md`: 契约分区、错误码表、验证入口。
+- `docs/testing/verify-matrix.md`: CONTRACT-001 验证入口和后续 blocked-by-contract 说明。
+- `plans/features/export-platform.dev-plan.md`: 后续契约、测试和实现任务拆分。
+
+## Knowledge References
+- none：本轮读取了 `docs/knowledge/knowledge-catalog.md` 和 `docs/knowledge/catalog.md`，未引用新的完整知识条目。
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 当前仓库仍无业务实现和测试工程，后续 backend / scheduler / query / file / sample 验证仍需在实现任务中落地。
+- Driver Context 禁止本轮执行 `git add/commit/push`，且本轮无文件改动可提交。

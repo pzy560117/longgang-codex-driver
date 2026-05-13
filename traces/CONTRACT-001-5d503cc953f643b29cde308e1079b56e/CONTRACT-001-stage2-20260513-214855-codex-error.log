@@ -1,0 +1,1401 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e2199-04df-7802-bb2d-7afe8d0524a9
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+10. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: CONTRACT-001
+- 描述: 完成统一导出平台 API、注册配置和错误码契约设计
+- Requirement IDs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-012
+- FR-013
+- 测试命令: powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/context/architecture-brief.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/TEST_DATA_MATRIX.md
+- docs/testing/verify-matrix.md
+- plans/features/export-platform.dev-plan.md
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+Resolve-Path : Cannot find path 'diff' because it does not exist.
+At E:\2026\alpha-project\longgang-codex-driver\verify.ps1:274 char:25
++ $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (diff:String) [Resolve-Path], ItemNotFoundExce 
+   ption
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.ResolvePathCommand
+ 
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+System.Management.Automation.RemoteException
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 155ms
+System.Management.Automation.RemoteException
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+codex
+我会按 `code-review` 技能做 Stage 2 审查，只看质量、测试证据和维护风险；先确认当前 diff、契约文件和验证命令本身是否可信。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'C:\\Users\\pzy666\\.codex\\skills\\code-review\\SKILL.md' -TotalCount 220" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-13T13:49:11.670591Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 1 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'C:\Users\pzy666\.codex\skills\code-review\S[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\code-review\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 956ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'C:\Users\pzy666\.codex\skills\code-review\S[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\code-review\SKILL.md' because it does not exist.[0m
+
+codex
+`code-review` 的本地路径不在用户目录技能根下，我改用仓库声明的 Stage 2 Reviewer 技能路径继续，避免凭空套用流程。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage2-reviewer\\SKILL.md' -TotalCount 220" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- contracts/openapi.yaml docs/product/prd-lite.md docs/product/acceptance-criteria.md docs/product/requirement-interface-matrix.md docs/product/state-matrix.yaml docs/context/architecture-brief.md docs/testing/TRACEABILITY_MATRIX.md docs/testing/TEST_DATA_MATRIX.md docs/testing/verify-matrix.md plans/features/export-platform.dev-plan.md' in E:\2026\alpha-project\longgang-codex-driver
+2026-05-13T13:49:23.707525Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.9 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'E:\2026\alpha-project\longgang-codex-driver[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 947ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'E:\2026\alpha-project\longgang-codex-driver[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+ succeeded in 921ms:
+?? traces/CONTRACT-001-5d503cc953f643b29cde308e1079b56e/
+
+ succeeded in 945ms:
+ succeeded in 948ms:
+codex
+当前工作区没有 tracked diff，只有本任务 trace 目录未跟踪；这意味着审查重点要转向 trace 证据、当前契约真相源和验证命令输出的一致性。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-ChildItem -LiteralPath 'traces\\CONTRACT-001-5d503cc953f643b29cde308e1079b56e' -Force | Format-Table -AutoSize" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg --files -g 'SKILL.md' .agents C:\\Users\\pzy666\\.codex\\skills C:\\Users\\pzy666\\.codex\\.agents\\skills C:\\Users\\pzy666\\.agents\\skills | rg 'stage2-reviewer|code-review'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log --oneline -n 8' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'contracts\\openapi.yaml' -TotalCount 260" in E:\2026\alpha-project\longgang-codex-driver
+ exited 1 in 907ms:
+.agents\skills\code-reviewer\SKILL.md
+.agents\skills\code-review\SKILL.md
+.agents\docs\codex-harness-engineering\templates\package-assets\skills\code-review\SKILL.md
+.agents\docs\codex-harness-engineering\templates\package-assets\skills\code-reviewer\SKILL.md
+rg: C:\Users\pzy666\.codex\.agents\skills: 系统找不到指定的路径。 (os error 3)
+rg: C:\Users\pzy666\.agents\skills: 系统找不到指定的路径。 (os error 3)
+
+2026-05-13T13:49:36.027745Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.9 seconds
+Output:
+.agents\skills\code-reviewer\SKILL.md
+.agents\skills\code-review\SKILL.md
+.agents\docs\codex-harness-engineering\templates\package-assets\skills\code-review\SKILL.md
+.agents\docs\codex-harness-engineering\templates\package-assets\skills\code-reviewer\SKILL.md
+rg: C:\Users\pzy666\.codex\.agents\skills: 系统找不到指定的路径。 (os error 3)
+rg: C:\Users\pzy666\.agents\skills: 系统找不到指定的路径。 (os error 3)
+
+ succeeded in 902ms:
+b2a2b86 fix(contract): make contract test command driver safe
+d3459e3 fix(contract): require registry masking policy
+879d302 fix(contract): align export error response contract
+73ea556 fix(contract): close export contract stage1 findings
+98f63d0 fix(contract): repair export platform api contract gate
+2a3b7c0 fix(runtime): prevent driver child sessions from running hooks
+bdde17b feat: 输出统一导出平台的后端架构、模块边界和实现落点方案 - completed ARCH-001
+e5ce1ad fix(runtime): parse bulleted review verdicts
+
+ succeeded in 920ms:
+openapi: 3.0.3
+info:
+  title: Export Platform API Contract
+  version: 1.0.0
+  license:
+    name: Internal
+    url: https://example.invalid/internal-license
+  description: |
+    CONTRACT-001 defines the public API contract for FEAT-EXPORT-PLATFORM-001.
+    The API consumes authentication context from upstream services and exposes
+    only official task statuses: PENDING, EXECUTING, COMPLETED, FAILED,
+    CANCELED, EXPIRED.
+servers:
+  - url: /api
+    description: Relative platform API base path
+tags:
+  - name: ExportTasks
+    description: Task creation, detail, history, download, cancel and retry APIs.
+  - name: ExportRegistries
+    description: Export task registry, enable/disable and configuration APIs.
+security:
+  - OperatorId: []
+    TenantId: []
+    RoleCodes: []
+    OrgScope: []
+    RequestId: []
+paths:
+  /export/tasks:
+    post:
+      tags: [ExportTasks]
+      summary: Create export task
+      description: |
+        Creates a PENDING export task when taskCode is registered and enabled.
+        clientRequestId is idempotent in scope tenantId + operatorId + taskCode + clientRequestId.
+      operationId: createExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExportTaskRequest"
+            examples:
+              purchaseOrder:
+                summary: Purchase order export task
+                value:
+                  taskCode: purchase-order-export
+                  subsystemCode: purchase
+                  fileFormat: XLSX
+                  clientRequestId: req-20260513-0001
+                  queryParams:
+                    createdAtFrom: "2026-05-01T00:00:00+08:00"
+                    createdAtTo: "2026-05-13T23:59:59+08:00"
+                    orderStatus: APPROVED
+                    supplierId: SUP-001
+                    purchaseOrgId: ORG-001
+                    keyword: PO-2026
+      x-contract-errorResponses:
+        - TASK_DISABLED
+        - EXPORT_LIMIT_EXCEEDED
+        - QUERY_TEMPLATE_INVALID
+        - DATASOURCE_UNAVAILABLE
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - INTERNAL_ERROR
+      responses:
+        "201":
+          description: Task created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
+              examples:
+                created:
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      taskId: exp_20260513_000001
+                      taskCode: purchase-order-export
+                      subsystemCode: purchase
+                      status: PENDING
+                      clientRequestId: req-20260513-0001
+                      idempotencyHit: false
+                      idempotencyScope: tenant-001:u001:purchase-order-export:req-20260513-0001
+                      requestDigest: sha256:request-digest
+                      configSnapshotDigest: sha256:config-digest
+                      attemptNo: 0
+                      createdAt: "2026-05-13T10:00:00+08:00"
+        "200":
+          description: Existing task returned for idempotent replay with identical request digest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/CreateTaskBadRequest"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+        "500":
+          $ref: "#/components/responses/DatasourceUnavailable"
+      x-contract-errorResponseStatus:
+        TASK_DISABLED: 400
+        QUERY_PARAMS_TOO_LARGE: 400
+        EXPORT_LIMIT_EXCEEDED: 400
+        DATASOURCE_UNAVAILABLE: 500
+        INTERNAL_ERROR: 500
+    get:
+      tags: [ExportTasks]
+      summary: Search task history
+      description: |
+        Returns paged task history. Normal users can only see their own tasks;
+        administrators can see global tasks according to roleCodes and orgScope.
+      operationId: listExportTasks
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - name: taskCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: createdBy
+          in: query
+          schema:
+            type: string
+        - name: createdAtFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: createdAtTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: fileFormat
+          in: query
+          schema:
+            $ref: "#/components/schemas/FileFormat"
+        - name: subsystemCode
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paged task history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportTaskPageEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "500":
+          $ref: "#/components/responses/QueryExecutionError"
+  /export/tasks/{taskId}:
+    get:
+      tags: [ExportTasks]
+      summary: Get task detail and progress
+      operationId: getExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportTaskDetailEnvelope"
+              examples:
+                executing:
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      taskId: exp_20260513_000001
+                      taskCode: purchase-order-export
+                      subsystemCode: purchase
+                      status: EXECUTING
+                      totalCount: 100000
+                      processedCount: 20000
+                      progressPercent: 20.0
+                      fileFormat: ZIP
+                      attemptNo: 1
+                      requestId: req-20260513-0001
+                      requestDigest: sha256:request-digest
+                      configSnapshotDigest: sha256:config-digest
+                      createdBy: u001
+                      createdAt: "2026-05-13T10:00:00+08:00"
+                      updatedAt: "2026-05-13T10:05:00+08:00"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/tasks/{taskId}/download:
+    get:
+      tags: [ExportTasks]
+      summary: Download exported file
+      description: |
+        The default mode returns a signed URL and file metadata. Stream delivery
+        is represented by application/octet-stream and equivalent metadata headers.
+      operationId: downloadExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+        - name: mode
+          in: query
+          schema:
+            $ref: "#/components/schemas/DeliveryMode"
+            default: SIGNED_URL
+      responses:
+        "200":
+          description: Signed URL response or file stream.
+          headers:
+            X-Export-File-Name:
+
+ succeeded in 1007ms:
+
+    Directory: E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-001-5d503cc953f643
+b29cde308e1079b56e
+
+[32;1mMode [0m[32;1m       LastWriteTime[0m[32;1m Length[0m[32;1m Name[0m
+[32;1m---- [0m [32;1m      -------------[0m [32;1m------[0m [32;1m----[0m
+-a---  2026/5/13    21:46 245168 CONTRACT-001-20260513-214121-codex-error.log
+-a---  2026/5/13    21:46   1739 CONTRACT-001-20260513-214121-codex-final.txt
+-a---  2026/5/13    21:46   2865 CONTRACT-001-20260513-214121-codex-output.log
+-a---  2026/5/13    21:41   7869 CONTRACT-001-20260513-214121-prompt.txt
+-a---  2026/5/13    21:48 211879 CONTRACT-001-stage1-20260513-214620-codex-error.log
+-a---  2026/5/13    21:48    802 CONTRACT-001-stage1-20260513-214620-codex-final.txt
+-a---  2026/5/13    21:48   1924 CONTRACT-001-stage1-20260513-214620-codex-output.log
+-a---  2026/5/13    21:46   7136 CONTRACT-001-stage1-20260513-214620-prompt.txt
+-a---  2026/5/13    21:49   6592 CONTRACT-001-stage2-20260513-214855-codex-error.log
+-a---  2026/5/13    21:48      0 CONTRACT-001-stage2-20260513-214855-codex-output.log
+-a---  2026/5/13    21:48   4832 CONTRACT-001-stage2-20260513-214855-prompt.txt
+-a---  2026/5/13    21:48    816 CONTRACT-001-test-20260513-214855.log
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath '.agents\\skills\\code-review\\SKILL.md' -TotalCount 220" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 741ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+codex
+验证摘要里出现了 `Resolve-Path ... diff`，这会直接影响测试证据可信度。我会复跑原命令和拆分后的等价命令，区分“契约 lint 通过”和“组合验证命令是否真的覆盖 git diff”。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'traces\\CONTRACT-001-5d503cc953f643b29cde308e1079b56e\\CONTRACT-001-test-20260513-214855.log'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'traces\\CONTRACT-001-5d503cc953f643b29cde308e1079b56e\\CONTRACT-001-20260513-214121-codex-final.txt'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'traces\\CONTRACT-001-5d503cc953f643b29cde308e1079b56e\\CONTRACT-001-stage1-20260513-214620-codex-final.txt'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline --decorate -1 HEAD' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 705ms:
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已复核 `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md`，现有契约已覆盖本任务要求的创建、详情、历史、下载、取消、重试、注册/启停/配置接口。
+- 对外状态仅包含 `PENDING / EXECUTING / COMPLETED / FAILED / CANCELED / EXPIRED`，未暴露内部取消状态。
+- 本轮未产生文件改动；契约验证已通过。
+
+## Files Changed
+- none，本轮仅验证现有产物。
+
+## Validation
+- `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"`: PASS - `git diff --check` 通过，Redocly 校验 `contracts/openapi.yaml` 有效。
+
+## Evidence
+- `contracts/openapi.yaml`: API、状态枚举、错误码、请求/响应样例契约。
+- `contracts/README.md`: 契约分区、错误码表、验证入口。
+- `docs/testing/verify-matrix.md`: CONTRACT-001 验证入口和后续 blocked-by-contract 说明。
+- `plans/features/export-platform.dev-plan.md`: 后续契约、测试和实现任务拆分。
+
+## Knowledge References
+- none：本轮读取了 `docs/knowledge/knowledge-catalog.md` 和 `docs/knowledge/catalog.md`，未引用新的完整知识条目。
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 当前仓库仍无业务实现和测试工程，后续 backend / scheduler / query / file / sample 验证仍需在实现任务中落地。
+- Driver Context 禁止本轮执行 `git add/commit/push`，且本轮无文件改动可提交。
+
+ succeeded in 694ms:
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+
+已复核 `docs/product/*`、`docs/testing/*`、`plans/features/export-platform.dev-plan.md`、`contracts/README.md` 和 `contracts/openapi.yaml`。CONTRACT-001 覆盖 FR-001/002/003/004/007/008/009/010/012/013 的 API、注册配置、状态和错误码契约；未发现内部 `cancel_requested` 暴露为正式任务状态。
+
+验证命令已通过：`git diff --check`、`npx --yes @redocly/cli lint contracts/openapi.yaml`。本任务非 UI 任务，`frontend_scope: none`，视觉还原闸门不适用。
+
+ succeeded in 798ms:
+Resolve-Path : Cannot find path 'diff' because it does not exist.
+At E:\2026\alpha-project\longgang-codex-driver\verify.ps1:274 char:25
++ $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (diff:String) [Resolve-Path], ItemNotFoundExce 
+   ption
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.ResolvePathCommand
+ 
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+System.Management.Automation.RemoteException
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 155ms
+System.Management.Automation.RemoteException
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+
+ succeeded in 891ms:
+b2a2b86 (HEAD -> master) fix(contract): make contract test command driver safe
+ contracts/README.md                                |    2 +-
+ docs/testing/verify-matrix.md                      |    2 +-
+ plans/features/export-platform.dev-plan.md         |    2 +-
+ progress.txt                                       |   14 +
+ task.json                                          |    2 +-
+ traces/CONTRACT-001-20260513-213902.json           |  290 ++
+ .../CONTRACT-001-20260513-213304-codex-error.log   | 3763 ++++++++++++++++++++
+ .../CONTRACT-001-20260513-213304-codex-final.txt   |   34 +
+ .../CONTRACT-001-20260513-213304-codex-output.log  |   46 +
+ .../CONTRACT-001-20260513-213304-prompt.txt        |  199 ++
+ ...RACT-001-stage1-20260513-213626-codex-error.log | 3698 +++++++++++++++++++
+ ...RACT-001-stage1-20260513-213626-codex-final.txt |   15 +
+ ...ACT-001-stage1-20260513-213626-codex-output.log |   28 +
+ .../CONTRACT-001-stage1-20260513-213626-prompt.txt |  171 +
+ .../CONTRACT-001-test-20260513-213902.log          |    8 +
+ 15 files changed, 8270 insertions(+), 4 deletions(-)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "CONTRACT-001|verify.ps1|redocly|git diff --check|Commands" contracts/README.md docs/testing/verify-matrix.md plans/features/export-platform.dev-plan.md task.json verify.ps1' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'contracts\\README.md' -TotalCount 260" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'docs\\testing\\verify-matrix.md' -TotalCount 240" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'task.json' -TotalCount 220" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 850ms:
+verify.ps1:3:  [string[]]$Commands = @("git diff --check"),
+verify.ps1:117:  $relativeExpectedPath = "scripts\harness\hook-stop-verify.ps1"
+verify.ps1:123:  $templateScript = Join-Path $Root "docs\codex-harness-engineering\templates\hooks\hook-stop-verify.ps1"
+verify.ps1:130:  return $bootstrapText.Contains('hooks\hook-stop-verify.ps1') -and $bootstrapText.Contains('scripts\harness\hook-stop-verify.ps1')
+verify.ps1:173:    "verify.ps1",
+verify.ps1:175:    "docs\codex-harness-engineering\templates\hooks\hook-stop-verify.ps1"
+verify.ps1:230:      if ($relativePath.EndsWith("templates\runtime\verify.ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+verify.ps1:276:foreach ($command in $Commands) {
+task.json:125:                      "test_command":  "git diff --check",
+task.json:200:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:266:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:274:                      "id":  "CONTRACT-001",
+task.json:331:                      "test_command":  "powershell -NoProfile -Command \".\\verify.ps1 -Commands \u0027git diff --check\u0027; npx --yes @redocly/cli lint contracts/openapi.yaml\"",
+task.json:353:                                           "CONTRACT-001"
+task.json:396:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:458:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:524:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:588:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:658:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+task.json:736:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+task.json:793:                      "test_command":  "git diff --check",
+plans/features/export-platform.dev-plan.md:19:| P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | CONTRACT-001 已落 `contracts/openapi.yaml`；FR-001/002/003/004/007/008/009/010/012/013 先验收 |
+plans/features/export-platform.dev-plan.md:42:| T1 契约总入口 | P1 | CONTRACT-001 已复核并扩展 `contracts/README.md`，落地 `contracts/openapi.yaml`，先定住 FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 的接口、状态和错误码；创建成功响应必须显式返回 `idempotencyScope` |
+plans/features/export-platform.dev-plan.md:58:1. `git diff --check`
+plans/features/export-platform.dev-plan.md:94:- 任务 A：已由 CONTRACT-001 复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001/002/003/004/007/008/009/010/012/013 的接口、状态、错误码和注册配置契约，包含 FR-002 的查询进度/详情路径，以及创建成功响应的 `idempotencyScope` 证据字段。
+plans/features/export-platform.dev-plan.md:108:## 8.1 CONTRACT-001 契约验证入口
+plans/features/export-platform.dev-plan.md:113:powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
+plans/features/export-platform.dev-plan.md:116:后续测试骨架任务可把当前 `npx --yes @redocly/cli lint contracts/openapi.yaml` 封装为 `npm run test:contract`，并继续保留 `docs/testing/verify-matrix.md` 中的 `contract-openapi` 证据入口。
+contracts/README.md:65:## 3.3 CONTRACT-001 已落地契约
+contracts/README.md:143:powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
+docs/testing/verify-matrix.md:4:**任务 ID**: CONTRACT-001
+docs/testing/verify-matrix.md:7:> 当前文件用于补齐分析和契约阶段的验证入口。当前仓库无应用代码，因此后端、调度、查询、文件和样板验证仍应标记为 `planned` 或 `blocked-by-contract`，不得伪装成已存在的 `src` 测试。CONTRACT-001 已落地 `contracts/openapi.yaml` 作为对外 API 与错误码契约锚点。
+docs/testing/verify-matrix.md:17:| 契约验证入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"` | 必需 | current-command-defined | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md` |
+docs/testing/verify-matrix.md:20:| 静态检查 | FR-001 - FR-014 | `git diff --check` | 必需 | PASS / FAIL | `traces/` |
+docs/testing/verify-matrix.md:24:- `contract-static`: `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`，当前用于校验契约和文档改动无 diff 空白错误。
+docs/testing/verify-matrix.md:25:- `contract-openapi`: `npx --yes @redocly/cli lint contracts/openapi.yaml`，当前用于校验 OpenAPI 结构、引用和响应绑定；后续可封装为 `npm run test:contract`。
+docs/testing/verify-matrix.md:56:- CONTRACT-001 只负责补齐对外 API、注册配置、状态和错误码契约，不把后端、调度、文件或样板测试伪装成已存在实现。
+
+ succeeded in 733ms:
+# Contracts 目录约定：统一导出平台
+
+**Feature ID**: `FEAT-EXPORT-PLATFORM-001`
+**最后更新**: 2026-05-13
+
+## 1. 目录目标
+
+`contracts/` 是统一导出平台的契约入口目录。这里先固定 API、scheduler、query、file、audit 和 sample 的契约边界，再进入实现与测试。
+
+## 2. 目录结构
+
+```text
+contracts/
+  README.md
+  openapi.yaml
+  api/
+  scheduler/
+  query/
+  file/
+  audit/
+  sample/
+```
+
+## 3. 契约分区
+
+| 目录 | 约定内容 | 覆盖需求 |
+| --- | --- | --- |
+| `contracts/api/` | 创建、查询详情、查询历史、下载、取消、重试、注册启停接口 | FR-001, FR-002, FR-004, FR-007, FR-012, FR-013 |
+| `contracts/scheduler/` | DB 抢锁、租约、续租、接管、并发控制、批次检查点 | FR-005, FR-013 |
+| `contracts/query/` | 参数 schema、查询模板、字段映射、脱敏策略、数据范围、游标分页 | FR-006, FR-008, FR-009, FR-014 |
+| `contracts/file/` | 临时对象、发布对象、checksum、下载元信息、清理前置标记 | FR-003, FR-006, FR-011 |
+| `contracts/audit/` | 创建、调度、执行、下载、取消、重试、清理审计事件 | FR-010, FR-013 |
+| `contracts/sample/` | 采购订单样板查询条件、字段顺序、脱敏和压测证据 | FR-014 |
+
+## 3.1 ARCH-001 架构锚点
+
+后续契约文件必须和 `docs/context/architecture-brief.md` 的统一架构决策保持一致，尤其是以下跨模块术语和证据字段：
+
+| 架构锚点 | 必须进入的契约分区 | 最小字段 / 行为 |
+| --- | --- | --- |
+| 创建幂等 | `contracts/api/` | `clientRequestId`、成功响应 `idempotencyScope=tenantId+operatorId+taskCode+clientRequestId`、`requestDigest`、`IDEMPOTENCY_CONFLICT` |
+| 配置快照 | `contracts/api/`、`contracts/query/` | `configSnapshotDigest`、`datasourceCode`、`queryTemplateVersion`、`parameterSchemaDigest`、`fieldMappingDigest`、`maskingPolicyDigest` |
+| DB 抢锁 | `contracts/scheduler/` | `lockOwner`、`lockExpireAt`、`leaseRenewedAt`、数据库时间、5 分钟默认租约 |
+| 执行尝试 | `contracts/api/`、`contracts/scheduler/`、`contracts/audit/` | `attemptNo`、FAILED 重试递增、锁接管不递增、同任务同一时刻一个活跃尝试 |
+| 批次检查点 | `contracts/scheduler/`、`contracts/query/` | `lastCursor`、`processedCount`、`filePartNo`、`attemptNo`、`retryCount`、`backoffMs` |
+| 认证上下文 | `contracts/api/`、`contracts/query/` | `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`，并叠加数据范围约束 |
+| 文件发布 | `contracts/file/` | `tempStorageKey`、`publishedStorageKey`、`checksum`、`checksumAlgorithm`、`checksumVerifiedAt`、`publishedAt`、`deliveryReadyAt` |
+| 清理顺序 | `contracts/file/` | 先标记不可下载，再删除对象；失败保留可重试记录 |
+| 审计链路 | `contracts/audit/` | `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId`、发生时间 |
+| 采购订单样板 | `contracts/sample/`、`contracts/query/`、`contracts/file/` | `taskCode=purchase-order-export`、`subsystemCode=purchase`、`cursorField=orderId`、敏感字段脱敏、`0/1/20000/20001/100000/100001` 行边界 |
+
+## 3.2 后续 owned paths 依据
+
+`contracts/README.md` 是当前已存在的契约入口。后续任务创建新文件时，应按能力分区声明 owned paths：
+
+- 对外 API：`contracts/openapi.yaml`、`contracts/api/`
+- 调度锁与执行尝试：`contracts/scheduler/`
+- 集中查询、参数 schema、字段映射和脱敏：`contracts/query/`
+- 文件临时对象、发布、下载和清理前置标记：`contracts/file/`
+- 审计动作和阶段事件：`contracts/audit/`
+- 采购订单样板合同：`contracts/sample/`
+
+实现层和测试层的真实路径由 `plans/features/export-platform.dev-plan.md` 继续约束：契约先行，其次 `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/`，最后才创建对应 `src/*` 模块。
+
+## 3.3 CONTRACT-001 已落地契约
+
+`contracts/openapi.yaml` 是当前统一导出平台的对外 API 和错误码锚点，覆盖 `FR-001`、`FR-002`、`FR-003`、`FR-004`、`FR-007`、`FR-008`、`FR-009`、`FR-010`、`FR-012`、`FR-013`。
+
+| 接口 | 方法 | 覆盖需求 | 关键契约 |
+| --- | --- | --- | --- |
+| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、成功响应 `idempotencyScope`、`requestDigest`、`configSnapshotDigest` |
+| `/api/export/tasks` | `GET` | FR-004 / FR-009 / FR-010 | 正式筛选维度、普通用户仅本人、管理员按权限全局查询 |
+| `/api/export/tasks/{taskId}` | `GET` | FR-002 / FR-010 | 详情、进度、失败错误码、批次检查点和文件元信息 |
+| `/api/export/tasks/{taskId}/download` | `GET` | FR-003 / FR-009 / FR-010 | 签名 URL、stream 元信息、文件校验、过期与权限失败 |
+| `/api/export/tasks/{taskId}/cancel` | `POST` | FR-012 / FR-010 | PENDING 取消、EXECUTING 批次边界取消；不暴露内部取消状态 |
+| `/api/export/tasks/{taskId}/retry` | `POST` | FR-012 / FR-013 / FR-010 | 仅 FAILED 可重试，沿用 `taskId` 和配置快照，递增 `attemptNo` |
+| `/api/export/registries` | `POST` / `GET` | FR-007 / FR-008 / FR-009 | 注册创建、查询、并发、保留期、阈值、格式、查询模板和字段映射 |
+| `/api/export/registries/{taskCode}` | `GET` / `PUT` | FR-007 / FR-008 / FR-013 | 配置详情、更新与新任务快照口径 |
+| `/api/export/registries/{taskCode}/enable` | `POST` | FR-007 | 启用注册配置 |
+| `/api/export/registries/{taskCode}/disable` | `POST` | FR-007 | 禁用注册配置，创建阶段返回 `TASK_DISABLED` |
+
+## 3.4 对外状态和错误码
+
+对外任务状态只能使用 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`。执行中取消意图只能通过动作响应字段表达，不得作为任务状态返回。
+
+| 错误码 | 默认 HTTP 状态 | 场景 |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | 参数校验失败 |
+| `AUTH_CONTEXT_MISSING` | 401 | 缺少 `operatorId`、`tenantId`、`roleCodes`、`orgScope` 或 `requestId` |
+| `PERMISSION_DENIED` | 403 | 创建、查询、下载或配置操作无权限 |
+| `TASK_NOT_FOUND` | 404 | 任务不存在或对当前用户不可见 |
+| `TASK_NOT_REGISTERED` | 404 | `taskCode` 未注册 |
+| `TASK_DISABLED` | 400 | `taskCode` 已禁用 |
+| `QUERY_PARAMS_TOO_LARGE` | 400 | `queryParams` 超过 32KB 默认限制 |
+| `IDEMPOTENCY_CONFLICT` | 409 | 相同幂等范围但参数摘要不同 |
+| `INVALID_TASK_STATE` | 400 | 当前状态不允许下载、取消或重试 |
+| `ACTIVE_ATTEMPT_CONFLICT` | 409 | 已存在活跃执行尝试 |
+| `FILE_EXPIRED` | 410 | 文件已过期或已标记不可下载 |
+| `FILE_NOT_READY` | 400 | 文件未发布或任务尚未完成 |
+| `FILE_VERIFY_ERROR` | 500 | OSS 上传、元信息或校验失败 |
+| `QUERY_TEMPLATE_INVALID` | 500 | 查询模板不存在、不合法或与快照冲突 |
+| `DATASOURCE_UNAVAILABLE` | 500 | 数据源或凭证不可用 |
+| `QUERY_EXECUTION_ERROR` | 500 | 查询执行失败、批次重试耗尽或游标异常 |
+| `FIELD_MAPPING_INVALID` | 500 | 字段映射、字段顺序或字段白名单不合法 |
+| `MASKING_RULE_ERROR` | 500 | 脱敏策略配置或执行失败 |
+| `EXPORT_RENDER_ERROR` | 500 | XLSX/ZIP 渲染失败 |
+| `EXPORT_LIMIT_EXCEEDED` | 400 | 超过默认或配置化最大导出量 |
+| `REGISTRY_CONFLICT` | 409 | 注册 `taskCode` 冲突 |
+| `INTERNAL_ERROR` | 500 | 未分类服务端错误 |
+
+## 4. 契约编写规则
+
+1. `openapi.yaml` 只放对外 API 的正式入口和状态/错误码锚点。
+2. 分区目录里的契约文件按能力拆分，不把所有场景塞进单个大文件。
+3. 每个契约必须能回指到至少一个 Requirement ID 和一个验收入口。
+4. API 契约、scheduler 契约、query 契约、file 契约、audit 契约和 sample 契约必须保持同一组术语，尤其是 `attemptNo`、`configSnapshotDigest`、`batchCheckpoint`、`storageKey`、`requestId`。
+5. 文件发布契约必须明确临时对象和已发布对象的边界，避免下载接口误暴露未发布对象。
+6. query 契约必须明确禁止原始 SQL，只允许参数化模板和参数 schema 绑定。
+7. scheduler 契约必须明确数据库时间、锁租约和接管规则，不允许依赖本机时间。
+
+## 5. 文件命名建议
+
+| 类型 | 命名建议 | 示例 |
+| --- | --- | --- |
+| API 契约 | `*.openapi.yaml` 或 `*.md` | `contracts/api/export-tasks.openapi.yaml` |
+| Scheduler 契约 | `*.md` | `contracts/scheduler/lease-and-lock.md` |
+| Query 契约 | `*.md` 或 `*.schema.json` | `contracts/query/template-and-mapping.md` |
+| File 契约 | `*.md` | `contracts/file/publish-and-download.md` |
+| Audit 契约 | `*.md` | `contracts/audit/task-events.md` |
+| Sample 契约 | `*.md` | `contracts/sample/purchase-order-export.md` |
+
+## 6. 使用顺序
+
+1. 先补 `contracts/openapi.yaml`，锚定对外 API。
+2. 再按 `api/`、`scheduler/`、`query/`、`file/`、`audit/`、`sample/` 分区补齐契约说明。
+3. 契约定稿后，测试目录按同名能力分区创建，保证测试层和契约层可一一对应。
+
+## 6.1 验证入口
+
+当前任务的最小验证命令为：
+
+```powershell
+powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
+```
+
+后续创建 Node 或契约测试工程后，应把 OpenAPI 校验固化为 package script，例如：
+
+```powershell
+powershell -NoProfile -Command "npm run test:contract"
+```
+
+## 7. 约束
+
+- 不在 `contracts/` 里写实现代码。
+- 不用 `contracts/` 替代 `docs/testing/` 的追溯矩阵和验证矩阵。
+- 不把样板契约写成平台特例接口，样板必须复用标准平台契约。
+
+warning: in-process app-server event stream lagged; dropped 49 events
+ succeeded in 769ms:
+{
+    "runtime":  {
+                    "driver":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+                    "trace_dir":  "traces",
+                    "agent":  "codex",
+                    "run_profile":  ".codex\\task-run-profile.json",
+                    "git":  {
+                                "require_clean_workspace":  true,
+                                "non_blocking_dirty_paths":  [
+                                                                 "traces/"
+                                                             ]
+                            },
+                    "session":  {
+                                    "mode":  "fresh-process",
+                                    "carry_forward_summary":  false
+                                },
+                    "handoff":  {
+                                    "feature_id":  "FEAT-EXPORT-PLATFORM-001",
+                                    "truth_sources":  {
+                                                          "product":  [
+                                                                          "docs/product/prd-lite.md",
+                                                                          "docs/product/page-inventory.md",
+                                                                          "docs/product/difficulty-research.md",
+                                                                          "docs/product/acceptance-criteria.md",
+                                                                          "docs/product/requirement-interface-matrix.md",
+                                                                          "docs/product/state-matrix.yaml"
+                                                                      ],
+                                                          "testing":  {
+                                                                          "current_entry":  "docs/testing/verify-matrix.md",
+                                                                          "analysis_outputs":  [
+                                                                                                   "docs/testing/ACCEPTANCE_CRITERIA.md",
+                                                                                                   "docs/testing/ACCEPTANCE_EXAMPLES.md",
+                                                                                                   "docs/testing/TRACEABILITY_MATRIX.md",
+                                                                                                   "docs/testing/TEST_DATA_MATRIX.md",
+                                                                                                   "docs/testing/test-matrix.md"
+                                                                                               ]
+                                                                      }
+                                                      },
+                                    "future_entries":  {
+                                                           "plan":  "plans/features/export-platform.dev-plan.md"
+                                                       },
+                                    "driver_boundary":  {
+                                                            "queue_entry":  "task.json",
+                                                            "execution_mode":  "single",
+                                                            "managed_scope":  "Driver 只执行 tasks[] 中声明且 execution.mode=single 的正式任务。",
+                                                            "excluded_scope":  [
+                                                                                   "仅存在于聊天上下文的需求补充",
+                                                                                   "模板占位任务",
+                                                                                   "前端视觉设计类任务"
+                                                                               ]
+                                                        }
+                                },
+                    "subagents":  {
+                                      "mode":  "guided",
+                                      "allowed_roles":  [
+                                                            "explorer",
+                                                            "readonly-research",
+                                                            "docs-researcher",
+                                                            "planner",
+                                                            "architect",
+                                                            "reviewer",
+                                                            "stage1-reviewer",
+                                                            "stage2-reviewer",
+                                                            "security-reviewer",
+                                                            "test-planner",
+                                                            "failure-triage",
+                                                            "visual-reviewer",
+                                                            "harness-writer",
+                                                            "docs-worker",
+                                                            "frontend-worker",
+                                                            "backend-worker",
+                                                            "test-runner"
+                                                        ],
+                                      "max_parallel_roles":  3
+                                  }
+                },
+    "tasks":  [
+                  {
+                      "id":  "INIT-001",
+                      "description":  "锁定统一导出平台的产品真相源、计划入口、测试矩阵入口和 driver 接管边界",
+                      "task_kind":  "feature_plan",
+                      "phase":  "handoff",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product"
+                                                 ],
+                      "priority":  1,
+                      "dependencies":  [
+
+                                       ],
+                      "passes":  true,
+                      "context_files":  [
+                                            "AGENTS.md",
+                                            "project-task-template.json",
+                                            "docs/harness/task-session-strategy.md",
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/page-inventory.md",
+                                            "docs/product/difficulty-research.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/product/requirement-interface-matrix.md",
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "task.json",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "确认 runtime.handoff.truth_sources.product 中列出的统一导出平台产品真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
+                                    "锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks",
+                                    "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围"
+                                ],
+                      "test_command":  "git diff --check",
+                      "acceptance":  [
+                                         "task.json 成为统一导出平台的正式 driver 队列入口",
+                                         "首轮 driver 可在不补充聊天上下文的前提下识别真实 truth source、计划入口和测试入口",
+                                         "任务队列不保留功能标识占位符、需求编号替换占位符、领域示例占位文本或前端视觉设计类任务"
+                                     ]
+                  },
+                  {
+                      "id":  "ANALYSIS-001",
+                      "description":  "补齐统一导出平台的分析材料、测试左移矩阵和实现落点探测",
+                      "task_kind":  "feature_research",
+                      "phase":  "analysis",
+                      "gate_profile":  "research_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "testing"
+                                                 ],
+                      "priority":  5,
+                      "dependencies":  [
+                                           "INIT-001"
+                                       ],
+                      "passes":  true,
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/page-inventory.md",
+                                            "docs/product/difficulty-research.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/product/requirement-interface-matrix.md",
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/testing/ACCEPTANCE_CRITERIA.md",
+                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+                                            "docs/testing/TRACEABILITY_MATRIX.md",
+                                            "docs/testing/TEST_DATA_MATRIX.md",
+                                            "docs/testing/test-matrix.md",
+                                            "docs/testing/verify-matrix.md"
+                                        ],
+                      "owned_paths":  [
+                                          "docs/context/",
+                                          "docs/testing/",
+                                          "plans/features/"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docs/context/feature-pack.md",
+                                                 "docs/context/repo-map.md",
+                                                 "docs/context/architecture-brief.md",
+                                                 "docs/testing/TRACEABILITY_MATRIX.md",
+                                                 "docs/testing/TEST_DATA_MATRIX.md",
+                                                 "docs/testing/test-matrix.md",
+                                                 "docs/testing/verify-matrix.md",
+                                                 "plans/features/export-platform.dev-plan.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "把产品需求、状态矩阵、接口矩阵和难点研究映射为可执行的测试左移材料、风险边界和证据路径",
+                                    "探测仓库中可承接后端实现、契约、测试和样板合同的真实目录，如果应用代码目录尚未存在则先落 plans、docs/testing、contracts 或 docs/context 的实施前置文档",
+                                    "补齐后续实现任务要依赖的 repo-map、feature-pack、architecture-brief 和 verify-matrix，明确每个 requirement 的验收命令与证据入口"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027git diff --check\u0027)",
+                      "acceptance":  [
+                                         "分析与测试左移文档能支持后续架构、契约和实现任务直接执行",
+                                         "repo 落点探测结果已明确哪些目录可写、哪些目录需先创建，不把不存在的 src 路径当作唯一 owned_paths",
+                                         "FR-001 至 FR-014 已在追溯矩阵、测试数据矩阵和 verify-matrix 中建立可回溯入口"
+                                     ]
+                  },
+                  {
+                      "id":  "ARCH-001",
+                      "description":  "输出统一导出平台的后端架构、模块边界和实现落点方案",
+                      "task_kind":  "feature_design",
+                      "phase":  "architecture",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "repo_context",
+                                                     "testing",
+                                                     "plan"
+                                                 ],
+                      "priority":  10,
+                      "dependencies":  [
+
+ succeeded in 822ms:
+# 验证矩阵
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**任务 ID**: CONTRACT-001
+**生成时间**: 2026-05-13
+
+> 当前文件用于补齐分析和契约阶段的验证入口。当前仓库无应用代码，因此后端、调度、查询、文件和样板验证仍应标记为 `planned` 或 `blocked-by-contract`，不得伪装成已存在的 `src` 测试。CONTRACT-001 已落地 `contracts/openapi.yaml` 作为对外 API 与错误码契约锚点。
+
+| 检查项 | 关联需求 | 命令 / 证据 | 必需 | 退出码 / 结论 | 报告路径 |
+| --- | --- | --- | --- | --- | --- |
+| 产品真相源对齐 | FR-001 / FR-014 | `docs/product/prd-lite.md`、`page-inventory.md`、`difficulty-research.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 必需 | planned | `docs/testing/TRACEABILITY_MATRIX.md` |
+| 需求追溯矩阵 | FR-001 - FR-014 | `docs/testing/TRACEABILITY_MATRIX.md` | 必需 | planned | `docs/testing/TRACEABILITY_MATRIX.md` |
+| 测试数据矩阵 | FR-001 - FR-014 | `docs/testing/TEST_DATA_MATRIX.md` | 必需 | planned | `docs/testing/TEST_DATA_MATRIX.md` |
+| 测试计划矩阵 | FR-001 - FR-014 | `docs/testing/test-matrix.md` | 必需 | planned | `docs/testing/test-matrix.md` |
+| 验收示例索引 | FR-001 - FR-014 | `docs/testing/ACCEPTANCE_EXAMPLES.md` | 必需 | planned | `docs/testing/ACCEPTANCE_EXAMPLES.md` |
+| OpenAPI 契约定义 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `contracts/openapi.yaml`、`contracts/README.md` | 必需 | contract-defined | `contracts/openapi.yaml`、`contracts/README.md` |
+| 契约验证入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"` | 必需 | current-command-defined | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md` |
+| 后端验证占位 | FR-001 / FR-002 / FR-004 / FR-005 / FR-006 / FR-007 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | 后端单测、集成测、调度测、查询测、文件测、样板测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
+| 文件与样板验证占位 | FR-003 / FR-006 / FR-011 / FR-014 | 文件发布校验、ZIP 打包、过期清理、采购订单样板压测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
+| 静态检查 | FR-001 - FR-014 | `git diff --check` | 必需 | PASS / FAIL | `traces/` |
+
+## 计划中的验证命令占位
+
+- `contract-static`: `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`，当前用于校验契约和文档改动无 diff 空白错误。
+- `contract-openapi`: `npx --yes @redocly/cli lint contracts/openapi.yaml`，当前用于校验 OpenAPI 结构、引用和响应绑定；后续可封装为 `npm run test:contract`。
+- `backend`: `powershell -NoProfile -Command "npm run test:backend"` 或等价后端单测命令。
+- `scheduler`: `powershell -NoProfile -Command "npm run test:scheduler"` 或等价调度测试命令。
+- `query`: `powershell -NoProfile -Command "npm run test:query"` 或等价查询测试命令。
+- `file`: `powershell -NoProfile -Command "npm run test:file"` 或等价文件校验命令。
+- `sample`: `powershell -NoProfile -Command "npm run test:sample"` 或等价采购订单样板测试命令。
+- `verify`: `powershell -NoProfile -Command "npm run test:verify"` 或等价整体验证命令，待实现任务定义后补充。
+- 以上命令仅为后续占位，不表示当前仓库已存在对应脚本或 package scripts。
+
+## Requirement 验证入口
+
+| Req ID | 后续验证类型 | 占位命令 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- | --- |
+| FR-001 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr001"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-002 | contract / backend / query | `powershell -NoProfile -Command "npm run test:export-platform:fr002"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md`、`traces/` |
+| FR-003 | contract / file | `powershell -NoProfile -Command "npm run test:export-platform:fr003"` | contract-defined / file-blocked | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-004 | contract / backend / query | `powershell -NoProfile -Command "npm run test:export-platform:fr004"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-005 | backend / scheduler | `powershell -NoProfile -Command "npm run test:export-platform:fr005"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`contracts/`、`tests/`、`traces/` |
+| FR-006 | backend / sample | `powershell -NoProfile -Command "npm run test:export-platform:fr006"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-007 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr007"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-008 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr008"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-009 | contract / backend / auth | `powershell -NoProfile -Command "npm run test:export-platform:fr009"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-010 | contract / backend / audit | `powershell -NoProfile -Command "npm run test:export-platform:fr010"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-011 | backend / file | `powershell -NoProfile -Command "npm run test:export-platform:fr011"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-012 | contract / backend / state-machine | `powershell -NoProfile -Command "npm run test:export-platform:fr012"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-013 | contract / backend | `powershell -NoProfile -Command "npm run test:export-platform:fr013"` | contract-defined / backend-blocked | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+| FR-014 | sample / pressure | `powershell -NoProfile -Command "npm run test:export-platform:fr014"` | blocked-by-contract | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`tests/`、`traces/` |
+
+## 最终规则
+
+- ANALYSIS-001 只负责补齐追溯、测试数据、测试计划和验证占位，不把占位命令伪装成可执行实现。
+- CONTRACT-001 只负责补齐对外 API、注册配置、状态和错误码契约，不把后端、调度、文件或样板测试伪装成已存在实现。
+- 后续实现任务必须从本矩阵推导 `affected tests`、证据路径和契约路径。
+- release 前每个必需项都要有 fresh evidence，或提供明确的 `BLOCKED - 需要人工介入` 记录。
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content -LiteralPath '"'verify.ps1' | ForEach-Object { "'$i++; if ($i -le 25 -or ($i -ge 260 -and $i -le 286)) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "powershell -NoProfile -Command \".\\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml\"" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npx --yes @redocly/cli lint contracts/openapi.yaml' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 830ms:
+   1: param(
+   2:   [string]$ProjectRoot = "",
+   3:   [string[]]$Commands = @("git diff --check"),
+   4:   [string[]]$HookConfigPaths = @()
+   5: )
+   6: 
+   7: Set-StrictMode -Version Latest
+   8: $ErrorActionPreference = "Stop"
+   9: 
+  10: if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+  11:   $ProjectRoot = $PSScriptRoot
+  12: }
+  13: 
+  14: function Invoke-VerificationCommand {
+  15:   param(
+  16:     [string]$Command,
+  17:     [string]$Root
+  18:   )
+  19: 
+  20:   Push-Location $Root
+  21:   try {
+  22:     Write-Output "Running: $Command"
+  23:     powershell -NoProfile -Command $Command
+  24:     if ($LASTEXITCODE -ne 0) {
+  25:       throw "验证失败，退出码 $($LASTEXITCODE): $Command"
+ 260:   if ($hasPackageSourceMarker -and -not $hasRefreshScript) {
+ 261:     throw "检测到 agent package source repo 标记，但缺少 refresh-agent-package.ps1，无法校验 freshness。"
+ 262:   }
+ 263: 
+ 264:   if (-not ($hasRefreshScript -and $hasPackageSourceMarker)) {
+ 265:     return
+ 266:   }
+ 267: 
+ 268:   & powershell -NoProfile -ExecutionPolicy Bypass -File $refreshScript -RepoRoot $Root -PackageRoot $packageRoot -CheckOnly | Out-Host
+ 269:   if ($LASTEXITCODE -ne 0) {
+ 270:     throw "agent package freshness 检查失败。"
+ 271:   }
+ 272: }
+ 273: 
+ 274: $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+ 275: 
+ 276: foreach ($command in $Commands) {
+ 277:   Invoke-VerificationCommand -Command $command -Root $resolvedProjectRoot
+ 278: }
+ 279: 
+ 280: Test-CodexHookCommandCompatibility -Root $resolvedProjectRoot -AdditionalPaths $HookConfigPaths
+ 281: Test-PowerShellSyntax -Root $resolvedProjectRoot
+ 282: Test-NoStaleFeedbackMcpReferences -Root $resolvedProjectRoot
+ 283: Invoke-AgentPackageFreshnessCheck -Root $resolvedProjectRoot
+ 284: 
+ 285: Write-Output "Verification passed."
+
+ succeeded in 4792ms:
+Running: git diff --check
+Verification passed.
+
+ succeeded in 8550ms:
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 165ms
+
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+
+ succeeded in 11524ms:
+Running: git diff --check
+Verification passed.
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 158ms
+
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |  |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`
+  - `npx --yes @redocly/cli lint contracts/openapi.yaml`
+- 结果摘要:
+  - 当前 tracked 工作区无 diff，仅有 `traces/CONTRACT-001-5d503cc953f643b29cde308e1079b56e/` 未跟踪 trace。
+  - fresh rerun 的组合验证命令退出码为 `0`，`git diff --check` 通过，Redocly 确认 `contracts/openapi.yaml` 有效。
+  - 用户提供的旧测试摘要中出现过 `Resolve-Path ... Cannot find path 'diff'`，但当前仓库命令复跑未复现；以本次 fresh evidence 为准。
+  - 未发现硬编码密钥、调试输出、无关 tracked 文件或明显维护性阻塞问题。
+  - CONTRACT-001 是契约任务，当前无业务实现测试；`docs/testing/verify-matrix.md` 已明确后端、调度、文件、样板测试为后续 `blocked-by-contract`，没有伪装成已通过实现测试。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+tokens used
+74,871

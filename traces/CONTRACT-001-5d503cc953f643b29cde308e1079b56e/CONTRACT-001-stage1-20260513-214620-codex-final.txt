@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+
+已复核 `docs/product/*`、`docs/testing/*`、`plans/features/export-platform.dev-plan.md`、`contracts/README.md` 和 `contracts/openapi.yaml`。CONTRACT-001 覆盖 FR-001/002/003/004/007/008/009/010/012/013 的 API、注册配置、状态和错误码契约；未发现内部 `cancel_requested` 暴露为正式任务状态。
+
+验证命令已通过：`git diff --check`、`npx --yes @redocly/cli lint contracts/openapi.yaml`。本任务非 UI 任务，`frontend_scope: none`，视觉还原闸门不适用。

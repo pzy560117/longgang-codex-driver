@@ -1,0 +1,15 @@
+﻿Resolve-Path : Cannot find path 'diff' because it does not exist.
+At E:\2026\alpha-project\longgang-codex-driver\verify.ps1:274 char:25
++ $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (diff:String) [Resolve-Path], ItemNotFoundExce 
+   ption
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.ResolvePathCommand
+ 
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+System.Management.Automation.RemoteException
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 155ms
+System.Management.Automation.RemoteException
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
