@@ -699,11 +699,10 @@
     {
       "id": "ARCHIVE-001",
       "description": "归档统一导出平台本轮交付知识与可复用规则候选",
-      "task_kind": "archive",
+      "task_kind": "harness",
       "phase": "archive",
       "gate_profile": "lightweight",
       "required_truth_sources": [
-        "knowledge",
         "testing"
       ],
       "priority": 90,
