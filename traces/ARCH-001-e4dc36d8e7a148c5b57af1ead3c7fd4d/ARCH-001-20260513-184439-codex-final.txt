@@ -1,0 +1,46 @@
+## Requirement IDs
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- FR-014
+
+## Summary
+- 已补齐统一导出平台后端架构边界：任务入口、注册配置、调度 worker、查询执行、文件交付、清理 job、审计链路和采购订单样板。
+- 已固化 DB 抢锁、`attemptNo`、配置快照、批次检查点、临时对象发布模型和认证上下文约束。
+- 已新增 `contracts/README.md`，为后续 API / scheduler / query / file / audit / sample 契约建立真实落点。
+- 按本次 Driver 强制边界，未执行 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- `docs/context/architecture-brief.md`: 补齐后端模块划分、关键实现落点、FR-005 至 FR-014 架构依据。
+- `plans/features/export-platform.dev-plan.md`: 补齐契约、测试、实现 owned paths 和实施顺序。
+- `contracts/README.md`: 新增契约入口、目录结构、分区规则和命名约定。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`: PASS - `Verification passed.`
+
+## Evidence
+- `docs/context/architecture-brief.md`: 证明后端模块边界、锁租约、配置快照、批次检查点、文件发布和审计链路已统一。
+- `plans/features/export-platform.dev-plan.md`: 证明后续契约、测试、实现 owned_paths 已有计划依据。
+- `contracts/README.md`: 证明 `contracts/` 入口和分区约定已建立。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 架构/计划产物需保留知识沉淀出口 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 约束架构和计划只写可执行边界 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 契约文件、测试骨架和后端实现仍属于后续任务。
+- 工作区已有未跟踪 `traces/ARCH-001-e4dc36d8e7a148c5b57af1ead3c7fd4d/`，本轮未修改。

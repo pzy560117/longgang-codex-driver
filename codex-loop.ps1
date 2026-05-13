@@ -1318,7 +1318,7 @@ function Get-ReviewVerdict {
   #>
   param([string]$Output)
 
-  $matches = [regex]::Matches($Output, '(?im)^\s*(?:Final\s+Verdict|Verdict)\s*[:：]\s*(PASS|FAIL)\b|^\s*[-*]\s*(PASS|FAIL)\b')
+  $matches = [regex]::Matches($Output, '(?im)^\s*(?:[-*]\s*)?(?:Final\s+Verdict|Verdict)\s*[:：]\s*(PASS|FAIL)\b|^\s*[-*]\s*(PASS|FAIL)\b')
   if ($matches.Count -gt 0) {
     $lastMatch = $matches[$matches.Count - 1]
     foreach ($group in $lastMatch.Groups) {

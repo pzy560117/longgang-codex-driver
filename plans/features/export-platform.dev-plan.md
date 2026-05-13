@@ -15,11 +15,11 @@
 | 阶段 | 目标 | 主要产物 | 依赖 | 验收顺序 |
 | --- | --- | --- | --- | --- |
 | P1 | 固定分析与测试左移材料 | `docs/context/*`、`docs/testing/*` | 产品真相源 | 最先 |
-| P2 | 创建契约骨架 | `contracts/openapi.yaml`、schema、错误码、状态矩阵 | P1 | FR-001/003/008/013/014 先验收 |
-| P3 | 创建测试骨架 | `tests/` 中契约、后端、调度、查询、文件、样板测试目录 | P2 | planned / blocked-by-contract 转为可执行 |
+| P2 | 创建契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | FR-001/003/005/008/013/014 先验收 |
+| P3 | 创建测试骨架 | `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | planned / blocked-by-contract 转为可执行 |
 | P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等 | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
 | P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
-| P6 | 实现 file-renderer 与 cleanup-job | 临时对象、发布、过期清理、下载保护 | P2/P3 | FR-003、FR-011 |
+| P6 | 实现 file-service 与 cleanup-job | 临时对象、发布、过期清理、下载保护 | P2/P3 | FR-003、FR-011 |
 | P7 | 实现 cancel/retry 和权限/脱敏 | 状态机、内部取消、权限和脱敏收口 | P2/P3 | FR-009、FR-012 |
 | P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P4/P5/P6/P7 | FR-014 |
 
@@ -29,32 +29,39 @@
 | --- | --- | --- |
 | 需求与测试文档 | `docs/context/`、`docs/testing/` | 已可直接写入 |
 | 开发计划 | `plans/features/export-platform.dev-plan.md` | 已创建 |
-| 契约 | `contracts/` | 后续创建 |
-| 测试 | `tests/` | 后续创建 |
-| 服务实现 | `src/` | 后续创建，不预设结构 |
+| 契约 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | 后续创建，按能力分区，不再只写一个空目录 |
+| 测试 | `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/` | 后续创建，目录名直接对应验证层 |
+| 服务实现 | `src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/query-executor/`、`src/file-service/`、`src/cleanup-job/`、`src/audit-log/`、`src/sample-purchase-order/` | 后续创建，按模块边界拆分，不预设单体目录 |
 | 共享抽象 | `packages/` | 仅在确有拆分需要时创建 |
 
 ## 4. 后续实现任务依赖
 
 | 任务 | 直接依赖 | 说明 |
 | --- | --- | --- |
-| T1 契约骨架 | P1 | 先把 FR-001 / FR-003 / FR-008 / FR-013 / FR-014 的接口、状态、错误码定住 |
-| T2 测试骨架 | P2 | contract / backend / scheduler / query / file / sample 的目录和基线测试先落 |
-| T3 task-api / registry-config | P2、P3 | 依赖创建、查询进度/详情、历史、下载、注册和配置快照契约；覆盖 FR-002 的查询入口 |
-| T4 scheduler / query-executor | P2、P3 | 依赖 DB lock、游标分页、批次事件和数据范围契约 |
-| T5 file-renderer / cleanup-job | P2、P3 | 依赖文件元信息、发布边界和过期清理契约 |
-| T6 cancel/retry / auth-mask | P2、P3 | 依赖状态机、认证上下文和脱敏契约 |
-| T7 purchase-order sample | P2、P3、T3、T4、T5、T6 | 依赖主链路稳定后再补样板压测和边界证据 |
+| T1 契约总入口 | P1 | 先把 `contracts/README.md`、目录约定和 FR-001 / FR-003 / FR-005 / FR-008 / FR-013 / FR-014 的接口、状态、错误码定住 |
+| T2 API 契约 | T1 | 先落 `contracts/api/`，覆盖创建、进度、历史、下载、取消、重试和注册接口 |
+| T3 scheduler 契约 | T1 | 再落 `contracts/scheduler/`，覆盖 DB 抢锁、租约、续租、接管、批次检查点 |
+| T4 query 契约 | T1 | 再落 `contracts/query/`，覆盖参数 schema、查询模板、字段映射、脱敏和数据范围 |
+| T5 file 契约 | T1 | 再落 `contracts/file/`，覆盖临时对象、发布、校验、下载元信息和清理前置标记 |
+| T6 audit 契约 | T1 | 再落 `contracts/audit/`，覆盖阶段事件、下载日志和失败原因串联 |
+| T7 sample 契约 | T1 | 再落 `contracts/sample/`，覆盖采购订单样板查询条件、字段顺序、脱敏和压测证据 |
+| T8 测试骨架 | T2-T7 | `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/` 先建立目录和基础用例 |
+| T9 task-api / registry-config | T2、T4、T6 | 依赖创建、查询进度/详情、历史、下载、注册和配置快照契约；覆盖 FR-002 的查询入口 |
+| T10 scheduler / query-executor | T3、T4、T6 | 依赖 DB lock、游标分页、批次事件和数据范围契约 |
+| T11 file-service / cleanup-job | T5、T6 | 依赖文件元信息、发布边界和过期清理契约 |
+| T12 cancel/retry / auth-mask | T2、T4、T6 | 依赖状态机、认证上下文和脱敏契约 |
+| T13 purchase-order sample | T7、T8、T9、T10、T11、T12 | 依赖主链路稳定后再补样板压测和边界证据 |
 
 ## 5. 验证顺序
 
 1. `git diff --check`
-2. 契约文件校验
-3. 契约测试
-4. 后端单测
-5. 调度和查询测试
-6. 文件生成与清理测试
-7. 采购订单样板压测和证据检查
+2. `contracts/` 目录结构与 README 约定校验
+3. 契约文件校验
+4. 契约测试
+5. 后端单测
+6. 调度和查询测试
+7. 文件生成与清理测试
+8. 采购订单样板压测和证据检查
 
 ## 6. 阶段输出
 
@@ -71,10 +78,11 @@
 
 ## 7. 后续实现任务建议
 
-- 任务 A：落 `contracts/openapi.yaml`，先固定 FR-001 至 FR-014 的接口、状态、错误码和样板契约，包含 FR-002 的查询进度/详情路径。
-- 任务 B：落 `tests/contract/`，为创建、查询、进度/详情、下载、注册、调度、文件和样板建立最小测试骨架。
-- 任务 C：落 `src/`，先完成 task-api、registry-config 和 scheduler 的最小可用链路。
-- 任务 D：补 query-executor 与 file-renderer，最后接 cleanup-job 和样板压测。
+- 任务 A：落 `contracts/README.md` 和 `contracts/openapi.yaml`，先固定 FR-001 至 FR-014 的接口、状态、错误码和样板契约，包含 FR-002 的查询进度/详情路径。
+- 任务 B：落 `contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/`，把能力分区和示例契约先锚住。
+- 任务 C：落 `tests/contract/`，为创建、查询、进度/详情、下载、注册、调度、文件和样板建立最小测试骨架。
+- 任务 D：落 `src/task-api/`、`src/registry-config/`、`src/scheduler/`，先完成主入口、注册配置和调度链路的最小可用实现。
+- 任务 E：补 `src/query-executor/` 与 `src/file-service/`，最后接 `src/cleanup-job/`、`src/audit-log/` 和样板压测。
 
 ## 8. 验收顺序说明
 
