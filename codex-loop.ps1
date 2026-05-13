@@ -1933,7 +1933,7 @@ function Invoke-OneTask {
 
   Write-Step "实现完成，开始 Stage 1 审查。"
   $stage1Prompt = New-Stage1ReviewPrompt -Task $task -Root $ProjectRoot -ExecutionPolicy $executionPolicy -ReviewContext $reviewContext
-  $stage1Result = Invoke-CodexTask -Prompt $stage1Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage1" -Sandbox "read-only" -ActivityLabel "Stage 1 审查" -CaptureJsonEvents:$CaptureJsonEvents
+  $stage1Result = Invoke-CodexTask -Prompt $stage1Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage1" -Sandbox "danger-full-access" -ActivityLabel "Stage 1 审查" -CaptureJsonEvents:$CaptureJsonEvents
   $stage1Verdict = Get-ReviewVerdict -Output $stage1Result.Output
   $stage1RecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $stage1Result.ExitCode -Output $stage1Result.Output -LastMessage $stage1Result.LastMessage
 
@@ -2066,7 +2066,7 @@ function Invoke-OneTask {
 
   Write-Step "测试通过，开始 Stage 2 审查。"
   $stage2Prompt = New-Stage2ReviewPrompt -Task $task -Root $ProjectRoot -ExecutionPolicy $executionPolicy -ReviewContext $reviewContext -TestResult $testResult
-  $stage2Result = Invoke-CodexTask -Prompt $stage2Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage2" -Sandbox "read-only" -ActivityLabel "Stage 2 审查" -CaptureJsonEvents:$CaptureJsonEvents
+  $stage2Result = Invoke-CodexTask -Prompt $stage2Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage2" -Sandbox "danger-full-access" -ActivityLabel "Stage 2 审查" -CaptureJsonEvents:$CaptureJsonEvents
   $stage2Verdict = Get-ReviewVerdict -Output $stage2Result.Output
   $stage2RecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $stage2Result.ExitCode -Output $stage2Result.Output -LastMessage $stage2Result.LastMessage
 
