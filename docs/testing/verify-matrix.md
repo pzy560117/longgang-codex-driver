@@ -12,6 +12,7 @@
 | 需求追溯矩阵 | FR-001 - FR-014 | `docs/testing/TRACEABILITY_MATRIX.md` | 必需 | planned | `docs/testing/TRACEABILITY_MATRIX.md` |
 | 测试数据矩阵 | FR-001 - FR-014 | `docs/testing/TEST_DATA_MATRIX.md` | 必需 | planned | `docs/testing/TEST_DATA_MATRIX.md` |
 | 测试计划矩阵 | FR-001 - FR-014 | `docs/testing/test-matrix.md` | 必需 | planned | `docs/testing/test-matrix.md` |
+| 验收示例索引 | FR-001 - FR-014 | `docs/testing/ACCEPTANCE_EXAMPLES.md` | 必需 | planned | `docs/testing/ACCEPTANCE_EXAMPLES.md` |
 | 契约验证占位 | FR-001 / FR-003 / FR-008 / FR-013 / FR-014 | `contracts/openapi.yaml`、契约测试、API/调度/查询/文件/样板验证命令 | 后续任务必需 | blocked-by-contract | `contracts/`、`tests/`、`traces/` |
 | 后端验证占位 | FR-001 / FR-002 / FR-004 / FR-005 / FR-006 / FR-007 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | 后端单测、集成测、调度测、查询测、文件测、样板测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
 | 文件与样板验证占位 | FR-003 / FR-006 / FR-011 / FR-014 | 文件发布校验、ZIP 打包、过期清理、采购订单样板压测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
@@ -25,6 +26,8 @@
 - `query`: `powershell -NoProfile -Command "npm run test:query"` 或等价查询测试命令。
 - `file`: `powershell -NoProfile -Command "npm run test:file"` 或等价文件校验命令。
 - `sample`: `powershell -NoProfile -Command "npm run test:sample"` 或等价采购订单样板测试命令。
+- `verify`: `powershell -NoProfile -Command "npm run test:verify"` 或等价整体验证命令，待实现任务定义后补充。
+- 以上命令仅为后续占位，不表示当前仓库已存在对应脚本或 package scripts。
 
 ## 最终规则
 

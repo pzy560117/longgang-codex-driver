@@ -21,7 +21,26 @@
 | 配置边界 | 创建任务时固化配置快照 | 已创建任务与失败重试沿用快照 |
 | 审计边界 | 创建、执行、下载、取消、重试、清理都必须留痕 | 必须能通过 `taskId`、`attemptNo`、`requestId` 串联 |
 
-## 3. 数据流
+## 3. FR 证据入口与落点
+
+| FR | 证据入口 | 风险边界 | 后续落点 |
+| --- | --- | --- | --- |
+| FR-001 | `AC-001`、`AC-E002`、`AC-E003`、`AC-E009`、`state-matrix.yaml` | 注册校验、权限、幂等、参数上限 | `contracts/` 创建接口，`tests/` 创建与幂等测试 |
+| FR-002 | `AC-002`、`AC-010`、`state-matrix.yaml` | 进度口径、状态枚举、错误字段 | `contracts/` 详情接口，`tests/` 进度和审计测试 |
+| FR-003 | `AC-003`、`AC-E007`、`AC-E017`、`AC-021` | 临时对象/已发布对象边界、下载保护、文件元信息 | `contracts/` 下载和文件元信息契约，`tests/` 文件发布测试 |
+| FR-004 | `AC-004`、`requirement-interface-matrix.md` | 正式筛选维度、可见性、分页 | `contracts/` 历史查询契约，`tests/` 列表筛选测试 |
+| FR-005 | `AC-005`、`AC-015`、`AC-E008`、`AC-E019` | DB 时间、租约、接管、并发上限 | `contracts/` 调度/锁契约，`tests/` 抢锁测试 |
+| FR-006 | `AC-006`、`AC-020`、`AC-E001`、`AC-E004`、`AC-E018` | 游标分页、批次事件、分片/ZIP、空数据 | `contracts/` 执行事件与文件契约，`tests/` 分片测试 |
+| FR-007 | `AC-007`、`AC-016`、`page-inventory.md` | taskCode 唯一、启停、快照沿用 | `contracts/` registry/config 契约，`tests/` 注册测试 |
+| FR-008 | `AC-008`、`AC-E011`、`AC-E012`、`AC-E013`、`AC-E014`、`AC-E024`、`AC-E025` | 原始 SQL 禁止、参数白名单、字段映射、脱敏和数据范围 | `contracts/` 集中查询契约，`tests/` 契约与错误收口测试 |
+| FR-009 | `AC-009`、`AC-E006`、`AC-E016`、`AC-E022` | 认证上下文最小字段、下载 guard、脱敏失败 | `contracts/` 认证上下文与脱敏契约，`tests/` 权限测试 |
+| FR-010 | `AC-010`、`AC-019`、`AC-020` | taskId/requestId 串联、阶段事件完整性 | `contracts/` 审计与事件契约，`tests/` 日志串联测试 |
+| FR-011 | `AC-011`、`AC-E026` | 先失效再删除、可重试记录 | `contracts/` 清理作业契约，`tests/` 清理测试 |
+| FR-012 | `AC-012`、`AC-E015` | 批次边界取消、FAILED 才可重试、禁止重复派发 | `contracts/` 取消/重试契约，`tests/` 状态机测试 |
+| FR-013 | `AC-013`、`AC-014`、`AC-015`、`AC-016`、`AC-019` | attemptNo、幂等冲突、锁接管、配置快照 | `contracts/` 创建/快照契约，`tests/` 幂等和接管测试 |
+| FR-014 | `AC-017`、`AC-018`、`AC-E022`、`AC-E023` | 样板字段、游标稳定性、压测、敏感字段脱敏 | `contracts/` 样板契约，`tests/` 样板与压测测试 |
+
+## 4. 数据流
 
 1. 子系统提交创建任务请求，平台校验注册状态、权限和幂等键。
 2. 平台落库任务并固化配置快照、请求摘要和审计记录。
@@ -31,13 +50,13 @@
 6. 平台发布已校验对象并记录下载元信息与交付准备事件。
 7. 过期清理任务先标记不可下载，再删除对象存储文件。
 
-## 4. 关键状态
+## 5. 关键状态
 
 - 对外正式状态：`PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`
 - 内部取消控制标记：仅作为执行中取消控制，不对外返回
 - 执行事件：`QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`
 
-## 5. 风险与对策
+## 6. 风险与对策
 
 | 风险 | 对策 |
 | --- | --- |
@@ -48,7 +67,7 @@
 | 配置漂移 | 任务创建时固化快照，重试沿用快照 |
 | 样板回归 | 采购订单样板以 0/1/20000/20001/100000/100001 行边界和敏感字段脱敏作证据 |
 
-## 6. 模块边界建议
+## 7. 模块边界建议
 
 | 模块 | Owned paths 建议 | 说明 |
 | --- | --- | --- |
@@ -57,7 +76,7 @@
 | 实现层 | `src/` | 后续创建，不应在分析阶段假设存在 |
 | 共享层 | `packages/` | 仅在拆分共享客户端或抽象时创建 |
 
-## 7. 验收顺序
+## 8. 验收顺序
 
 1. 先 FR-001 / FR-013，确认创建、幂等、快照和锁链路。
 2. 再 FR-008 / FR-009，确认集中查询、权限和脱敏。
@@ -65,11 +84,11 @@
 4. 再 FR-005 / FR-011 / FR-012，确认调度、清理、取消与重试。
 5. 最后 FR-014，确认采购订单样板可作为压测和回归证据。
 
-## 8. Knowledge References
+## 9. Knowledge References
 
 - `DECISION-HARNESS-001` / Harness 从执行闭环扩展为知识闭环 / `docs/knowledge/decisions/DECISION-HARNESS-001.md` / used_in: 说明架构 brief 需为后续知识沉淀留出口
 - `GUIDELINE-RULES-001` / 规则必须短入口、深文档、可验证 / `docs/knowledge/guidelines/GUIDELINE-RULES-001.md` / used_in: 约束架构 brief 以可执行边界为主
 
-## 9. Knowledge Outputs
+## 10. Knowledge Outputs
 
 - none

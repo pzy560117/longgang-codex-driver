@@ -1,0 +1,68 @@
+SUCCESS: The process with PID 42936 (child process of PID 13376) has been terminated.
+SUCCESS: The process with PID 7804 (child process of PID 22824) has been terminated.
+SUCCESS: The process with PID 13376 (child process of PID 16564) has been terminated.
+SUCCESS: The process with PID 22824 (child process of PID 31728) has been terminated.
+SUCCESS: The process with PID 16564 (child process of PID 14192) has been terminated.
+SUCCESS: The process with PID 31728 (child process of PID 38604) has been terminated.
+SUCCESS: The process with PID 14192 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 38604 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 35320 (child process of PID 16280) has been terminated.
+SUCCESS: The process with PID 16280 (child process of PID 6212) has been terminated.
+SUCCESS: The process with PID 6212 (child process of PID 12608) has been terminated.
+SUCCESS: The process with PID 12608 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 26420 (child process of PID 25552) has been terminated.
+SUCCESS: The process with PID 25552 (child process of PID 26216) has been terminated.
+SUCCESS: The process with PID 26216 (child process of PID 2508) has been terminated.
+SUCCESS: The process with PID 2508 (child process of PID 39292) has been terminated.
+SUCCESS: The process with PID 39292 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 20044 (child process of PID 9680) has been terminated.
+SUCCESS: The process with PID 9680 (child process of PID 22572) has been terminated.
+SUCCESS: The process with PID 22572 (child process of PID 17652) has been terminated.
+SUCCESS: The process with PID 17652 (child process of PID 35232) has been terminated.
+SUCCESS: The process with PID 35232 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 27204 (child process of PID 25808) has been terminated.
+SUCCESS: The process with PID 25808 (child process of PID 24272) has been terminated.
+SUCCESS: The process with PID 24272 (child process of PID 34068) has been terminated.
+SUCCESS: The process with PID 34068 (child process of PID 31320) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已补强统一导出平台的分析材料、测试左移矩阵、实现落点探测和后续 dev-plan。
+- 已明确当前仓库没有 `contracts/`、`tests/`、`src/`、`packages/`，后续应先落契约和测试骨架，再创建实现目录；`agent/`、`.agents/` 为 harness/agent 资产，不作为业务实现目录。
+- 按 Driver 边界未修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`、`trace.schema.json`，也未执行 git commit。
+
+## Files Changed
+- `docs/context/feature-pack.md`: 补 FR-001 至 FR-014 的证据入口、风险边界、后续契约/测试落点。
+- `docs/context/repo-map.md`: 补真实目录探测、缺失目录、创建顺序和 agent 资产边界。
+- `docs/context/architecture-brief.md`: 补 FR 级架构证据入口与后续落点。
+- `docs/testing/TRACEABILITY_MATRIX.md`: 补验收示例闭环引用。
+- `docs/testing/TEST_DATA_MATRIX.md`: 明确 fixture 为计划入口，不代表已有测试工厂。
+- `docs/testing/test-matrix.md`: 补测试数据矩阵引用和 planned/blocked-by-contract 边界。
+- `docs/testing/verify-matrix.md`: 补验收示例索引和后续命令占位说明。
+- `plans/features/export-platform.dev-plan.md`: 补后续任务依赖、阶段输出和验证顺序。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`: PASS - `Verification passed.`；仅有 LF/CRLF 提示。
+
+## Evidence
+- `docs/context/repo-map.md`: 证明真实目录、可写落点和待创建目录已探测。
+- `docs/testing/TRACEABILITY_MATRIX.md`: 证明 FR-001 至 FR-014 有追溯入口。
+- `docs/testing/TEST_DATA_MATRIX.md`: 证明每个 FR 有测试数据入口。
+- `docs/testing/verify-matrix.md`: 证明后续验证命令与证据路径已占位。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 分析材料与计划输出 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: repo-map / feature-pack / dev-plan 边界约束 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前仍无业务实现、契约文件和自动化测试目录；后续任务需先创建 `contracts/` 和 `tests/`，再进入 `src/` 实现。
+- 工作区存在 runtime 生成的未跟踪 `traces/ANALYSIS-001-4df82286cdcf483195007355935f2727/`，本轮按禁止边界未处理。

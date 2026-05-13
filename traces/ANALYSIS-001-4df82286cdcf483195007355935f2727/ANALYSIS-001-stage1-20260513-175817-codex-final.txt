@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| ANALYSIS-001-S1-F001 | HIGH | truth_source_missing | controller | [RISK_BASED_TEST_PLAN.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/RISK_BASED_TEST_PLAN.md:3)、[test-data-plan.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/test-data-plan.md:3)、[REGRESSION_PLAN.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/REGRESSION_PLAN.md:3)、[EVIDENCE_PROTOCOL.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/EVIDENCE_PROTOCOL.md:3) 仍是模板占位或通用内容，未绑定 `FEAT-EXPORT-PLATFORM-001`、`ANALYSIS-001`、FR-001 至 FR-014、风险项、seed、回归集合和证据路径。 | 补齐这些 testing truth source：风险计划覆盖幂等、锁租约、权限/脱敏、查询模板、文件发布、采购订单压测；test-data-plan 对齐 `TEST_DATA_MATRIX.md` 的 seed；regression plan 对齐 P0/P1 和 `verify-matrix.md`；evidence protocol 明确本任务证据路径、命令、fresh evidence 规则。 | `rg -n "FR-00[1-9]\|FR-01[0-4]\|FEAT-EXPORT-PLATFORM-001\|ANALYSIS-001" docs/testing/RISK_BASED_TEST_PLAN.md docs/testing/test-data-plan.md docs/testing/REGRESSION_PLAN.md docs/testing/EVIDENCE_PROTOCOL.md`；`git diff --check` |
+
+## Verdict
+
+Verdict: FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| ANALYSIS-001-S1-F001 | controller | docs-worker | 1 | yes |
