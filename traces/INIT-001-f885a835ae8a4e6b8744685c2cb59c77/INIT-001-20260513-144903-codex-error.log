@@ -1,0 +1,3177 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e2018-9dca-7c32-b9dc-5151e48ba2c6
+--------
+user
+# Codex 单任务实现 Prompt 模板
+
+## 元信息
+
+- 版本: v2.0
+- 标签: codex, harness, implementation, non-interactive
+
+## 角色
+
+你是一个非交互 Codex 自动实现会话。你只处理 Driver Context 中指定的一个任务，不负责调度、提交、更新任务状态或评审其他任务。
+
+## 输入
+
+Driver 会在本模板后追加 `## Driver Context`，其中包含：
+
+- 当前任务 ID、描述、类型、阶段、优先级和依赖
+- task session 策略、truth source、context files、produces artifacts
+- knowledge catalog、knowledge query budget 和归档约束（如任务声明）
+- 子代理策略
+- 执行步骤、验收标准和测试命令
+
+## 工作流程
+
+1. 先阅读 Driver Context。
+2. 只读取优先上下文源和任务相关文件；信息不足时再做最小范围扩展检索。
+3. 如果存在 `docs/knowledge/knowledge-catalog.md`，先按任务阶段判断是否需要读取 `docs/knowledge/catalog.md` 和相关条目；遵守 `knowledge_query_budget`，不要贪婪读取整库。
+4. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
+5. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
+6. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
+7. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
+8. 自检是否满足验收标准、测试影响、知识引用和 forbidden path 约束。
+9. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、knowledge references、knowledge outputs 和剩余风险。
+
+## 强制边界
+
+- 不要处理 `task.json` 中其他任务。
+- 不要删除或改写任务描述。
+- 不要修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`。
+- 不要修改 `trace.schema.json`，除非当前任务明确把它列入 owned paths 且任务目标就是 harness/runtime schema 改造。
+- 不要执行 `git add`、`git commit`、`git push`、`git reset`、`git checkout`。
+- 不要修改与当前任务无关的文件。
+- 不要在没有验收示例或追溯矩阵支撑时自行猜测 P0/P1 业务规则。
+- 如果子代理策略是 `off`，不要主动使用子代理。
+- 如果子代理策略不是 `off`，只有在存在两个以上独立子问题时才可使用，并且只消费结构化结论。
+- 如果本轮是 stop hook 强制继续后的续跑，子代理启用前必须先重读对应 docs / rules / skills；只有明确授权的 writer 角色可以写它们被分配的路径，其余子代理保持只读。
+- 测试失败时不能声称任务完成，不能把任何状态标记为通过。
+
+## UI 任务额外规则
+
+如果任务涉及前端页面、组件、布局、交互状态或视觉还原：
+
+- 必须确认是否存在 `docs/design/ai-image-brief.md`、`ui-image-review.md`、`image-to-frontend-spec.md`、`visual-parity-review.md`。
+- 必须在真实浏览器中验证页面，截图保存到 `artifacts/visual-review/` 或任务指定目录。
+- 最终回答必须写明截图路径和视觉差异处理情况。
+- 如果无法启动浏览器或无法截图，输出 BLOCKED，而不是跳过视觉验证。
+
+## BLOCKED 格式
+
+```text
+BLOCKED - 需要人工介入
+
+当前任务: <task-id> <task-description>
+
+已完成的工作:
+- ...
+
+阻塞原因:
+- ...
+
+需要人工操作:
+1. ...
+
+解除阻塞后请运行:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## 输出格式
+
+```markdown
+## Requirement IDs
+- ...
+
+## Summary
+- ...
+
+## Files Changed
+- `path`: ...
+
+## Validation
+- `command`: PASS / FAIL / NOT_RUN - evidence
+
+## Evidence
+- `path`: what it proves
+
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `id-or-suggested-id`: type - title - action(created/updated/suggested/archived) - `path-or-target`
+
+## Visual Evidence
+- reference: `path-or-none`
+- screenshot: `path-or-none`
+- parity report: `path-or-none`
+
+## Remaining Risks
+- ...
+```
+
+
+## Driver Context
+
+任务 ID: INIT-001
+任务描述: 锁定统一导出平台的产品真相源、计划入口、测试矩阵入口和 driver 接管边界
+任务类型: feature_plan
+Gate Profile: spec_required
+Phase: handoff
+优先级: 1
+Requirement IDs:
+- FR-001
+- FR-014
+依赖: none
+Task Session ID: f885a835ae8a4e6b8744685c2cb59c77
+
+会话策略:
+- Session mode: fresh-process
+- Reuse previous chat: False
+- Carry forward summary: False
+
+优先上下文源:
+- AGENTS.md
+- docs/harness/task-session-strategy.md
+- docs/harness/architecture.md
+- docs/harness/knowledge-architecture.md
+- docs/harness/prompt-knowledge-integration.md
+- docs/harness/rule-governance.md
+- docs/harness/regression-rules.md
+- docs/knowledge/knowledge-catalog.md
+- docs/testing/ACCEPTANCE_EXAMPLES.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/verify-matrix.md
+
+任务相关文件:
+- AGENTS.md
+- project-task-template.json
+- docs/harness/task-session-strategy.md
+- docs/product/prd-lite.md
+- docs/product/page-inventory.md
+- docs/product/difficulty-research.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/testing/verify-matrix.md
+- task.json
+
+前置 truth source:
+- product
+
+知识使用:
+- 如果存在 docs/knowledge/knowledge-catalog.md，先按任务阶段判断是否需要读取 docs/knowledge/catalog.md 和相关条目。
+- 如果引用了知识条目，最终总结必须列出 knowledge_references，包含 id、title、used_in 和 path。
+- 如果发现可复用的新经验，最终总结必须列出 knowledge_outputs 建议，供 ARCHIVE 任务归档。
+
+预期产物:
+- task.json
+- docs/testing/verify-matrix.md
+
+子代理策略:
+- Mode: guided
+- Allowed roles: explorer, readonly-research, docs-researcher, planner, architect, reviewer, stage1-reviewer, stage2-reviewer, security-reviewer, test-planner, failure-triage, visual-reviewer, harness-writer, docs-worker, frontend-worker, backend-worker, test-runner
+- Max parallel roles: 3
+- Notes:
+- Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.
+- Subagents must read the matching AGENTS/rules/docs/skills before concluding.
+- Read-only roles stay read-only and return summaries or concrete results, not full transcripts.
+- Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly.
+
+执行步骤:
+- 确认 runtime.handoff.truth_sources.product 中列出的统一导出平台产品真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径
+- 锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks
+- 检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围
+
+验收标准:
+- task.json 成为统一导出平台的正式 driver 队列入口
+- 首轮 driver 可在不补充聊天上下文的前提下识别真实 truth source、计划入口和测试入口
+- 任务队列不保留功能标识占位符、需求编号替换占位符、领域示例占位文本或前端视觉设计类任务
+
+测试命令:
+git diff --check
+
+codex
+我会先按当前任务的 Driver Context 收敛范围：读取入口规则、harness 文档和测试矩阵相关文件，再决定是否需要委派 writer。技能上先使用 `superpowers:using-superpowers`，因为这是会话启动规则。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 825ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+codex
+我已确认用户模板本轮明确禁止 `git add/commit/push`，所以会以该边界为准，不执行提交。接下来先核对工作区状态和任务相关 truth source，避免在已有未归属改动上直接覆盖。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -LiteralPath AGENTS.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\task-session-strategy.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\architecture.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 905ms:
+?? traces/
+
+ succeeded in 790ms:
+# Task 会话策略
+
+## 默认策略
+
+- 每个任务默认使用 fresh process。
+- 子代理默认采用 guided 模式；主控 / 主会话不直接写仓库文件。
+- 当前版本只支持单任务 driver，不提供额外执行工作区。
+- runtime 脚本会继续负责 `progress.txt`、`traces/` 和 Git 状态推进；除此之外的仓库写入由匹配的 writer 子代理执行。
+
+## 运行模式边界
+
+| 模式 | 触发方式 | 边界 |
+| --- | --- | --- |
+| driver 自动执行模式 | `codex-loop.ps1` 从 `task.json` 选择任务 | 外层 runtime 负责任务推进、验证、trace 和 commit |
+| single task | 内层 `codex exec` 处理当前任务 | 只处理当前任务直接要求的代码或文档改动 |
+| 交互开发模式 | 人工要求分析、规划、创建任务或实现功能 | 负责收敛输入；需要落盘时委派 writer 或转成 driver 任务 |
+
+交互开发模式在 spec / plan 明确后，默认下一步是初始化真实 `task.json` 并运行 `codex-loop.ps1`。除非用户明确要求继续在当前会话直接开发，否则不要长期停留在聊天推进阶段。
+
+如果 spec 和 architecture 已完成，应先让合适的 writer 子代理同步项目规则文件，再初始化任务队列，避免后续 driver 建立在过期的 `AGENTS.md`、`docs/harness/*` 或 `docs/context/*` 之上。
+
+## 任务文件规则
+
+- `task.json` 使用 `{ "runtime": {...}, "tasks": [...] }` 结构；新任务默认 `passes: false`。
+- 标准交接入口是 `project-task-template.json`，首个任务固定为 `INIT-001`，用于锁定 spec 输入、任务依赖、验证矩阵、`execution.mode` 和 owned paths。
+- 如果 `task.json` 为空文件，先初始化为合法 JSON；如果仍是 smoke 模板或示例任务，先替换为当前项目真实任务。
+- 交互开发模式可以决定新增或更新哪些待办任务，但实际写入必须委派给 `harness-writer` 等匹配 writer。
+- 不得删除或改写已有任务描述，除非用户明确要求替换模板示例或重建任务队列。
+- `spec` 定义做什么，`plan` 定义怎么拆，`task.json` 是主控唯一执行入口。
+
+## 自动任务规则
+
+- 每次只处理一个 `passes: false` 的任务。
+- 优先级数字越小越先执行。
+- 所有依赖任务必须已经通过。
+- `execution.mode` 缺省为 `single`，当前只允许 `single`。
+- 修改后必须运行当前任务的 `test_command`。
+- 测试失败时禁止提交，禁止把 `passes` 改为 `true`。
+- 阻塞时必须追加 `progress.txt`，输出 `BLOCKED - 需要人工介入`，然后停止。
+
+## 工作区规则
+
+- 启动前 Git 工作区必须干净，除非用户明确说明哪些改动属于本任务。
+- 如需忽略 smoke 残留、历史 trace 或其他已声明的运行产物，只允许通过 `runtime.git.non_blocking_dirty_paths` 明确列白名单。
+- `non_blocking_dirty_paths` 只允许包含可再生运行产物，例如 `progress.txt`、`SMOKE-RESULT.md`、`traces/`、`artifacts/`；不要把源码、配置或业务文档加入白名单。
+- 不要修改与当前任务无关的文件。
+- 所有任务相关变更必须和 `task.json`、`progress.txt` 同一个 commit。
+
+## 推荐做法
+
+- 先收敛 truth source，再进入实现。
+- 大任务先拆成多个 `single` 任务，再交给 driver 顺序执行。
+- 当主控遇到文档、规则、任务队列、前端、后端或测试相关写入时，分别委派 `docs-worker`、`harness-writer`、`frontend-worker`、`backend-worker`、`test-runner` 等 writer 角色处理。
+- 并行分析只允许发生在只读调研层；如需并行写入，不允许多个角色同时写同一路径。
+- 任何子代理在开始前，先读 `AGENTS.md`、本文件、`.agents/rules/agents.md`、当前 truth source 和对应 `.agents/skills/*/SKILL.md`（如存在）。
+- 如果当前轮次是被 stop hook 强制继续后的续跑，先重新阅读上述文档，再决定是否真的需要子代理。
+
+## 模型策略
+
+- 默认模型和思考强度定义在 `.codex/task-run-profile.json`。
+- 如需任务级覆盖，使用 `task.execution.modelPolicy`。
+
+ succeeded in 823ms:
+# Harness 架构
+
+## 目标
+
+Harness 的目标是把 Codex 的执行过程固定成可重复、可验证、可追踪、可沉淀知识的工程闭环。
+
+## 核心链路
+
+```text
+task.json
+  -> codex-loop.ps1
+  -> codex exec
+  -> verify / lint / build / test
+  -> progress.txt + traces/*.json
+  -> docs/knowledge/ 引用与归档
+  -> task.json passes=true
+  -> git commit
+```
+
+## 分层
+
+- 规则层：`AGENTS.md`
+- 任务层：`task.json`
+- 执行层：`codex-loop.ps1`
+- 配置层：`.codex/task-run-profile.json`
+- 证据层：`progress.txt`、`traces/`
+- 验证层：`verify.ps1` 与任务内 `test_command`
+- 知识层：`docs/knowledge/knowledge-catalog.md`、分类索引和知识条目
+- 治理层：`docs/harness/rule-governance.md`、`docs/harness/knowledge-architecture.md`、`docs/harness/knowledge-import.md`、`docs/harness/knowledge-lint.md`、`docs/harness/team-knowledge-sync.md`
+
+## 原则
+
+- 任何完成声明都必须有验证证据。
+- 任何任务推进都必须回到可验证的 `task.json`、`progress.txt` 或 `traces/` 证据链上。
+- 任何复用过的项目经验都应在 trace 中留下 `knowledge_references`，避免知识只停留在对话上下文。
+- 任何可复用的新经验都应在归档任务中沉淀到 `docs/knowledge/`，初始成熟度默认是 `draft`。
+- 既有项目接入时，知识冷启动只生成 draft 条目；成熟度提升必须来自后续引用和验证证据。
+- 知识库需要定期 lint，检查索引、孤儿条目、重复、冲突、成熟度和长期未引用条目。
+- 团队知识库是可选上层能力，只同步 verified/proven 级别的跨项目候选；外部知识库不可用时不应阻塞本地 driver。
+- `progress.txt`、`traces/` 和 Git 状态由 runtime 脚本落盘；其他需要新增或修改的仓库内容必须委派给匹配的 writer 子代理，主控会话自身不直接写文件。
+- 默认只在当前 Git 工作区内执行，不创建额外执行目录。
+
+ succeeded in 908ms:
+# AGENTS.md
+
+本文件只保留每次会话都必须知道的 Harness 入口规则。细节按需读取下方深文档，不把长期协议全部塞进入口文件。
+
+## 核心入口
+
+- 本仓库默认采用 `driver-first`：真实任务进入 `task.json`，由 `codex-loop.ps1` 逐个执行。
+- `single task` 是当前唯一自动执行模式；每轮 driver 只处理一个 `passes: false` 且依赖已通过的任务。
+- 交互开发模式只负责需求收敛、分析、规划和任务输入；方案确认后，默认回到 `task.json -> codex-loop.ps1`。
+- 主控会话不直接维护仓库状态文件；`task.json`、`progress.txt`、`traces/` 和 Git 提交由 runtime 链路推进。
+- 需要落盘规则、任务、文档、前端、后端或测试内容时，先确认 truth source，再委派匹配的 writer 子代理或进入 driver 任务。
+
+## 硬约束
+
+- 启动前 Git 工作区必须干净，除非用户明确说明哪些改动属于本任务；可再生运行产物只能通过 `runtime.git.non_blocking_dirty_paths` 列白名单。
+- 不要伪造完成状态：不得手工把未验证任务标记为 `passes: true`，不得绕过 `test_command`、review gate 或 commit gate。
+- 不要删除或改写已有任务描述，除非用户明确要求替换模板示例或重建任务队列。
+- 修改后必须运行与改动直接对应的验证；文档改动至少运行 `git diff --check`。
+- 测试范围从需求收敛阶段开始定义；P0/P1 需求进入实现前必须有可追溯验收、测试数据和证据路径。
+- 外部系统、开源栈、第三方平台或真实环境集成需求，完成声明必须包含真实依赖接入、成功态证据和失败态证据。
+- 阻塞时追加 `progress.txt`，输出 `BLOCKED - 需要人工介入`，然后停止。
+
+## 必读索引
+
+- Harness 架构：`docs/harness/architecture.md`
+- 新项目使用：`docs/harness/new-project-usage.md`
+- Task 会话与 `task.json` 细则：`docs/harness/task-session-strategy.md`
+- 规则治理与 AGENTS.md 分层：`docs/harness/rule-governance.md`
+- 回归与验证策略：`docs/harness/regression-rules.md`
+- Trace 格式：`docs/harness/trace-format.md`
+- 权限策略：`docs/harness/sandbox-policy.md`
+- Prompt 与知识集成：`docs/harness/prompt-knowledge-integration.md`
+
+codex
+当前工作区只有未跟踪的 `traces/`，这属于 runtime 产物范畴；本任务也明确禁止修改 `traces/`，我会忽略它。现在继续读取产品真相源、知识目录和测试入口，确认 `task.json` 需要怎样被锁定。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\knowledge-architecture.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\prompt-knowledge-integration.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\rule-governance.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\harness\\regression-rules.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\knowledge\\knowledge-catalog.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 841ms:
+# Harness Knowledge Architecture
+
+本文定义 Codex Harness 的项目知识层。Harness 不只负责把任务跑完，还要把执行中被证明有用的经验沉淀成可检索、可追踪、可维护的项目资产。
+
+## 目标
+
+- 让任务执行前能按需读取项目经验，而不是每次从零推导。
+- 让任务执行后能把架构决策、风险、流程和坏例归档。
+- 让 trace 记录知识引用，支持后续成熟度提升、衰减和冲突治理。
+- 控制上下文预算，避免把大量完整知识一次性塞进每个 Codex 会话。
+
+## 存储层
+
+当前仓库先落地项目级知识层：
+
+```text
+docs/knowledge/
+  knowledge-catalog.md      # 全景入口，约 50-120 行
+  catalog.md                # 当前项目全部知识条目的一行摘要索引
+  models/                   # 实体、数据结构、关系
+  decisions/                # 架构决策和技术选型
+  guidelines/               # 推荐做法和禁止做法
+  pitfalls/                 # 已知风险、失败模式、排查路径
+  processes/                # 工作流、业务流、操作步骤
+  archive/                  # 过时或低置信条目
+```
+
+跨项目团队知识库暂不直接耦合到 runtime。后续如引入独立 Git 知识仓库，应通过同步任务把稳定条目提升出去，而不是让 driver 直接依赖外部仓库可用性。
+
+可选团队知识库建议使用独立 Git 仓库，而不是寄生在某个业务项目中：
+
+```text
+team-knowledge/
+  knowledge-catalog.md        # 团队级全景入口
+  .knowledge-config.yaml      # 成员、角色、同步和冲突策略
+  log.md                      # 只追加的知识变更日志
+  team-conventions/           # Layer 0-T: 团队约定
+  tech-wiki/                  # Layer 1: 跨项目技术知识
+  biz-wiki/<domain>/          # Layer 2: 领域业务知识
+  project-profiles/           # 项目画像和知识源映射
+  contributions/
+    pending/                  # 待合并贡献
+    conflicts/                # 内容矛盾和人工裁决项
+```
+
+团队知识库是可选上层能力。项目 driver 必须能在没有外部知识仓库的情况下继续执行；外部知识同步失败时只能降级为缺少可复用上下文，不应阻断本地验证。
+
+团队知识库的完整同步协议见 `docs/harness/team-knowledge-sync.md`。本文件只定义项目知识层和提升边界；团队知识库的成员角色、贡献暂存、冲突裁决和追加日志由同步协议约束。
+
+## 知识层级
+
+| 层级 | 范围 | 存放建议 | 进入方式 |
+| --- | --- | --- | --- |
+| Layer 0-P | 个人偏好 | 用户本地配置，不提交项目 | 人工维护 |
+| Layer 0-T | 团队约定 | `team-conventions/` | 团队维护 |
+| Layer 1 | 跨项目技术知识 | `tech-wiki/` | verified / proven 技术条目提升 |
+| Layer 2 | 业务领域知识 | `biz-wiki/<domain>/` | verified / proven 业务条目提升 |
+| Layer 3 | 项目知识 | `docs/knowledge/` | `ARCHIVE-*` 或 `KNOWLEDGE-IMPORT-*` 写入 |
+
+提升方向默认从 Layer 3 开始。只有当条目不再是项目特有经验，并且 evidence 显示可跨任务或跨项目复用时，才建议提升到 Layer 1 或 Layer 2。
+
+## 知识类型
+
+| 类型 | 用途 | 示例 |
+| --- | --- | --- |
+| `model` | 描述实体、结构和关系 | task、trace、truth source 的关系 |
+| `decision` | 记录技术选择及原因 | driver-first 优先于聊天内手工实现 |
+| `guideline` | 记录推荐或禁止做法 | 禁止只写禁令而不给替代方案 |
+| `pitfall` | 记录已知风险和排查步骤 | smoke 占位任务被误带入真实项目 |
+| `process` | 记录可重复流程 | ARCHIVE 从 trace 提取知识 |
+
+## 成熟度
+
+| 成熟度 | 定义 | 默认处理 |
+| --- | --- | --- |
+| `draft` | 单次任务、单一来源提取 | 可引用，但不能作为强约束 |
+| `verified` | 至少在一个真实任务中被复用并通过验证 | 可作为 reviewer 的参考依据 |
+| `proven` | 至少两个不同任务或项目复用并保持有效 | 可提升为规则、模板或 prompt |
+
+成熟度提升必须基于 evidence，不接受口头判断。长期未引用或被发现过时的条目应降级或移入 `docs/knowledge/archive/`。
+
+`verified -> proven` 不应由单个任务静默完成。默认需要两个不同任务或项目的证据；如果只有一个项目内证据，必须有 maintainer 在归档报告或团队知识同步记录中明确审批。
+
+## 提升、衰减和冲突
+
+| 事件 | 默认处理 |
+| --- | --- |
+| draft 条目在一个真实任务中被引用并通过验证 | 可提升为 `verified` |
+| verified 条目在两个不同任务或项目中被引用并保持有效 | 可提升为 `proven` |
+| proven 条目 12 个月未被引用 | 建议降级为 `verified` 或标记复核 |
+| verified 条目 6 个月未被引用 | 建议降级为 `draft` 或标记复核 |
+| draft 条目长期未引用且 lint 标记无入口 | 移入 `docs/knowledge/archive/` |
+| 同一主题出现相反结论 | 保留较低成熟度，写入 conflict candidate，等待人工裁决 |
+| 仅追加 evidence、last_referenced 或 contributors | 可自动合并 |
+
+自动化只能产生候选，不应静默提升到 `proven` 或删除知识条目。成熟度变更必须在 trace 的 `archive_summary.maturity_changes` 或归档报告中留下证据。
+
+团队知识库引入后，角色边界如下：
+
+| 角色 | 项目知识权限 | 团队知识权限 |
+| --- | --- | --- |
+| `maintainer` | 可审批归档、衰减和冲突裁决 | 可审批 proven、合并冲突和维护 `log.md` |
+| `contributor` | 可新增 draft、追加 evidence、输出候选 | 可写入 `contributions/pending/` |
+| `reader` | 可读取并引用知识 | 只读，不写团队仓库 |
+
+## 条目格式
+
+每条知识使用 Markdown 文件，文件名推荐：
+
+```text
+<TYPE>-<AREA>-<NNN>.md
+```
+
+条目头部使用 YAML frontmatter：
+
+```markdown
+---
+id: GUIDELINE-HARNESS-001
+type: guideline
+maturity: draft
+tags: [harness, rules, context]
+applicable_phases: [analysis, plan, implement, archive]
+source_references:
+  - traces/<task-id>-<timestamp>.json
+last_referenced:
+contributors:
+  - codex
+evidence:
+  contributors:
+    - name: codex
+      source_ref: traces/<task-id>-<timestamp>.json
+  validated_projects: []
+  contradictions: []
+---
+
+# 标题
+
+## Context
+
+这条知识成立的背景。
+
+## Guidance
+
+可执行的规则、判断或流程。
+
+## Evidence
+
+验证命令、trace、review finding 或失败记录。
+```
+
+## 渐进式查询
+
+Codex 会话按三层读取：
+
+1. 读 `docs/knowledge/knowledge-catalog.md`，判断有哪些分类和阶段推荐入口。
+2. 读 `docs/knowledge/catalog.md`，按 `tags`、`type`、`applicable_phases` 过滤候选条目。
+3. 只读取和当前任务直接相关的完整条目。
+
+任务可通过 `knowledge_query_budget` 限制读取量：
+
+```json
+{
+  "knowledge_query_budget": {
+    "catalogs": 2,
+    "entries": 5
+  }
+}
+```
+
+## Trace 集成
+
+任务使用知识后，应在最终报告或 trace 中留下：
+
+```json
+{
+  "knowledge_references": [
+    {
+      "id": "GUIDELINE-HARNESS-001",
+      "title": "规则必须配替代方案",
+      "used_in": "Stage 1 review"
+    }
+  ]
+}
+```
+
+归档任务读取 `knowledge_references` 后，可以更新 `last_referenced`、提升成熟度，或标记冲突。
+
+归档任务还应输出以下候选清单，供维护者或后续 lint 任务处理：
+
+- promotion candidates：可提升成熟度或提升到团队知识库的条目。
+- decay candidates：长期未引用、上下文疑似过时的条目。
+- conflict candidates：同一主题存在相反结论或适用条件冲突。
+- merge candidates：重复或高度相似条目。
+
+## 归档策略
+
+`ARCHIVE-*` 任务只做知识沉淀和索引维护，不重新定义需求范围。归档输入包括：
+
+- 当前任务 trace
+- `progress.txt`
+- Stage 1 / Stage 2 review 输出
+- failure triage
+- changed files
+- 验证命令输出
+
+归档输出包括：
+
+- 新增或更新的知识条目
+- 更新后的 `knowledge-catalog.md`
+- 更新后的 `catalog.md`
+- trace 中的 `archive_summary`
+
+归档阶段缺失不应阻塞代码验证，但会降低后续任务复用历史经验的能力。
+
+## 相关流程
+
+- 冷启动导入：`docs/harness/knowledge-import.md`
+- 知识健康检查：`docs/harness/knowledge-lint.md`
+- 团队知识同步：`docs/harness/team-knowledge-sync.md`
+
+ succeeded in 849ms:
+# 回归规则
+
+| 风险 | 约束 |
+| --- | --- |
+| 误改文件 | Git 工作区清洁检查、task 边界、owned paths |
+| 漏测 | 每个任务必须运行 `test_command` |
+| 伪完成 | `passes=true` 必须建立在 fresh evidence 上 |
+| 文档漂移 | 规则、模板、命令改动后同步更新对应文档 |
+
+## 基本要求
+
+- 文档改动至少运行 `git diff --check`。
+- 代码改动必须运行与任务风险匹配的验证命令。
+- 不允许在未验证的情况下手工把任务标记为通过。
+
+## 需求到验证的左移规则
+
+- 测试从需求收敛阶段开始介入，不允许等代码完成后才第一次补测试范围。
+- 任何 P0/P1 需求进入实现前，至少要有 Requirement ID、业务规则、正向示例、异常示例、测试层级映射、测试数据说明和证据路径。
+- `docs/testing/TRACEABILITY_MATRIX.md`、验收示例和验证矩阵属于实现前 truth source；缺失时应优先补齐，而不是继续猜测实现。
+- 修改业务代码时必须同时检查测试影响；相关测试缺失时，先补测试骨架或测试计划，再继续实现。
+
+## 完成定义
+
+- 对外部系统、既定开源栈、第三方平台或真实环境的集成型需求，完成定义至少包含：真实依赖接上、真实请求走通、成功态证据、失败态证据。
+- 页面能打开、本地接口能返回、单元测试通过，都不足以声称正式 `FR-*` 已完成。
+- 如果当前只是原型 / spike / exploratory 路径，不要把演示性交付直接标成正式 `FR-*` 完成；应改用 `PROTO-*`、`SPIKE-*`、`INTEGRATION-*` 等单独标识，或在 spec / plan 中显式记录该 FR 仍处于未完成集成态。
+- 单元测试只能证明本地逻辑；集成型需求还必须补环境 smoke、E2E、真实下游连通性验证和证据 note。
+- Stage 17 只负责 fresh evidence、affected tests 和 P0/P1 回归确认，不负责第一次定义需求测试范围。
+
+## 技术栈验证基线
+
+| 改动类型 | 最小验证 |
+| --- | --- |
+| 文档 | `git diff --check` |
+| JSON | `ConvertFrom-Json` |
+| PowerShell | Parser 语法检查 |
+| TypeScript / 前端 | lint、typecheck、build |
+| API 或业务流程 | 单元测试、集成测试或 E2E，按风险选择 |
+
+ succeeded in 851ms:
+# Harness Rule Governance
+
+本文定义规则如何进入 `AGENTS.md`、深文档、prompt、task template 和自动化检查。目标是控制指令预算，同时让关键约束可执行、可验证、可演进。
+
+## `docs/doc/1.md` 落地结论
+
+`docs/doc/1.md` 的核心价值不是把模板原样搬进本仓库，而是约束规则系统的形态：
+
+- `AGENTS.md` 做短入口，保留每次会话必须遵守的少量硬约束和深文档索引。
+- AI 可以从代码、schema、lint 或脚本推断 / 检查的内容，不进入 `AGENTS.md`。
+- 禁令必须带替代方案；例如不要伪造 `passes=true`，替代方案是让 `codex-loop.ps1` 在验证、review 和 commit gate 通过后写回状态。
+- Bad Case 先进入知识、prompt、role rules 或自动化检查；只有所有会话都必须知道时，才升级到 `AGENTS.md`。
+- 能自动检查的规则应进入 `verify.ps1`、`doctor.ps1`、JSON schema、hook 或同步脚本，不长期只靠文字提醒。
+- 重要深文档必须被 `AGENTS.md` 引用，避免成为孤立文档。
+
+本仓库实践选择：入口文件控制在“读完即可开工”的长度；任务、验证、知识、prompt 和镜像同步细节分别落到 `docs/harness/*`、`.agents/rules/*`、`.codex/prompts/*` 和 `agent/` package mirrors。
+
+## 分层原则
+
+| 层级 | 放什么 | 不放什么 |
+| --- | --- | --- |
+| `AGENTS.md` | 每次会话都必须遵守的少量硬约束、入口索引 | 长模板、通用编码常识、会频繁变动的细节 |
+| `docs/harness/*` | driver、任务、验证、知识、治理等工程协议 | 具体业务需求 |
+| `.agents/rules/*` | agent 角色、阶段路由、协作边界 | 单个功能的临时计划 |
+| `.codex/prompts/*` | driver 注入给实现、review、repair 的执行提示 | 人类阅读优先的长说明 |
+| `task.json` | 当前真实任务队列和验证命令 | 模板示例、过期 smoke 占位 |
+
+## 规则进入标准
+
+只有满足以下至少一项，才应新增规则：
+
+- 同类问题在 review、trace 或失败记录中重复出现。
+- 违反后会造成安全、数据、提交、验证或上下文污染风险。
+- AI 无法从代码和现有文档自然推断。
+- 新人或新会话必须知道，否则会走错执行链路。
+
+以下内容默认不写进规则：
+
+- formatter、linter 已经确定性检查的风格细节。
+- “写清晰代码”这类无法改变行为的泛化建议。
+- README 面向人类读者的项目介绍。
+- 没有验证方式的一次性偏好。
+
+## 禁令写法
+
+禁令必须同时给替代方案：
+
+```text
+不要直接改 task.json 来伪造完成状态；应让 codex-loop.ps1 在验证、review 和 commit gate 通过后写回 passes=true。
+```
+
+如果无法给替代方案，先不要写成硬规则，改写成待确认风险或知识条目。
+
+## Bad Case 闭环
+
+每次出现 AI 错误，先判断应该落到哪里：
+
+| 错误类型 | 处理位置 |
+| --- | --- |
+| 单次任务失败 | `progress.txt`、trace、failure triage |
+| 可复用经验 | `docs/knowledge/pitfalls/` 或 `guidelines/` |
+| 会反复影响 driver 行为 | `.codex/prompts/*` 或 `.agents/rules/*` |
+| 所有会话必须知道 | `AGENTS.md` |
+| 可以自动检查 | `verify.ps1`、`doctor.ps1`、JSON schema 或 hook |
+
+## 变更流程
+
+1. 先确认触发来源：trace、review finding、失败日志、用户明确要求或文档分析。
+2. 选择最小生效层级，不把深文档内容直接搬进 `AGENTS.md`。
+3. 如果改动影响模板或镜像，按 `harness-surface-sync` 同步 canonical source 和 mirrors。
+4. 运行最小验证：文档至少 `git diff --check`，JSON 需要 `ConvertFrom-Json`，PowerShell 需要 parser 检查。
+5. 提交前确认没有把 token、cookie、私钥、密码写入规则或 trace。
+
+## 定期治理
+
+建议每 10 个 driver 任务或每次较大 harness 改造后执行一次规则治理检查：
+
+- `AGENTS.md` 是否仍保持短入口。
+- 深文档是否有孤立规则没有被入口引用。
+- prompt 是否与 `AGENTS.md`、`.agents/rules/agents.md` 冲突。
+- task template 是否还包含 smoke、示例领域或占位路径。
+- 知识条目是否有重复、过时、矛盾或长期未引用内容。
+
+## AGENTS.md 压缩检查表
+
+调整 `AGENTS.md` 时逐条检查：
+
+| 问题 | 处理 |
+| --- | --- |
+| 这条规则是否每次会话都必须知道？ | 是则保留，否则下沉到深文档 |
+| 这条规则是否已有脚本、schema、lint 或 hook 检查？ | 链接自动化位置，不重复写长说明 |
+| 这条规则是否只是通用工程常识？ | 删除 |
+| 这条规则是否只有禁止项？ | 补充替代方案，否则降级为风险说明 |
+| 这条规则是否源自单次失败？ | 先进入 `docs/knowledge/` 或 trace，不直接升级入口 |
+| 深文档是否在入口可发现？ | 在 `AGENTS.md` 索引补链接 |
+
+ succeeded in 886ms:
+# Knowledge Catalog
+
+本目录保存当前项目的可复用知识。Codex 会话应先读本文件，再按需读取 `catalog.md` 和具体条目。
+
+## 查询顺序
+
+1. 当前任务涉及 harness、规则、driver、trace、模板或 prompt 时，先读 `docs/harness/knowledge-architecture.md`。
+2. 需要查找已有经验时，读 `docs/knowledge/catalog.md`。
+3. 只读取与当前任务直接相关的完整条目。
+
+## 维护入口
+
+- 冷启动导入：`docs/harness/knowledge-import.md`
+- 健康检查：`docs/harness/knowledge-lint.md`
+- 架构协议：`docs/harness/knowledge-architecture.md`
+
+## 分类
+
+| 分类 | 路径 | 用途 |
+| --- | --- | --- |
+| Models | `docs/knowledge/models/` | 实体、结构、关系 |
+| Decisions | `docs/knowledge/decisions/` | 架构决策、取舍和原因 |
+| Guidelines | `docs/knowledge/guidelines/` | 推荐做法、禁止做法和替代方案 |
+| Pitfalls | `docs/knowledge/pitfalls/` | 已知风险、失败模式、排查步骤 |
+| Processes | `docs/knowledge/processes/` | 可重复工作流和操作步骤 |
+| Archive | `docs/knowledge/archive/` | 过时、低置信或待合并条目 |
+
+## 阶段推荐
+
+| 阶段 | 优先知识类型 |
+| --- | --- |
+| analysis | `model`、`process`、`pitfall` |
+| design | `decision`、`guideline`、`model` |
+| plan | `decision`、`process`、`pitfall` |
+| implement | `guideline`、`pitfall` |
+| review | `guideline`、`pitfall`、`decision` |
+| archive | 所有类型 |
+
+## 当前状态
+
+当前知识库处于 cold start。新增条目默认 maturity 为 `draft`，需要通过 trace 引用和验证证据逐步提升。
+
+ succeeded in 919ms:
+# Prompt Knowledge Integration
+
+本文定义 `.codex/prompts/*` 如何消费 `docs/harness/*` 和 `docs/knowledge/*`，确保知识沉淀不只停留在文档里，而是进入实现、审查、修复和归档链路。
+
+## 目标
+
+- 每个执行角色都知道何时读取知识目录。
+- 每个输出角色都能记录 `knowledge_references` 和 `knowledge_outputs`。
+- review 能检查知识是否被使用、是否被误用。
+- failure triage、repair 和 visual review 能把坏例转成可归档建议。
+- harness writer 和 docs worker 能按规则治理协议决定内容写到哪里。
+
+## Prompt 覆盖矩阵
+
+| Prompt | 知识消费 | 知识产出 |
+| --- | --- | --- |
+| `controller-loop.md` | 判断任务是否需要注入 `docs/knowledge/` 和规则治理上下文 | 决定是否进入 `ARCHIVE-*` |
+| `implement-one-task.md` | 按阶段读取 knowledge catalog 和相关条目 | 输出 `Knowledge References` / `Knowledge Outputs` |
+| `review-stage1-spec.md` | 检查 `knowledge` truth source、archive 阶段和规则误升级 | 输出 `knowledge_gap` finding |
+| `review-stage2-quality.md` | 检查代码或文档决策是否引用知识 | 输出 `knowledge_gap` finding |
+| `failure-triage.md` | 读取历史坑辅助归因 | 输出 `knowledgeOutputSuggestions` |
+| `repair-one-finding.md` | 读取相关知识，避免重复踩坑 | 输出修复后的知识建议 |
+| `visual-evaluator.md` | 使用设计和视觉相关经验 | 输出视觉 pitfall / guideline 建议 |
+| `harness-audit.md` | 审计 prompt、trace、archive 和 catalog 覆盖 | 输出 Knowledge Gaps |
+| `worker-role/harness-writer.md` | 读取知识架构和规则治理 | 同步 prompt/docs/knowledge mirrors |
+| `worker-role/docs-worker.md` | 判断长期文档与临时讨论边界 | 把可复用经验写入 `docs/knowledge/` |
+| `worker-role/frontend-worker.md` | 读取 UI/视觉/组件经验 | 输出前端知识引用和新坑建议 |
+| `worker-role/backend-worker.md` | 读取架构、安全、API 风险经验 | 输出后端知识引用和新坑建议 |
+| `worker-role/test-runner.md` | 读取历史测试/环境坑 | 输出失败模式归档建议 |
+
+## 阶段查询矩阵
+
+实现会话不应一次性读取全部知识。先读 `knowledge-catalog.md`，再按阶段和任务类型选择 catalog 与少量完整条目。
+
+| 阶段 | 查询重点 | 优先知识类型 | 默认用途 |
+| --- | --- | --- | --- |
+| `analysis` / 产品分析 | 业务实体、历史需求、流程和已知坑 | `model`、`process`、`pitfall` | 补齐需求边界、异常流和术语 |
+| `plan` / 技术分析 | 既有架构决策、禁止做法、失败模式 | `decision`、`guideline(avoid)`、`pitfall` | 避免重复推导和重复踩坑 |
+| `design` / 架构设计 | 实体关系、模块边界、历史决策 | `model`、`decision` | 保持设计与已有约束一致 |
+| `implement` | 编码实践、团队约定、风险路径 | `guideline`、`pitfall` | 指导实现细节和边界处理 |
+| `verify` / release | 回归风险、环境坑、禁止做法 | `pitfall`、`guideline(avoid)` | 选择 affected tests 和失败排查路径 |
+| `archive` | 本轮引用、产出、冲突和可提升条目 | 全部类型 | 更新 `last_referenced`、输出 promotion/decay/conflict/merge candidates |
+
+每个阶段只读取和当前任务直接相关的条目。`draft` 条目可以启发分析，但不能成为阻塞性 review 依据；`proven` 条目才适合升级为规则、模板或 prompt。
+
+## 输出字段约定
+
+实现、修复和 worker handoff 应尽量使用以下 Markdown 字段：
+
+```markdown
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `suggested-id`: type - title - action - `target-path`
+```
+
+失败归因 JSON 使用：
+
+```json
+{
+  "knowledgeReferences": [],
+  "knowledgeOutputSuggestions": []
+}
+```
+
+driver trace 使用 `trace.schema.json` 中的：
+
+- `knowledge_references`
+- `knowledge_outputs`
+- `archive_summary`
+
+## 使用边界
+
+- `draft` 知识只能作为参考，不应作为阻塞性 review 依据。
+- `verified` 知识可以作为 reviewer 的辅助依据。
+- `proven` 知识才适合升级为规则、模板或 prompt。
+- 单次任务经验不得直接写入 `AGENTS.md`，应先进入 `docs/knowledge/`。
+- prompt 改动后必须同步 `agent/.codex/prompts/`、`agent/docs/codex-harness-engineering/templates/prompts/` 和 `.agents/docs/codex-harness-engineering/templates/prompts/`。
+
+## 维护检查
+
+每次改动 `docs/harness/knowledge-architecture.md`、`docs/harness/rule-governance.md`、`trace.schema.json` 或 `project-task-template.json` 后，检查：
+
+1. `implement-one-task.md` 是否仍要求输出知识引用和知识产出。
+2. Stage 1 / Stage 2 review 是否能检查知识缺口。
+3. failure / repair / visual prompts 是否能把坏例转成归档建议。
+4. worker-role prompts 是否要求读取对应知识文档。
+5. `refresh-agent-package.ps1 -CheckOnly` 是否通过。
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "if (Test-Path docs\\knowledge\\catalog.md) { Get-Content -LiteralPath docs\\knowledge\\catalog.md } else { Write-Output 'MISSING docs/knowledge/catalog.md' }" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 755ms:
+# Knowledge Item Catalog
+
+| ID | Type | Maturity | Title | Tags | Path |
+| --- | --- | --- | --- | --- | --- |
+| DECISION-HARNESS-001 | decision | draft | Harness 从执行闭环扩展为知识闭环 | harness, knowledge | `docs/knowledge/decisions/DECISION-HARNESS-001.md` |
+| GUIDELINE-RULES-001 | guideline | draft | 规则必须短入口、深文档、可验证 | rules, governance | `docs/knowledge/guidelines/GUIDELINE-RULES-001.md` |
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\testing\\ACCEPTANCE_EXAMPLES.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\testing\\TRACEABILITY_MATRIX.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\testing\\verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 649ms:
+# 需求追溯矩阵
+
+**功能**:
+**最后更新**:
+**负责人**:
+
+| Req ID | 业务规则 | 页面 / 组件 | 状态 | API / 契约 | 测试层级 | 测试文件 / 计划 | 证据路径 | 风险 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| REQ-001 | | | 默认 | | unit / component / api / e2e | | | P0 |
+
+## 规则
+
+- 每条 P0/P1 需求都必须恰好出现一次，或被明确拆分。
+- 每一行都必须指向至少一个测试层级和一个证据路径。
+- UI 行必须包含所需状态或明确豁免。
+- API / 数据行必须包含契约或 schema 校验证据。
+
+ succeeded in 668ms:
+# 验证矩阵
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**任务 ID**: INIT-001
+**生成时间**: 2026-05-13
+
+> 当前文件是 handoff 阶段的最小验证入口。完整验收示例、追溯矩阵、测试数据矩阵、风险计划和回归计划由 `ANALYSIS-001` 基于 `docs/product/*` 补齐。
+
+| 检查项 | 关联需求 | 命令 / 证据 | 必需 | 退出码 / 结论 | 报告路径 |
+| --- | --- | --- | --- | --- | --- |
+| 产品真相源存在 | FR-001 / FR-014 | `docs/product/prd-lite.md`、`page-inventory.md`、`difficulty-research.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 必需 | 待 driver fresh evidence | `traces/` |
+| 任务队列结构 | FR-001 / FR-014 | `task.json` 中所有任务具备 `requirement_ids`、`owned_paths`、`context_files`、`produces_artifacts`、`acceptance`、`test_command`、`execution.mode=single` | 必需 | 待 driver fresh evidence | `traces/` |
+| Handoff 边界 | FR-001 / FR-014 | `task.json.runtime.handoff` 声明 product truth sources、testing current entry、future plan entry 和 driver single-task 边界 | 必需 | 待 driver fresh evidence | `traces/` |
+| 静态检查 | FR-001 / FR-014 | `git diff --check` | 必需 | 待 driver fresh evidence | `traces/` |
+| Testing 完整矩阵 | FR-001 - FR-014 | `ACCEPTANCE_CRITERIA.md`、`ACCEPTANCE_EXAMPLES.md`、`TRACEABILITY_MATRIX.md`、`TEST_DATA_MATRIX.md`、`test-matrix.md` | ANALYSIS-001 必需 | planned | `docs/testing/` |
+| 契约与实现验证 | FR-001 - FR-014 | `contracts/openapi.yaml`、契约测试、API/调度/查询/文件/样板验证命令 | 后续任务必需 | planned | `contracts/`、`tests/`、`traces/` |
+
+## 最终规则
+
+- INIT-001 只验证产品真相源、队列结构、handoff 边界和 `git diff --check`。
+- P0/P1 的完整验收示例、追溯、测试数据和风险矩阵必须在 ANALYSIS-001 产出，不得把当前模板文件当成已完成口径。
+- release 前每个必需项都要有 fresh evidence，或提供明确的 BLOCKED / exemption 记录。
+
+ succeeded in 767ms:
+# 验收示例
+
+**功能**:
+**最后更新**:
+**负责人**:
+
+## 模板
+
+### REQ-XXX-001 <需求标题>
+
+#### 正向示例
+
+给定
+-
+
+当
+-
+
+则
+-
+
+#### 负向示例
+
+给定
+-
+
+当
+-
+
+则
+-
+
+#### 证据目标
+
+- 测试文件:
+- 截图 / 日志:
+- 最终验证证据:
+
+codex
+知识目录是 cold start，仅有两条与 harness/规则治理有关的 draft 条目；本任务是 handoff/plan 边界锁定，读取目录足够，只有在需要引用具体治理结论时再读条目。下一步我会检查 `task.json` 和产品文件，定位是否还残留模板占位或视觉类范围。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -LiteralPath task.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -LiteralPath project-task-template.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\product\\prd-lite.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\product\\page-inventory.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 728ms:
+# 页面/能力清单：统一导出平台
+
+> 当前仓库不建设新的前端页面，因此这里记录的是后端能力入口和样板模块落点。
+
+## 1. 后端能力清单
+
+| Capability ID | 能力 | 入口 | 角色 | 说明 |
+| --- | --- | --- | --- | --- |
+| api-001 | 创建导出任务 | `POST /api/export/tasks` | 业务用户/业务系统 | 创建异步任务并返回 `taskId`，支持 `clientRequestId` 幂等 |
+| api-002 | 查询任务详情/进度 | `GET /api/export/tasks/{taskId}` | 业务用户/管理员 | 查看状态、进度、错误信息 |
+| api-003 | 下载导出文件 | `GET /api/export/tasks/{taskId}/download` | 业务用户/管理员 | 返回签名 URL 或流式文件，并携带文件元信息 |
+| api-004 | 查询任务历史 | `GET /api/export/tasks` | 业务用户/管理员 | 按正式筛选维度分页查看历史任务与可见性过滤 |
+| api-005 | 取消任务 | `POST /api/export/tasks/{taskId}/cancel` | 业务用户/管理员 | 取消 PENDING 或执行中批次边界任务 |
+| api-006 | 重试任务 | `POST /api/export/tasks/{taskId}/retry` | 业务用户/管理员 | 重新执行失败任务 |
+| api-007 | 注册导出任务 | registry/config APIs | 子系统开发者/管理员 | 注册 taskCode、更新、查询、启停、并发和保留期等配置 |
+| api-008 | 查询模板配置 | registry/config APIs | 平台管理员/子系统开发者 | 配置数据源、参数 schema、参数化查询模板、游标字段、排序规则和批大小 |
+| api-009 | 字段映射与脱敏策略 | registry/config APIs | 平台管理员/子系统开发者 | 配置字段编码、表头、类型、顺序、导出标记、敏感字段和脱敏策略 |
+| api-010 | 文件元信息与校验 | file service / OSS | 平台/运维 | 记录 storageKey、checksum、checksumAlgorithm、contentType、expiresAt 和 attemptNo |
+| api-011 | 执行事件追踪 | task event log | 平台/运维 | 记录查询模板、批次、字段校验、文件发布和交付准备事件 |
+| job-001 | 调度执行 | Scheduler | 平台 | 轮询、DB 抢锁、租约续期并执行集中查询导出 |
+| job-002 | 过期清理 | Cleanup Job | 平台/运维 | 清理过期文件 |
+| sdk-001 | 接入方式 | HTTP/Feign | 子系统开发者 | 调用平台任务接口并传递认证上下文和业务查询参数 |
+
+## 2. 接口边界补充
+
+- 历史查询筛选维度限定为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；新增筛选项必须先回填 PRD 和验收标准。
+- 下载签名 URL 模式返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`；stream 模式返回文件流和等价文件元信息。
+- registry/config APIs 至少覆盖注册创建、更新、查询、启停、并发上限、保留期、单文件行数阈值、最大导出量、支持格式、数据源、参数 schema、查询模板、字段映射和脱敏策略。
+- 取消与重试接口必须防重复派发：FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数，PENDING/EXECUTING 重试返回非法状态错误且不得产生新的执行。
+- 认证上下文最小字段为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；缺少最小字段时不得继续创建、下载或配置操作。
+- 对象存储路径默认按 `exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName}` 生成，签名 URL 默认 10 分钟有效，文件校验默认 `SHA-256`。
+- 创建任务的幂等范围为 `tenantId + operatorId + taskCode + clientRequestId`；参数摘要一致返回原任务，参数摘要不同返回 `IDEMPOTENCY_CONFLICT`。
+- `queryParams` 默认最大 32KB；单文件默认最大 20000 行；单任务默认最大导出量 100000 行，注册配置可收紧。
+- 调度锁默认记录 `lockOwner`、`lockExpireAt` 和 `leaseRenewedAt`；锁时间判断以数据库时间为准。
+- 锁租约过期后的实例接管延续当前 `attemptNo`，从批次检查点继续；FAILED 重试才递增 `attemptNo`。
+- 注册配置变更只对新任务生效；已创建任务和失败重试沿用任务创建时的配置快照。
+- 查询执行必须来自任务快照和当前执行尝试，至少包含 `taskId`、`taskCode`、`subsystemCode`、`attemptNo`、`tenantId`、`operatorId`、`roleCodes`、`orgScope`、`requestId`、`dataScopeExpression`、参数摘要和批次游标。
+- 查询执行事件至少覆盖 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。
+- 文件服务必须支持临时对象和已发布对象分层；下载接口只能返回已发布且校验通过的对象。
+
+## 3. 样板模块
+
+- 样板模块选 `采购订单导出`。
+- 落点优先覆盖：创建时间范围、订单状态、供应商、采购组织、关键词、表头、游标字段、敏感字段、空数据、10 万数据压测。
+- 默认字段包括订单号、订单状态、供应商、采购组织、采购员、创建时间、总金额、币种和脱敏后的联系人信息。
+- 采购订单样板中的 `standby` 分支、`0/1/20000/20001/100000/100001` 边界、registry/config、集中查询模板、OSS、锁、审计、权限都必须能在测试数据和验证矩阵中找到对应入口。
+- 样板注册默认值：`taskCode=purchase-order-export`、`subsystemCode=purchase`、`enabled=true`、`singleFileMaxRows=20000`、`defaultExportMaxRows=100000`、`supportedFormats=[XLSX, ZIP]`。
+- 样板查询条件：`createdAtRange` 必填，`orderStatus`、`supplierId`、`purchaseOrgId`、`keyword` 可选；`keyword` 匹配订单号、供应商名称或采购员名称。
+- 样板字段顺序：`orderNo`、`orderStatus`、`supplierName`、`purchaseOrgName`、`buyerName`、`createdAt`、`totalAmount`、`currency`、`contactName`、`contactPhone`。
+- 样板敏感字段：`contactName`、`contactPhone`；平台必须按注册脱敏策略输出脱敏后值并保存校验证据。
+- 样板游标字段：优先 `orderId`，必须稳定递增且唯一；如果使用等价游标字段，必须在注册配置中声明。
+
+## 4. 采购订单样板集中查询合同
+
+| 阶段 | 样板要求 | 验收证据 |
+| --- | --- | --- |
+| 注册配置 | `taskCode=purchase-order-export`、`subsystemCode=purchase`、只读数据源、参数 schema、查询模板版本、字段顺序、敏感字段、支持格式、`cursorField=orderId`、批大小建议 | 注册配置快照 |
+| 参数校验 | `createdAtRange` 必填，`orderStatus`、`supplierId`、`purchaseOrgId`、`keyword` 可选 | 创建请求、参数摘要 |
+| 查询执行 | 按游标稳定分页返回数据、下一游标、是否还有更多和批次行数 | 批次检查点、查询日志、重试记录 |
+| 字段与脱敏 | 按字段映射输出固定表头，联系人姓名和联系人手机号按脱敏策略处理 | 字段校验、脱敏校验证据 |
+| 文件生成 | XLSX/ZIP 主路径由平台渲染 | 分片文件、ZIP 清单、文件校验 |
+
+## 5. 执行证据边界
+
+- 创建证据：`clientRequestId`、`idempotencyScope`、`requestDigest`、`taskId`、`configSnapshotDigest`。
+- 调度证据：`attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt`、抢锁结果和数据库时间。
+- 批次证据：`cursorField`、`lastCursor`、`processedCount`、`filePartNo`、`batchSize`、`batchRowCount`、`retryCount`、`backoffMs`。
+- 文件证据：`storageKey`、`fileName`、`fileSize`、`contentType`、`checksum`、`checksumAlgorithm`、`attemptNo`。
+- 压测证据：10 万行样板导出必须记录总耗时、分片数、锁续租次数、查询重试次数和最终文件校验值。
+- 样板证据：`taskCode`、`subsystemCode`、查询条件、字段定义、敏感字段脱敏策略、`cursorField`、边界行数、分片数和 ZIP 文件清单。
+
+ succeeded in 799ms:
+{
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "trace_dir": "traces",
+    "agent": "codex",
+    "run_profile": ".codex\\task-run-profile.json",
+    "git": {
+      "require_clean_workspace": true,
+      "non_blocking_dirty_paths": []
+    },
+    "session": {
+      "mode": "fresh-process",
+      "carry_forward_summary": false
+    },
+    "subagents": {
+      "mode": "guided",
+      "allowed_roles": [
+        "explorer",
+        "readonly-research",
+        "docs-researcher",
+        "planner",
+        "architect",
+        "reviewer",
+        "stage1-reviewer",
+        "stage2-reviewer",
+        "security-reviewer",
+        "test-planner",
+        "failure-triage",
+        "visual-reviewer",
+        "harness-writer",
+        "docs-worker",
+        "frontend-worker",
+        "backend-worker",
+        "test-runner"
+      ],
+      "max_parallel_roles": 3
+    }
+  },
+  "tasks": [
+    {
+      "id": "INIT-001",
+      "description": "锁定已确认 spec、初始 dev-plan 和 driver 接管边界",
+      "task_kind": "feature_plan",
+      "phase": "handoff",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "plan"
+      ],
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "AGENTS.md",
+        "project-task-template.json",
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "owned_paths": [
+        "docs/product/",
+        "docs/testing/",
+        "plans/"
+      ],
+      "requirement_ids": [
+        "META-HANDOFF-REPLACE"
+      ],
+      "produces_artifacts": [
+        "docs/testing/verify-matrix.md",
+        "task.json"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把模板中的 <feature-slug>、用户故事标题、requirement_ids、owned_paths、context_files 和 test_command 全部替换成当前项目真实值",
+        "确认 task 依赖、优先级、execution.mode 和 non_blocking_dirty_paths 已与当前项目约束一致",
+        "确认当前 task.json 已经是正式任务队列，不再保留领域示例、smoke 占位或过期路径"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "任务队列只保留当前项目真实阶段与用户故事",
+        "plan 入口已经使用 plans/**/*.dev-plan.md 路径体系",
+        "后续任务不再依赖聊天补 requirement_ids、owned_paths 或验证命令"
+      ]
+    },
+    {
+      "id": "ANALYSIS-001",
+      "description": "补齐需求追溯、测试左移材料和 repo context 真相源",
+      "task_kind": "feature_research",
+      "phase": "analysis",
+      "gate_profile": "research_required",
+      "required_truth_sources": [
+        "product",
+        "plan"
+      ],
+      "priority": 5,
+      "dependencies": [
+        "INIT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/state-matrix.yaml",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/product/",
+        "docs/testing/",
+        "docs/context/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-ANALYSIS"
+      ],
+      "produces_artifacts": [
+        "docs/product/difficulty-research.md",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "docs/testing/RISK_BASED_TEST_PLAN.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/failure-triage.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "围绕已确认 spec 补齐页面清单、状态矩阵、边界条件、异常流和难点研究",
+        "把 Requirement IDs 映射到界面、状态、接口、测试层级、测试数据和证据路径",
+        "生成后续设计和实现必须依赖的 feature-pack、repo-map、architecture-brief 与 testing truth source"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "产品追溯和测试左移文档已补齐且可被后续任务直接消费",
+        "repo_context 与 testing truth source 已达到后续 design / implement 阶段可用状态"
+      ]
+    },
+    {
+      "id": "DESIGN-001",
+      "description": "基于已确认需求与测试映射完成可编码设计规格",
+      "task_kind": "feature_design",
+      "phase": "design",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 6,
+      "dependencies": [
+        "ANALYSIS-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/difficulty-research.md",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/design/",
+        "docs/testing/",
+        "artifacts/visual-review/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-DESIGN"
+      ],
+      "produces_artifacts": [
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/design/design-tokens.json",
+        "docs/design/ai-image-brief.md",
+        "docs/design/ui-image-review.md",
+        "docs/design/image-to-frontend-spec.md",
+        "docs/design/visual-parity-review.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "输出页面结构、组件映射、关键状态、响应式与可访问性要求",
+        "把 Requirement IDs、交互路径、稳定测试选择器和视觉断言绑定到设计规格",
+        "明确后续实现需要的视觉参考、截图资产和验收边界"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "设计规格足以支撑实现而不再依赖口头补充",
+        "关键页面、状态和视觉断言已能回溯到需求与测试矩阵"
+      ]
+    },
+    {
+      "id": "PLAN-001",
+      "description": "把真相源收敛为可执行的实施计划和验证顺序",
+      "task_kind": "feature_plan",
+      "phase": "plan",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 7,
+      "dependencies": [
+        "DESIGN-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "plans/",
+        "docs/testing/",
+        "docs/context/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-PLAN"
+      ],
+      "produces_artifacts": [
+        "plans/features/<feature-slug>.dev-plan.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把后续实现按用户故事顺序映射到 dev-plan、affected tests、验证命令和证据路径",
+        "确认每个实现任务都已有 requirement_ids、owned_paths、context_files 和最小可行验收闭环",
+        "明确哪些故事必须串行，哪些依赖可在后续手工改成并行"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "dev-plan、verify-matrix 和 story 级执行顺序保持一致",
+        "后续实现与 release 任务的验证边界已经明确且可执行"
+      ]
+    },
+    {
+      "id": "US1-001",
+      "description": "实现 US1 / MVP：将首个可独立验收的用户故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us1",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 20,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US1",
+      "story_priority": "P0/P1",
+      "independent_test": "替换为 US1 的独立验证方式，例如一个最短闭环页面或一条完整 API/业务路径",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us1-owned-path-1>/",
+        "<replace-with-us1-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US1-001",
+        "FR-REPLACE-US1-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us1-primary-artifact>",
+        "<replace-with-us1-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把 US1 标题、requirement_ids、owned_paths、产物路径和独立验证方式替换为真实项目内容",
+        "仅实现首个可单独交付的用户故事，并同步补齐其 affected tests 与必要文档",
+        "运行与 US1 对应的真实验证命令，记录可回溯证据"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US1 能作为 MVP 独立演示或独立验收",
+        "US1 的 Requirement IDs、测试映射和证据路径完整可追溯"
+      ]
+    },
+    {
+      "id": "US2-001",
+      "description": "实现 US2：将第二个用户故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us2",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 30,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US2",
+      "story_priority": "P1/P2",
+      "independent_test": "替换为 US2 的独立验证方式；若与 US1 强依赖，请同步调整 dependencies",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us2-owned-path-1>/",
+        "<replace-with-us2-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US2-001",
+        "FR-REPLACE-US2-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us2-primary-artifact>",
+        "<replace-with-us2-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "将 US2 占位内容替换为真实范围、路径、需求编号和验证命令",
+        "确保 US2 可作为独立增量交付，不把未确认范围混入同一任务",
+        "补齐 US2 的 affected tests、回归说明和证据路径"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US2 范围清晰且不与其他故事混杂",
+        "US2 的实现、验证和证据链可独立审查"
+      ]
+    },
+    {
+      "id": "US3-001",
+      "description": "实现 US3：将第三个用户故事或跨端扩展故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us3",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 40,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US3",
+      "story_priority": "P2/P3",
+      "independent_test": "替换为 US3 的独立验证方式；如果不需要第三个故事，可删除该任务并重排优先级",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us3-owned-path-1>/",
+        "<replace-with-us3-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US3-001",
+        "FR-REPLACE-US3-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us3-primary-artifact>",
+        "<replace-with-us3-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "将 US3 占位内容替换为真实故事标题、路径、需求编号和验证方式",
+        "只承接剩余优先级最高且可单独验收的增量，不把 release 收口动作混入本故事",
+        "完成 US3 的实现、测试映射和证据沉淀"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US3 的增量边界和独立验收方式已明确",
+        "US3 的实现证据可直接服务最终 release 验证"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "description": "执行跨故事联调、回归验证、视觉检查和交付收口",
+      "task_kind": "release",
+      "phase": "verify",
+      "gate_profile": "release_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 80,
+      "dependencies": [
+        "US1-001",
+        "US2-001",
+        "US3-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/context/feature-pack.md",
+        "docs/design/visual-parity-review.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "docs/testing/failure-triage.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/testing/",
+        "docs/design/",
+        "artifacts/",
+        "tests/"
+      ],
+      "requirement_ids": [
+        "NFR-REPLACE-RELEASE",
+        "FR-REPLACE-END-TO-END"
+      ],
+      "produces_artifacts": [
+        "artifacts/visual-review/",
+        "docs/testing/failure-triage.md",
+        "traces/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "执行 affected tests、P0/P1 回归、端到端、视觉还原和必要契约校验",
+        "记录失败归因、修复建议、最终通过证据和剩余风险",
+        "确认 release 阶段只负责 fresh evidence，不在此阶段第一次补需求或测试范围"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "跨故事主流程验证通过，或有明确 blocked 说明与后续处置",
+        "交付所需的测试与视觉证据完整可追溯"
+      ]
+    },
+    {
+      "id": "ARCHIVE-001",
+      "description": "归档本轮交付知识、更新知识索引并标记可复用经验",
+      "task_kind": "archive",
+      "phase": "archive",
+      "gate_profile": "lightweight",
+      "required_truth_sources": [
+        "knowledge"
+      ],
+      "priority": 90,
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/harness/knowledge-architecture.md",
+        "docs/harness/knowledge-import.md",
+        "docs/harness/knowledge-lint.md",
+        "docs/harness/team-knowledge-sync.md",
+        "docs/harness/rule-governance.md",
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "progress.txt",
+        "traces/"
+      ],
+      "owned_paths": [
+        "docs/knowledge/"
+      ],
+      "requirement_ids": [
+        "NFR-KNOWLEDGE-ARCHIVE"
+      ],
+      "produces_artifacts": [
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/knowledge/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "knowledge_query_budget": {
+        "catalogs": 2,
+        "entries": 8
+      },
+      "steps": [
+        "读取本轮任务 trace、progress、review 输出和 failure triage，提取可复用的 decision、guideline、pitfall、process 或 model",
+        "新增或更新 docs/knowledge/ 下的知识条目，所有新增条目初始 maturity 默认为 draft",
+        "更新 knowledge-catalog.md 和 catalog.md，确保索引能按阶段和类型引导后续任务按需读取",
+        "输出 promotion、decay、conflict、merge 和 team sync candidates；成熟度提升、团队同步、冲突裁决和归档删除必须有明确 evidence",
+        "不要把一次性任务结论提升为 AGENTS.md 规则；只有 proven 级别或用户明确要求时才升级规则"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "本轮可复用知识已沉淀到 docs/knowledge/ 或明确说明没有可归档条目",
+        "knowledge-catalog.md 和 catalog.md 与新增或更新条目保持一致",
+        "可提升、可衰减、可团队同步、冲突和重复条目已有候选说明或明确无相关候选",
+        "归档任务没有修改业务实现或伪造 driver runtime 状态"
+      ]
+    }
+  ]
+}
+
+ succeeded in 819ms:
+{
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "trace_dir": "traces",
+    "agent": "codex",
+    "run_profile": ".codex\\task-run-profile.json",
+    "git": {
+      "require_clean_workspace": true,
+      "non_blocking_dirty_paths": [
+        "traces/"
+      ]
+    },
+    "session": {
+      "mode": "fresh-process",
+      "carry_forward_summary": false
+    },
+    "handoff": {
+      "feature_id": "FEAT-EXPORT-PLATFORM-001",
+      "truth_sources": {
+        "product": [
+          "docs/product/prd-lite.md",
+          "docs/product/page-inventory.md",
+          "docs/product/difficulty-research.md",
+          "docs/product/acceptance-criteria.md",
+          "docs/product/requirement-interface-matrix.md",
+          "docs/product/state-matrix.yaml"
+        ],
+        "testing": {
+          "current_entry": "docs/testing/verify-matrix.md",
+          "analysis_outputs": [
+            "docs/testing/ACCEPTANCE_CRITERIA.md",
+            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+            "docs/testing/TRACEABILITY_MATRIX.md",
+            "docs/testing/TEST_DATA_MATRIX.md",
+            "docs/testing/test-matrix.md"
+          ]
+        }
+      },
+      "future_entries": {
+        "plan": "plans/features/export-platform.dev-plan.md"
+      },
+      "driver_boundary": {
+        "queue_entry": "task.json",
+        "execution_mode": "single",
+        "managed_scope": "Driver 只执行 tasks[] 中声明且 execution.mode=single 的正式任务。",
+        "excluded_scope": [
+          "仅存在于聊天上下文的需求补充",
+          "模板占位任务",
+          "前端视觉设计类任务"
+        ]
+      }
+    },
+    "subagents": {
+      "mode": "guided",
+      "allowed_roles": [
+        "explorer",
+        "readonly-research",
+        "docs-researcher",
+        "planner",
+        "architect",
+        "reviewer",
+        "stage1-reviewer",
+        "stage2-reviewer",
+        "security-reviewer",
+        "test-planner",
+        "failure-triage",
+        "visual-reviewer",
+        "harness-writer",
+        "docs-worker",
+        "frontend-worker",
+        "backend-worker",
+        "test-runner"
+      ],
+      "max_parallel_roles": 3
+    }
+  },
+  "tasks": [
+    {
+      "id": "INIT-001",
+      "description": "锁定统一导出平台的产品真相源、计划入口、测试矩阵入口和 driver 接管边界",
+      "task_kind": "feature_plan",
+      "phase": "handoff",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product"
+      ],
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "AGENTS.md",
+        "project-task-template.json",
+        "docs/harness/task-session-strategy.md",
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/verify-matrix.md",
+        "task.json"
+      ],
+      "owned_paths": [
+        "task.json",
+        "docs/testing/verify-matrix.md"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "task.json",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "确认 runtime.handoff.truth_sources.product 中列出的统一导出平台产品真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
+        "锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks",
+        "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "task.json 成为统一导出平台的正式 driver 队列入口",
+        "首轮 driver 可在不补充聊天上下文的前提下识别真实 truth source、计划入口和测试入口",
+        "任务队列不保留功能标识占位符、需求编号替换占位符、领域示例占位文本或前端视觉设计类任务"
+      ]
+    },
+    {
+      "id": "ANALYSIS-001",
+      "description": "补齐统一导出平台的分析材料、测试左移矩阵和实现落点探测",
+      "task_kind": "feature_research",
+      "phase": "analysis",
+      "gate_profile": "research_required",
+      "required_truth_sources": [
+        "product",
+        "testing"
+      ],
+      "priority": 5,
+      "dependencies": [
+        "INIT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "owned_paths": [
+        "docs/context/",
+        "docs/testing/",
+        "plans/features/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把产品需求、状态矩阵、接口矩阵和难点研究映射为可执行的测试左移材料、风险边界和证据路径",
+        "探测仓库中可承接后端实现、契约、测试和样板合同的真实目录，如果应用代码目录尚未存在则先落 plans、docs/testing、contracts 或 docs/context 的实施前置文档",
+        "补齐后续实现任务要依赖的 repo-map、feature-pack、architecture-brief 和 verify-matrix，明确每个 requirement 的验收命令与证据入口"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "分析与测试左移文档能支持后续架构、契约和实现任务直接执行",
+        "repo 落点探测结果已明确哪些目录可写、哪些目录需先创建，不把不存在的 src 路径当作唯一 owned_paths",
+        "FR-001 至 FR-014 已在追溯矩阵、测试数据矩阵和 verify-matrix 中建立可回溯入口"
+      ]
+    },
+    {
+      "id": "ARCH-001",
+      "description": "输出统一导出平台的后端架构、模块边界和实现落点方案",
+      "task_kind": "feature_design",
+      "phase": "architecture",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan"
+      ],
+      "priority": 10,
+      "dependencies": [
+        "ANALYSIS-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/context/",
+        "plans/features/",
+        "contracts/"
+      ],
+      "requirement_ids": [
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/context/architecture-brief.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/README.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "定义统一导出平台的服务边界、任务聚合、注册配置、调度 worker、文件交付、清理 job 和审计链路模块划分",
+        "把 DB 抢锁、attemptNo、配置快照、批次检查点、临时对象发布模型和认证上下文约束固化到架构说明和实施计划",
+        "结合 repo-map 确定后续 API 契约、测试和实现应写入的真实路径，必要时先建立 contracts 入口和实现目录约定"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "后端平台能力的模块边界、职责和实施顺序已明确，且不依赖前端页面范围",
+        "调度锁、执行尝试、配置快照、文件发布和清理链路已有统一架构口径",
+        "后续实现任务的 owned_paths 已有架构依据，不会因 commit gate 缺少真实写入路径而阻塞"
+      ]
+    },
+    {
+      "id": "CONTRACT-001",
+      "description": "完成统一导出平台 API、注册配置和错误码契约设计",
+      "task_kind": "feature_design",
+      "phase": "contract",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan"
+      ],
+      "priority": 15,
+      "dependencies": [
+        "ARCH-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "contracts/",
+        "docs/testing/",
+        "plans/features/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "contracts/openapi.yaml",
+        "contracts/README.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "设计创建、详情、历史、下载、取消、重试、注册/启停/配置等对外接口和最小认证上下文字段",
+        "定义 task status、错误码、文件交付元信息、幂等冲突、非法状态和权限失败的统一对外契约",
+        "把契约测试入口、样例请求/响应、错误码映射和对应验证命令回填到 verify-matrix 与 dev-plan"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "API 与错误码契约完整覆盖 FR-001/002/003/004/007/008/009/010/012/013",
+        "对外状态仅使用官方任务状态，不暴露内部 cancel_requested 等内部控制字段",
+        "后续后端实现与契约验证已有明确入口、样例和命令"
+      ]
+    },
+    {
+      "id": "CORE-API-001",
+      "description": "实现或落地核心任务 API 与注册配置骨架",
+      "task_kind": "feature_impl",
+      "phase": "backend-core",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 20,
+      "dependencies": [
+        "CONTRACT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "contracts/openapi.yaml",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "contracts/",
+        "docs/testing/",
+        "tests/",
+        "src/",
+        "app/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-004",
+        "FR-007",
+        "FR-009",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "tests/",
+        "src/",
+        "app/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "基于契约和 repo 落点实现或脚手架化创建任务、查询详情、历史、取消、重试和注册配置核心入口",
+        "优先补齐对应单元/契约/集成测试骨架与最小实现，不存在应用代码目录时先创建经架构确认的代码路径或测试路径",
+        "接入幂等范围、认证上下文、任务可见性、配置快照摘要和审计字段的最小持久化/接口约束"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "核心任务 API 与注册配置能力已具备可编码、可测试的真实落点",
+        "FR-001/002/004/007/009/010/012/013 对应的接口或实现骨架已有测试入口",
+        "owned_paths 覆盖实际写入目录，避免 driver 在 commit gate 因新增代码路径未声明而阻塞"
+      ]
+    },
+    {
+      "id": "SCHED-001",
+      "description": "实现调度抢锁、执行尝试与取消/重试边界",
+      "task_kind": "feature_impl",
+      "phase": "scheduler",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 30,
+      "dependencies": [
+        "CORE-API-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-005",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或定义 MySQL 轮询、DB 锁租约、lockOwner/lockExpireAt、数据库时间判定和批次边界续租机制",
+        "实现或定义 attemptNo、失败重试递增、租约过期接管延续当前 attemptNo、cancelRequested 批次边界收口和非法重试拒绝逻辑",
+        "补齐抢锁成功、租约续租、锁接管、重复抢锁、执行中取消和 FAILED 重试的测试与证据要求"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "调度锁、执行尝试、取消和重试边界符合 FR-005/012/013 的统一口径",
+        "锁接管、重复抢锁和非法状态重试已有明确实现或测试骨架",
+        "执行证据能串联 attemptNo、lockOwner、lockExpireAt、leaseRenewedAt 和批次检查点"
+      ]
+    },
+    {
+      "id": "QUERY-001",
+      "description": "实现集中查询模板、字段映射、脱敏和批次校验链路",
+      "task_kind": "feature_impl",
+      "phase": "query",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 40,
+      "dependencies": [
+        "SCHED-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "contracts/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-006",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或落地只读数据源白名单、参数 schema、参数化查询模板、游标分页、批次检查点和数据范围约束",
+        "实现或落地字段白名单、字段顺序、敏感字段脱敏、批次字段校验和模板/映射/脱敏错误收口",
+        "补齐采购订单样板所需查询条件、游标稳定性、0/1/20000/20001/100000/100001 行边界和敏感字段证据"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "集中查询模板、字段映射和脱敏链路可覆盖 FR-008/009/014 的主流程和错误场景",
+        "批次校验失败、游标不稳定、模板冲突和脱敏失败已有实现或测试入口",
+        "采购订单样板合同已可驱动后续文件渲染、下载和压测验证"
+      ]
+    },
+    {
+      "id": "FILE-001",
+      "description": "实现文件渲染、交付发布和过期清理链路",
+      "task_kind": "feature_impl",
+      "phase": "file-delivery",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 50,
+      "dependencies": [
+        "QUERY-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-003",
+        "FR-006",
+        "FR-010",
+        "FR-011",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或定义 XLSX/ZIP 渲染、空数据仅表头、分片打包、文件校验值生成和 attemptNo 隔离存储",
+        "实现或定义临时对象写入、校验通过后发布、签名 URL 或 stream 下载元信息和下载保护",
+        "实现或定义过期清理 job、先失效后删除、清理失败可重试记录，并补齐对应测试与验证矩阵"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "文件渲染、交付和清理链路满足 FR-003/006/011/013/014 的主流程口径",
+        "未发布或校验失败的对象不会被下载接口返回",
+        "空数据、分片 ZIP、过期文件和 FILE_VERIFY_ERROR/EXPORT_RENDER_ERROR 已有实现或测试入口"
+      ]
+    },
+    {
+      "id": "SAMPLE-001",
+      "description": "落地采购订单导出样板与 10 万行样板验证入口",
+      "task_kind": "feature_impl",
+      "phase": "sample-module",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 60,
+      "dependencies": [
+        "FILE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/",
+        "contracts/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-006",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "按 purchase-order-export / purchase 样板合同落地注册配置、查询条件、字段顺序、敏感字段和 cursorField=orderId 或等价唯一排序键",
+        "补齐 0/1/20000/20001/100000/100001 行测试数据入口、压测记录要求和 ZIP/下载/审计串联证据",
+        "验证样板不会引入平台特例逻辑，所有链路都通过标准 registry、查询、调度、文件和权限能力完成"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "采购订单样板已成为统一导出平台的一期可执行合同",
+        "10 万行压测和 100001 行超量处置已有明确验证入口与证据要求",
+        "样板字段、敏感字段脱敏、游标稳定性和下载链路均能追溯到 FR-014 与 AC-017/018"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "description": "执行统一导出平台 release 验证、回归与证据收口",
+      "task_kind": "release",
+      "phase": "verify",
+      "gate_profile": "release_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 80,
+      "dependencies": [
+        "SAMPLE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/RISK_BASED_TEST_PLAN.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/failure-triage.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "docs/testing/",
+        "tests/",
+        "contracts/",
+        "src/",
+        "app/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/testing/failure-triage.md",
+        "docs/testing/verify-matrix.md",
+        "tests/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "运行 release 所需的契约、受影响测试、P0/P1 回归、采购订单样板边界验证和 fresh evidence 收口",
+        "核对任务状态、错误码、审计字段、批次检查点、文件元信息和下载保护是否与产品真相源一致",
+        "记录通过证据、失败归因、剩余风险和明确 blocked 项，不在 release 阶段首次补写需求范围"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "统一导出平台主流程与高风险异常场景已完成 fresh evidence 验证，或有明确 BLOCKED 说明",
+        "验证结论能覆盖 FR-001 至 FR-014 和采购订单样板边界",
+        "release 阶段输出的证据足以支撑 commit gate 与后续归档"
+      ]
+    },
+    {
+      "id": "ARCHIVE-001",
+      "description": "归档统一导出平台本轮交付知识与可复用规则候选",
+      "task_kind": "archive",
+      "phase": "archive",
+      "gate_profile": "lightweight",
+      "required_truth_sources": [
+        "knowledge"
+      ],
+      "priority": 90,
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/harness/knowledge-architecture.md",
+        "docs/harness/knowledge-import.md",
+        "docs/harness/knowledge-lint.md",
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/testing/failure-triage.md",
+        "docs/testing/verify-matrix.md",
+        "progress.txt",
+        "traces/"
+      ],
+      "owned_paths": [
+        "docs/knowledge/"
+      ],
+      "requirement_ids": [
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/knowledge/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "knowledge_query_budget": {
+        "catalogs": 2,
+        "entries": 8
+      },
+      "steps": [
+        "从 release evidence、failure triage、trace 和 progress 中提取统一导出平台可复用的调度、幂等、文件交付和样板验证经验",
+        "将可复用经验沉淀到 docs/knowledge/ 并更新 catalog，不把未验证经验直接提升为 AGENTS 规则",
+        "输出可升级规则候选、风险遗留和团队同步候选，保持 archive 只做知识归档不改业务结论"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "本轮交付的知识沉淀与索引更新可被后续 driver 任务复用",
+        "archive 不修改 runtime 状态文件且不伪造通过结论",
+        "若无可归档条目，需明确说明而不是空泛标记已完成"
+      ]
+    }
+  ]
+}
+
+ succeeded in 852ms:
+# PRD-Lite：统一导出平台
+
+> 仓库正式入口真相源之一。本文将归档中的后端统一导出需求收敛为本仓库的统一产品口径，默认面向后端平台能力，不引入前端页面设计。
+
+## 1. 基本信息
+
+- Feature ID: `FEAT-EXPORT-PLATFORM-001`
+- Feature 名称: 统一导出平台
+- 当前状态: `Review`
+- 最后更新: `2026-05-12`
+
+## 2. 目标
+
+- 统一采购、销售、物流、仓储等子系统的导出任务入口。
+- 导出从同步下载改为异步任务，避免长请求超时。
+- 平台统一负责任务、调度、操作权限、查询执行、字段映射、脱敏、文件渲染、下载保护、审计、清理和导出结果校验。
+- 子系统只负责提交导出任务、传递认证上下文和符合注册 schema 的业务查询参数。
+
+## 3. 默认决策
+
+- 平台以独立微服务形态交付，子系统独立部署。
+- 平台不提供登录认证能力，但必须消费子系统或网关透传的认证上下文，并负责任务可见性、操作权限和下载权限校验。
+- 子系统接入方式采用 `HTTP/Feign` 调用平台任务接口。
+- 平台通过注册配置访问业务只读数据源或数据中台，不直接依赖业务子系统 JAR，不使用业务库写账号。
+- 注册配置契约包含数据源编码、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式。
+- 调度方式采用 `MySQL 轮询 + DB 抢锁`。
+- 下载方式默认采用 `签名 URL`，同时支持 `stream`。
+- 一期支持 `XLSX` 和超过单文件阈值后的 `ZIP`。
+- 一期不支持 `Word / PDF / CUSTOM`；后续如需支持，优先在平台侧建设模板和渲染能力。
+- 空数据导出生成仅表头文件，任务仍然完成。
+- 一期不做审批。
+- 平台正式对外任务状态限定为 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`。
+- 历史任务查询正式筛选维度为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；普通用户默认只能看本人任务，管理员可按权限查看全局。
+- 注册与配置能力覆盖注册创建/更新/查询、启停、并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。
+- 下载响应必须显式表达交付方式：签名 URL 返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式下载返回文件流和等价文件元信息。
+- 统一认证上下文最小字段为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；平台按认证上下文执行任务可见性、操作权限、下载权限和查询数据范围约束，子系统只传上下文。
+- 对象存储文件路径默认按 `exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName}` 组织；签名 URL 默认有效期为 10 分钟；文件校验值默认使用 `SHA-256`。
+- 创建任务接口支持 `clientRequestId` 幂等键，幂等范围为 `tenantId + operatorId + taskCode + clientRequestId`。
+- 任务创建时固化注册配置快照和执行参数摘要；后续执行、取消、重试、下载和审计均引用同一任务快照。
+- 执行尝试统一使用 `attemptNo` 标识；每次失败重试递增 `attemptNo`，同一任务同一时刻只允许一个活跃执行尝试。
+- DB 抢锁默认使用 `lockOwner + lockExpireAt` 租约模型；默认租约 5 分钟，worker 在批次边界续租，租约过期后可由其他实例重新抢锁。
+- 锁租约过期后的实例接管延续当前 `attemptNo`，并记录接管审计；只有用户或系统发起 FAILED 重试时才递增 `attemptNo`。
+- 大数据查询默认使用稳定游标分页，不以 offset 分页作为主路径；游标字段必须来自注册配置。
+- 创建请求 `queryParams` 默认最大 32KB；单文件默认最大 20000 行；单任务默认最大导出量 100000 行，具体可由注册配置收紧。
+- 查询执行必须叠加 `tenantId`、`operatorId`、`roleCodes`、`orgScope` 对应的数据范围约束。
+- 平台只允许访问注册配置声明的只读数据源或数据中台。
+- 查询模板必须参数化，并且只能绑定参数 schema 允许的字段。
+- 平台不得执行调用方传入的原始 SQL。
+- 平台执行链路必须持久化阶段事件，阶段至少包括 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。
+- 文件生成采用“先写临时对象、校验通过后发布”的交付模型；未发布对象不得被下载接口返回。
+- 采购订单导出作为一期样板模块，覆盖查询条件、字段表头、游标分页、敏感字段、空数据、分片、权限、审计、下载和 10 万行压测证据。
+
+## 4. 范围
+
+### In Scope
+
+- 创建导出任务、查询进度、查询历史、下载文件、取消、重试。
+- 导出任务注册、子系统并发控制、文件过期清理。
+- XLSX/ZIP 主路径。
+- 一期不支持 Word/PDF/CUSTOM。
+- 平台消费认证上下文、操作权限、任务可见性、下载签名保护、审计日志和导出结果脱敏校验。
+- 平台集中查询、字段映射、脱敏和渲染能力。
+
+### Out of Scope
+
+- 新前端页面、弹窗、任务中心 UI。
+- 一期审批流。
+- 一期全量接入所有子系统。
+- 把子系统导出实现类直接打包进平台服务进程。
+
+## 5. 关键需求
+
+| 需求 ID | 需求描述 | 优先级 |
+| --- | --- | --- |
+| FR-001 | 创建导出任务并立即返回 `taskId` | P0 |
+| FR-002 | 查询任务进度和状态 | P0 |
+| FR-003 | 下载导出文件，支持签名 URL 或流式下载 | P0 |
+| FR-004 | 查询任务历史 | P0 |
+| FR-005 | 按子系统限制并发并调度执行 | P0 |
+| FR-006 | 大数据量导出自动分片并打包 | P0 |
+| FR-007 | 注册导出任务并启停 | P0 |
+| FR-008 | 提供集中查询模板、数据源、字段映射和脱敏策略契约 | P0 |
+| FR-009 | 权限校验、字段脱敏、下载签名 | P0 |
+| FR-010 | 记录任务日志、下载日志、失败原因 | P0 |
+| FR-011 | 文件过期清理 | P1 |
+| FR-012 | 取消和重试任务 | P1 |
+| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照 | P0 |
+| FR-014 | 采购订单导出样板形成集中查询可执行合同 | P0 |
+
+## 6. 业务规则
+
+- 仅允许已注册且启用的 `taskCode` 创建任务。
+- 创建任务前必须通过平台操作权限校验。
+- 下载前必须再次校验权限和文件有效期。
+- 单文件默认最大 `20000` 行。
+- 单任务默认最大导出量 `100000` 行。
+- 文件默认保留 `15` 天，任务历史默认保留 `30` 天。
+- PENDING 可取消；FAILED 可重试；COMPLETED、CANCELED、EXPIRED 不允许直接重试为同一任务。
+- FAILED 任务重试必须保留原 `taskId` 的审计链路并递增执行尝试次数；同一任务同一时刻只能有一个活跃执行尝试。
+- PENDING/EXECUTING 任务收到重试请求时返回非法状态错误，且不得重复派发执行。
+- EXECUTING 取消采用批次边界收口：平台记录取消意图，worker 在批次边界停止并最终置为 `CANCELED`。
+- 平台只允许访问注册配置声明的只读数据源或数据中台数据集。
+- 查询模板必须参数化，并且只能绑定参数 schema 允许的字段。
+- 平台不得执行调用方传入的原始 SQL。
+- 平台执行查询时必须叠加 `tenantId`、`operatorId`、`roleCodes`、`orgScope` 对应的数据范围约束。
+- 字段定义必须包含字段编码、表头、类型、顺序、是否敏感、是否导出和脱敏策略。
+- 平台不得导出未在字段映射中声明为可导出的字段。
+- 每个查询批次写入文件片段前必须完成字段白名单、字段顺序和敏感字段脱敏结果校验。
+- 查询模板、字段映射或脱敏策略与任务快照冲突时，必须按配置错误或字段映射错误收口，不得静默放宽字段范围或行数阈值。
+- 调用方提供 `clientRequestId` 时，相同幂等范围和相同参数摘要必须返回原 `taskId`；相同幂等范围但参数摘要不同必须返回 `IDEMPOTENCY_CONFLICT`。
+- 审计日志至少记录 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。
+- 审计动作至少覆盖 `CREATE`、`DISPATCH`、`EXECUTE_START`、`EXECUTE_SUCCESS`、`EXECUTE_FAILED`、`CANCEL_REQUEST`、`CANCEL_DONE`、`RETRY_REQUEST`、`DOWNLOAD`、`EXPIRE_MARK`、`CLEANUP_FAILED`。
+- 文件过期清理先标记任务或文件引用为不可下载，再删除对象存储文件；清理失败必须保留可重试记录。
+- 平台生成文件后必须记录 `fileName`、`fileSize`、`contentType`、`storageKey`、`checksum`、`checksumAlgorithm`、`expiresAt` 和 `attemptNo`。
+- DB 锁的时间判断以数据库时间为准，避免多实例机器时钟漂移影响抢锁和租约过期判断。
+- 执行尝试输出必须按 `attemptNo` 隔离存储，新的成功尝试不得覆盖历史失败尝试的审计证据。
+- 锁接管必须从已持久化的批次检查点继续，批次检查点至少包含 `lastCursor`、`processedCount`、`filePartNo` 和当前 `attemptNo`。
+- Worker 只能在批次边界响应执行中取消；已写入文件片段必须进入当前 `attemptNo` 的失败或取消处置链路。
+- 文件发布前必须校验文件元信息和内容校验值；校验失败时不得生成下载地址，任务进入失败处置并保留临时对象定位或清理记录。
+- 采购订单样板默认查询条件包括创建时间范围、订单状态、供应商、采购组织和关键词；默认游标字段为稳定递增的 `orderId` 或等价唯一排序键。
+- 采购订单样板默认 `taskCode` 为 `purchase-order-export`，`subsystemCode` 为 `purchase`，默认支持 `XLSX` 和超过单文件阈值后的 `ZIP` 打包。
+- 采购订单样板字段顺序固定为订单号、订单状态、供应商、采购组织、采购员、创建时间、总金额、币种、联系人姓名、联系人手机号；联系人姓名和联系人手机号必须标记为敏感字段并由平台按注册脱敏策略执行并校验。
+- 采购订单样板查询批次结果必须按 `orderId` 或等价唯一排序键稳定递增，禁止使用非稳定排序导致锁接管或重试后重复/漏导。
+- 采购订单样板测试数据必须覆盖 `0/1/20000/20001/100000/100001` 行边界；`100001` 行在默认配置下应触发超过最大导出量处置。
+- 采购订单样板验收证据必须能串联创建请求、集中查询执行、批次检查点、分片文件、ZIP 文件、审计日志、下载记录和 10 万行压测记录。
+
+## 7. 风险与假设
+
+- 只读数据源或数据中台性能决定导出吞吐。
+- 查询模板治理不当可能导致 SQL 注入、越权查询或高成本查询。
+- 多实例重复执行必须靠 DB 原子抢锁避免。
+- 需要统一认证上下文、角色编码、组织/数据范围字段。
+- 微服务环境下需要锁定请求头透传、数据源凭证、查询超时、批次重试和模板版本管理策略。
+- 执行阶段失败统一映射到 `FAILED` 和明确错误码，例如 `QUERY_TEMPLATE_INVALID`、`DATASOURCE_UNAVAILABLE`、`QUERY_EXECUTION_ERROR`、`FIELD_MAPPING_INVALID`、`MASKING_RULE_ERROR`、`EXPORT_RENDER_ERROR`。
+- 对象存储 bucket 名称由环境配置决定，但 path、签名有效期默认值和校验算法必须符合本文件默认决策；如需调整，只能通过注册/配置或环境配置覆盖，并保留审计证据。
+- 过期锁重抢可能造成重复批次风险，因此文件写入、对象存储路径和审计记录必须以 `attemptNo` 和批次边界隔离。
+- 查询模板版本和参数 schema 变更会影响执行口径，10 万行压测证据必须记录批大小、重试次数、锁续租次数和总耗时。
+
+## 8. 关联入口
+
+- 验收标准: `docs/product/acceptance-criteria.md`
+- 需求追溯矩阵: `docs/product/requirement-interface-matrix.md`
+- 状态矩阵: `docs/product/state-matrix.yaml`
+- 难点研究: `docs/product/difficulty-research.md`
+- 能力清单: `docs/product/page-inventory.md`
+
+codex
+`task.json` 已经基本是统一导出平台的真实队列，但我需要验证“所有任务字段齐全、无占位、无视觉范围”这一验收点。由于会话策略要求仓库写入交给匹配 writer，我会先做结构扫描，再把必要的最小写入交给 `harness-writer`。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath .agents\\rules\\agents.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "if (Test-Path .agents\\skills\\harness-writer\\SKILL.md) { Get-Content -LiteralPath .agents\\skills\\harness-writer\\SKILL.md } elseif (Test-Path 'C:\\Users\\pzy666\\.codex\\skills\\.agents\\skills\\harness-writer\\SKILL.md') { Get-Content -LiteralPath 'C:\\Users\\pzy666\\.codex\\skills\\.agents\\skills\\harness-writer\\SKILL.md' } else { Write-Output 'NO harness-writer skill found in expected local paths' }" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"<feature-slug>|REPLACE|替换为|视觉|前端|design|screen|component|artifacts/visual|用户故事标题|领域示例|smoke|META-HANDOFF|REQ-REPLACE|FR-REPLACE|NFR-REPLACE\" task.json docs\\testing\\verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "@'
+"'$json = Get-Content -LiteralPath task.json -Raw | ConvertFrom-Json
+$missing = @()
+foreach ($task in $json.tasks) {
+  foreach ($field in @('"'id','description','task_kind','phase','priority','dependencies','context_files','owned_paths','requirement_ids','produces_artifacts','acceptance','test_command')) {
+    if (-not "'$task.PSObject.Properties.Name.Contains($field)) { $missing += "$($task.id): missing $field" }
+    elseif ($null -eq $task.$field) { $missing += "$($task.id): null $field" }
+    elseif (($task.$field -is [array]) -and $task.$field.Count -eq 0 -and $field -notin @('"'dependencies')) { "'$missing += "$($task.id): empty $field" }
+  }
+  if (-not $task.execution -or $task.execution.mode -ne '"'single') { "'$missing += "$($task.id): execution.mode not single" }
+}
+if ($missing.Count) { $missing } else { '"'STRUCTURE_OK' }
+'@ | powershell -NoProfile -Command -" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 704ms:
+---
+trigger: always_on
+---
+
+# 通用 Agent 编排规则
+
+## 作用范围
+
+本文件定义跨项目可复用的 agent 角色、阶段映射和派发规则。这里的 `agent` 是职责角色，不一定要求每个角色都有独立进程；主控可以通过以下三种方式执行角色：
+
+- 通过 `.codex/agents/*.toml` 调起只读辅助子代理或 scoped writer 子代理。
+- 复用现有 skill，例如 `prd-writer`、`architect`、`frontend-design`、`api-design`、`tdd-guide`、`code-reviewer`。
+- 在当前主控会话中按该角色的规则完成窄范围分析，但主控会话只做分析和路由，不直接写仓库文件。
+
+如果某个阶段没有项目专属 agent，按本文的“阶段到默认 Agent 映射”选择默认角色。
+
+## 角色清单
+
+| Agent Role | 主要职责 | 推荐技能 / Prompt | 何时使用 |
+| --- | --- | --- | --- |
+| `controller` | 主控、阶段推进、任务排序、合并决策 | `controller-loop.md` | 全流程常驻，不直接写仓库文件 |
+| `bootstrap-operator` | 新项目接入、模板复制、smoke、环境检查 | `project-setup`, `bootstrap-codex-harness.ps1` | Stage 01 初始化 |
+| `product-analyst` | 需求分析、PRD、用户角色、业务规则、验收标准和可执行验收示例 | `prd-writer`, `business-rule-spec`, `requirements-design-template` | Stage 02 需求收敛 |
+| `requirements-trace-analyst` | 需求到页面、状态、字段、接口、测试的追溯 | `consistency-checklist`, `spec-review` | Stage 03 追溯矩阵和缺口分析 |
+| `architect` | 架构边界、数据流、模块拆分、技术风险 | `architect`, `api-design`, `data-flow-spec` | 架构、契约、跨模块影响和高风险决策 |
+| `design-lead` | 设计规范、信息架构、组件规则、视觉 token | `frontend-design`, `ui-ux-pro-max`, `brand-design-md` | Stage 04 设计规范和复杂 UI 决策 |
+| `image-prompt-writer` | AI 生图 brief、页面状态、禁止事项、参考图要求 | `ai-ui-prompts` | Stage 05 生图输入 |
+| `ui-image-reviewer` | 设计图是否满足 PRD 和 Design Brief | `frontend-design`, `spec-based-review` | Stage 07 UI Image Review |
+| `frontend-spec-writer` | 把设计图翻译成组件、状态、事件、测试选择器和视觉断言 | `frontend-first-workflow`, `page-spec-template` | Stage 08 Image To Frontend Spec |
+| `planner` | DEV-PLAN、任务拆分、依赖、验证顺序 | `planner`, `plan` | 实施计划和任务拆解 |
+| `harness-writer` | `AGENTS.md`、任务队列、控制面配置、hook、prompt、harness 文档等编排资产写入 | `harness-writer.md` | 主控遇到非 driver 编排写入时 |
+| `frontend-worker` | 前端页面、组件、样式、stories、前端测试 | `frontend-patterns`, `typescript`, `vue-arco` 或项目栈技能 | 前端实现 |
+| `visual-reviewer` | 浏览器截图和设计图对比、视觉还原报告 | `browser-e2e-testing`, `midscene-fix-review` | Visual Parity |
+| `contract-designer` | OpenAPI、mock、client 生成、字段和错误码契约 | `api-contract-template`, `api-design` | Contract First |
+| `backend-worker` | API、数据库、权限、异常流、后端测试 | `backend-patterns`, `database`, 项目后端技能 | 后端实现 |
+| `integration-worker` | 前后端联调、mock 切真实服务、主流程 E2E | `api-integration`, `fullstack-workflow` | Integration |
+| `test-planner` | 从需求阶段开始定义可测试需求、验收示例、追溯矩阵、测试数据、分层测试计划和证据路径 | `qa-e2e-planner`, `test-coverage`, `tdd` | 测试设计与测试左移 |
+| `test-runner` | 运行确定性验证、汇总失败、写测试报告 | `e2e-runner`, `qa-e2e-runner`, `verify` | Verify / Regression |
+| `stage1-reviewer` | 产品、设计、计划一致性审查 | `spec-based-review`, `spec-review` | Stage 1 Review |
+| `stage2-reviewer` | 代码质量、测试覆盖、回归风险审查 | `code-reviewer`, `security-reviewer` | Stage 2 Review |
+| `failure-triage` | 失败归因、owner 分类、Repair Queue | `build-error-resolver`, `failure-triage.md` | 测试、构建、视觉或 review 失败后 |
+| `repair-worker` | 按 finding 定点修复并复验 | 原开发 agent + `repair-one-finding.md` | 修复闭环 |
+| `docs-worker` | 文档、索引、使用指南、模板同步 | `doc-updater`, `update-docs` | 文档更新和交付归档 |
+| `security-reviewer` | 权限、认证、支付、密钥、敏感数据和 sandbox 风险 | `security-reviewer`, `security-review` | 高风险功能 |
+| `release-manager` | diff 检查、验证证据、提交、push、最终报告 | `auto-commit`, `git-workflow` | 合并、提交和交付 |
+
+## 阶段到默认 Agent 映射
+
+| 阶段 | 主责 Agent | 协作 Agent | 说明 |
+| --- | --- | --- | --- |
+| 01 初始化 | `bootstrap-operator` | `docs-worker` | 接入模板、检查 Git、跑 smoke |
+| 02 需求收敛 | `product-analyst` | `requirements-trace-analyst`, `test-planner` | 把聊天需求转成 PRD、页面清单、状态矩阵、验收标准和可执行验收示例；所有 P0/P1 需求必须通过需求可测试性检查 |
+| 03 追溯与难点预研 | `requirements-trace-analyst` | `test-planner`, `architect` | 建立需求到 UI/API/数据/状态/测试/证据的追溯矩阵，识别高风险路径和测试数据缺口 |
+| 04 Design Brief | `design-lead` | `product-analyst` | 把主观审美变成可编码设计规则 |
+| 05 AI Image Brief | `image-prompt-writer` | `design-lead` | 生成稳定的 AI 生图输入 |
+| 06 UI 设计图 | `design-lead` | `image-prompt-writer` | 生成或编辑页面多状态参考图 |
+| 07 UI Image Review | `ui-image-reviewer` | `product-analyst`, `design-lead` | 设计图不通过时回到上一步 |
+| 08 Image To Frontend Spec | `frontend-spec-writer` | `frontend-worker`, `test-planner`, `visual-reviewer` | 把图片元素映射到组件、数据、事件、状态、测试选择器、视觉断言和 E2E 场景 |
+| 09 DEV-PLAN / 任务拆分 | `planner` | `controller`, `architect`, `test-planner` | 生成依赖、owned paths、验证顺序和真实任务；每个任务都要携带测试层级、验证命令和证据路径 |
+| 10 Frontend Build | `frontend-worker` | `test-planner` | 先对照验收示例和前端测试规格实现，再输出最小相关测试和证据 |
+| 11 Visual Parity | `visual-reviewer` | `frontend-worker` | 除视觉还原外，还检查状态覆盖和关键交互可用性；失败后由原 frontend worker 修 |
+| 12 Contract First | `contract-designer` | `architect`, `backend-worker`, `frontend-worker`, `test-planner` | 先定义 OpenAPI、错误码、mock 和契约测试，再进入后端实现 |
+| 13 Backend / API | `backend-worker` | `contract-designer`, `test-planner` | 按契约实现 API、数据和权限 |
+| 14 Integration | `integration-worker` | `frontend-worker`, `backend-worker`, `test-runner` | mock 切真实接口，跑主流程 |
+| 15 Stage 1 Review | `stage1-reviewer` | `product-analyst`, `design-lead` | 审实现是否符合产品、设计和计划 |
+| 16 Stage 2 Review | `stage2-reviewer` | `security-reviewer`, `test-planner` | 审代码质量、测试缺口和风险 |
+| 17 Verify / Regression | `test-runner` | `controller`, `test-planner` | 运行 fresh evidence、affected tests、P0 regression 和契约验证；不得在本阶段第一次补齐需求测试范围 |
+| 18 修复闭环 | `failure-triage` | `repair-worker`, 原 reviewer/tester | 归因、派修、复验 |
+| 19 合并 / 提交 / Push | `release-manager` | `controller`, `docs-worker` | 只合并本任务改动，提交前检查 diff 和证据 |
+
+## 路由规则
+
+1. 需求分析阶段默认使用 `product-analyst`，不是 `frontend-worker`、`backend-worker` 或 `test-runner`。
+2. 需求追溯阶段默认使用 `requirements-trace-analyst`，测试映射由 `test-planner` 协作。
+3. 架构、契约、数据流、权限、支付、安全、迁移等高风险问题必须加入 `architect` 或 `security-reviewer`。
+4. UI 相关链路按 `design-lead -> image-prompt-writer -> ui-image-reviewer -> frontend-spec-writer -> frontend-worker -> visual-reviewer` 顺序推进。
+5. 实现失败由原实现 agent 修复；评审或测试失败由提出 finding 的原 reviewer/tester 复验。
+
+## 并行规则
+
+- Stage 02-08 以真相源稳定为主，可以并行调研，但不能让多个 agent 同时改同一份 PRD、Design Brief 或视觉规格。
+- 同一时刻不要让多个角色写同一组可写路径。
+- 任何并行结论都必须回到 `task.json`、验证命令和证据路径上，不接收口头“已完成”。
+
+## 子代理前置读取规则
+
+- 任何只读辅助子代理或 writer 子代理在开始判断前，必须先读 `AGENTS.md`、`docs/harness/task-session-strategy.md` 和本文件。
+- 子代理必须再读取该角色对应的 `.agents/skills/*/SKILL.md`（如存在）、项目 truth source 和必要的深文档，再输出结论。
+- 如果当前轮次是被 stop hook / continuation gate 强制继续后的续跑，先重新阅读上面这些文档，再决定是否真的需要子代理。
+- 只读辅助子代理默认只读，不直接写业务代码，不修改 `task.json`、`progress.txt`、`traces/`。
+- writer 子代理只能修改父会话明确分配的路径；主控会话自身不直接写仓库文件。
+- `progress.txt`、`traces/` 和 Git 状态默认仍由 runtime 脚本处理；除这些脚本产物外，仓库写入必须通过匹配的 writer 子代理落盘。
+
+## 模型和思考深度
+
+- `product-analyst`、`requirements-trace-analyst`、`architect`、`design-lead`、`visual-reviewer`、`stage1-reviewer`、`stage2-reviewer` 默认使用更强模型和较高思考深度。
+- `frontend-worker`、`backend-worker`、`integration-worker` 默认使用工作型模型，中高思考深度。
+- `docs-worker`、`test-runner` 可以使用较低成本模型，但失败归因和最终验收不得只靠低强度判断。
+
+## 交接格式
+
+```markdown
+Verdict: PASS | FAIL | BLOCKED
+Role: <agent-role>
+Stage: <stage-id>
+Report: <relative/path/to/report.md>
+Changed paths:
+- <path>
+Verification:
+- <command> -> PASS | FAIL | NOT_RUN
+Open issues:
+- <issue or none>
+Next recommended stage: <stage-id>
+```
+
+ succeeded in 695ms:
+task.json:49:          "前端视觉设计类任务"
+task.json:121:        "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围"
+task.json:127:        "任务队列不保留功能标识占位符、需求编号替换占位符、领域示例占位文本或前端视觉设计类任务"
+task.json:208:      "task_kind": "feature_design",
+task.json:266:        "后端平台能力的模块边界、职责和实施顺序已明确，且不依赖前端页面范围",
+task.json:274:      "task_kind": "feature_design",
+
+ succeeded in 790ms:
+NO harness-writer skill found in expected local paths
+
+ succeeded in 2650ms:
+codex
+结构扫描没有发现模板占位命中，`rg` 只命中了任务自身用于排除前端视觉范围的说明，以及后端架构任务类型。现在我会再跑一次更严格的 JSON 字段检查，并核对 testing 目录实际文件名，避免后续任务引用入口不一致。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-ChildItem -LiteralPath docs\\testing | Select-Object -ExpandProperty Name" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$json = Get-Content -LiteralPath task.json -Raw | ConvertFrom-Json; $missing = @(); foreach ($task in $json.tasks) { foreach ($field in @('"'id','description','task_kind','phase','priority','dependencies','context_files','owned_paths','requirement_ids','produces_artifacts','acceptance','test_command')) { if (-not "'$task.PSObject.Properties.Name.Contains($field)) { $missing += "$($task.id): missing $field" } elseif ($null -eq $task.$field) { $missing += "$($task.id): null $field" } elseif (($task.$field -is [array]) -and $task.$field.Count -eq 0 -and $field -notin @('"'dependencies')) { "'$missing += "$($task.id): empty $field" } }; if (-not $task.execution -or $task.execution.mode -ne '"'single') { "'$missing += "$($task.id): execution.mode not single" } }; if ($missing.Count) { $missing } else { '"'STRUCTURE_OK' }" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"ACCEPTANCE_CRITERIA|ACCEPTANCE_EXAMPLES|TRACEABILITY_MATRIX|TEST_DATA_MATRIX|test-matrix|RISK_BASED|REGRESSION|EVIDENCE|failure-triage\" docs\\testing task.json docs\\product" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath docs\\product\\acceptance-criteria.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 769ms:
+ACCEPTANCE_CRITERIA.md
+ACCEPTANCE_EXAMPLES.md
+coverage-policy.md
+e2e-plan.md
+EVIDENCE_PROTOCOL.md
+failure-findings.example.json
+failure-triage.md
+REGRESSION_PLAN.md
+RISK_BASED_TEST_PLAN.md
+TEST_DATA_MATRIX.md
+TEST_STRATEGY.md
+test-data-plan.md
+test-matrix.md
+test-report.md
+TRACEABILITY_MATRIX.md
+verify-matrix.md
+
+ succeeded in 679ms:
+task.json:31:            "docs/testing/ACCEPTANCE_CRITERIA.md",
+task.json:32:            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+task.json:33:            "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:34:            "docs/testing/TEST_DATA_MATRIX.md",
+task.json:35:            "docs/testing/test-matrix.md"
+task.json:66:        "failure-triage",
+task.json:152:        "docs/testing/ACCEPTANCE_CRITERIA.md",
+task.json:153:        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+task.json:154:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:155:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:156:        "docs/testing/test-matrix.md",
+task.json:184:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:185:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:186:        "docs/testing/test-matrix.md",
+task.json:230:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:294:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:295:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:358:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:359:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:424:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:425:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:486:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:487:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:511:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:552:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:553:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:617:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:618:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:619:        "docs/testing/test-matrix.md",
+task.json:644:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:645:        "docs/testing/test-matrix.md",
+task.json:685:        "docs/testing/ACCEPTANCE_CRITERIA.md",
+task.json:686:        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+task.json:687:        "docs/testing/TRACEABILITY_MATRIX.md",
+task.json:688:        "docs/testing/TEST_DATA_MATRIX.md",
+task.json:689:        "docs/testing/RISK_BASED_TEST_PLAN.md",
+task.json:690:        "docs/testing/REGRESSION_PLAN.md",
+task.json:691:        "docs/testing/EVIDENCE_PROTOCOL.md",
+task.json:692:        "docs/testing/failure-triage.md",
+task.json:693:        "docs/testing/test-matrix.md",
+task.json:722:        "docs/testing/failure-triage.md",
+task.json:761:        "docs/testing/failure-triage.md",
+docs\testing\e2e-plan.md:31:- [ ] 必须 mock 的状态已在 `test-matrix.md` 中写明豁免。
+docs\testing\verify-matrix.md:15:| Testing 完整矩阵 | FR-001 - FR-014 | `ACCEPTANCE_CRITERIA.md`、`ACCEPTANCE_EXAMPLES.md`、`TRACEABILITY_MATRIX.md`、`TEST_DATA_MATRIX.md`、`test-matrix.md` | ANALYSIS-001 必需 | planned | `docs/testing/` |
+
+ succeeded in 847ms:
+STRUCTURE_OK
+
+ succeeded in 760ms:
+# Acceptance Criteria：统一导出平台
+
+> 本文件是仓库正式验收入口。当前范围以后端平台能力为准，不包含新前端页面。
+
+## 1. 功能验收
+
+| AC ID | 关联需求 | 验收标准 | 优先级 |
+| --- | --- | --- | --- |
+| AC-001 | FR-001 | 认证通过且 `taskCode` 已注册启用时，调用创建任务接口可在 1 秒内返回全局唯一 `taskId`，任务状态为 `PENDING`。 | P0 |
+| AC-002 | FR-002 | 可查询任务状态、总数、已处理数、进度和错误信息。 | P0 |
+| AC-003 | FR-003 | COMPLETED 且未过期时可下载文件；签名 URL 模式返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式模式返回文件流和等价文件元信息；文件记录包含 `storageKey`、`checksum`、`checksumAlgorithm` 和 `attemptNo`。 | P0 |
+| AC-004 | FR-004 | 可按 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 分页查询历史任务；普通用户仅看本人任务，管理员按权限看全局。测试文档若出现更细筛选项，必须回填到产品真相源或标记为假设。 | P0 |
+| AC-005 | FR-005 | 多实例调度时，同一子系统的执行数不超过配置值。 | P0 |
+| AC-006 | FR-006 | 超过单文件阈值时自动分片并打包，空数据生成仅表头文件。 | P0 |
+| AC-007 | FR-007 | 导出任务注册信息可创建、更新、查询、启停和配置同步；`taskCode` 唯一，并可配置并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。 | P0 |
+| AC-008 | FR-008 | 注册配置声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段和支持格式后，平台无需改核心代码即可按集中查询口径执行对应导出任务；非法模板、未注册字段、未声明参数或不允许的数据源不得进入执行。 | P0 |
+| AC-009 | FR-009 | 无权限创建或下载时返回 403，并记录审计。 | P0 |
+| AC-010 | FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。 | P0 |
+| AC-011 | FR-011 | 过期文件先被标记为不可下载，再清理对象存储文件；下载返回失效结果，清理失败保留可重试记录。 | P1 |
+| AC-012 | FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 仅通过内部 `cancelRequested=true` 做批次边界收口并最终置为 `CANCELED`，不返回 `cancel_requested` 状态；非法状态返回 `INVALID_TASK_STATE`。 | P1 |
+| AC-013 | FR-013 | 创建任务、执行尝试、DB 锁租约和配置快照证据可通过同一 `taskId` 串联，并能区分幂等命中、锁续租、锁接管和快照沿用场景。 | P0 |
+| AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+| AC-015 | FR-013/FR-005 | worker 抢锁成功后记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和配置快照；锁租约默认 5 分钟并按批次续租，过期锁只能由一个实例重新抢占。 | P0 |
+| AC-016 | FR-013/FR-007 | 注册配置变更只影响新创建任务；已创建任务和失败重试沿用原任务配置快照，审计可追溯到快照版本或摘要。 | P0 |
+| AC-017 | FR-014 | 采购订单样板以 `purchase-order-export` / `purchase` 注册启用后，平台可按创建时间范围、订单状态、供应商、采购组织和关键词创建导出任务；注册配置包含只读数据源、参数 schema、查询模板、字段顺序、敏感字段、脱敏策略、游标字段和支持格式。 | P0 |
+| AC-018 | FR-014 | 采购订单样板在 `0/1/20000/20001/100000/100001` 行边界下分别验证空数据仅表头、单文件、分片 ZIP、默认 10 万行压测和超过最大导出量处置。 | P0 |
+| AC-019 | FR-008/FR-010/FR-013 | 查询执行请求包含任务快照、执行尝试上下文、查询模板版本、数据源编码和批次检查点，平台可在任务日志、审计日志和失败证据中串联。 | P0 |
+| AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+| AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+
+## 2. 异常验收
+
+| AC ID | 场景 | 预期行为 |
+| --- | --- | --- |
+| AC-E001 | 空数据 | 生成仅表头文件，任务完成。 |
+| AC-E002 | 任务未注册 | 创建失败，不落无效任务。 |
+| AC-E003 | 任务禁用 | 返回 `TASK_DISABLED`。 |
+| AC-E004 | 查询执行短暂失败后重试成功 | 按批次重试策略处理，任务最终完成并记录重试次数。 |
+| AC-E005 | OSS 上传失败 | 任务置为 `FAILED`，错误码收口为 `FILE_VERIFY_ERROR`，并记录对象存储写入失败原因和临时对象定位或清理记录。 |
+| AC-E006 | 权限不足 | 返回 403，不泄露文件和任务详情。 |
+| AC-E007 | 文件过期 | 返回 410 或等价失效结果。 |
+| AC-E008 | 多实例重复抢锁 | 只有一个实例成功执行。 |
+| AC-E009 | 请求参数过长 | 超过限制返回 400。 |
+| AC-E010 | 超大导出 | 按配置拒绝或进入更严格控制流。 |
+| AC-E011 | 查询模板不存在或不合法 | 任务置为 `FAILED`，错误码为 `QUERY_TEMPLATE_INVALID`。 |
+| AC-E012 | 数据源不可用或凭证不可用 | 任务置为 `FAILED`，错误码为 `DATASOURCE_UNAVAILABLE`。 |
+| AC-E013 | 查询执行失败 | 按批次重试策略处理；最终失败时任务置为 `FAILED`，错误码为 `QUERY_EXECUTION_ERROR`。 |
+| AC-E014 | 字段映射不合法 | 任务置为 `FAILED`，错误码为 `FIELD_MAPPING_INVALID`。 |
+| AC-E015 | 非法或重复重试请求 | PENDING/EXECUTING 任务返回非法状态错误且不得派发执行；FAILED 任务同一时刻只能有一个活跃执行尝试。 |
+| AC-E016 | 认证上下文缺少最小字段 | 创建、查询、下载或配置操作返回权限错误或参数错误，并记录 `requestId` 和失败原因。 |
+| AC-E017 | 文件校验值不匹配 | 下载前拒绝交付文件，任务或文件引用进入失败处置链路，并记录审计。 |
+| AC-E018 | 幂等键冲突 | 相同幂等范围下参数摘要不同，创建接口返回 `IDEMPOTENCY_CONFLICT`，不得创建新任务。 |
+| AC-E019 | DB 锁租约过期 | 其他实例只能在租约过期后重新抢锁；锁接管延续当前 `attemptNo` 并从批次检查点继续，FAILED 重试才递增 `attemptNo`，同时保留原锁持有者证据。 |
+| AC-E020 | 查询批次重试耗尽 | 批次按策略重试后仍失败，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR` 并记录重试次数。 |
+| AC-E021 | 超过默认最大导出量 | 预估或精确总量统计结果超过 100000 行且注册配置未放开时，拒绝创建或进入更严格控制流，并记录审计。 |
+| AC-E022 | 采购订单样板敏感字段未脱敏 | 平台拒绝生成或交付文件，任务置为 `FAILED`，错误码为 `MASKING_RULE_ERROR`，并记录脱敏校验失败证据。 |
+| AC-E023 | 采购订单样板游标不稳定 | 查询结果缺失游标、重复游标或非递增游标时，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR`。 |
+| AC-E024 | 查询模板或字段映射与任务快照冲突 | 平台不得静默放宽格式、阈值或字段范围；任务置为 `FAILED`，错误码收口为 `QUERY_TEMPLATE_INVALID` 或 `FIELD_MAPPING_INVALID`，并保留冲突证据。 |
+| AC-E025 | 批次字段校验失败 | 查询批次包含未声明字段、字段顺序不一致或敏感字段脱敏结果不合法时，停止写入后续批次，错误码收口为 `FIELD_MAPPING_INVALID` 或 `MASKING_RULE_ERROR`。 |
+| AC-E026 | 文件发布前校验失败 | 文件元信息缺失、校验值不匹配或临时对象发布失败时，不生成下载地址，任务置为 `FAILED`，错误码为 `FILE_VERIFY_ERROR`，并记录临时对象定位或清理记录。 |
+| AC-E027 | 文件渲染失败 | XLSX/ZIP 文件渲染失败时，任务置为 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。 |
+
+## 3. 质量验收
+
+- `git diff --check` 通过。
+- 相关验证矩阵已补齐最小可用内容。
+- 需求、追溯、状态、研究文档口径一致。
+- 任何先出现在 testing 文档中的新字段或新状态，若未在本文件与 `docs/product/*` 同步确认，只能标记为 assumption / gap，不能写成已验收口径。
+- 对外响应不得使用旧接入缺口标签、旧渲染失败标签、取消请求内部标记作为正式状态、错误码或验收口径。
+- `docs/product/*` 不得保留旧接入契约、旧四阶段执行链路、旧接入错误码或旧追踪标识作为当前产品口径。
+- 采购订单样板必须覆盖查询模板、只读数据源、创建时间范围、订单状态、供应商、采购组织、关键词查询、游标分页、敏感字段脱敏、空数据、分片、下载和 10 万行压测证据。
+- 采购订单样板字段证据必须包含订单号、订单状态、供应商、采购组织、采购员、创建时间、总金额、币种、联系人姓名、联系人手机号；联系人字段不得以原文出现在最终文件。
+- 10 万行压测证据至少记录总耗时、批大小、分片数、锁续租次数、查询重试次数、最终文件大小和校验值。
+- 查询执行证据必须能通过 `taskId`、`attemptNo`、`requestId`、查询模板版本、数据源编码和批次检查点串联。
+- 文件交付证据必须区分临时对象、已发布对象、校验结果和下载交付记录。
+
+codex
+当前结果显示 `task.json` 的必填字段和 `execution.mode=single` 全部通过，测试入口文件也存在。由于这轮看起来可能不需要落盘修改，我会先执行任务要求的验证命令；如果验证通过且没有发现缺口，就按“无代码变更但完成锁定检查”收口。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\verification-before-completion\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 692ms:
+---
+name: verification-before-completion
+description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+---
+
+# Verification Before Completion
+
+## Overview
+
+Claiming work is complete without verification is dishonesty, not efficiency.
+
+**Core principle:** Evidence before claims, always.
+
+**Violating the letter of this rule is violating the spirit of this rule.**
+
+## The Iron Law
+
+```
+NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
+```
+
+If you haven't run the verification command in this message, you cannot claim it passes.
+
+## The Gate Function
+
+```
+BEFORE claiming any status or expressing satisfaction:
+
+1. IDENTIFY: What command proves this claim?
+2. RUN: Execute the FULL command (fresh, complete)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim?
+   - If NO: State actual status with evidence
+   - If YES: State claim WITH evidence
+5. ONLY THEN: Make the claim
+
+Skip any step = lying, not verifying
+```
+
+## Common Failures
+
+| Claim | Requires | Not Sufficient |
+|-------|----------|----------------|
+| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
+| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
+| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
+| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
+| Regression test works | Red-green cycle verified | Test passes once |
+| Agent completed | VCS diff shows changes | Agent reports "success" |
+| Requirements met | Line-by-line checklist | Tests passing |
+
+## Red Flags - STOP
+
+- Using "should", "probably", "seems to"
+- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
+- About to commit/push/PR without verification
+- Trusting agent success reports
+- Relying on partial verification
+- Thinking "just this once"
+- Tired and wanting work over
+- **ANY wording implying success without having run verification**
+
+## Rationalization Prevention
+
+| Excuse | Reality |
+|--------|---------|
+| "Should work now" | RUN the verification |
+| "I'm confident" | Confidence ≠ evidence |
+| "Just this once" | No exceptions |
+| "Linter passed" | Linter ≠ compiler |
+| "Agent said success" | Verify independently |
+| "I'm tired" | Exhaustion ≠ excuse |
+| "Partial check is enough" | Partial proves nothing |
+| "Different words so rule doesn't apply" | Spirit over letter |
+
+## Key Patterns
+
+**Tests:**
+```
+✅ [Run test command] [See: 34/34 pass] "All tests pass"
+❌ "Should pass now" / "Looks correct"
+```
+
+**Regression tests (TDD Red-Green):**
+```
+✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+❌ "I've written a regression test" (without red-green verification)
+```
+
+**Build:**
+```
+✅ [Run build] [See: exit 0] "Build passes"
+❌ "Linter passed" (linter doesn't check compilation)
+```
+
+**Requirements:**
+```
+✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
+❌ "Tests pass, phase complete"
+```
+
+**Agent delegation:**
+```
+✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
+❌ Trust agent report
+```
+
+## Why This Matters
+
+From 24 failure memories:
+- your human partner said "I don't believe you" - trust broken
+- Undefined functions shipped - would crash
+- Missing requirements shipped - incomplete features
+- Time wasted on false completion → redirect → rework
+- Violates: "Honesty is a core value. If you lie, you'll be replaced."
+
+## When To Apply
+
+**ALWAYS before:**
+- ANY variation of success/completion claims
+- ANY expression of satisfaction
+- ANY positive statement about work state
+- Committing, PR creation, task completion
+- Moving to next task
+- Delegating to agents
+
+**Rule applies to:**
+- Exact phrases
+- Paraphrases and synonyms
+- Implications of success
+- ANY communication suggesting completion/correctness
+
+## The Bottom Line
+
+**No shortcuts for verification.**
+
+Run the command. Read the output. THEN claim the result.
+
+This is non-negotiable.
+
+codex
+我已切到完成前验证规则：先跑指定命令，再根据退出码说结论。这里只执行 `git diff --check`，不改状态、不提交、不触碰 runtime 文件。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 816ms:
+codex
+## Requirement IDs
+- FR-001
+- FR-014
+
+## Summary
+- 已确认 `task.json` 是统一导出平台正式 driver 队列入口。
+- 已确认产品真相源锁定为 `runtime.handoff.truth_sources.product` 下的 `docs/product/*` 文件，不依赖聊天补充口径。
+- 已确认计划入口为 `plans/features/export-platform.dev-plan.md`，测试矩阵入口为 `docs/testing/verify-matrix.md`，driver 边界为仅接管 `task.json` 内 `execution.mode=single` 的正式任务。
+- 结构扫描通过：所有任务具备 `requirement_ids`、`owned_paths`、`context_files`、`produces_artifacts`、`acceptance`、`test_command`。
+
+## Files Changed
+- 无。本轮检查显示现有文件已满足 INIT-001 验收边界。
+
+## Validation
+- `git diff --check`: PASS
+- PowerShell `task.json` 字段结构扫描: PASS - `STRUCTURE_OK`
+- `rg` 占位/视觉范围扫描: PASS - 未发现模板占位任务；命中项仅为 INIT-001 的排除说明和后端设计任务类型。
+
+## Evidence
+- `task.json`: 正式任务队列、truth source、plan/testing 入口、driver boundary 和 single-task 配置。
+- `docs/testing/verify-matrix.md`: INIT-001 最小验证矩阵入口。
+- `docs/product/prd-lite.md`: 统一导出平台产品真相源主入口。
+
+## Knowledge References
+- none: 未引用具体知识条目；仅读取 `docs/knowledge/knowledge-catalog.md` 和 `docs/knowledge/catalog.md` 确认当前知识库 cold start 状态。
+
+## Knowledge Outputs
+- none: 本轮没有新增可归档经验。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行提交：当前 Driver Prompt 明确禁止 `git add`、`git commit`、`git push`。
+- 工作区存在未跟踪 `traces/`，但 `task.json.runtime.git.non_blocking_dirty_paths` 已将 `traces/` 列为可再生运行产物。
+tokens used
+106,980
