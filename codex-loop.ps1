@@ -283,9 +283,16 @@ function Test-CommitPathOwnership {
     [string[]]$NonBlockingDirtyPaths
   )
 
+  $defaultRuntimeAllowedPaths = @(
+    "task.json",
+    "progress.txt",
+    "traces/",
+    "artifacts/"
+  )
   $allowed = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
   foreach ($path in @(
       (Convert-OwnedPathsToPrefixes -Task $Task) +
+      (ConvertTo-StringArray -Value $defaultRuntimeAllowedPaths) +
       (ConvertTo-StringArray -Value $RuntimeAllowedPaths) +
       (ConvertTo-StringArray -Value $NonBlockingDirtyPaths)
     )) {
@@ -2211,7 +2218,7 @@ function Invoke-OneTask {
     Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "unexpected_paths" -Value $ownershipResult.UnexpectedPaths -Force
     $tracePayload.failed_stage = "commit_path_ownership"
     $tracePayload.status = "failed"
-    $tracePayload.blocked_reason = "changed paths 超出 owned_paths / runtime allowlist"
+    Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "blocked_reason" -Value "changed paths 超出 owned_paths / runtime allowlist" -Force
     $tracePayload.files_changed = & git -C $ProjectRoot status --short
     $tracePayload.ended_at = (Get-Date).ToString("o")
     Save-Trace -Directory $TracePath -Trace $tracePayload | Out-Null
