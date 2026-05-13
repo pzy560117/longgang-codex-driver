@@ -14,7 +14,7 @@
 | 测试计划矩阵 | FR-001 - FR-014 | `docs/testing/test-matrix.md` | 必需 | planned | `docs/testing/test-matrix.md` |
 | 验收示例索引 | FR-001 - FR-014 | `docs/testing/ACCEPTANCE_EXAMPLES.md` | 必需 | planned | `docs/testing/ACCEPTANCE_EXAMPLES.md` |
 | OpenAPI 契约定义 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `contracts/openapi.yaml`、`contracts/README.md` | 必需 | contract-defined | `contracts/openapi.yaml`、`contracts/README.md` |
-| 契约验证入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"` | 必需 | current-command-defined | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md` |
+| 契约验证入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | `powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"` | 必需 | current-command-defined | `contracts/openapi.yaml`、`contracts/README.md`、`docs/testing/verify-matrix.md`、`plans/features/export-platform.dev-plan.md` |
 | 后端验证占位 | FR-001 / FR-002 / FR-004 / FR-005 / FR-006 / FR-007 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | 后端单测、集成测、调度测、查询测、文件测、样板测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
 | 文件与样板验证占位 | FR-003 / FR-006 / FR-011 / FR-014 | 文件发布校验、ZIP 打包、过期清理、采购订单样板压测 | 后续任务必需 | blocked-by-contract | `tests/`、`traces/` |
 | 静态检查 | FR-001 - FR-014 | `git diff --check` | 必需 | PASS / FAIL | `traces/` |

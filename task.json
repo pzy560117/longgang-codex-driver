@@ -328,7 +328,7 @@
                                     "定义 task status、错误码、文件交付元信息、幂等冲突、非法状态和权限失败的统一对外契约",
                                     "把契约测试入口、样例请求/响应、错误码映射和对应验证命令回填到 verify-matrix 与 dev-plan"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \"\u0026 { .\\verify.ps1 -Commands @(\u0027git diff --check\u0027,\u0027npx --yes @redocly/cli lint contracts/openapi.yaml\u0027) }\"",
+                      "test_command":  "powershell -NoProfile -Command \".\\verify.ps1 -Commands \u0027git diff --check\u0027; npx --yes @redocly/cli lint contracts/openapi.yaml\"",
                       "acceptance":  [
                                          "API 与错误码契约完整覆盖 FR-001/002/003/004/007/008/009/010/012/013",
                                          "对外状态仅使用官方任务状态，不暴露内部 cancel_requested 等内部控制字段",

@@ -140,7 +140,7 @@ contracts/
 当前任务的最小验证命令为：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"
+powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
 ```
 
 后续创建 Node 或契约测试工程后，应把 OpenAPI 校验固化为 package script，例如：

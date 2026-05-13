@@ -110,7 +110,7 @@
 当前契约任务的 fresh evidence 命令：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"
+powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
 ```
 
 后续测试骨架任务可把当前 `npx --yes @redocly/cli lint contracts/openapi.yaml` 封装为 `npm run test:contract`，并继续保留 `docs/testing/verify-matrix.md` 中的 `contract-openapi` 证据入口。
