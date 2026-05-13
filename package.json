@@ -1,0 +1,25 @@
+{
+  "name": "longgang-codex-driver",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:contract": "vitest run tests/contract",
+    "test:backend": "vitest run tests/backend",
+    "test:export-platform:fr001": "vitest run tests/backend/export-task-service.test.ts -t \"FR-001\"",
+    "test:export-platform:fr002": "vitest run tests/backend/export-task-service.test.ts -t \"FR-002\"",
+    "test:export-platform:fr004": "vitest run tests/backend/export-task-service.test.ts -t \"FR-004\"",
+    "test:export-platform:fr007": "vitest run tests/backend/registry-service.test.ts -t \"FR-007\"",
+    "test:export-platform:fr009": "vitest run tests/backend/export-task-service.test.ts -t \"FR-009\"",
+    "test:export-platform:fr010": "vitest run tests/backend/export-task-service.test.ts -t \"FR-010\"",
+    "test:export-platform:fr012": "vitest run tests/backend/export-task-service.test.ts -t \"FR-012\"",
+    "test:export-platform:fr013": "vitest run tests/backend/export-task-service.test.ts -t \"FR-013\"",
+    "test:verify": "vitest run tests/contract tests/backend"
+  },
+  "devDependencies": {
+    "@types/node": "^25.7.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

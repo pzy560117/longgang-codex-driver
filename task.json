@@ -352,7 +352,7 @@
                       "dependencies":  [
                                            "CONTRACT-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "context_files":  [
                                             "contracts/openapi.yaml",
                                             "docs/context/repo-map.md",

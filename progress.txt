@@ -166,3 +166,23 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+## [2026-05-13 22:45] - Task: CORE-API-001 实现或落地核心任务 API 与注册配置骨架
+
+### 完成的工作：
+- driver 默认 `codex` 启动命令命中 Windows npm PowerShell shim，首次启动失败；改用 `C:\Users\pzy666\AppData\Roaming\npm\codex.cmd` 后子进程卡住，已停止该卡住进程树。
+- 接手完成核心 API 骨架：新增 `src/task-api/`、`src/registry-config/`、`src/audit-log/`、`src/shared/`，覆盖创建任务、详情、历史、取消、重试、注册配置、幂等、配置快照、认证上下文和审计字段。
+- 新增 Vitest 工具链、后端测试和契约回归测试，并更新 `docs/testing/verify-matrix.md` 的 CORE-API-001 验证入口。
+
+### 测试结果：
+- `npm test` 通过，3 个测试文件 / 14 个测试全部通过。
+- `npx tsc --noEmit` 通过。
+- `npm run test:verify` 通过，契约与后端测试全部通过。
+- `npm run test:backend; npm run test:contract` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` 通过。
+
+### 审查结果：
+- Stage 1: MANUAL_PASS - 子代理只读核对确认缺口为 `src/` 实现骨架和 verify-matrix 同步，已补齐。
+- Stage 2: MANUAL_PASS - 本地测试、类型检查和任务指定验证均通过。
+
+### 备注：
+- 可继续运行 driver 处理下一个任务；建议后续 driver 调用显式使用 `-CodexCommand C:\Users\pzy666\AppData\Roaming\npm\codex.cmd`，避免 PowerShell shim 启动失败。
