@@ -19,6 +19,14 @@
 
 如果 spec 和 architecture 已完成，应先让合适的 writer 子代理同步项目规则文件，再初始化任务队列，避免后续 driver 建立在过期的 `AGENTS.md`、`docs/harness/*` 或 `docs/context/*` 之上。
 
+## Hooks 边界
+
+- `.codex/hooks.json` 的 `Stop` hook 是交互会话结束前的增强层，不是 driver 主链路。
+- `codex-loop.ps1` 调用内层 `codex exec` 时会传入 `--disable hooks`，因此实现阶段、Stage 1 和 Stage 2 的子 Codex 会话不会触发 Stop hook。
+- Windows 当前仍以 PowerShell driver 作为确定性控制点；是否继续任务、是否允许停止、是否提交，以 `codex-loop.ps1` 的验证、trace、progress 和 commit gate 为准。
+- 如果需要记录 Stop hook 没有触发，先检查 driver 日志里是否出现 `--disable hooks`；若出现，这是预期行为，不应按 hook 脚本失败处理。
+- 外层交互会话的 Stop hook 只有在当前 Codex 客户端确实加载 `.codex/hooks.json` 且未被命令行禁用时才会运行；API/工具驱动的当前对话不应依赖它兜底。
+
 ## 任务文件规则
 
 - `task.json` 使用 `{ "runtime": {...}, "tasks": [...] }` 结构；新任务默认 `passes: false`。

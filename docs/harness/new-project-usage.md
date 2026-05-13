@@ -43,6 +43,18 @@ Copy-Item .\project-task-template.json .\task.json
 powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1 -RunUntilDone
 ```
 
+Windows 下如果 `Get-Command codex` 命中的是 npm PowerShell shim（例如 `codex.ps1`），`Start-Process` 可能报 `%1 is not a valid Win32 application`。这时不要重装，先显式指定可被 `Start-Process` 启动的 `.cmd` 或真实可执行文件：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1 -CodexCommand "C:\Users\pzy666\AppData\Roaming\npm\codex.cmd"
+```
+
+记录一次 driver 运行经验时，按下面顺序落到文档或运行状态：
+
+- 当前任务的具体执行结果、失败原因、验证命令和下一步，写入 `progress.txt`。
+- 可复用的运行命令、Windows 环境差异、hooks 边界，写入本文或 `docs/harness/task-session-strategy.md`。
+- 已经跨任务验证、值得长期复用的经验，在 `ARCHIVE-001` 阶段沉淀到 `docs/knowledge/`，不要直接提升为 `AGENTS.md` 硬规则。
+
 - `.codex/agents/*.toml` 同时提供只读辅助子代理和写入型 worker 子代理。
 - 这些子代理开始前必须先读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md` 和对应 `.agents/skills/*/SKILL.md`（如存在）。
 - 如果是被 stop hook 拦下后继续执行的下一轮，也先按上面这组文档重读一遍，再决定是否启用子代理。
