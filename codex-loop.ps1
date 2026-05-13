@@ -1144,7 +1144,7 @@ function Get-TruthSourceState {
         }
       }
       "plan" {
-        $presentPaths = Get-ExistingDevPlans -Root $Root
+        $presentPaths = @(Get-ExistingDevPlans -Root $Root)
         $missingRequirements = @()
         if ($presentPaths.Count -eq 0) {
           $missingRequirements += "plans\\**\\*.dev-plan.md"
@@ -1296,7 +1296,7 @@ function Get-ReviewContextPaths {
     "docs\testing\failure-triage.md"
   )
 
-  $planPaths = Get-ExistingDevPlans -Root $Root
+  $planPaths = @(Get-ExistingDevPlans -Root $Root)
   $contextFiles = Get-ExistingRelativePaths -Root $Root -RelativePaths $ExecutionPolicy.context_files
   $truthSourceState = Get-TruthSourceState -Root $Root -RequiredTruthSources $ExecutionPolicy.required_truth_sources
 
