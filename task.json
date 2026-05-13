@@ -105,7 +105,7 @@
         "mode": "single"
       },
       "steps": [
-        "确认 docs/product 下四份统一导出平台真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
+        "确认 runtime.handoff.truth_sources.product 中列出的统一导出平台产品真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
         "锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks",
         "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含模板占位文本或前端视觉设计范围"
       ],

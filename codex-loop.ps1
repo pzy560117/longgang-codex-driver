@@ -1643,8 +1643,15 @@ function Invoke-TestCommand {
 
   Push-Location $Root
   try {
-    $output = powershell -NoProfile -Command $Command 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $output = powershell -NoProfile -Command $Command 2>&1
+      $exitCode = $LASTEXITCODE
+    }
+    finally {
+      $ErrorActionPreference = $previousErrorActionPreference
+    }
     $outputText = ($output -join "`n")
     $outputLog = $null
     if (-not [string]::IsNullOrWhiteSpace($LogDirectory)) {
