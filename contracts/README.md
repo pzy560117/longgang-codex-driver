@@ -62,6 +62,52 @@ contracts/
 
 实现层和测试层的真实路径由 `plans/features/export-platform.dev-plan.md` 继续约束：契约先行，其次 `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/`，最后才创建对应 `src/*` 模块。
 
+## 3.3 CONTRACT-001 已落地契约
+
+`contracts/openapi.yaml` 是当前统一导出平台的对外 API 和错误码锚点，覆盖 `FR-001`、`FR-002`、`FR-003`、`FR-004`、`FR-007`、`FR-008`、`FR-009`、`FR-010`、`FR-012`、`FR-013`。
+
+| 接口 | 方法 | 覆盖需求 | 关键契约 |
+| --- | --- | --- | --- |
+| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、`requestDigest`、`configSnapshotDigest` |
+| `/api/export/tasks` | `GET` | FR-004 / FR-009 / FR-010 | 正式筛选维度、普通用户仅本人、管理员按权限全局查询 |
+| `/api/export/tasks/{taskId}` | `GET` | FR-002 / FR-010 | 详情、进度、失败错误码、批次检查点和文件元信息 |
+| `/api/export/tasks/{taskId}/download` | `GET` | FR-003 / FR-009 / FR-010 | 签名 URL、stream 元信息、文件校验、过期与权限失败 |
+| `/api/export/tasks/{taskId}/cancel` | `POST` | FR-012 / FR-010 | PENDING 取消、EXECUTING 批次边界取消；不暴露内部取消状态 |
+| `/api/export/tasks/{taskId}/retry` | `POST` | FR-012 / FR-013 / FR-010 | 仅 FAILED 可重试，沿用 `taskId` 和配置快照，递增 `attemptNo` |
+| `/api/export/registries` | `POST` / `GET` | FR-007 / FR-008 / FR-009 | 注册创建、查询、并发、保留期、阈值、格式、查询模板和字段映射 |
+| `/api/export/registries/{taskCode}` | `GET` / `PUT` | FR-007 / FR-008 / FR-013 | 配置详情、更新与新任务快照口径 |
+| `/api/export/registries/{taskCode}/enable` | `POST` | FR-007 | 启用注册配置 |
+| `/api/export/registries/{taskCode}/disable` | `POST` | FR-007 | 禁用注册配置，创建阶段返回 `TASK_DISABLED` |
+
+## 3.4 对外状态和错误码
+
+对外任务状态只能使用 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`。执行中取消意图只能通过动作响应字段表达，不得作为任务状态返回。
+
+| 错误码 | 默认 HTTP 状态 | 场景 |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | 参数校验失败 |
+| `AUTH_CONTEXT_MISSING` | 401 | 缺少 `operatorId`、`tenantId`、`roleCodes`、`orgScope` 或 `requestId` |
+| `PERMISSION_DENIED` | 403 | 创建、查询、下载或配置操作无权限 |
+| `TASK_NOT_FOUND` | 404 | 任务不存在或对当前用户不可见 |
+| `TASK_NOT_REGISTERED` | 404 | `taskCode` 未注册 |
+| `TASK_DISABLED` | 400 | `taskCode` 已禁用 |
+| `QUERY_PARAMS_TOO_LARGE` | 413 | `queryParams` 超过 32KB 默认限制 |
+| `IDEMPOTENCY_CONFLICT` | 409 | 相同幂等范围但参数摘要不同 |
+| `INVALID_TASK_STATE` | 400 | 当前状态不允许下载、取消或重试 |
+| `ACTIVE_ATTEMPT_CONFLICT` | 409 | 已存在活跃执行尝试 |
+| `FILE_EXPIRED` | 410 | 文件已过期或已标记不可下载 |
+| `FILE_NOT_READY` | 400 | 文件未发布或任务尚未完成 |
+| `FILE_VERIFY_ERROR` | 500 | OSS 上传、元信息或校验失败 |
+| `QUERY_TEMPLATE_INVALID` | 500 | 查询模板不存在、不合法或与快照冲突 |
+| `DATASOURCE_UNAVAILABLE` | 500 | 数据源或凭证不可用 |
+| `QUERY_EXECUTION_ERROR` | 500 | 查询执行失败、批次重试耗尽或游标异常 |
+| `FIELD_MAPPING_INVALID` | 500 | 字段映射、字段顺序或字段白名单不合法 |
+| `MASKING_RULE_ERROR` | 500 | 脱敏策略配置或执行失败 |
+| `EXPORT_RENDER_ERROR` | 500 | XLSX/ZIP 渲染失败 |
+| `EXPORT_LIMIT_EXCEEDED` | 400 | 超过默认或配置化最大导出量 |
+| `REGISTRY_CONFLICT` | 409 | 注册 `taskCode` 冲突 |
+| `INTERNAL_ERROR` | 500 | 未分类服务端错误 |
+
 ## 4. 契约编写规则
 
 1. `openapi.yaml` 只放对外 API 的正式入口和状态/错误码锚点。
@@ -88,6 +134,20 @@ contracts/
 1. 先补 `contracts/openapi.yaml`，锚定对外 API。
 2. 再按 `api/`、`scheduler/`、`query/`、`file/`、`audit/`、`sample/` 分区补齐契约说明。
 3. 契约定稿后，测试目录按同名能力分区创建，保证测试层和契约层可一一对应。
+
+## 6.1 验证入口
+
+当前任务的最小验证命令为：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"
+```
+
+后续创建 Node 或契约测试工程后，应把 OpenAPI 校验固化为 package script，例如：
+
+```powershell
+powershell -NoProfile -Command "npm run test:contract"
+```
 
 ## 7. 约束
 

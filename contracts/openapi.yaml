@@ -1,0 +1,1615 @@
+openapi: 3.0.3
+info:
+  title: Export Platform API Contract
+  version: 1.0.0
+  license:
+    name: Internal
+    url: https://example.invalid/internal-license
+  description: |
+    CONTRACT-001 defines the public API contract for FEAT-EXPORT-PLATFORM-001.
+    The API consumes authentication context from upstream services and exposes
+    only official task statuses: PENDING, EXECUTING, COMPLETED, FAILED,
+    CANCELED, EXPIRED.
+servers:
+  - url: /api
+    description: Relative platform API base path
+tags:
+  - name: ExportTasks
+    description: Task creation, detail, history, download, cancel and retry APIs.
+  - name: ExportRegistries
+    description: Export task registry, enable/disable and configuration APIs.
+security:
+  - OperatorId: []
+    TenantId: []
+    RoleCodes: []
+    OrgScope: []
+    RequestId: []
+paths:
+  /export/tasks:
+    post:
+      tags: [ExportTasks]
+      summary: Create export task
+      description: |
+        Creates a PENDING export task when taskCode is registered and enabled.
+        clientRequestId is idempotent in scope tenantId + operatorId + taskCode + clientRequestId.
+      operationId: createExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExportTaskRequest"
+            examples:
+              purchaseOrder:
+                summary: Purchase order export task
+                value:
+                  taskCode: purchase-order-export
+                  subsystemCode: purchase
+                  fileFormat: XLSX
+                  clientRequestId: req-20260513-0001
+                  queryParams:
+                    createdAtRange:
+                      from: "2026-05-01T00:00:00+08:00"
+                      to: "2026-05-13T23:59:59+08:00"
+                    orderStatus: APPROVED
+                    supplierId: SUP-001
+                    purchaseOrgId: ORG-001
+                    keyword: PO-2026
+      x-contract-errorResponses:
+        - $ref: "#/components/responses/TaskDisabled"
+        - $ref: "#/components/responses/ExportLimitExceeded"
+        - $ref: "#/components/responses/QueryTemplateInvalid"
+        - $ref: "#/components/responses/DatasourceUnavailable"
+        - $ref: "#/components/responses/FieldMappingInvalid"
+        - $ref: "#/components/responses/MaskingRuleError"
+        - $ref: "#/components/responses/InternalError"
+      responses:
+        "201":
+          description: Task created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
+              examples:
+                created:
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      taskId: exp_20260513_000001
+                      taskCode: purchase-order-export
+                      subsystemCode: purchase
+                      status: PENDING
+                      clientRequestId: req-20260513-0001
+                      idempotencyHit: false
+                      requestDigest: sha256:request-digest
+                      configSnapshotDigest: sha256:config-digest
+                      attemptNo: 0
+                      createdAt: "2026-05-13T10:00:00+08:00"
+        "200":
+          description: Existing task returned for idempotent replay with identical request digest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+        "413":
+          $ref: "#/components/responses/QueryParamsTooLarge"
+        "422":
+          $ref: "#/components/responses/ExportLimitExceeded"
+        "423":
+          $ref: "#/components/responses/TaskDisabled"
+        "503":
+          $ref: "#/components/responses/DatasourceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [ExportTasks]
+      summary: Search task history
+      description: |
+        Returns paged task history. Normal users can only see their own tasks;
+        administrators can see global tasks according to roleCodes and orgScope.
+      operationId: listExportTasks
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - name: taskCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: createdBy
+          in: query
+          schema:
+            type: string
+        - name: createdAtFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: createdAtTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: fileFormat
+          in: query
+          schema:
+            $ref: "#/components/schemas/FileFormat"
+        - name: subsystemCode
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paged task history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportTaskPageEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "500":
+          $ref: "#/components/responses/QueryExecutionError"
+  /export/tasks/{taskId}:
+    get:
+      tags: [ExportTasks]
+      summary: Get task detail and progress
+      operationId: getExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportTaskDetailEnvelope"
+              examples:
+                executing:
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      taskId: exp_20260513_000001
+                      taskCode: purchase-order-export
+                      subsystemCode: purchase
+                      status: EXECUTING
+                      totalCount: 100000
+                      processedCount: 20000
+                      progressPercent: 20.0
+                      fileFormat: ZIP
+                      attemptNo: 1
+                      requestId: req-20260513-0001
+                      requestDigest: sha256:request-digest
+                      configSnapshotDigest: sha256:config-digest
+                      createdBy: u001
+                      createdAt: "2026-05-13T10:00:00+08:00"
+                      updatedAt: "2026-05-13T10:05:00+08:00"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/tasks/{taskId}/download:
+    get:
+      tags: [ExportTasks]
+      summary: Download exported file
+      description: |
+        The default mode returns a signed URL and file metadata. Stream delivery
+        is represented by application/octet-stream and equivalent metadata headers.
+      operationId: downloadExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+        - name: mode
+          in: query
+          schema:
+            $ref: "#/components/schemas/DeliveryMode"
+            default: SIGNED_URL
+      responses:
+        "200":
+          description: Signed URL response or file stream.
+          headers:
+            X-Export-File-Name:
+              schema:
+                type: string
+            X-Export-File-Size:
+              schema:
+                type: integer
+                format: int64
+            X-Export-Checksum:
+              schema:
+                type: string
+            X-Export-Checksum-Algorithm:
+              schema:
+                type: string
+                enum: [SHA-256]
+            X-Export-Attempt-No:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadResponseEnvelope"
+              examples:
+                signedUrl:
+                  value:
+                    code: SUCCESS
+                    message: success
+                    data:
+                      deliveryMode: SIGNED_URL
+                      downloadUrl: "https://oss.example.com/signed-url"
+                      expiresAt: "2026-05-13T10:10:00+08:00"
+                      fileName: purchase-order-export-20260513.zip
+                      fileSize: 1048576
+                      contentType: application/zip
+                      checksum: sha256:file-checksum
+                      checksumAlgorithm: SHA-256
+                      storageKey: exports/purchase/purchase-order-export/20260513/exp_20260513_000001/1/purchase-order-export-20260513.zip
+                      attemptNo: 1
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/FileNotReady"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "410":
+          $ref: "#/components/responses/FileExpired"
+        "500":
+          $ref: "#/components/responses/FileVerifyError"
+        "502":
+          $ref: "#/components/responses/ExportRenderError"
+      x-contract-errorResponses:
+        - $ref: "#/components/responses/FileNotReady"
+        - $ref: "#/components/responses/FileVerifyError"
+        - $ref: "#/components/responses/ExportRenderError"
+        - $ref: "#/components/responses/InternalError"
+  /export/tasks/{taskId}/cancel:
+    post:
+      tags: [ExportTasks]
+      summary: Cancel export task
+      description: |
+        PENDING tasks can be canceled immediately. EXECUTING tasks accept cancel
+        intent and still return EXECUTING until the worker closes the task at a
+        batch boundary. The API never returns an internal cancel marker as a task status.
+      operationId: cancelExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskActionRequest"
+      responses:
+        "200":
+          description: Cancel accepted or completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskActionResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/InvalidTaskState"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/tasks/{taskId}/retry:
+    post:
+      tags: [ExportTasks]
+      summary: Retry failed export task
+      description: |
+        Only FAILED tasks are retryable. Retry keeps the original taskId,
+        reuses the original config snapshot, increments attemptNo and creates no
+        second active execution attempt.
+      operationId: retryExportTask
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskActionRequest"
+      responses:
+        "200":
+          description: Retry accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskActionResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/InvalidTaskState"
+        "409":
+          $ref: "#/components/responses/ActiveAttemptConflict"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/registries:
+    post:
+      tags: [ExportRegistries]
+      summary: Create export registry
+      operationId: createExportRegistry
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportRegistryUpsertRequest"
+            examples:
+              purchaseOrderRegistry:
+                value:
+                  taskCode: purchase-order-export
+                  subsystemCode: purchase
+                  displayName: Purchase order export
+                  enabled: true
+                  concurrencyLimit: 3
+                  fileRetentionDays: 15
+                  taskHistoryRetentionDays: 30
+                  singleFileMaxRows: 20000
+                  exportMaxRows: 100000
+                  supportedFormats: [XLSX, ZIP]
+                  datasourceCode: purchase_ro
+                  parameterSchema:
+                    required: [createdAtRange]
+                    properties:
+                      createdAtRange:
+                        type: object
+                      orderStatus:
+                        type: string
+                      supplierId:
+                        type: string
+                      purchaseOrgId:
+                        type: string
+                      keyword:
+                        type: string
+                  queryTemplate:
+                    queryTemplateVersion: v1
+                    templateText: "select ... where created_at between :createdAtFrom and :createdAtTo order by order_id asc"
+                    allowedParameters: [createdAtFrom, createdAtTo, orderStatus, supplierId, purchaseOrgId, keyword]
+                  fieldMappings:
+                    - fieldCode: orderNo
+                      headerName: Order No
+                      fieldType: STRING
+                      orderNo: 1
+                      sensitive: false
+                      exportable: true
+                    - fieldCode: contactPhone
+                      headerName: Contact Phone
+                      fieldType: STRING
+                      orderNo: 10
+                      sensitive: true
+                      exportable: true
+                      maskingRuleCode: phone_mask
+                  dataScopeTemplate: "tenant_id = :tenantId and org_id in (:orgScope)"
+                  cursorField: orderId
+                  orderBy:
+                    - field: orderId
+                      direction: ASC
+                  batchSize: 1000
+      x-contract-errorResponses:
+        - $ref: "#/components/responses/QueryTemplateInvalid"
+        - $ref: "#/components/responses/FieldMappingInvalid"
+        - $ref: "#/components/responses/MaskingRuleError"
+        - $ref: "#/components/responses/RegistryConflict"
+        - $ref: "#/components/responses/InternalError"
+      responses:
+        "201":
+          description: Registry created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "409":
+          $ref: "#/components/responses/RegistryConflict"
+        "422":
+          $ref: "#/components/responses/MaskingRuleError"
+        "500":
+          $ref: "#/components/responses/QueryTemplateInvalid"
+    get:
+      tags: [ExportRegistries]
+      summary: List export registries
+      operationId: listExportRegistries
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - name: taskCode
+          in: query
+          schema:
+            type: string
+        - name: subsystemCode
+          in: query
+          schema:
+            type: string
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paged registry list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryPageEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/registries/{taskCode}:
+    get:
+      tags: [ExportRegistries]
+      summary: Get export registry
+      operationId: getExportRegistry
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskCode"
+      responses:
+        "200":
+          description: Registry detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [ExportRegistries]
+      summary: Update export registry
+      description: Registry updates only affect tasks created after the update.
+      operationId: updateExportRegistry
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportRegistryUpsertRequest"
+      x-contract-errorResponses:
+        - $ref: "#/components/responses/QueryTemplateInvalid"
+        - $ref: "#/components/responses/FieldMappingInvalid"
+        - $ref: "#/components/responses/MaskingRuleError"
+        - $ref: "#/components/responses/InternalError"
+      responses:
+        "200":
+          description: Registry updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "422":
+          $ref: "#/components/responses/FieldMappingInvalid"
+        "500":
+          $ref: "#/components/responses/QueryTemplateInvalid"
+  /export/registries/{taskCode}/enable:
+    post:
+      tags: [ExportRegistries]
+      summary: Enable export registry
+      operationId: enableExportRegistry
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskCode"
+      responses:
+        "200":
+          description: Registry enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /export/registries/{taskCode}/disable:
+    post:
+      tags: [ExportRegistries]
+      summary: Disable export registry
+      operationId: disableExportRegistry
+      parameters:
+        - $ref: "#/components/parameters/XOperatorId"
+        - $ref: "#/components/parameters/XTenantId"
+        - $ref: "#/components/parameters/XRoleCodes"
+        - $ref: "#/components/parameters/XOrgScope"
+        - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/TaskCode"
+      responses:
+        "200":
+          description: Registry disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportRegistryEnvelope"
+        "401":
+          $ref: "#/components/responses/AuthContextMissing"
+        "403":
+          $ref: "#/components/responses/PermissionDenied"
+        "404":
+          $ref: "#/components/responses/TaskNotRegistered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    OperatorId:
+      type: apiKey
+      in: header
+      name: X-Operator-Id
+      description: Authenticated operator id forwarded by gateway or caller.
+    TenantId:
+      type: apiKey
+      in: header
+      name: X-Tenant-Id
+      description: Tenant id forwarded by gateway or caller.
+    RoleCodes:
+      type: apiKey
+      in: header
+      name: X-Role-Codes
+      description: Comma-separated role codes forwarded by gateway or caller.
+    OrgScope:
+      type: apiKey
+      in: header
+      name: X-Org-Scope
+      description: Organization scope forwarded by gateway or caller.
+    RequestId:
+      type: apiKey
+      in: header
+      name: X-Request-Id
+      description: Request id used by audit logs and task events.
+  parameters:
+    XOperatorId:
+      name: X-Operator-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Authenticated operator id.
+    XTenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Tenant id for task visibility and data scope.
+    XRoleCodes:
+      name: X-Role-Codes
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Comma-separated role codes.
+    XOrgScope:
+      name: X-Org-Scope
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Organization scope expression or encoded scope list.
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Upstream request id used by audit logs and task events.
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+    TaskCode:
+      name: taskCode
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    ValidationError:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            validation:
+              value:
+                code: VALIDATION_ERROR
+                message: validation failed
+                data: null
+                errors:
+                  - field: taskCode
+                    reason: required
+    AuthContextMissing:
+      description: Required auth context is missing or malformed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            authMissing:
+              value:
+                code: AUTH_CONTEXT_MISSING
+                message: auth context missing
+                data: null
+    PermissionDenied:
+      description: Operator has no permission for the task, registry or file.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            denied:
+              value:
+                code: PERMISSION_DENIED
+                message: permission denied
+                data: null
+    TaskNotFound:
+      description: Task not found or invisible to current operator.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            notFound:
+              value:
+                code: TASK_NOT_FOUND
+                message: task not found
+                data: null
+    TaskNotRegistered:
+      description: taskCode is not registered.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            notRegistered:
+              value:
+                code: TASK_NOT_REGISTERED
+                message: task code not registered
+                data: null
+    TaskDisabled:
+      description: taskCode is registered but disabled.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            disabled:
+              value:
+                code: TASK_DISABLED
+                message: task code is disabled
+                data:
+                  taskCode: purchase-order-export
+    QueryParamsTooLarge:
+      description: queryParams exceeds the 32KB default limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            tooLarge:
+              value:
+                code: QUERY_PARAMS_TOO_LARGE
+                message: queryParams exceeds 32768 bytes
+                data: null
+    IdempotencyConflict:
+      description: Same idempotency scope with different request digest.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            conflict:
+              value:
+                code: IDEMPOTENCY_CONFLICT
+                message: clientRequestId conflicts with a different request digest
+                data:
+                  idempotencyScope: tenant-001:u001:purchase-order-export:req-20260513-0001
+    InvalidTaskState:
+      description: Operation is not allowed for current official task status.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            invalidRetry:
+              value:
+                code: INVALID_TASK_STATE
+                message: current task status does not allow this operation
+                data:
+                  status: EXECUTING
+    ActiveAttemptConflict:
+      description: Another active execution attempt already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            activeAttempt:
+              value:
+                code: ACTIVE_ATTEMPT_CONFLICT
+                message: active execution attempt already exists
+                data:
+                  taskId: exp_20260513_000001
+                  attemptNo: 1
+    FileExpired:
+      description: File is expired or marked as not downloadable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            expired:
+              value:
+                code: FILE_EXPIRED
+                message: file expired
+                data: null
+    FileNotReady:
+      description: File is not published or the task is not completed yet.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            notReady:
+              value:
+                code: FILE_NOT_READY
+                message: file is not ready for download
+                data:
+                  status: EXECUTING
+    FileVerifyError:
+      description: File upload, metadata or checksum verification failed before publish.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            verifyFailed:
+              value:
+                code: FILE_VERIFY_ERROR
+                message: file verification failed
+                data:
+                  checksumAlgorithm: SHA-256
+    QueryTemplateInvalid:
+      description: Query template is missing, invalid or conflicts with the config snapshot.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            invalidTemplate:
+              value:
+                code: QUERY_TEMPLATE_INVALID
+                message: query template invalid
+                data:
+                  taskCode: purchase-order-export
+    DatasourceUnavailable:
+      description: Datasource or datasource credential is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            datasourceUnavailable:
+              value:
+                code: DATASOURCE_UNAVAILABLE
+                message: datasource unavailable
+                data:
+                  datasourceCode: purchase_ro
+    QueryExecutionError:
+      description: Query execution failed, batch retries exhausted or cursor contract violated.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            queryFailed:
+              value:
+                code: QUERY_EXECUTION_ERROR
+                message: query execution failed
+                data:
+                  cursorField: orderId
+    FieldMappingInvalid:
+      description: Field mapping, field order or exportable whitelist is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            invalidMapping:
+              value:
+                code: FIELD_MAPPING_INVALID
+                message: field mapping invalid
+                data:
+                  fieldCode: contactPhone
+    MaskingRuleError:
+      description: Masking rule configuration or execution failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            maskingFailed:
+              value:
+                code: MASKING_RULE_ERROR
+                message: masking rule error
+                data:
+                  maskingRuleCode: phone_mask
+    ExportRenderError:
+      description: XLSX or ZIP render failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            renderFailed:
+              value:
+                code: EXPORT_RENDER_ERROR
+                message: export render error
+                data:
+                  fileFormat: ZIP
+    ExportLimitExceeded:
+      description: Export row count exceeds default or configured limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            limitExceeded:
+              value:
+                code: EXPORT_LIMIT_EXCEEDED
+                message: export limit exceeded
+                data:
+                  exportMaxRows: 100000
+    RegistryConflict:
+      description: Registry taskCode already exists or conflicts with immutable fields.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            duplicate:
+              value:
+                code: REGISTRY_CONFLICT
+                message: taskCode already exists
+                data: null
+    InternalError:
+      description: Unclassified server-side error. Specific platform errors should use a more precise response when known.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            internalError:
+              value:
+                code: INTERNAL_ERROR
+                message: internal error
+                data: null
+  schemas:
+    ResponseCode:
+      type: string
+      enum:
+        - SUCCESS
+        - VALIDATION_ERROR
+        - AUTH_CONTEXT_MISSING
+        - PERMISSION_DENIED
+        - TASK_NOT_FOUND
+        - TASK_NOT_REGISTERED
+        - TASK_DISABLED
+        - QUERY_PARAMS_TOO_LARGE
+        - IDEMPOTENCY_CONFLICT
+        - INVALID_TASK_STATE
+        - FILE_EXPIRED
+        - FILE_NOT_READY
+        - FILE_VERIFY_ERROR
+        - QUERY_TEMPLATE_INVALID
+        - DATASOURCE_UNAVAILABLE
+        - QUERY_EXECUTION_ERROR
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - EXPORT_RENDER_ERROR
+        - EXPORT_LIMIT_EXCEEDED
+        - REGISTRY_CONFLICT
+        - ACTIVE_ATTEMPT_CONFLICT
+        - INTERNAL_ERROR
+    TaskStatus:
+      type: string
+      description: Official public task status. Internal cancel flags are not valid values.
+      enum: [PENDING, EXECUTING, COMPLETED, FAILED, CANCELED, EXPIRED]
+    FileFormat:
+      type: string
+      enum: [XLSX, ZIP]
+    DeliveryMode:
+      type: string
+      enum: [SIGNED_URL, STREAM]
+    Envelope:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: "#/components/schemas/ResponseCode"
+        message:
+          type: string
+    ErrorEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              additionalProperties: true
+            errors:
+              type: array
+              items:
+                $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+        reason:
+          type: string
+    CreateExportTaskRequest:
+      type: object
+      required: [taskCode, subsystemCode, fileFormat, queryParams]
+      properties:
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        fileFormat:
+          $ref: "#/components/schemas/FileFormat"
+        clientRequestId:
+          type: string
+          maxLength: 128
+          description: Optional idempotency key scoped by tenantId/operatorId/taskCode.
+        queryParams:
+          type: object
+          additionalProperties: true
+          description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization.
+        deliveryPreference:
+          $ref: "#/components/schemas/DeliveryMode"
+    CreateExportTaskResponseEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/CreateExportTaskResponse"
+    CreateExportTaskResponse:
+      type: object
+      required:
+        - taskId
+        - taskCode
+        - subsystemCode
+        - status
+        - requestDigest
+        - configSnapshotDigest
+        - attemptNo
+        - createdAt
+      properties:
+        taskId:
+          type: string
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        status:
+          type: string
+          enum: [PENDING]
+        clientRequestId:
+          type: string
+        idempotencyHit:
+          type: boolean
+        requestDigest:
+          type: string
+        configSnapshotDigest:
+          type: string
+        attemptNo:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    ExportTaskDetailEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportTaskDetail"
+    ExportTaskDetail:
+      type: object
+      required:
+        - taskId
+        - taskCode
+        - subsystemCode
+        - status
+        - totalCount
+        - processedCount
+        - progressPercent
+        - attemptNo
+        - requestId
+        - requestDigest
+        - configSnapshotDigest
+        - createdBy
+        - createdAt
+        - updatedAt
+      properties:
+        taskId:
+          type: string
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        totalCount:
+          type: integer
+          format: int64
+          minimum: 0
+        processedCount:
+          type: integer
+          format: int64
+          minimum: 0
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        fileFormat:
+          $ref: "#/components/schemas/FileFormat"
+        attemptNo:
+          type: integer
+          minimum: 0
+        errorCode:
+          $ref: "#/components/schemas/ResponseCode"
+        errorMessage:
+          type: string
+        failureStage:
+          type: string
+        lastSuccessStage:
+          type: string
+        requestId:
+          type: string
+        requestDigest:
+          type: string
+        configSnapshotDigest:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        file:
+          $ref: "#/components/schemas/FileMetadata"
+        batchCheckpoint:
+          $ref: "#/components/schemas/BatchCheckpoint"
+        recentEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskEvent"
+        auditEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+    ExportTaskPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportTaskPage"
+    ExportTaskPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportTaskDetail"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    DownloadResponseEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/DownloadResponse"
+    DownloadResponse:
+      allOf:
+        - $ref: "#/components/schemas/FileMetadata"
+        - type: object
+          required: [deliveryMode]
+          properties:
+            deliveryMode:
+              $ref: "#/components/schemas/DeliveryMode"
+            downloadUrl:
+              type: string
+              format: uri
+            expiresAt:
+              type: string
+              format: date-time
+    FileMetadata:
+      type: object
+      required:
+        - fileName
+        - fileSize
+        - contentType
+        - checksum
+        - checksumAlgorithm
+        - storageKey
+        - attemptNo
+      properties:
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        tempStorageKey:
+          type: string
+        publishedStorageKey:
+          type: string
+        storageKey:
+          type: string
+        checksum:
+          type: string
+        checksumAlgorithm:
+          type: string
+          enum: [SHA-256]
+        checksumVerifiedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+        deliveryReadyAt:
+          type: string
+          format: date-time
+        attemptNo:
+          type: integer
+          minimum: 1
+    TaskActionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    TaskActionResponseEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/TaskActionResponse"
+    TaskActionResponse:
+      type: object
+      required: [taskId, status, attemptNo, acceptedAt]
+      properties:
+        taskId:
+          type: string
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        attemptNo:
+          type: integer
+        cancelAccepted:
+          type: boolean
+          description: True means an EXECUTING task will stop at a batch boundary; this is not a task status.
+        retryAccepted:
+          type: boolean
+        configSnapshotDigest:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+    ExportRegistryUpsertRequest:
+      type: object
+      required:
+        - taskCode
+        - subsystemCode
+        - displayName
+        - enabled
+        - concurrencyLimit
+        - fileRetentionDays
+        - taskHistoryRetentionDays
+        - singleFileMaxRows
+        - exportMaxRows
+        - supportedFormats
+        - datasourceCode
+        - parameterSchema
+        - queryTemplate
+        - fieldMappings
+        - dataScopeTemplate
+        - cursorField
+        - orderBy
+        - batchSize
+      properties:
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        displayName:
+          type: string
+        enabled:
+          type: boolean
+        concurrencyLimit:
+          type: integer
+          minimum: 1
+        fileRetentionDays:
+          type: integer
+          minimum: 1
+          default: 15
+        taskHistoryRetentionDays:
+          type: integer
+          minimum: 1
+          default: 30
+        singleFileMaxRows:
+          type: integer
+          minimum: 1
+          default: 20000
+        exportMaxRows:
+          type: integer
+          minimum: 1
+          default: 100000
+        supportedFormats:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/FileFormat"
+        datasourceCode:
+          type: string
+          description: Must reference a registered read-only datasource or data platform dataset.
+        parameterSchema:
+          type: object
+          additionalProperties: true
+        queryTemplate:
+          $ref: "#/components/schemas/QueryTemplateContract"
+        fieldMappings:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/FieldMapping"
+        maskingPolicy:
+          type: object
+          additionalProperties: true
+        dataScopeTemplate:
+          type: string
+          description: Data scope expression using tenantId, operatorId, roleCodes and orgScope.
+        cursorField:
+          type: string
+        orderBy:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderBy"
+        batchSize:
+          type: integer
+          minimum: 1
+    ExportRegistryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportRegistry"
+    ExportRegistryPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [items, page, pageSize, total]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ExportRegistry"
+                page:
+                  type: integer
+                pageSize:
+                  type: integer
+                total:
+                  type: integer
+                  format: int64
+    ExportRegistry:
+      allOf:
+        - $ref: "#/components/schemas/ExportRegistryUpsertRequest"
+        - type: object
+          required: [configSnapshotDigest, updatedAt, updatedBy]
+          properties:
+            configSnapshotDigest:
+              type: string
+            updatedAt:
+              type: string
+              format: date-time
+            updatedBy:
+              type: string
+    QueryTemplateContract:
+      type: object
+      required: [queryTemplateVersion, templateText, allowedParameters]
+      properties:
+        queryTemplateVersion:
+          type: string
+        templateText:
+          type: string
+          description: Parameterized query template. Raw SQL from callers is forbidden.
+        allowedParameters:
+          type: array
+          items:
+            type: string
+    FieldMapping:
+      type: object
+      required: [fieldCode, headerName, fieldType, orderNo, sensitive, exportable]
+      properties:
+        fieldCode:
+          type: string
+        headerName:
+          type: string
+        fieldType:
+          type: string
+          enum: [STRING, NUMBER, DECIMAL, DATETIME, DATE, BOOLEAN]
+        orderNo:
+          type: integer
+          minimum: 1
+        sensitive:
+          type: boolean
+        exportable:
+          type: boolean
+        maskingRuleCode:
+          type: string
+    OrderBy:
+      type: object
+      required: [field, direction]
+      properties:
+        field:
+          type: string
+        direction:
+          type: string
+          enum: [ASC, DESC]
+    BatchCheckpoint:
+      type: object
+      properties:
+        lastCursor:
+          type: string
+        processedCount:
+          type: integer
+          format: int64
+        filePartNo:
+          type: integer
+        attemptNo:
+          type: integer
+        batchSize:
+          type: integer
+        batchRowCount:
+          type: integer
+        retryCount:
+          type: integer
+        backoffMs:
+          type: integer
+    AuditEvent:
+      type: object
+      required:
+        - taskId
+        - taskCode
+        - subsystemCode
+        - operatorId
+        - action
+        - result
+        - requestId
+        - occurredAt
+      properties:
+        taskId:
+          type: string
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        operatorId:
+          type: string
+        action:
+          type: string
+          enum:
+            - CREATE
+            - DISPATCH
+            - EXECUTE_START
+            - EXECUTE_SUCCESS
+            - EXECUTE_FAILED
+            - CANCEL_REQUEST
+            - CANCEL_DONE
+            - RETRY_REQUEST
+            - DOWNLOAD
+            - EXPIRE_MARK
+            - CLEANUP_FAILED
+        result:
+          type: string
+          enum: [SUCCESS, FAILED, ACCEPTED]
+        errorCode:
+          $ref: "#/components/schemas/ResponseCode"
+        requestId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    TaskEvent:
+      type: object
+      required: [taskId, attemptNo, eventType, requestId, occurredAt]
+      properties:
+        taskId:
+          type: string
+        attemptNo:
+          type: integer
+        eventType:
+          type: string
+          enum:
+            - QUERY_READY
+            - QUERY_BATCH_DONE
+            - FILE_PART_WRITTEN
+            - PACKAGE_DONE
+            - FILE_VERIFIED
+            - DELIVERY_READY
+        requestId:
+          type: string
+        datasourceCode:
+          type: string
+        queryTemplateVersion:
+          type: string
+        batchCheckpoint:
+          $ref: "#/components/schemas/BatchCheckpoint"
+        occurredAt:
+          type: string
+          format: date-time

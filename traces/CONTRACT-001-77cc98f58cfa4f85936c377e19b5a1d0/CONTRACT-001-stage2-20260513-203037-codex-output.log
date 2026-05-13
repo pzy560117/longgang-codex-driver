@@ -1,0 +1,47 @@
+SUCCESS: The process with PID 2872 (child process of PID 15936) has been terminated.
+SUCCESS: The process with PID 15936 (child process of PID 19748) has been terminated.
+SUCCESS: The process with PID 19748 (child process of PID 19168) has been terminated.
+SUCCESS: The process with PID 19168 (child process of PID 35480) has been terminated.
+SUCCESS: The process with PID 19348 (child process of PID 20856) has been terminated.
+SUCCESS: The process with PID 24496 (child process of PID 42620) has been terminated.
+SUCCESS: The process with PID 42620 (child process of PID 35480) has been terminated.
+SUCCESS: The process with PID 7472 (child process of PID 21020) has been terminated.
+SUCCESS: The process with PID 21020 (child process of PID 36808) has been terminated.
+SUCCESS: The process with PID 36808 (child process of PID 42668) has been terminated.
+SUCCESS: The process with PID 42668 (child process of PID 40452) has been terminated.
+SUCCESS: The process with PID 40452 (child process of PID 35480) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| CONTRACT-001-S2-F001 | HIGH | artifact_gap | backend | `contracts/README.md:93-106` 定义了 `TASK_DISABLED`、`FILE_NOT_READY` 和多类 500 错误码；但 `contracts/openapi.yaml` 只在 `ResponseCode` enum 中出现这些值，`rg '"500"' contracts/openapi.yaml` 无任何 operation response，`POST /export/tasks` 响应仅到 `400/401/403/404/409/413`（`contracts/openapi.yaml:59-99`） | 在 `components/responses` 中补齐 `TaskDisabled`、`FileNotReady`、`FileVerifyError`、`QueryTemplateInvalid`、`DatasourceUnavailable`、`QueryExecutionError`、`FieldMappingInvalid`、`MaskingRuleError`、`ExportRenderError`、`InternalError` 等响应，并绑定到对应 operation，尤其是创建任务、下载、详情/进度、注册配置更新路径，附错误示例 | `powershell -NoProfile -Command "npx --yes @redocly/cli lint contracts/openapi.yaml"`；再跑 `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` |
+| CONTRACT-001-S2-F002 | MEDIUM | test_gap | test | Driver 测试命令和 `docs/testing/verify-matrix.md:17,24-25` 仍只固化 `git diff --check`，OpenAPI lint 被写成后续任务；这会让无效引用或错误响应遗漏无法被当前任务验证命令捕获 | 将 OpenAPI lint 固化为 CONTRACT-001 的 affected test，例如在 `verify.ps1` 命令列表或后续 `npm run test:contract` 前先接入 `npx --yes @redocly/cli lint contracts/openapi.yaml`，并更新 `verify-matrix` 的当前状态 | `powershell -NoProfile -Command "npx --yes @redocly/cli lint contracts/openapi.yaml"` |
+| CONTRACT-001-S2-F003 | LOW | maintainability | backend | `contracts/openapi.yaml:602-609` 将 `AuthContext` security scheme 建模为单个 `apiKey` 且 `name: X-Request-Id`，但真实认证上下文依赖 `X-Operator-Id/X-Tenant-Id/X-Role-Codes/X-Org-Scope/X-Request-Id` 多头；客户端生成和安全审计容易误判 `X-Request-Id` 是唯一凭证 | 要么拆成多个 header security schemes，要么去掉误导性的 top-level security，只保留 required header parameters 并明确网关注入认证上下文 | `powershell -NoProfile -Command "npx --yes @redocly/cli lint contracts/openapi.yaml"` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `git diff -- contracts/README.md docs/testing/verify-matrix.md plans/features/export-platform.dev-plan.md`
+  - `rg` 针对错误码、500 response、测试入口和敏感/临时代码关键词检查
+  - `powershell -NoProfile -Command "npx --yes @redocly/cli lint contracts/openapi.yaml"`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`
+- 结果摘要:
+  - OpenAPI lint 通过，但有 `info-license-strict` warning：license 缺 `url`。
+  - `git diff --check` 通过，仅有 LF/CRLF warning。
+  - 未发现硬编码密钥、调试输出或跳过测试标记。
+  - `knowledge_references`: none；本次审查未发现新增决策依赖 `docs/knowledge/`。
+  - `knowledge_outputs`: 建议后续归档“契约任务必须把错误码绑定到 operation response，不能只放 enum”的规则。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| CONTRACT-001-S2-F001 | backend | backend-worker | 1 | true |
+| CONTRACT-001-S2-F002 | test | test-runner | 1 | true |
+| CONTRACT-001-S2-F003 | backend | backend-worker | 1 | false |

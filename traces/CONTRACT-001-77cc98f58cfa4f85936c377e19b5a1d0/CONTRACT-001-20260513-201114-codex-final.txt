@@ -1,0 +1,38 @@
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已新增统一导出平台 OpenAPI 契约，覆盖创建、详情、历史、下载、取消、重试、注册/启停/配置接口。
+- 已定义官方任务状态、认证上下文、文件交付元信息、幂等冲突、非法状态、权限失败和统一错误码。
+- 已回填契约验证入口到 `verify-matrix` 与 dev-plan。未执行 commit，因为本任务模板明确禁止 `git add/git commit/git push`。
+
+## Files Changed
+- `contracts/openapi.yaml`: 新增对外 API、schema、状态和错误码契约。
+- `contracts/README.md`: 补充 CONTRACT-001 接口清单、错误码映射和验证入口。
+- `docs/testing/verify-matrix.md`: 更新 CONTRACT-001 契约定义状态、验证命令和证据路径。
+- `plans/features/export-platform.dev-plan.md`: 标记契约总入口已落地，并补充后续 OpenAPI 验证要求。
+
+## Validation
+- `powershell -NoProfile -Command "npx --yes @redocly/cli lint contracts/openapi.yaml"`: PASS - OpenAPI valid；仅有内部 license 缺 URL 的非阻塞 warning。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`: PASS - Verification passed.
+
+## Evidence
+- `contracts/openapi.yaml`: API、认证头、状态枚举、错误码、注册配置、文件元信息和审计/事件 schema。
+- `contracts/README.md`: 人读契约索引、错误码映射、后续契约测试入口。
+- `docs/testing/verify-matrix.md`: FR 到契约证据和后续测试入口的追溯。
+- `plans/features/export-platform.dev-plan.md`: 后续实现和契约测试的任务衔接。
+
+## Knowledge References
+- none: 本轮只检查了知识目录和索引，未引用具体知识条目作为契约依据。
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前仓库仍无测试骨架或 package 脚本；`npm run test:contract` 只能在后续测试任务中接入。
+- 工作区已有未跟踪 `traces/CONTRACT-001-*` 运行产物，本轮未修改。

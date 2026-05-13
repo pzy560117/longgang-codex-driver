@@ -16,7 +16,7 @@
 | 阶段 | 目标 | 主要产物 | 依赖 | 验收顺序 |
 | --- | --- | --- | --- | --- |
 | P1 | 固定分析与测试左移材料 | `docs/context/*`、`docs/testing/*` | 产品真相源 | 最先 |
-| P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | FR-001/003/005/008/013/014 先验收 |
+| P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | CONTRACT-001 已落 `contracts/openapi.yaml`；FR-001/002/003/004/007/008/009/010/012/013 先验收 |
 | P3 | 创建测试骨架 | `tests/contract/`、`tests/backend/`、`tests/scheduler/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | planned / blocked-by-contract 转为可执行 |
 | P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等 | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
 | P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
@@ -39,7 +39,7 @@
 
 | 任务 | 直接依赖 | 说明 |
 | --- | --- | --- |
-| T1 契约总入口 | P1 | 复核并扩展已存在的 `contracts/README.md`，再把 `contracts/openapi.yaml`、目录约定和 FR-001 / FR-003 / FR-005 / FR-008 / FR-013 / FR-014 的接口、状态、错误码定住 |
+| T1 契约总入口 | P1 | CONTRACT-001 已复核并扩展 `contracts/README.md`，落地 `contracts/openapi.yaml`，先定住 FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 的接口、状态和错误码 |
 | T2 API 契约 | T1 | 先落 `contracts/api/`，覆盖创建、进度、历史、下载、取消、重试和注册接口 |
 | T3 scheduler 契约 | T1 | 再落 `contracts/scheduler/`，覆盖 DB 抢锁、租约、续租、接管、批次检查点 |
 | T4 query 契约 | T1 | 再落 `contracts/query/`，覆盖参数 schema、查询模板、字段映射、脱敏和数据范围 |
@@ -91,7 +91,7 @@
 
 ## 7. 后续实现任务建议
 
-- 任务 A：复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001 至 FR-014 的接口、状态、错误码和样板契约，包含 FR-002 的查询进度/详情路径。
+- 任务 A：已由 CONTRACT-001 复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001/002/003/004/007/008/009/010/012/013 的接口、状态、错误码和注册配置契约，包含 FR-002 的查询进度/详情路径。
 - 任务 B：落 `contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/`，把能力分区和示例契约先锚住。
 - 任务 C：落 `tests/contract/`，为创建、查询、进度/详情、下载、注册、调度、文件和样板建立最小测试骨架。
 - 任务 D：落 `src/task-api/`、`src/registry-config/`、`src/scheduler/`，先完成主入口、注册配置和调度链路的最小可用实现。
@@ -104,6 +104,16 @@
 - 再验收 FR-006、FR-003、FR-011，确认分片、文件发布和过期清理。
 - 再验收 FR-012，确认取消和重试状态机。
 - 最后验收 FR-014，确认采购订单样板可作为主样板和压测证据。
+
+## 8.1 CONTRACT-001 契约验证入口
+
+当前契约任务的 fresh evidence 命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"
+```
+
+后续测试骨架任务可把当前 `npx --yes @redocly/cli lint contracts/openapi.yaml` 封装为 `npm run test:contract`，并继续保留 `docs/testing/verify-matrix.md` 中的 `contract-openapi` 证据入口。
 
 ## 9. Knowledge References
 
