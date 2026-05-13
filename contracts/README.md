@@ -38,7 +38,7 @@ contracts/
 
 | 架构锚点 | 必须进入的契约分区 | 最小字段 / 行为 |
 | --- | --- | --- |
-| 创建幂等 | `contracts/api/` | `clientRequestId`、`idempotencyScope=tenantId+operatorId+taskCode+clientRequestId`、`requestDigest`、`IDEMPOTENCY_CONFLICT` |
+| 创建幂等 | `contracts/api/` | `clientRequestId`、成功响应 `idempotencyScope=tenantId+operatorId+taskCode+clientRequestId`、`requestDigest`、`IDEMPOTENCY_CONFLICT` |
 | 配置快照 | `contracts/api/`、`contracts/query/` | `configSnapshotDigest`、`datasourceCode`、`queryTemplateVersion`、`parameterSchemaDigest`、`fieldMappingDigest`、`maskingPolicyDigest` |
 | DB 抢锁 | `contracts/scheduler/` | `lockOwner`、`lockExpireAt`、`leaseRenewedAt`、数据库时间、5 分钟默认租约 |
 | 执行尝试 | `contracts/api/`、`contracts/scheduler/`、`contracts/audit/` | `attemptNo`、FAILED 重试递增、锁接管不递增、同任务同一时刻一个活跃尝试 |
@@ -68,7 +68,7 @@ contracts/
 
 | 接口 | 方法 | 覆盖需求 | 关键契约 |
 | --- | --- | --- | --- |
-| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、`requestDigest`、`configSnapshotDigest` |
+| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、成功响应 `idempotencyScope`、`requestDigest`、`configSnapshotDigest` |
 | `/api/export/tasks` | `GET` | FR-004 / FR-009 / FR-010 | 正式筛选维度、普通用户仅本人、管理员按权限全局查询 |
 | `/api/export/tasks/{taskId}` | `GET` | FR-002 / FR-010 | 详情、进度、失败错误码、批次检查点和文件元信息 |
 | `/api/export/tasks/{taskId}/download` | `GET` | FR-003 / FR-009 / FR-010 | 签名 URL、stream 元信息、文件校验、过期与权限失败 |
@@ -91,7 +91,7 @@ contracts/
 | `TASK_NOT_FOUND` | 404 | 任务不存在或对当前用户不可见 |
 | `TASK_NOT_REGISTERED` | 404 | `taskCode` 未注册 |
 | `TASK_DISABLED` | 400 | `taskCode` 已禁用 |
-| `QUERY_PARAMS_TOO_LARGE` | 413 | `queryParams` 超过 32KB 默认限制 |
+| `QUERY_PARAMS_TOO_LARGE` | 400 | `queryParams` 超过 32KB 默认限制 |
 | `IDEMPOTENCY_CONFLICT` | 409 | 相同幂等范围但参数摘要不同 |
 | `INVALID_TASK_STATE` | 400 | 当前状态不允许下载、取消或重试 |
 | `ACTIVE_ATTEMPT_CONFLICT` | 409 | 已存在活跃执行尝试 |

@@ -1,0 +1,63 @@
+SUCCESS: The process with PID 27304 (child process of PID 29380) has been terminated.
+SUCCESS: The process with PID 29380 (child process of PID 38188) has been terminated.
+SUCCESS: The process with PID 38188 (child process of PID 19412) has been terminated.
+SUCCESS: The process with PID 3904 (child process of PID 16972) has been terminated.
+SUCCESS: The process with PID 19412 (child process of PID 17044) has been terminated.
+SUCCESS: The process with PID 16972 (child process of PID 5880) has been terminated.
+SUCCESS: The process with PID 5880 (child process of PID 38196) has been terminated.
+SUCCESS: The process with PID 38196 (child process of PID 17044) has been terminated.
+SUCCESS: The process with PID 25540 (child process of PID 37360) has been terminated.
+SUCCESS: The process with PID 27408 (child process of PID 42064) has been terminated.
+SUCCESS: The process with PID 37360 (child process of PID 21780) has been terminated.
+SUCCESS: The process with PID 42064 (child process of PID 38632) has been terminated.
+SUCCESS: The process with PID 21780 (child process of PID 23416) has been terminated.
+SUCCESS: The process with PID 38632 (child process of PID 32316) has been terminated.
+SUCCESS: The process with PID 23416 (child process of PID 35016) has been terminated.
+SUCCESS: The process with PID 32316 (child process of PID 17044) has been terminated.
+SUCCESS: The process with PID 35016 (child process of PID 17044) has been terminated.
+SUCCESS: The process with PID 18212 (child process of PID 37624) has been terminated.
+SUCCESS: The process with PID 37624 (child process of PID 41428) has been terminated.
+SUCCESS: The process with PID 41428 (child process of PID 14376) has been terminated.
+SUCCESS: The process with PID 14376 (child process of PID 25808) has been terminated.
+SUCCESS: The process with PID 25808 (child process of PID 17044) has been terminated.
+SUCCESS: The process with PID 32516 (child process of PID 20376) has been terminated.
+SUCCESS: The process with PID 20376 (child process of PID 29224) has been terminated.
+SUCCESS: The process with PID 29224 (child process of PID 29376) has been terminated.
+SUCCESS: The process with PID 29376 (child process of PID 17044) has been terminated.
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已加固 CONTRACT-001 契约：创建任务成功响应现在显式返回 `idempotencyScope`，并在 OpenAPI schema 中列为必填字段。
+- 已同步 README、验证矩阵和 dev-plan，确保 FR-013 幂等证据字段可追踪。
+- 对外任务状态仍仅为 `PENDING / EXECUTING / COMPLETED / FAILED / CANCELED / EXPIRED`，未暴露内部取消状态。
+
+## Files Changed
+- `contracts/openapi.yaml`: 补充 `idempotencyScope` 示例、必填字段和 schema 描述。
+- `contracts/README.md`: 补强创建幂等契约锚点和 `POST /api/export/tasks` 说明。
+- `docs/testing/verify-matrix.md`: 补齐契约验证入口证据路径。
+- `plans/features/export-platform.dev-plan.md`: 补充后续实现必须回传 `idempotencyScope` 的验收口径。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"`: PASS - `git diff --check` 通过，Redocly lint 显示 OpenAPI valid。
+
+## Evidence
+- `contracts/openapi.yaml`: 证明 API、状态、错误码和 `idempotencyScope` schema 已落地。
+- `contracts/README.md`: 证明 CONTRACT-001 对外契约边界和错误码表已同步。
+- `docs/testing/verify-matrix.md`: 证明后续契约验证入口已定义。
+- `plans/features/export-platform.dev-plan.md`: 证明后续实现任务有明确验收口径。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 后续实现必须保证实际 `idempotencyScope` 值严格按 `tenantId + operatorId + taskCode + clientRequestId` 生成。
+- 未执行 git commit：本轮 Driver Prompt 明确禁止 `git add`、`git commit`、`git push`。

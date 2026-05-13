@@ -61,13 +61,13 @@ paths:
                     purchaseOrgId: ORG-001
                     keyword: PO-2026
       x-contract-errorResponses:
-        - $ref: "#/components/responses/TaskDisabled"
-        - $ref: "#/components/responses/ExportLimitExceeded"
-        - $ref: "#/components/responses/QueryTemplateInvalid"
-        - $ref: "#/components/responses/DatasourceUnavailable"
-        - $ref: "#/components/responses/FieldMappingInvalid"
-        - $ref: "#/components/responses/MaskingRuleError"
-        - $ref: "#/components/responses/InternalError"
+        - TASK_DISABLED
+        - EXPORT_LIMIT_EXCEEDED
+        - QUERY_TEMPLATE_INVALID
+        - DATASOURCE_UNAVAILABLE
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - INTERNAL_ERROR
       responses:
         "201":
           description: Task created.
@@ -87,6 +87,7 @@ paths:
                       status: PENDING
                       clientRequestId: req-20260513-0001
                       idempotencyHit: false
+                      idempotencyScope: tenant-001:u001:purchase-order-export:req-20260513-0001
                       requestDigest: sha256:request-digest
                       configSnapshotDigest: sha256:config-digest
                       attemptNo: 0
@@ -98,7 +99,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateExportTaskResponseEnvelope"
         "400":
-          $ref: "#/components/responses/TaskDisabled"
+          $ref: "#/components/responses/CreateTaskBadRequest"
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
@@ -107,12 +108,11 @@ paths:
           $ref: "#/components/responses/TaskNotRegistered"
         "409":
           $ref: "#/components/responses/IdempotencyConflict"
-        "413":
-          $ref: "#/components/responses/QueryParamsTooLarge"
         "500":
           $ref: "#/components/responses/DatasourceUnavailable"
       x-contract-errorResponseStatus:
         TASK_DISABLED: 400
+        QUERY_PARAMS_TOO_LARGE: 400
         EXPORT_LIMIT_EXCEEDED: 400
         DATASOURCE_UNAVAILABLE: 500
         INTERNAL_ERROR: 500
@@ -313,10 +313,10 @@ paths:
         "502":
           $ref: "#/components/responses/ExportRenderError"
       x-contract-errorResponses:
-        - $ref: "#/components/responses/FileNotReady"
-        - $ref: "#/components/responses/FileVerifyError"
-        - $ref: "#/components/responses/ExportRenderError"
-        - $ref: "#/components/responses/InternalError"
+        - FILE_NOT_READY
+        - FILE_VERIFY_ERROR
+        - EXPORT_RENDER_ERROR
+        - INTERNAL_ERROR
   /export/tasks/{taskId}/cancel:
     post:
       tags: [ExportTasks]
@@ -470,11 +470,11 @@ paths:
                       direction: ASC
                   batchSize: 1000
       x-contract-errorResponses:
-        - $ref: "#/components/responses/QueryTemplateInvalid"
-        - $ref: "#/components/responses/FieldMappingInvalid"
-        - $ref: "#/components/responses/MaskingRuleError"
-        - $ref: "#/components/responses/RegistryConflict"
-        - $ref: "#/components/responses/InternalError"
+        - QUERY_TEMPLATE_INVALID
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - REGISTRY_CONFLICT
+        - INTERNAL_ERROR
       responses:
         "201":
           description: Registry created.
@@ -483,17 +483,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportRegistryEnvelope"
         "400":
-          $ref: "#/components/responses/ExportLimitExceeded"
+          $ref: "#/components/responses/RegistryBadRequest"
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
           $ref: "#/components/responses/PermissionDenied"
         "409":
           $ref: "#/components/responses/RegistryConflict"
-        "422":
-          $ref: "#/components/responses/MaskingRuleError"
         "500":
-          $ref: "#/components/responses/QueryTemplateInvalid"
+          $ref: "#/components/responses/RegistryServerError"
     get:
       tags: [ExportRegistries]
       summary: List export registries
@@ -588,10 +586,10 @@ paths:
             schema:
               $ref: "#/components/schemas/ExportRegistryUpsertRequest"
       x-contract-errorResponses:
-        - $ref: "#/components/responses/QueryTemplateInvalid"
-        - $ref: "#/components/responses/FieldMappingInvalid"
-        - $ref: "#/components/responses/MaskingRuleError"
-        - $ref: "#/components/responses/InternalError"
+        - QUERY_TEMPLATE_INVALID
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - INTERNAL_ERROR
       responses:
         "200":
           description: Registry updated.
@@ -600,17 +598,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExportRegistryEnvelope"
         "400":
-          $ref: "#/components/responses/ValidationError"
+          $ref: "#/components/responses/RegistryBadRequest"
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
           $ref: "#/components/responses/PermissionDenied"
         "404":
           $ref: "#/components/responses/TaskNotRegistered"
-        "422":
-          $ref: "#/components/responses/FieldMappingInvalid"
         "500":
-          $ref: "#/components/responses/QueryTemplateInvalid"
+          $ref: "#/components/responses/RegistryServerError"
   /export/registries/{taskCode}/enable:
     post:
       tags: [ExportRegistries]
@@ -741,21 +737,6 @@ components:
       schema:
         type: string
   responses:
-    ValidationError:
-      description: Validation failed.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
-          examples:
-            validation:
-              value:
-                code: VALIDATION_ERROR
-                message: validation failed
-                data: null
-                errors:
-                  - field: taskCode
-                    reason: required
     AuthContextMissing:
       description: Required auth context is missing or malformed.
       content:
@@ -804,31 +785,38 @@ components:
                 code: TASK_NOT_REGISTERED
                 message: task code not registered
                 data: null
-    TaskDisabled:
-      description: taskCode is registered but disabled.
+    CreateTaskBadRequest:
+      description: Create task request is invalid, disabled or exceeds configured limits.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
           examples:
-            disabled:
+            validation:
+              value:
+                code: VALIDATION_ERROR
+                message: validation failed
+                data: null
+                errors:
+                  - field: taskCode
+                    reason: required
+            taskDisabled:
               value:
                 code: TASK_DISABLED
                 message: task code is disabled
                 data:
                   taskCode: purchase-order-export
-    QueryParamsTooLarge:
-      description: queryParams exceeds the 32KB default limit.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
-          examples:
-            tooLarge:
+            queryParamsTooLarge:
               value:
                 code: QUERY_PARAMS_TOO_LARGE
                 message: queryParams exceeds 32768 bytes
                 data: null
+            exportLimitExceeded:
+              value:
+                code: EXPORT_LIMIT_EXCEEDED
+                message: export limit exceeded
+                data:
+                  exportMaxRows: 100000
     IdempotencyConflict:
       description: Same idempotency scope with different request digest.
       content:
@@ -907,19 +895,6 @@ components:
                 message: file verification failed
                 data:
                   checksumAlgorithm: SHA-256
-    QueryTemplateInvalid:
-      description: Query template is missing, invalid or conflicts with the config snapshot.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
-          examples:
-            invalidTemplate:
-              value:
-                code: QUERY_TEMPLATE_INVALID
-                message: query template invalid
-                data:
-                  taskCode: purchase-order-export
     DatasourceUnavailable:
       description: Datasource or datasource credential is unavailable.
       content:
@@ -946,27 +921,62 @@ components:
                 message: query execution failed
                 data:
                   cursorField: orderId
-    FieldMappingInvalid:
-      description: Field mapping, field order or exportable whitelist is invalid.
+    RegistryBadRequest:
+      description: Registry request is invalid, exceeds limits, or contains invalid field/masking configuration.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
           examples:
-            invalidMapping:
+            validation:
+              value:
+                code: VALIDATION_ERROR
+                message: validation failed
+                data: null
+            exportLimitExceeded:
+              value:
+                code: EXPORT_LIMIT_EXCEEDED
+                message: export limit exceeded
+                data:
+                  exportMaxRows: 100000
+            fieldMappingInvalid:
               value:
                 code: FIELD_MAPPING_INVALID
                 message: field mapping invalid
                 data:
                   fieldCode: contactPhone
-    MaskingRuleError:
-      description: Masking rule configuration or execution failed.
+            maskingRuleError:
+              value:
+                code: MASKING_RULE_ERROR
+                message: masking rule error
+                data:
+                  maskingRuleCode: phone_mask
+    RegistryServerError:
+      description: Registry contract references an invalid query template, datasource, field mapping or masking backend.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
           examples:
-            maskingFailed:
+            queryTemplateInvalid:
+              value:
+                code: QUERY_TEMPLATE_INVALID
+                message: query template invalid
+                data:
+                  taskCode: purchase-order-export
+            datasourceUnavailable:
+              value:
+                code: DATASOURCE_UNAVAILABLE
+                message: datasource unavailable
+                data:
+                  datasourceCode: purchase_ro
+            fieldMappingInvalid:
+              value:
+                code: FIELD_MAPPING_INVALID
+                message: field mapping invalid
+                data:
+                  fieldCode: contactPhone
+            maskingRuleError:
               value:
                 code: MASKING_RULE_ERROR
                 message: masking rule error
@@ -985,19 +995,6 @@ components:
                 message: export render error
                 data:
                   fileFormat: ZIP
-    ExportLimitExceeded:
-      description: Export row count exceeds default or configured limit.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
-          examples:
-            limitExceeded:
-              value:
-                code: EXPORT_LIMIT_EXCEEDED
-                message: export limit exceeded
-                data:
-                  exportMaxRows: 100000
     RegistryConflict:
       description: Registry taskCode already exists or conflicts with immutable fields.
       content:
@@ -1123,6 +1120,7 @@ components:
         - taskCode
         - subsystemCode
         - status
+        - idempotencyScope
         - requestDigest
         - configSnapshotDigest
         - attemptNo
@@ -1141,6 +1139,9 @@ components:
           type: string
         idempotencyHit:
           type: boolean
+        idempotencyScope:
+          type: string
+          description: Stable success-response evidence for the tenantId + operatorId + taskCode + clientRequestId idempotency scope.
         requestDigest:
           type: string
         configSnapshotDigest:

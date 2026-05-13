@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| CONTRACT-001-S1-F001 | HIGH | contract_gap | contract | `docs/product/acceptance-criteria.md` 的 AC-E009 要求 `queryParams` 超限返回 400；但 `contracts/openapi.yaml:101-112` 将 `QUERY_PARAMS_TOO_LARGE` 绑定为 413，`contracts/README.md` 也写为 413。 | 先统一 truth source。若产品口径保持 400，则把 OpenAPI 和 README 中 `QUERY_PARAMS_TOO_LARGE` 的 HTTP 状态改为 400，并在 `POST /export/tasks` 的 400 响应中明确区分 `TASK_DISABLED`、`QUERY_PARAMS_TOO_LARGE`、`EXPORT_LIMIT_EXCEEDED` 等错误码。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('git diff --check','npx --yes @redocly/cli lint contracts/openapi.yaml') }"` |
+| CONTRACT-001-S1-F002 | HIGH | contract_gap | contract | `contracts/openapi.yaml:473-497` 中 `POST /export/registries` 的正式响应只把 400 绑定到 `ExportLimitExceeded`、500 绑定到 `QueryTemplateInvalid`；但 FR-007/FR-008 要求注册配置覆盖参数 schema、查询模板、字段映射、脱敏策略、数据源与配置校验，且 `x-contract-errorResponses` 中列出的 `FieldMappingInvalid` / `MaskingRuleError` 没有完整进入标准 OpenAPI responses。 | 为 registry create/update 补齐正式错误响应矩阵，至少覆盖 `ValidationError`、`QueryTemplateInvalid`、`FieldMappingInvalid`、`MaskingRuleError`、`RegistryConflict`、权限和认证错误；不要只依赖 `x-contract-errorResponses`。 | 同上；并人工复核 `FR-007/FR-008` 在 `contracts/openapi.yaml` 和 `contracts/README.md` 的错误码表一致性。 |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| CONTRACT-001-S1-F001 | contract | contract-writer | 1 | yes |
+| CONTRACT-001-S1-F002 | contract | contract-writer | 1 | yes |
