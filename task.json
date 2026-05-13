@@ -36,5 +36,723 @@
       "max_parallel_roles": 3
     }
   },
-  "tasks": []
+  "tasks": [
+    {
+      "id": "INIT-001",
+      "description": "锁定统一导出平台的产品真相源、计划入口、测试矩阵入口和 driver 接管边界",
+      "task_kind": "feature_plan",
+      "phase": "handoff",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product"
+      ],
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "AGENTS.md",
+        "project-task-template.json",
+        "docs/harness/task-session-strategy.md",
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/verify-matrix.md",
+        "task.json"
+      ],
+      "owned_paths": [
+        "task.json"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "task.json"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "确认 docs/product 下四份统一导出平台真相源为当前任务队列唯一产品输入，不再依赖聊天补充 requirement_ids、状态或接口口径",
+        "锁定后续计划入口为 plans/features/export-platform.dev-plan.md，测试矩阵入口为 docs/testing/verify-matrix.md，并声明 driver 只接管 task.json 内正式 single tasks",
+        "检查所有任务都具备真实 requirement_ids、owned_paths、context_files、produces_artifacts、acceptance 和 test_command，且不包含前端视觉类任务或模板占位"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "task.json 成为统一导出平台的正式 driver 队列入口",
+        "首轮 driver 可在不补充聊天上下文的前提下识别真实 truth source、计划入口和测试入口",
+        "任务队列不保留 <feature-slug>、REQ-REPLACE、FR-REPLACE、领域示例占位或 frontend/design 视觉类任务"
+      ]
+    },
+    {
+      "id": "ANALYSIS-001",
+      "description": "补齐统一导出平台的分析材料、测试左移矩阵和实现落点探测",
+      "task_kind": "feature_research",
+      "phase": "analysis",
+      "gate_profile": "research_required",
+      "required_truth_sources": [
+        "product",
+        "testing"
+      ],
+      "priority": 5,
+      "dependencies": [
+        "INIT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "owned_paths": [
+        "docs/context/",
+        "docs/testing/",
+        "plans/features/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把产品需求、状态矩阵、接口矩阵和难点研究映射为可执行的测试左移材料、风险边界和证据路径",
+        "探测仓库中可承接后端实现、契约、测试和样板合同的真实目录，如果应用代码目录尚未存在则先落 plans、docs/testing、contracts 或 docs/context 的实施前置文档",
+        "补齐后续实现任务要依赖的 repo-map、feature-pack、architecture-brief 和 verify-matrix，明确每个 requirement 的验收命令与证据入口"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "分析与测试左移文档能支持后续架构、契约和实现任务直接执行",
+        "repo 落点探测结果已明确哪些目录可写、哪些目录需先创建，不把不存在的 src 路径当作唯一 owned_paths",
+        "FR-001 至 FR-014 已在追溯矩阵、测试数据矩阵和 verify-matrix 中建立可回溯入口"
+      ]
+    },
+    {
+      "id": "ARCH-001",
+      "description": "输出统一导出平台的后端架构、模块边界和实现落点方案",
+      "task_kind": "feature_design",
+      "phase": "architecture",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan"
+      ],
+      "priority": 10,
+      "dependencies": [
+        "ANALYSIS-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/context/",
+        "plans/features/",
+        "contracts/"
+      ],
+      "requirement_ids": [
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/context/architecture-brief.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/README.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "定义统一导出平台的服务边界、任务聚合、注册配置、调度 worker、文件交付、清理 job 和审计链路模块划分",
+        "把 DB 抢锁、attemptNo、配置快照、批次检查点、临时对象发布模型和认证上下文约束固化到架构说明和实施计划",
+        "结合 repo-map 确定后续 API 契约、测试和实现应写入的真实路径，必要时先建立 contracts 入口和实现目录约定"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "后端平台能力的模块边界、职责和实施顺序已明确，且不依赖前端页面范围",
+        "调度锁、执行尝试、配置快照、文件发布和清理链路已有统一架构口径",
+        "后续实现任务的 owned_paths 已有架构依据，不会因 commit gate 缺少真实写入路径而阻塞"
+      ]
+    },
+    {
+      "id": "CONTRACT-001",
+      "description": "完成统一导出平台 API、注册配置和错误码契约设计",
+      "task_kind": "feature_design",
+      "phase": "contract",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan"
+      ],
+      "priority": 15,
+      "dependencies": [
+        "ARCH-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "contracts/",
+        "docs/testing/",
+        "plans/features/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "contracts/openapi.yaml",
+        "contracts/README.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "设计创建、详情、历史、下载、取消、重试、注册/启停/配置等对外接口和最小认证上下文字段",
+        "定义 task status、错误码、文件交付元信息、幂等冲突、非法状态和权限失败的统一对外契约",
+        "把契约测试入口、样例请求/响应、错误码映射和对应验证命令回填到 verify-matrix 与 dev-plan"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "API 与错误码契约完整覆盖 FR-001/002/003/004/007/008/009/010/012/013",
+        "对外状态仅使用官方任务状态，不暴露内部 cancel_requested 等内部控制字段",
+        "后续后端实现与契约验证已有明确入口、样例和命令"
+      ]
+    },
+    {
+      "id": "CORE-API-001",
+      "description": "实现或落地核心任务 API 与注册配置骨架",
+      "task_kind": "feature_impl",
+      "phase": "backend-core",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 20,
+      "dependencies": [
+        "CONTRACT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "contracts/openapi.yaml",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md"
+      ],
+      "owned_paths": [
+        "contracts/",
+        "docs/testing/",
+        "tests/",
+        "src/",
+        "app/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-004",
+        "FR-007",
+        "FR-009",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "tests/",
+        "src/",
+        "app/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "基于契约和 repo 落点实现或脚手架化创建任务、查询详情、历史、取消、重试和注册配置核心入口",
+        "优先补齐对应单元/契约/集成测试骨架与最小实现，不存在应用代码目录时先创建经架构确认的代码路径或测试路径",
+        "接入幂等范围、认证上下文、任务可见性、配置快照摘要和审计字段的最小持久化/接口约束"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "核心任务 API 与注册配置能力已具备可编码、可测试的真实落点",
+        "FR-001/002/004/007/009/010/012/013 对应的接口或实现骨架已有测试入口",
+        "owned_paths 覆盖实际写入目录，避免 driver 在 commit gate 因新增代码路径未声明而阻塞"
+      ]
+    },
+    {
+      "id": "SCHED-001",
+      "description": "实现调度抢锁、执行尝试与取消/重试边界",
+      "task_kind": "feature_impl",
+      "phase": "scheduler",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 30,
+      "dependencies": [
+        "CORE-API-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/state-matrix.yaml",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-005",
+        "FR-010",
+        "FR-012",
+        "FR-013"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或定义 MySQL 轮询、DB 锁租约、lockOwner/lockExpireAt、数据库时间判定和批次边界续租机制",
+        "实现或定义 attemptNo、失败重试递增、租约过期接管延续当前 attemptNo、cancelRequested 批次边界收口和非法重试拒绝逻辑",
+        "补齐抢锁成功、租约续租、锁接管、重复抢锁、执行中取消和 FAILED 重试的测试与证据要求"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "调度锁、执行尝试、取消和重试边界符合 FR-005/012/013 的统一口径",
+        "锁接管、重复抢锁和非法状态重试已有明确实现或测试骨架",
+        "执行证据能串联 attemptNo、lockOwner、lockExpireAt、leaseRenewedAt 和批次检查点"
+      ]
+    },
+    {
+      "id": "QUERY-001",
+      "description": "实现集中查询模板、字段映射、脱敏和批次校验链路",
+      "task_kind": "feature_impl",
+      "phase": "query",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 40,
+      "dependencies": [
+        "SCHED-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "contracts/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-006",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或落地只读数据源白名单、参数 schema、参数化查询模板、游标分页、批次检查点和数据范围约束",
+        "实现或落地字段白名单、字段顺序、敏感字段脱敏、批次字段校验和模板/映射/脱敏错误收口",
+        "补齐采购订单样板所需查询条件、游标稳定性、0/1/20000/20001/100000/100001 行边界和敏感字段证据"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "集中查询模板、字段映射和脱敏链路可覆盖 FR-008/009/014 的主流程和错误场景",
+        "批次校验失败、游标不稳定、模板冲突和脱敏失败已有实现或测试入口",
+        "采购订单样板合同已可驱动后续文件渲染、下载和压测验证"
+      ]
+    },
+    {
+      "id": "FILE-001",
+      "description": "实现文件渲染、交付发布和过期清理链路",
+      "task_kind": "feature_impl",
+      "phase": "file-delivery",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 50,
+      "dependencies": [
+        "QUERY-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/"
+      ],
+      "requirement_ids": [
+        "FR-003",
+        "FR-006",
+        "FR-010",
+        "FR-011",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "实现或定义 XLSX/ZIP 渲染、空数据仅表头、分片打包、文件校验值生成和 attemptNo 隔离存储",
+        "实现或定义临时对象写入、校验通过后发布、签名 URL 或 stream 下载元信息和下载保护",
+        "实现或定义过期清理 job、先失效后删除、清理失败可重试记录，并补齐对应测试与验证矩阵"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "文件渲染、交付和清理链路满足 FR-003/006/011/013/014 的主流程口径",
+        "未发布或校验失败的对象不会被下载接口返回",
+        "空数据、分片 ZIP、过期文件和 FILE_VERIFY_ERROR/EXPORT_RENDER_ERROR 已有实现或测试入口"
+      ]
+    },
+    {
+      "id": "SAMPLE-001",
+      "description": "落地采购订单导出样板与 10 万行样板验证入口",
+      "task_kind": "feature_impl",
+      "phase": "sample-module",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 60,
+      "dependencies": [
+        "FILE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/difficulty-research.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/",
+        "contracts/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-006",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "src/",
+        "app/",
+        "tests/",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "按 purchase-order-export / purchase 样板合同落地注册配置、查询条件、字段顺序、敏感字段和 cursorField=orderId 或等价唯一排序键",
+        "补齐 0/1/20000/20001/100000/100001 行测试数据入口、压测记录要求和 ZIP/下载/审计串联证据",
+        "验证样板不会引入平台特例逻辑，所有链路都通过标准 registry、查询、调度、文件和权限能力完成"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('git diff --check')",
+      "acceptance": [
+        "采购订单样板已成为统一导出平台的一期可执行合同",
+        "10 万行压测和 100001 行超量处置已有明确验证入口与证据要求",
+        "样板字段、敏感字段脱敏、游标稳定性和下载链路均能追溯到 FR-014 与 AC-017/018"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "description": "执行统一导出平台 release 验证、回归与证据收口",
+      "task_kind": "release",
+      "phase": "verify",
+      "gate_profile": "release_required",
+      "required_truth_sources": [
+        "product",
+        "repo_context",
+        "testing",
+        "plan",
+        "contract"
+      ],
+      "priority": 80,
+      "dependencies": [
+        "SAMPLE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/state-matrix.yaml",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/RISK_BASED_TEST_PLAN.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/failure-triage.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/export-platform.dev-plan.md",
+        "contracts/openapi.yaml"
+      ],
+      "owned_paths": [
+        "docs/testing/",
+        "tests/",
+        "contracts/",
+        "src/",
+        "app/"
+      ],
+      "requirement_ids": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/testing/failure-triage.md",
+        "docs/testing/verify-matrix.md",
+        "tests/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "运行 release 所需的契约、受影响测试、P0/P1 回归、采购订单样板边界验证和 fresh evidence 收口",
+        "核对任务状态、错误码、审计字段、批次检查点、文件元信息和下载保护是否与产品真相源一致",
+        "记录通过证据、失败归因、剩余风险和明确 blocked 项，不在 release 阶段首次补写需求范围"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "统一导出平台主流程与高风险异常场景已完成 fresh evidence 验证，或有明确 BLOCKED 说明",
+        "验证结论能覆盖 FR-001 至 FR-014 和采购订单样板边界",
+        "release 阶段输出的证据足以支撑 commit gate 与后续归档"
+      ]
+    },
+    {
+      "id": "ARCHIVE-001",
+      "description": "归档统一导出平台本轮交付知识与可复用规则候选",
+      "task_kind": "archive",
+      "phase": "archive",
+      "gate_profile": "lightweight",
+      "required_truth_sources": [
+        "knowledge",
+        "testing"
+      ],
+      "priority": 90,
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/harness/knowledge-architecture.md",
+        "docs/harness/knowledge-import.md",
+        "docs/harness/knowledge-lint.md",
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/testing/failure-triage.md",
+        "docs/testing/verify-matrix.md",
+        "progress.txt",
+        "traces/"
+      ],
+      "owned_paths": [
+        "docs/knowledge/"
+      ],
+      "requirement_ids": [
+        "FR-010",
+        "FR-013",
+        "FR-014"
+      ],
+      "produces_artifacts": [
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/knowledge/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "knowledge_query_budget": {
+        "catalogs": 2,
+        "entries": 8
+      },
+      "steps": [
+        "从 release evidence、failure triage、trace 和 progress 中提取统一导出平台可复用的调度、幂等、文件交付和样板验证经验",
+        "将可复用经验沉淀到 docs/knowledge/ 并更新 catalog，不把未验证经验直接提升为 AGENTS 规则",
+        "输出可升级规则候选、风险遗留和团队同步候选，保持 archive 只做知识归档不改业务结论"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "本轮交付的知识沉淀与索引更新可被后续 driver 任务复用",
+        "archive 不修改 runtime 状态文件且不伪造通过结论",
+        "若无可归档条目，需明确说明而不是空泛标记已完成"
+      ]
+    }
+  ]
 }

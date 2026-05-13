@@ -1,0 +1,474 @@
+version: "1.0"
+feature_id: "FEAT-EXPORT-PLATFORM-001"
+frontend_scope: "none"
+required_backend_states:
+  - default
+  - empty
+  - processing
+  - error
+  - permission_denied
+  - disabled
+  - expired
+  - canceled
+  - long_content
+  - conflict
+official_task_statuses:
+  - PENDING
+  - EXECUTING
+  - COMPLETED
+  - FAILED
+  - CANCELED
+  - EXPIRED
+internal_controls:
+  cancel_requested: "仅作为执行中取消的内部控制标记；API 不返回该状态，最终收口为 CANCELED 或 INVALID_TASK_STATE"
+defaults:
+  query_params_max_bytes: 32768
+  single_file_max_rows: 20000
+  default_export_max_rows: 100000
+  lock_lease_minutes: 5
+  query_timeout_seconds: 30
+  query_batch_max_retries: 3
+  supported_formats: ["XLSX", "ZIP"]
+  signature_url_ttl_minutes: 10
+  checksum_algorithm: "SHA-256"
+  file_retention_days: 15
+  task_history_retention_days: 30
+execution_events:
+  - QUERY_READY
+  - QUERY_BATCH_DONE
+  - FILE_PART_WRITTEN
+  - PACKAGE_DONE
+  - FILE_VERIFIED
+  - DELIVERY_READY
+idempotency:
+  scope_fields: ["tenantId", "operatorId", "taskCode", "clientRequestId"]
+  digest_fields: ["taskCode", "fileFormat", "queryParams"]
+  conflict_error_code: "IDEMPOTENCY_CONFLICT"
+capabilities:
+  - capability_id: "api-001"
+    title: "创建导出任务"
+    route: "POST /api/export/tasks"
+    related_requirements: ["FR-001", "FR-009", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "认证和注册校验通过，创建成功"
+        expected_system_behavior:
+          - "写入 export_task"
+          - "status=PENDING"
+          - "返回 taskId"
+          - "调用方提供 clientRequestId 时按 tenantId、operatorId、taskCode、clientRequestId 做幂等"
+          - "相同幂等范围和相同参数摘要时返回原 taskId"
+          - "记录 requestDigest 和 configSnapshotDigest"
+        acceptance_refs: ["AC-001", "AC-013", "AC-014"]
+      conflict:
+        required: true
+        description: "相同幂等范围下参数摘要不同"
+        expected_system_behavior:
+          - "返回 IDEMPOTENCY_CONFLICT"
+          - "不得创建新任务"
+        acceptance_refs: ["AC-014", "AC-E018"]
+      permission_denied:
+        required: true
+        description: "无创建权限"
+        expected_system_behavior:
+          - "返回 403"
+          - "记录审计"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+      not_registered:
+        required: true
+        description: "taskCode 未注册"
+        expected_system_behavior:
+          - "创建失败"
+          - "不落无效任务"
+        acceptance_refs: ["AC-E002"]
+      disabled:
+        required: true
+        description: "taskCode 已禁用"
+        expected_system_behavior:
+          - "返回 TASK_DISABLED"
+        acceptance_refs: ["AC-E003"]
+      long_content:
+        required: true
+        description: "queryParams 超过限制"
+        expected_system_behavior:
+          - "超过 32KB 时返回参数过长错误"
+        acceptance_refs: ["AC-E009"]
+      error:
+        required: true
+        description: "预估或精确总量统计结果超过默认最大导出量且注册配置未放开"
+        expected_system_behavior:
+          - "拒绝创建或进入更严格控制流"
+          - "记录审计"
+        acceptance_refs: ["AC-E010", "AC-E021"]
+  - capability_id: "api-002"
+    title: "查询任务详情/进度"
+    route: "GET /api/export/tasks/{taskId}"
+    related_requirements: ["FR-002", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "任务存在且有权限"
+        expected_system_behavior:
+          - "返回 status、totalCount、processedCount、progressPercent、errorMessage"
+        acceptance_refs: ["AC-002"]
+      empty:
+        required: true
+        description: "任务不存在"
+        expected_system_behavior:
+          - "返回 404"
+        acceptance_refs: ["AC-E002"]
+      processing:
+        required: true
+        description: "任务执行中"
+        expected_system_behavior:
+          - "返回执行中状态与进度"
+        acceptance_refs: ["AC-002"]
+      error:
+        required: true
+        description: "任务失败或查询异常"
+        expected_system_behavior:
+          - "返回错误信息"
+        acceptance_refs: ["AC-E013"]
+      permission_denied:
+        required: true
+        description: "无权查看任务"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006"]
+      canceled:
+        required: true
+        description: "任务已取消；内部取消标记不作为正式状态值"
+        expected_system_behavior:
+          - "返回 CANCELED"
+          - "保留可追溯原因"
+        acceptance_refs: ["AC-012"]
+  - capability_id: "api-003"
+    title: "下载导出文件"
+    route: "GET /api/export/tasks/{taskId}/download"
+    related_requirements: ["FR-003", "FR-009"]
+    states:
+      default:
+        required: true
+        description: "完成且未过期"
+        expected_system_behavior:
+          - "返回签名 URL 或文件流"
+          - "签名 URL 模式返回 downloadUrl、expiresAt、fileName、fileSize"
+          - "stream 模式返回文件流和等价文件元信息"
+          - "文件记录包含 storageKey、checksum、checksumAlgorithm、contentType、attemptNo"
+          - "记录下载日志"
+        acceptance_refs: ["AC-003", "AC-010"]
+      disabled:
+        required: true
+        description: "任务未完成或不可下载"
+        expected_system_behavior:
+          - "返回无效状态错误"
+        acceptance_refs: ["AC-003"]
+      expired:
+        required: true
+        description: "文件已过期"
+        expected_system_behavior:
+          - "返回 410"
+        acceptance_refs: ["AC-E007"]
+      permission_denied:
+        required: true
+        description: "无下载权限"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+  - capability_id: "api-004"
+    title: "查询任务历史"
+    route: "GET /api/export/tasks"
+    related_requirements: ["FR-004", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "可按正式筛选维度返回历史任务"
+        expected_system_behavior:
+          - "返回分页结果"
+          - "支持 taskCode、status、createdBy、createdAtRange、fileFormat、subsystemCode 筛选"
+          - "普通用户仅见本人任务"
+          - "管理员可见全局任务"
+          - "权限判断依赖 operatorId、tenantId、roleCodes、orgScope、requestId"
+        acceptance_refs: ["AC-004", "AC-009"]
+      empty:
+        required: true
+        description: "无历史任务"
+        expected_system_behavior:
+          - "返回空分页"
+        acceptance_refs: ["AC-004"]
+      permission_denied:
+        required: true
+        description: "无权查看全局历史"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006"]
+  - capability_id: "api-007"
+    title: "注册 / 启停 / 配置"
+    route: "registry/config APIs"
+    related_requirements: ["FR-007", "FR-008", "FR-010", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "注册成功且启停状态、配置同步生效"
+        expected_system_behavior:
+          - "taskCode 唯一"
+          - "enabled 状态可切换"
+          - "支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略"
+          - "支持数据源、参数 schema、查询模板、字段映射和脱敏策略配置"
+          - "配置变更只影响新创建任务，已创建任务沿用 configSnapshotDigest"
+        acceptance_refs: ["AC-007", "AC-008", "AC-010", "AC-016"]
+      disabled:
+        required: true
+        description: "任务注册或启停后处于禁用"
+        expected_system_behavior:
+          - "创建阶段返回 TASK_DISABLED"
+        acceptance_refs: ["AC-E003"]
+      permission_denied:
+        required: true
+        description: "无权操作注册或配置"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+  - capability_id: "api-005/api-006"
+    title: "取消 / 重试"
+    route: "POST /api/export/tasks/{taskId}/cancel and retry"
+    related_requirements: ["FR-012", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "PENDING 可取消，FAILED 可重试"
+        expected_system_behavior:
+          - "状态机按规则流转"
+          - "FAILED 重试保留原 taskId 审计链路并递增执行尝试次数"
+          - "PENDING/EXECUTING 重试返回非法状态错误且不得重复派发执行"
+          - "失败重试沿用原任务配置快照"
+          - "记录审计"
+        acceptance_refs: ["AC-012", "AC-010", "AC-016"]
+      canceled:
+        required: true
+        description: "取消成功"
+        expected_system_behavior:
+          - "status=CANCELED"
+        acceptance_refs: ["AC-012"]
+      error:
+        required: true
+        description: "非法状态重试或取消失败"
+        expected_system_behavior:
+          - "返回状态错误"
+        acceptance_refs: ["AC-012", "AC-E015"]
+  - id: "query_template_contract"
+    capability_id: "api-008/api-009"
+    title: "集中查询模板契约"
+    route: "registry/config + datasource/query template"
+    related_requirements: ["FR-008", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "注册配置包含数据源、参数 schema、查询模板、字段映射、脱敏策略、数据范围约束和游标字段"
+        expected_system_behavior:
+          - "只允许访问注册配置声明的只读数据源或数据中台数据集"
+          - "查询模板必须参数化"
+          - "只能绑定参数 schema 允许的字段"
+          - "不得执行调用方传入的原始 SQL"
+          - "执行时叠加 tenantId、operatorId、roleCodes、orgScope 对应的数据范围约束"
+        acceptance_refs: ["AC-008", "AC-009", "AC-019"]
+      invalid_template:
+        required: true
+        description: "查询模板不存在或不合法"
+        expected_status: "FAILED"
+        error_code: "QUERY_TEMPLATE_INVALID"
+        acceptance_refs: ["AC-E011"]
+      datasource_unavailable:
+        required: true
+        description: "数据源不可用或凭证不可用"
+        expected_status: "FAILED"
+        error_code: "DATASOURCE_UNAVAILABLE"
+        acceptance_refs: ["AC-E012"]
+      query_execution_error:
+        required: true
+        description: "查询执行失败或批次重试耗尽"
+        expected_status: "FAILED"
+        error_code: "QUERY_EXECUTION_ERROR"
+        acceptance_refs: ["AC-E013", "AC-E020"]
+      field_mapping_invalid:
+        required: true
+        description: "字段映射不合法或批次字段校验失败"
+        expected_status: "FAILED"
+        error_code: "FIELD_MAPPING_INVALID"
+        acceptance_refs: ["AC-E014", "AC-E025"]
+      masking_rule_error:
+        required: true
+        description: "脱敏规则配置或执行失败"
+        expected_status: "FAILED"
+        error_code: "MASKING_RULE_ERROR"
+        acceptance_refs: ["AC-E022", "AC-E025"]
+      snapshot_contract_conflict:
+        required: true
+        description: "查询模板或字段映射与任务快照冲突"
+        expected_status: "FAILED"
+        error_codes: ["QUERY_TEMPLATE_INVALID", "FIELD_MAPPING_INVALID"]
+        expected_system_behavior:
+          - "不得静默放宽格式、阈值或字段范围"
+          - "保留查询模板版本、字段映射摘要、任务快照摘要和冲突字段证据"
+          - "查询模板冲突可按 QUERY_TEMPLATE_INVALID 收口，字段映射冲突按 FIELD_MAPPING_INVALID 收口"
+        acceptance_refs: ["AC-E024"]
+  - capability_id: "job-001"
+    title: "调度执行"
+    route: "Scheduler"
+    related_requirements: ["FR-005", "FR-006", "FR-010", "FR-013"]
+    states:
+      empty:
+        required: true
+        description: "无待执行任务"
+        expected_system_behavior:
+          - "本轮调度结束"
+        acceptance_refs: ["AC-005"]
+      processing:
+        required: true
+        description: "抢锁成功并执行"
+        expected_system_behavior:
+          - "status=EXECUTING"
+          - "记录 attemptNo、lockOwner、lockExpireAt、leaseRenewedAt"
+          - "按数据库时间判断锁租约"
+          - "按批次边界续租"
+          - "锁接管延续当前 attemptNo，并从 lastCursor、processedCount、filePartNo 检查点继续"
+          - "更新 processedCount"
+        acceptance_refs: ["AC-005", "AC-006", "AC-015", "AC-E004", "AC-E008", "AC-E019"]
+      error:
+        required: true
+        description: "执行失败"
+        expected_system_behavior:
+          - "status=FAILED"
+          - "写入 errorMessage"
+          - "保留 attemptNo 和失败批次证据"
+        acceptance_refs: ["AC-E013", "AC-E020"]
+      canceled:
+        required: true
+        description: "任务取消"
+        expected_system_behavior:
+          - "status=CANCELED"
+        acceptance_refs: ["AC-012"]
+  - capability_id: "job-002"
+    title: "文件过期清理"
+    route: "Cleanup Job"
+    related_requirements: ["FR-011"]
+    states:
+      default:
+        required: true
+        description: "存在过期文件"
+        expected_system_behavior:
+          - "先标记任务或文件引用为不可下载"
+          - "再删除 OSS 对象"
+        acceptance_refs: ["AC-011"]
+      empty:
+        required: true
+        description: "无过期文件"
+        expected_system_behavior:
+          - "正常结束"
+        acceptance_refs: ["AC-011"]
+      error:
+        required: true
+        description: "清理失败"
+        expected_system_behavior:
+          - "记录清理日志"
+        acceptance_refs: ["AC-011"]
+  - capability_id: "api-010"
+    title: "文件元信息与校验"
+    route: "file service / OSS"
+    related_requirements: ["FR-003", "FR-011"]
+    states:
+      default:
+        required: true
+        description: "平台生成文件并记录可校验元信息"
+        expected_system_behavior:
+          - "记录 fileName、fileSize、contentType、storageKey、checksum、checksumAlgorithm、expiresAt、attemptNo"
+          - "storageKey 默认按 exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName} 生成"
+          - "checksumAlgorithm 默认 SHA-256"
+          - "先写入临时对象，校验通过后发布为可下载对象"
+          - "记录 checksumVerifiedAt、publishedAt 和 deliveryReadyAt 或等价事件"
+        acceptance_refs: ["AC-003", "AC-021"]
+      expired:
+        required: true
+        description: "文件超过保留期或已标记不可下载"
+        expected_system_behavior:
+          - "拒绝下载"
+          - "返回 410 或等价失效结果"
+        acceptance_refs: ["AC-011", "AC-E007"]
+      error:
+        required: true
+        description: "OSS 上传失败、文件校验值不匹配或元信息缺失"
+        expected_system_behavior:
+          - "拒绝交付文件"
+          - "记录审计和失败原因"
+          - "不生成下载地址"
+          - "保留临时对象定位或清理记录"
+        acceptance_refs: ["AC-E005", "AC-E017", "AC-E026"]
+      render_error:
+        required: true
+        description: "XLSX/ZIP 文件渲染失败"
+        expected_status: "FAILED"
+        error_code: "EXPORT_RENDER_ERROR"
+        expected_system_behavior:
+          - "记录渲染输入摘要和失败原因"
+          - "不得生成下载地址"
+        acceptance_refs: ["AC-E027"]
+  - capability_id: "api-011"
+    title: "执行事件追踪"
+    route: "task event log"
+    related_requirements: ["FR-006", "FR-008", "FR-010", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "任务执行阶段事件完整记录"
+        expected_system_behavior:
+          - "记录 QUERY_READY、QUERY_BATCH_DONE、FILE_PART_WRITTEN、PACKAGE_DONE、FILE_VERIFIED、DELIVERY_READY"
+          - "事件可通过 taskId、attemptNo、requestId、查询模板版本、数据源编码和批次检查点串联"
+          - "事件时间以平台持久化时间为准"
+        acceptance_refs: ["AC-019", "AC-020"]
+      error:
+        required: true
+        description: "执行阶段失败"
+        expected_system_behavior:
+          - "记录失败阶段、错误码、上一成功阶段和当前批次检查点"
+          - "失败证据可与任务日志、审计日志和文件证据串联"
+        acceptance_refs: ["AC-010", "AC-019", "AC-020"]
+  - capability_id: "sample-001"
+    title: "采购订单导出样板"
+    route: "purchase-order query template + platform export flow"
+    related_requirements: ["FR-014", "FR-001", "FR-006", "FR-008", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "采购订单样板按标准平台链路完成导出"
+        expected_system_behavior:
+          - "样板注册配置包含 datasourceCode、queryTemplateVersion、参数 schema、字段映射、脱敏策略、cursorField=orderId 和 supportedFormats=[XLSX, ZIP]"
+          - "支持 createdAtRange、orderStatus、supplierId、purchaseOrgId、keyword 查询条件"
+          - "查询模板按 orderId 或等价唯一游标稳定递增返回数据"
+          - "contactName、contactPhone 由平台按脱敏策略输出脱敏后值"
+          - "XLSX/ZIP 主路径由平台渲染，超过 20000 行自动分片并打包"
+          - "审计、下载、文件校验和压测证据可追溯"
+        acceptance_refs: ["AC-017", "AC-018"]
+      empty:
+        required: true
+        description: "查询条件命中 0 行采购订单"
+        expected_system_behavior:
+          - "生成仅表头文件"
+          - "任务状态为 COMPLETED"
+        acceptance_refs: ["AC-E001", "AC-018"]
+      long_content:
+        required: true
+        description: "采购订单样板超过默认最大导出量"
+        expected_system_behavior:
+          - "100001 行且注册配置未放开时拒绝创建或进入更严格控制流"
+          - "记录审计"
+        acceptance_refs: ["AC-E021", "AC-018"]
+      error:
+        required: true
+        description: "采购订单样板查询合同或脱敏校验失败"
+        expected_system_behavior:
+          - "敏感字段未脱敏时拒绝生成或交付文件"
+          - "游标缺失、重复或非递增时任务置为 FAILED"
+          - "错误码收口为 MASKING_RULE_ERROR 或 QUERY_EXECUTION_ERROR"
+          - "保留批次检查点和失败原因"
+        acceptance_refs: ["AC-E022", "AC-E023"]
