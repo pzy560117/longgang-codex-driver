@@ -1,0 +1,105 @@
+version: "1.0"
+feature_id: "FEAT-000"
+required_states:
+  - default
+  - empty
+  - loading
+  - error
+  - permission_denied
+  - disabled
+  - long_content
+  - mobile
+pages:
+  - page_id: "page-001"
+    title: "示例页面"
+    route: "/example"
+    actor: "primary-user"
+    related_requirements:
+      - "FR-001"
+    states:
+      default:
+        required: true
+        description: "展示主要数据和默认可执行操作"
+        trigger: "用户进入页面且数据加载成功"
+        expected_ui:
+          - "主要内容可见"
+          - "主要操作入口可见"
+        user_actions:
+          - "执行核心操作"
+        acceptance_refs:
+          - "AC-001"
+      empty:
+        required: true
+        description: "无数据或筛选后无结果"
+        trigger: "查询结果为空"
+        expected_ui:
+          - "空态提示"
+          - "恢复或创建入口"
+        user_actions:
+          - "重置条件"
+          - "创建数据"
+        acceptance_refs:
+          - "AC-E001"
+      loading:
+        required: true
+        description: "数据请求或提交尚未完成"
+        trigger: "请求未完成"
+        expected_ui:
+          - "骨架屏、spinner 或按钮 loading"
+        user_actions:
+          - "等待"
+        acceptance_refs:
+          - "AC-E002"
+      error:
+        required: true
+        description: "接口报错、超时或数据解析失败"
+        trigger: "请求失败"
+        expected_ui:
+          - "错误提示"
+          - "重试入口"
+        user_actions:
+          - "重试"
+        acceptance_refs:
+          - "AC-E002"
+      permission_denied:
+        required: true
+        description: "当前角色无权查看或操作"
+        trigger: "权限校验失败"
+        expected_ui:
+          - "权限不足提示"
+          - "受限操作隐藏或禁用"
+        user_actions:
+          - "返回"
+        acceptance_refs:
+          - "AC-E003"
+      disabled:
+        required: false
+        not_applicable_reason: ""
+        description: "操作因状态、权限或前置条件不足而不可用"
+        trigger: "操作前置条件不满足"
+        expected_ui:
+          - "禁用态"
+          - "原因说明"
+        user_actions:
+          - "查看原因"
+        acceptance_refs: []
+      long_content:
+        required: true
+        description: "字段超长、列表项较多或极端数据"
+        trigger: "数据超过常规长度或数量"
+        expected_ui:
+          - "文本不溢出容器"
+          - "可通过 tooltip、换行或截断查看"
+        user_actions:
+          - "查看完整内容"
+        acceptance_refs: []
+      mobile:
+        required: true
+        description: "小屏或窄容器访问"
+        trigger: "视口宽度小于移动端断点"
+        expected_ui:
+          - "布局可用"
+          - "关键操作不被遮挡"
+        user_actions:
+          - "完成核心流程"
+        acceptance_refs: []

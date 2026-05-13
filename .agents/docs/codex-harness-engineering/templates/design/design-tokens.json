@@ -1,0 +1,63 @@
+{
+  "color": {
+    "bg": {
+      "default": "#FFFFFF",
+      "subtle": "#F6F7F9",
+      "inverse": "#111827"
+    },
+    "text": {
+      "primary": "#111827",
+      "secondary": "#4B5563",
+      "muted": "#6B7280",
+      "inverse": "#FFFFFF"
+    },
+    "border": {
+      "default": "#D1D5DB",
+      "strong": "#9CA3AF"
+    },
+    "status": {
+      "success": "#15803D",
+      "warning": "#B45309",
+      "danger": "#B91C1C",
+      "info": "#1D4ED8"
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24
+  },
+  "radius": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12
+  },
+  "typography": {
+    "fontFamily": {
+      "base": "system-ui, sans-serif",
+      "mono": "Consolas, monospace"
+    },
+    "fontSize": {
+      "sm": 12,
+      "md": 14,
+      "lg": 16,
+      "xl": 20
+    },
+    "fontWeight": {
+      "regular": 400,
+      "medium": 500,
+      "bold": 700
+    },
+    "lineHeight": {
+      "sm": 1.4,
+      "md": 1.5,
+      "lg": 1.6
+    }
+  },
+  "shadow": {
+    "sm": "0 1px 2px rgba(0, 0, 0, 0.08)",
+    "md": "0 4px 12px rgba(0, 0, 0, 0.12)"
+  }
+}

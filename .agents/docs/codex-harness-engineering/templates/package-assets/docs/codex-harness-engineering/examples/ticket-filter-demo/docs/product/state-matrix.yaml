@@ -1,0 +1,14 @@
+page: ticket-list
+states:
+  default:
+    description: 显示最近工单列表和默认筛选条
+  empty:
+    description: 筛选后无结果，展示空态文案和清除筛选入口
+  loading:
+    description: 查询工单时展示骨架屏和禁用操作
+  error:
+    description: 查询失败时展示错误提示和重试按钮
+  permission_denied:
+    description: 普通客服不可见保存视图入口
+  responsive_mobile:
+    description: 移动端筛选条折叠为抽屉

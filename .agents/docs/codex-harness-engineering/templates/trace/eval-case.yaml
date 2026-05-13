@@ -1,0 +1,24 @@
+id: codex-harness-docs-check
+name: Codex Harness 文档完整性检查
+description: 检查 Codex Harness 文档是否包含任务、上下文、执行、验证、CI、MCP、回归和 trace 模板。
+input:
+  docs_root: docs/codex-harness-engineering
+checks:
+  - id: has-readme
+    type: file_exists
+    path: docs/codex-harness-engineering/README.md
+  - id: has-agents-template
+    type: file_exists
+    path: docs/codex-harness-engineering/templates/runtime/AGENTS.md
+  - id: has-ci-template
+    type: file_exists
+    path: docs/codex-harness-engineering/templates/ci/github-action-codex-review.yml
+  - id: has-mcp-template
+    type: file_exists
+    path: docs/codex-harness-engineering/templates/config/mcp-config.toml
+  - id: has-trace-schema
+    type: file_exists
+    path: docs/codex-harness-engineering/templates/trace/trace.schema.json
+expected:
+  result: pass
+  minimum_score: 1.0

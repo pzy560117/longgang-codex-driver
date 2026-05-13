@@ -1,0 +1,52 @@
+{
+  "tasks": [
+    {
+      "id": "SMOKE-001",
+      "description": "创建 smoke 结果文件并验证内层 Codex 会话输出边界",
+      "task_kind": "smoke",
+      "gate_profile": "lightweight",
+      "required_truth_sources": [],
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "AGENTS.md"
+      ],
+      "execution": {
+        "session": {
+          "mode": "fresh-process"
+        },
+        "subagents": {
+          "mode": "off"
+        }
+      },
+      "steps": [
+        "阅读当前仓库的 AGENTS.md",
+        "新建 SMOKE-RESULT.md",
+        "在文件中写入三条简短内容：本仓库是 Codex Harness smoke test；当前任务由内层 Codex 自动实现会话生成结果文件；本次 smoke 仅新增 SMOKE-RESULT.md",
+        "不要修改其他文件",
+        "完成后总结本次修改"
+      ],
+      "test_command": "if (-not (Test-Path -LiteralPath 'SMOKE-RESULT.md')) { exit 1 }; $lines = @(Get-Content -LiteralPath 'SMOKE-RESULT.md'); if ($lines.Count -ne 3) { exit 1 }; foreach ($line in $lines) { if ($line -match '\\s+$') { exit 1 } }; $content = [string]::Join([Environment]::NewLine, $lines); if ($content -notmatch 'Codex Harness smoke test') { exit 1 }; if ($content -notmatch '内层 Codex 自动实现会话生成结果文件') { exit 1 }; if ($content -notmatch '本次 smoke 仅新增 SMOKE-RESULT.md') { exit 1 }; $statusLines = @(git status --short --untracked-files=all); if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $changedPaths = @(); foreach ($line in $statusLines) { if (-not [string]::IsNullOrWhiteSpace($line) -and $line.Length -ge 4) { $changedPaths += $line.Substring(3).Trim() } }; if ($changedPaths.Count -ne 1 -or $changedPaths[0] -ne 'SMOKE-RESULT.md') { exit 1 }; git diff --check; exit $LASTEXITCODE",
+      "acceptance": [
+        "SMOKE-RESULT.md 存在",
+        "SMOKE-RESULT.md 明确说明结果文件由内层 Codex 自动实现会话生成",
+        "SMOKE-RESULT.md 明确说明本次 smoke 仅新增 SMOKE-RESULT.md",
+        "内层会话没有修改 task.json、progress.txt 或 traces/"
+      ]
+    }
+  ],
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "run_profile": ".codex\\task-run-profile.json",
+    "session": {
+      "mode": "fresh-process",
+      "carry_forward_summary": false
+    },
+    "subagents": {
+      "mode": "off",
+      "allowed_roles": [],
+      "max_parallel_roles": 0
+    }
+  }
+}

@@ -1,0 +1,19 @@
+model = "gpt-5.4"
+model_reasoning_effort = "medium"
+personality = "pragmatic"
+sandbox_mode = "workspace-write"
+approvals_reviewer = "user"
+
+[approvals]
+approval_policy = "on-request"
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = true
+
+[features]
+# 默认启用 hooks 作为 stop-gate 增强层；driver 仍是主链路。
+codex_hooks = true
+
+# 在这里放跨项目稳定设置，不放项目特有 MCP、env 或 trust。
+# 项目特有内容建议放到 `<repo>/.codex/config.toml`。

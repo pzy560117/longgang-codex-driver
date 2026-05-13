@@ -1,0 +1,21 @@
+{
+  "session": "<session-id>",
+  "report": "artifacts/testing/<session>/<agent>/test-report.md",
+  "verdict": "FAIL",
+  "findings": [
+    {
+      "id": "FINDING-001",
+      "severity": "HIGH",
+      "failureClass": "frontend_ui",
+      "ownerHint": "frontend",
+      "requirementId": "REQ-001",
+      "testCaseId": "E2E-001",
+      "evidencePath": "artifacts/testing/<session>/<agent>/screenshots/FINDING-001.png",
+      "summary": "主结账按钮无法点击。",
+      "expected": "点击结账后应打开订单确认步骤。",
+      "actual": "点击后界面没有任何可见变化。",
+      "retryCount": 0,
+      "status": "open"
+    }
+  ]
+}

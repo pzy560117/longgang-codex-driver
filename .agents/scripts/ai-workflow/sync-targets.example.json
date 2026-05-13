@@ -1,0 +1,35 @@
+{
+  "source": {
+    "repo": "your-org/ai-workflow-kit",
+    "ref": "main"
+  },
+  "defaults": {
+    "baseBranch": "main",
+    "branchPrefix": "chore/ai-kit-sync",
+    "pushBranch": true,
+    "createPullRequest": true,
+    "draftPullRequest": false,
+    "commitMessage": "chore(ai-kit): sync shared AI workflow config",
+    "prTitle": "chore(ai-kit): sync shared AI workflow config from {{sourceRef}}",
+    "prBody": "## AI Workflow Kit Sync`n`nSource: {{sourceRepo}}@{{sourceRef}}`nCommit: {{sourceCommit}}`n`nChanged files:`n{{changedFiles}}`n",
+    "labels": [
+      "ai-kit-sync",
+      "automation"
+    ],
+    "verifyCommands": [
+      "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\ai-workflow\\check-ai-sync-drift.ps1"
+    ]
+  },
+  "targets": [
+    {
+      "repo": "your-org/project-a",
+      "baseBranch": "main",
+      "syncConfigPath": ".ai-sync.yml"
+    },
+    {
+      "repo": "your-org/project-b",
+      "baseBranch": "main",
+      "syncConfigPath": ".ai-sync.yml"
+    }
+  ]
+}

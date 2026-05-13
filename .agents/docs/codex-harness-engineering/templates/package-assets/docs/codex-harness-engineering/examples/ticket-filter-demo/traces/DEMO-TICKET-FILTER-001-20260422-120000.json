@@ -1,0 +1,74 @@
+{
+  "task_id": "DEMO-TICKET-FILTER-001",
+  "task_session_id": "demo-session-20260422",
+  "agent": "codex",
+  "started_at": "2026-04-22T12:00:00+08:00",
+  "ended_at": "2026-04-22T12:03:00+08:00",
+  "status": "passed",
+  "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+  "failed_stage": null,
+  "commands": [
+    {
+      "cmd": "codex exec --full-auto --sandbox danger-full-access -C <demo-root> -",
+      "exit_code": 0
+    },
+    {
+      "cmd": "stage1 review",
+      "exit_code": 0,
+      "verdict": "PASS"
+    },
+    {
+      "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "exit_code": 0
+    },
+    {
+      "cmd": "stage2 review",
+      "exit_code": 0,
+      "verdict": "PASS"
+    }
+  ],
+  "stage1_review": {
+    "verdict": "PASS",
+    "exit_code": 0,
+    "summary": "Stage 1 审查通过。"
+  },
+  "stage2_review": {
+    "verdict": "PASS",
+    "exit_code": 0,
+    "summary": "Stage 2 审查通过。"
+  },
+  "review_context": {
+    "product": [
+      "docs/product/prd-lite.md",
+      "docs/product/state-matrix.yaml"
+    ],
+    "design": [
+      "docs/design/design-brief.md",
+      "docs/design/component-map.md",
+      "docs/design/screen-states.md"
+    ],
+    "contracts": [
+      "contracts/openapi.yaml"
+    ],
+    "plans": [
+      "plans/features/ticket-filter.dev-plan.md"
+    ],
+    "task_context": [
+      "packages/ui/TicketFilterBar.tsx",
+      "stories/TicketFilterBar.stories.tsx",
+      "packages/api-client/generated/ticket-api.ts"
+    ]
+  },
+  "files_changed": [
+    "packages/ui/TicketFilterBar.tsx",
+    "stories/TicketFilterBar.stories.tsx",
+    "packages/api-client/generated/ticket-api.ts"
+  ],
+  "blocked_reason": null,
+  "final_message": "Demo ticket filter task passed Stage 1, verify, and Stage 2.",
+  "logs": {
+    "implementation_stdout": "traces/DEMO-TICKET-FILTER-001-implementation.log",
+    "stage1_stdout": "traces/DEMO-TICKET-FILTER-001-stage1.log",
+    "stage2_stdout": "traces/DEMO-TICKET-FILTER-001-stage2.log"
+  }
+}

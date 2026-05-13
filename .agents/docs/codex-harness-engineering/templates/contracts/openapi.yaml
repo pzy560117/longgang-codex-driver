@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Ticket Views API
+  version: 0.1.0
+  description: Contract-first example for a ticket filter and saved views workflow.
+servers:
+  - url: https://api.example.com
+tags:
+  - name: tickets
+  - name: ticket-views
+paths:
+  /tickets:
+    get:
+      tags: [tickets]
+      summary: List tickets with filters
+      operationId: listTickets
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [open, pending, resolved]
+        - in: query
+          name: priority
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - in: query
+          name: assigneeId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketListResponse"
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /ticket-views:
+    get:
+      tags: [ticket-views]
+      summary: List saved ticket views
+      operationId: listTicketViews
+      responses:
+        "200":
+          description: Saved ticket views
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TicketView"
+    post:
+      tags: [ticket-views]
+      summary: Create a saved ticket view
+      operationId: createTicketView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketViewRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketView"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: View name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    Ticket:
+      type: object
+      required: [id, title, status, priority]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, pending, resolved]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        assigneeId:
+          type: string
+          nullable: true
+    TicketListResponse:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    TicketFilter:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, pending, resolved]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        assigneeId:
+          type: string
+    TicketView:
+      type: object
+      required: [id, name, filters]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        filters:
+          $ref: "#/components/schemas/TicketFilter"
+    CreateTicketViewRequest:
+      type: object
+      required: [name, filters]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        filters:
+          $ref: "#/components/schemas/TicketFilter"
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

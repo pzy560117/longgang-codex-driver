@@ -1,0 +1,571 @@
+{
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "trace_dir": "traces",
+    "agent": "codex",
+    "run_profile": ".codex\\task-run-profile.json",
+    "git": {
+      "require_clean_workspace": true,
+      "non_blocking_dirty_paths": []
+    },
+    "session": {
+      "mode": "fresh-process",
+      "carry_forward_summary": false
+    },
+    "subagents": {
+      "mode": "guided",
+      "allowed_roles": [
+        "explorer",
+        "readonly-research",
+        "docs-researcher",
+        "planner",
+        "architect",
+        "reviewer",
+        "stage1-reviewer",
+        "stage2-reviewer",
+        "security-reviewer",
+        "test-planner",
+        "failure-triage",
+        "visual-reviewer",
+        "harness-writer",
+        "docs-worker",
+        "frontend-worker",
+        "backend-worker",
+        "test-runner"
+      ],
+      "max_parallel_roles": 3
+    }
+  },
+  "tasks": [
+    {
+      "id": "INIT-001",
+      "description": "锁定已确认 spec、初始 dev-plan 和 driver 接管边界",
+      "task_kind": "feature_plan",
+      "phase": "handoff",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "plan"
+      ],
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "AGENTS.md",
+        "project-task-template.json",
+        "docs/product/prd-lite.md",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "owned_paths": [
+        "docs/product/",
+        "docs/testing/",
+        "plans/"
+      ],
+      "requirement_ids": [
+        "META-HANDOFF-REPLACE"
+      ],
+      "produces_artifacts": [
+        "docs/testing/verify-matrix.md",
+        "task.json"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把模板中的 <feature-slug>、用户故事标题、requirement_ids、owned_paths、context_files 和 test_command 全部替换成当前项目真实值",
+        "确认 task 依赖、优先级、execution.mode 和 non_blocking_dirty_paths 已与当前项目约束一致",
+        "确认当前 task.json 已经是正式任务队列，不再保留领域示例、smoke 占位或过期路径"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "任务队列只保留当前项目真实阶段与用户故事",
+        "plan 入口已经使用 plans/**/*.dev-plan.md 路径体系",
+        "后续任务不再依赖聊天补 requirement_ids、owned_paths 或验证命令"
+      ]
+    },
+    {
+      "id": "ANALYSIS-001",
+      "description": "补齐需求追溯、测试左移材料和 repo context 真相源",
+      "task_kind": "feature_research",
+      "phase": "analysis",
+      "gate_profile": "research_required",
+      "required_truth_sources": [
+        "product",
+        "plan"
+      ],
+      "priority": 5,
+      "dependencies": [
+        "INIT-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/page-inventory.md",
+        "docs/product/state-matrix.yaml",
+        "docs/product/acceptance-criteria.md",
+        "docs/product/requirement-interface-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/product/",
+        "docs/testing/",
+        "docs/context/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-ANALYSIS"
+      ],
+      "produces_artifacts": [
+        "docs/product/difficulty-research.md",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "docs/testing/RISK_BASED_TEST_PLAN.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/failure-triage.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "围绕已确认 spec 补齐页面清单、状态矩阵、边界条件、异常流和难点研究",
+        "把 Requirement IDs 映射到界面、状态、接口、测试层级、测试数据和证据路径",
+        "生成后续设计和实现必须依赖的 feature-pack、repo-map、architecture-brief 与 testing truth source"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "产品追溯和测试左移文档已补齐且可被后续任务直接消费",
+        "repo_context 与 testing truth source 已达到后续 design / implement 阶段可用状态"
+      ]
+    },
+    {
+      "id": "DESIGN-001",
+      "description": "基于已确认需求与测试映射完成可编码设计规格",
+      "task_kind": "feature_design",
+      "phase": "design",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 6,
+      "dependencies": [
+        "ANALYSIS-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/product/difficulty-research.md",
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/testing/ACCEPTANCE_CRITERIA.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/design/",
+        "docs/testing/",
+        "artifacts/visual-review/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-DESIGN"
+      ],
+      "produces_artifacts": [
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/design/design-tokens.json",
+        "docs/design/ai-image-brief.md",
+        "docs/design/ui-image-review.md",
+        "docs/design/image-to-frontend-spec.md",
+        "docs/design/visual-parity-review.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "输出页面结构、组件映射、关键状态、响应式与可访问性要求",
+        "把 Requirement IDs、交互路径、稳定测试选择器和视觉断言绑定到设计规格",
+        "明确后续实现需要的视觉参考、截图资产和验收边界"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "设计规格足以支撑实现而不再依赖口头补充",
+        "关键页面、状态和视觉断言已能回溯到需求与测试矩阵"
+      ]
+    },
+    {
+      "id": "PLAN-001",
+      "description": "把真相源收敛为可执行的实施计划和验证顺序",
+      "task_kind": "feature_plan",
+      "phase": "plan",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 7,
+      "dependencies": [
+        "DESIGN-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/context/feature-pack.md",
+        "docs/context/repo-map.md",
+        "docs/context/architecture-brief.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "plans/",
+        "docs/testing/",
+        "docs/context/"
+      ],
+      "requirement_ids": [
+        "REQ-REPLACE-PLAN"
+      ],
+      "produces_artifacts": [
+        "plans/features/<feature-slug>.dev-plan.md",
+        "docs/testing/verify-matrix.md"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把后续实现按用户故事顺序映射到 dev-plan、affected tests、验证命令和证据路径",
+        "确认每个实现任务都已有 requirement_ids、owned_paths、context_files 和最小可行验收闭环",
+        "明确哪些故事必须串行，哪些依赖可在后续手工改成并行"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "dev-plan、verify-matrix 和 story 级执行顺序保持一致",
+        "后续实现与 release 任务的验证边界已经明确且可执行"
+      ]
+    },
+    {
+      "id": "US1-001",
+      "description": "实现 US1 / MVP：将首个可独立验收的用户故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us1",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 20,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US1",
+      "story_priority": "P0/P1",
+      "independent_test": "替换为 US1 的独立验证方式，例如一个最短闭环页面或一条完整 API/业务路径",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us1-owned-path-1>/",
+        "<replace-with-us1-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US1-001",
+        "FR-REPLACE-US1-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us1-primary-artifact>",
+        "<replace-with-us1-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "把 US1 标题、requirement_ids、owned_paths、产物路径和独立验证方式替换为真实项目内容",
+        "仅实现首个可单独交付的用户故事，并同步补齐其 affected tests 与必要文档",
+        "运行与 US1 对应的真实验证命令，记录可回溯证据"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US1 能作为 MVP 独立演示或独立验收",
+        "US1 的 Requirement IDs、测试映射和证据路径完整可追溯"
+      ]
+    },
+    {
+      "id": "US2-001",
+      "description": "实现 US2：将第二个用户故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us2",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 30,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US2",
+      "story_priority": "P1/P2",
+      "independent_test": "替换为 US2 的独立验证方式；若与 US1 强依赖，请同步调整 dependencies",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us2-owned-path-1>/",
+        "<replace-with-us2-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US2-001",
+        "FR-REPLACE-US2-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us2-primary-artifact>",
+        "<replace-with-us2-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "将 US2 占位内容替换为真实范围、路径、需求编号和验证命令",
+        "确保 US2 可作为独立增量交付，不把未确认范围混入同一任务",
+        "补齐 US2 的 affected tests、回归说明和证据路径"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US2 范围清晰且不与其他故事混杂",
+        "US2 的实现、验证和证据链可独立审查"
+      ]
+    },
+    {
+      "id": "US3-001",
+      "description": "实现 US3：将第三个用户故事或跨端扩展故事替换为真实业务标题",
+      "task_kind": "feature_impl",
+      "phase": "us3",
+      "gate_profile": "spec_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 40,
+      "dependencies": [
+        "PLAN-001"
+      ],
+      "passes": false,
+      "story_id": "US3",
+      "story_priority": "P2/P3",
+      "independent_test": "替换为 US3 的独立验证方式；如果不需要第三个故事，可删除该任务并重排优先级",
+      "context_files": [
+        "docs/product/prd-lite.md",
+        "docs/product/requirement-interface-matrix.md",
+        "docs/context/feature-pack.md",
+        "docs/design/design-brief.md",
+        "docs/design/component-map.md",
+        "docs/design/screen-states.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/TEST_DATA_MATRIX.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "<replace-with-us3-owned-path-1>/",
+        "<replace-with-us3-owned-path-2>/"
+      ],
+      "requirement_ids": [
+        "FR-REPLACE-US3-001",
+        "FR-REPLACE-US3-002"
+      ],
+      "produces_artifacts": [
+        "<replace-with-us3-primary-artifact>",
+        "<replace-with-us3-test-evidence>"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "将 US3 占位内容替换为真实故事标题、路径、需求编号和验证方式",
+        "只承接剩余优先级最高且可单独验收的增量，不把 release 收口动作混入本故事",
+        "完成 US3 的实现、测试映射和证据沉淀"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "US3 的增量边界和独立验收方式已明确",
+        "US3 的实现证据可直接服务最终 release 验证"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "description": "执行跨故事联调、回归验证、视觉检查和交付收口",
+      "task_kind": "release",
+      "phase": "verify",
+      "gate_profile": "release_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "testing",
+        "repo_context"
+      ],
+      "priority": 80,
+      "dependencies": [
+        "US1-001",
+        "US2-001",
+        "US3-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/context/feature-pack.md",
+        "docs/design/visual-parity-review.md",
+        "docs/testing/ACCEPTANCE_EXAMPLES.md",
+        "docs/testing/TRACEABILITY_MATRIX.md",
+        "docs/testing/REGRESSION_PLAN.md",
+        "docs/testing/EVIDENCE_PROTOCOL.md",
+        "docs/testing/test-matrix.md",
+        "docs/testing/verify-matrix.md",
+        "docs/testing/failure-triage.md",
+        "plans/features/<feature-slug>.dev-plan.md"
+      ],
+      "owned_paths": [
+        "docs/testing/",
+        "docs/design/",
+        "artifacts/",
+        "tests/"
+      ],
+      "requirement_ids": [
+        "NFR-REPLACE-RELEASE",
+        "FR-REPLACE-END-TO-END"
+      ],
+      "produces_artifacts": [
+        "artifacts/visual-review/",
+        "docs/testing/failure-triage.md",
+        "traces/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "steps": [
+        "执行 affected tests、P0/P1 回归、端到端、视觉还原和必要契约校验",
+        "记录失败归因、修复建议、最终通过证据和剩余风险",
+        "确认 release 阶段只负责 fresh evidence，不在此阶段第一次补需求或测试范围"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "跨故事主流程验证通过，或有明确 blocked 说明与后续处置",
+        "交付所需的测试与视觉证据完整可追溯"
+      ]
+    },
+    {
+      "id": "ARCHIVE-001",
+      "description": "归档本轮交付知识、更新知识索引并标记可复用经验",
+      "task_kind": "archive",
+      "phase": "archive",
+      "gate_profile": "lightweight",
+      "required_truth_sources": [
+        "knowledge"
+      ],
+      "priority": 90,
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "passes": false,
+      "context_files": [
+        "docs/harness/knowledge-architecture.md",
+        "docs/harness/knowledge-import.md",
+        "docs/harness/knowledge-lint.md",
+        "docs/harness/team-knowledge-sync.md",
+        "docs/harness/rule-governance.md",
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "progress.txt",
+        "traces/"
+      ],
+      "owned_paths": [
+        "docs/knowledge/"
+      ],
+      "requirement_ids": [
+        "NFR-KNOWLEDGE-ARCHIVE"
+      ],
+      "produces_artifacts": [
+        "docs/knowledge/knowledge-catalog.md",
+        "docs/knowledge/catalog.md",
+        "docs/knowledge/"
+      ],
+      "execution": {
+        "mode": "single"
+      },
+      "knowledge_query_budget": {
+        "catalogs": 2,
+        "entries": 8
+      },
+      "steps": [
+        "读取本轮任务 trace、progress、review 输出和 failure triage，提取可复用的 decision、guideline、pitfall、process 或 model",
+        "新增或更新 docs/knowledge/ 下的知识条目，所有新增条目初始 maturity 默认为 draft",
+        "更新 knowledge-catalog.md 和 catalog.md，确保索引能按阶段和类型引导后续任务按需读取",
+        "输出 promotion、decay、conflict、merge 和 team sync candidates；成熟度提升、团队同步、冲突裁决和归档删除必须有明确 evidence",
+        "不要把一次性任务结论提升为 AGENTS.md 规则；只有 proven 级别或用户明确要求时才升级规则"
+      ],
+      "test_command": "git diff --check",
+      "acceptance": [
+        "本轮可复用知识已沉淀到 docs/knowledge/ 或明确说明没有可归档条目",
+        "knowledge-catalog.md 和 catalog.md 与新增或更新条目保持一致",
+        "可提升、可衰减、可团队同步、冲突和重复条目已有候选说明或明确无相关候选",
+        "归档任务没有修改业务实现或伪造 driver runtime 状态"
+      ]
+    }
+  ]
+}

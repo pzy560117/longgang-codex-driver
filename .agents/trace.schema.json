@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codex Harness Trace",
+  "type": "object",
+  "required": [
+    "task_id",
+    "agent",
+    "started_at",
+    "ended_at",
+    "status",
+    "commands",
+    "stage1_review",
+    "stage2_review"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "type": "string" },
+    "task_session_id": { "type": "string" },
+    "task_kind": { "type": "string" },
+    "gate_profile": { "type": "string" },
+    "agent": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "session_dir": { "type": "string" },
+    "events_file": { "type": ["string", "null"] },
+    "log_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "role": { "type": "string" },
+    "model": { "type": "string" },
+    "reasoning_effort": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "xhigh"]
+    },
+    "model_policy": { "type": "object" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["passed", "failed", "blocked"] },
+    "test_command": { "type": "string" },
+    "failed_stage": { "type": ["string", "null"] },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cmd", "exit_code"],
+        "additionalProperties": false,
+        "properties": {
+          "cmd": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "verdict": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"]
+          }
+        }
+      }
+    },
+    "stage1_review": {
+      "type": "object",
+      "required": ["verdict", "exit_code", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"]
+        },
+        "exit_code": { "type": ["integer", "null"] },
+        "summary": { "type": "string" }
+      }
+    },
+    "stage2_review": {
+      "type": "object",
+      "required": ["verdict", "exit_code", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"]
+        },
+        "exit_code": { "type": ["integer", "null"] },
+        "summary": { "type": "string" }
+      }
+    },
+    "session_policy": { "type": "object" },
+    "subagent_policy": { "type": "object" },
+    "context_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "required_truth_sources": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "run_profile_path": { "type": ["string", "null"] },
+    "review_context": { "type": "object" },
+    "truth_source_state": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "satisfied", "present_paths", "missing_requirements"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "type": "string" },
+          "satisfied": { "type": "boolean" },
+          "present_paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "missing_requirements": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "knowledge_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "used_in"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "used_in": { "type": "string" },
+          "path": { "type": "string" },
+          "maturity": { "type": "string" }
+        }
+      }
+    },
+    "knowledge_outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "title", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["model", "decision", "guideline", "pitfall", "process"]
+          },
+          "title": { "type": "string" },
+          "path": { "type": "string" },
+          "maturity": {
+            "type": "string",
+            "enum": ["draft", "verified", "proven"]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["created", "updated", "suggested", "archived"]
+          }
+        }
+      }
+    },
+    "archive_summary": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "references_processed": { "type": "integer" },
+        "outputs_created": { "type": "integer" },
+        "outputs_updated": { "type": "integer" },
+        "maturity_changes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blocked_reason": {
+      "type": ["string", "null"]
+    },
+    "unexpected_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "final_message": {
+      "type": "string"
+    },
+    "logs": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

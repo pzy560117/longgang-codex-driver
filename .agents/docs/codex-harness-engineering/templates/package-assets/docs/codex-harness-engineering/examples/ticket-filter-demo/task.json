@@ -1,0 +1,53 @@
+{
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "run_profile": ".codex\\task-run-profile.json"
+  },
+  "tasks": [
+    {
+      "id": "DEMO-TICKET-FILTER-001",
+      "description": "对齐工单筛选 demo 的真相源、组件样例与 generated client 样例",
+      "task_kind": "feature_impl",
+      "gate_profile": "contract_required",
+      "required_truth_sources": [
+        "product",
+        "design",
+        "plan",
+        "contract"
+      ],
+      "phase": "P2",
+      "priority": 1,
+      "dependencies": [],
+      "passes": false,
+      "context_files": [
+        "docs\\product\\prd-lite.md",
+        "docs\\product\\state-matrix.yaml",
+        "docs\\product\\requirement-interface-matrix.md",
+        "docs\\product\\difficulty-research.md",
+        "docs\\design\\design-brief.md",
+        "docs\\design\\ai-image-brief.md",
+        "docs\\design\\ui-image-review.md",
+        "docs\\design\\image-to-frontend-spec.md",
+        "docs\\design\\component-map.md",
+        "docs\\design\\screen-states.md",
+        "plans\\features\\ticket-filter.dev-plan.md",
+        "contracts\\openapi.yaml",
+        "packages\\ui\\TicketFilterBar.tsx",
+        "stories\\TicketFilterBar.stories.tsx",
+        "packages\\api-client\\generated\\ticket-api.ts"
+      ],
+      "steps": [
+        "阅读 product、需求-界面追溯、难点研究、design、AI 生图评审、图转前端规格、dev-plan 和 contract 真相源",
+        "确认组件、story、generated client 与真相源一致",
+        "如有需要补齐 demo 资产",
+        "运行 verify.ps1 验证 demo 闭环"
+      ],
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "acceptance": [
+        "demo 目录同时具备 product、design、dev-plan、contract、component、story、generated client",
+        "verify.ps1 通过",
+        "trace 样例能表达 Stage 1、测试和 Stage 2 的结果"
+      ]
+    }
+  ]
+}

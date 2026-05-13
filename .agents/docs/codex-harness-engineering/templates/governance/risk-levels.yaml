@@ -1,0 +1,53 @@
+levels:
+  L0:
+    description: "低风险文档或局部非运行时代码修改"
+    allowed_actions:
+      - "auto-fix"
+      - "auto-pr"
+      - "auto-merge"
+    required_checks:
+      - "git diff --check"
+    requires_human_approval: false
+    auto_merge_allowed: true
+
+  L1:
+    description: "常规功能改动，影响范围清晰，可由测试充分覆盖"
+    allowed_actions:
+      - "auto-fix"
+      - "auto-pr"
+    required_checks:
+      - "lint"
+      - "typecheck"
+      - "unit-test"
+      - "build"
+    requires_human_approval: false
+    auto_merge_allowed: false
+
+  L2:
+    description: "跨模块改动、接口变更、关键页面交互变更"
+    allowed_actions:
+      - "auto-pr"
+    required_checks:
+      - "lint"
+      - "typecheck"
+      - "unit-test"
+      - "integration-test"
+      - "contract-validate"
+      - "e2e"
+    requires_human_approval: true
+    auto_merge_allowed: false
+
+  L3:
+    description: "高风险改动，涉及权限、支付、迁移、删除、生产安全"
+    allowed_actions:
+      - "draft-pr-only"
+    required_checks:
+      - "lint"
+      - "typecheck"
+      - "unit-test"
+      - "integration-test"
+      - "security-scan"
+      - "manual-review"
+      - "rollback-check"
+    requires_human_approval: true
+    auto_merge_allowed: false

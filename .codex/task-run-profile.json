@@ -1,0 +1,80 @@
+{
+  "session": {
+    "mode": "fresh-process",
+    "reuse_previous_chat": false,
+    "carry_forward_summary": false,
+    "context_sources": [
+      "AGENTS.md",
+      "docs/harness/task-session-strategy.md",
+      "docs/harness/architecture.md",
+      "docs/harness/knowledge-architecture.md",
+      "docs/harness/prompt-knowledge-integration.md",
+      "docs/harness/rule-governance.md",
+      "docs/harness/regression-rules.md",
+      "docs/knowledge/knowledge-catalog.md",
+      "docs/testing/ACCEPTANCE_EXAMPLES.md",
+      "docs/testing/TRACEABILITY_MATRIX.md",
+      "docs/testing/verify-matrix.md"
+    ]
+  },
+  "subagents": {
+    "mode": "guided",
+    "allowed_roles": [
+      "explorer",
+      "readonly-research",
+      "docs-researcher",
+      "planner",
+      "architect",
+      "reviewer",
+      "stage1-reviewer",
+      "stage2-reviewer",
+      "security-reviewer",
+      "test-planner",
+      "failure-triage",
+      "visual-reviewer",
+      "harness-writer",
+      "docs-worker",
+      "frontend-worker",
+      "backend-worker",
+      "test-runner"
+    ],
+    "max_parallel_roles": 3,
+    "notes": [
+      "Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.",
+      "Subagents must read the matching AGENTS/rules/docs/skills before concluding.",
+      "Read-only roles stay read-only and return summaries or concrete results, not full transcripts.",
+      "Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly."
+    ]
+  },
+  "modelPolicy": {
+    "defaultModel": "gpt-5.4",
+    "defaultReasoningEffort": "medium",
+    "reasoningEfforts": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+    ],
+    "overrideOrder": [
+      "task.execution.modelPolicy",
+      "modelPolicy.default"
+    ],
+    "escalation": {
+      "sameFindingRetry2": {
+        "model": "gpt-5.5",
+        "reasoningEffort": "high"
+      },
+      "sameFindingRetry3": {
+        "model": "gpt-5.5",
+        "reasoningEffort": "xhigh"
+      }
+    }
+  },
+  "workspace": {
+    "mode": "in-place"
+  },
+  "git": {
+    "require_clean_workspace": true
+  }
+}

@@ -1,0 +1,110 @@
+name: Codex PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  codex-stage1-review:
+    name: codex-stage1-review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      final_message: ${{ steps.stage1_review.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - name: Run Stage 1 review
+        id: stage1_review
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Review this pull request as Stage 1 review.
+            Focus on whether the implementation matches the product intent, design intent, major UI states, and any spec/design docs if they exist in the repository.
+            Do not modify files.
+            Do not focus on code style yet.
+            Start with findings ordered by severity.
+            End with `Verdict: PASS` or `Verdict: FAIL`.
+          output-file: codex-stage1-output.md
+          safety-strategy: drop-sudo
+          sandbox: workspace-write
+          codex-args: '["--json"]'
+
+      - name: Upload Stage 1 output
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-stage1-review-output
+          path: codex-stage1-output.md
+
+  codex-stage2-review:
+    name: codex-stage2-review
+    runs-on: ubuntu-latest
+    needs: codex-stage1-review
+    if: ${{ always() }}
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      final_message: ${{ steps.stage2_review.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - name: Run Stage 2 review
+        id: stage2_review
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Review this pull request as Stage 2 review.
+            Assume Stage 1 has already checked feature/spec alignment.
+            Focus on correctness, security, code quality, missing tests, regressions, and residual risk.
+            Do not modify files.
+            Start with findings ordered by severity.
+            End with `Verdict: PASS` or `Verdict: FAIL`.
+          output-file: codex-stage2-output.md
+          safety-strategy: drop-sudo
+          sandbox: workspace-write
+          codex-args: '["--json"]'
+
+      - name: Upload Stage 2 output
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-stage2-review-output
+          path: codex-stage2-output.md
+
+  post-feedback:
+    runs-on: ubuntu-latest
+    needs:
+      - codex-stage1-review
+      - codex-stage2-review
+    if: needs.codex-stage1-review.outputs.final_message != '' || needs.codex-stage2-review.outputs.final_message != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post Codex feedback
+        uses: actions/github-script@v7
+        env:
+          CODEX_STAGE1_MESSAGE: ${{ needs.codex-stage1-review.outputs.final_message }}
+          CODEX_STAGE2_MESSAGE: ${{ needs.codex-stage2-review.outputs.final_message }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: [
+                "## Codex Stage 1 Review",
+                process.env.CODEX_STAGE1_MESSAGE || "_No output_",
+                "",
+                "## Codex Stage 2 Review",
+                process.env.CODEX_STAGE2_MESSAGE || "_No output_",
+              ].join("\n"),
+            });

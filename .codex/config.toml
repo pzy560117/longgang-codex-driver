@@ -1,0 +1,24 @@
+# Codex 项目配置模板
+# 建议复制到项目 `.codex/config.toml`，或按需合并到 `~/.codex/config.toml`。
+
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+
+# Codex 会读取 AGENTS.md 作为项目指导文件。复杂规则建议放 docs/，入口文件保持短。
+project_doc_max_bytes = 65536
+project_doc_fallback_filenames = ["TEAM_GUIDE.md", ".agents.md"]
+
+[approvals]
+approval_policy = "on-request"
+
+[features]
+# hooks 作为 stop-gate 增强层默认启用；driver 仍是主链路。
+# Windows 继续以 PowerShell driver 为主，hooks 只负责结束前补一轮 reflection / feedback。
+hooks = true
+
+[agents]
+# 显式限制子代理并发和深度，不依赖隐式默认值。
+max_threads = 4
+max_depth = 2
+job_max_runtime_seconds = 1800

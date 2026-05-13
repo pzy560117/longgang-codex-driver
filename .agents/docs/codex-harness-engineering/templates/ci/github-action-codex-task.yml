@@ -1,0 +1,46 @@
+name: Codex Task Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Task id from task.json
+        required: true
+        type: string
+
+jobs:
+  codex-task:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Codex for one task
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Read task.json and implement only task `${{ inputs.task_id }}`.
+            Do not process other tasks.
+            After implementation, run a Stage 1 self-review for spec/design alignment.
+            Run the task test_command.
+            After tests pass, run a Stage 2 self-review for code quality, tests, and regressions.
+            Only finish if Stage 1, test_command, and Stage 2 all pass.
+            If blocked, write the BLOCKED format and stop.
+          output-file: codex-output.md
+          safety-strategy: drop-sudo
+          sandbox: workspace-write
+          codex-args: '["--full-auto", "--json"]'
+
+      - name: Verify
+        run: |
+          git diff --check
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: codex/task-${{ inputs.task_id }}
+          title: "Codex task ${{ inputs.task_id }}"
+          body-path: codex-output.md

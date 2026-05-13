@@ -1,0 +1,30 @@
+retry_policy:
+  max_attempts_per_task: 3
+  max_attempts_per_pr: 2
+  max_runtime_minutes_per_attempt: 30
+  max_changed_files_per_attempt: 20
+  cooldown_minutes_between_attempts: 10
+
+escalation_conditions:
+  - "同一验证命令连续失败 2 次"
+  - "修改文件数超过预算"
+  - "出现权限、密钥、生产环境依赖"
+  - "任务描述互相矛盾"
+  - "工作区不干净且无法归因"
+
+stop_conditions:
+  - "任务进入 BLOCKED"
+  - "风险等级升到 L3"
+  - "需要人工产品决策"
+  - "required status checks 缺失"
+
+allowed_retry_reasons:
+  - "lint/typecheck/build 失败"
+  - "测试用例缺失"
+  - "文档与代码不一致"
+
+disallowed_retry_reasons:
+  - "未知生产事故"
+  - "凭证缺失"
+  - "权限不足"
+  - "需要人工确认的数据修复"

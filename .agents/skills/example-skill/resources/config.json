@@ -1,0 +1,21 @@
+{
+  "skill_name": "Example Skill",
+  "version": "1.0.0",
+  "templates": [
+    {
+      "name": "basic_template",
+      "description": "基础模板",
+      "content": "这是一个基础模板示例"
+    },
+    {
+      "name": "advanced_template",
+      "description": "高级模板",
+      "content": "这是一个高级模板示例"
+    }
+  ],
+  "constants": {
+    "DEFAULT_TIMEOUT": 30,
+    "MAX_RETRIES": 3,
+    "OUTPUT_DIR": "./output"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "runtime": {
+    "driver": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\codex-loop.ps1",
+    "trace_dir": "traces",
+    "agent": "codex",
+    "run_profile": ".codex\\task-run-profile.json",
+    "git": {
+      "require_clean_workspace": true,
+      "non_blocking_dirty_paths": []
+    },
+    "session": {
+      "mode": "fresh-process",
+      "carry_forward_summary": false
+    },
+    "subagents": {
+      "mode": "guided",
+      "allowed_roles": [
+        "explorer",
+        "readonly-research",
+        "docs-researcher",
+        "planner",
+        "architect",
+        "reviewer",
+        "stage1-reviewer",
+        "stage2-reviewer",
+        "security-reviewer",
+        "test-planner",
+        "failure-triage",
+        "visual-reviewer",
+        "harness-writer",
+        "docs-worker",
+        "frontend-worker",
+        "backend-worker",
+        "test-runner"
+      ],
+      "max_parallel_roles": 3
+    }
+  },
+  "tasks": []
+}

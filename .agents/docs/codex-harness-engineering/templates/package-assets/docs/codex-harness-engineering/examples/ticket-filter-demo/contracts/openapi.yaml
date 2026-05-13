@@ -1,0 +1,25 @@
+openapi: 3.0.3
+info:
+  title: Ticket Filter Demo API
+  version: 0.1.0
+paths:
+  /tickets:
+    get:
+      summary: List tickets with filters
+      operationId: listTickets
+      responses:
+        "200":
+          description: OK
+  /ticket-views:
+    get:
+      summary: List saved views
+      operationId: listTicketViews
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create saved view
+      operationId: createTicketView
+      responses:
+        "201":
+          description: Created
