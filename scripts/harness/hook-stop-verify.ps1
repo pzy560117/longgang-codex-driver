@@ -50,7 +50,17 @@ function ConvertTo-StringArray {
       return @()
     }
 
-  return @($Value)
+    return @($Value)
+  }
+
+  $items = @()
+  foreach ($item in $Value) {
+    if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item)) {
+      $items += [string]$item
+    }
+  }
+
+  return $items
 }
 
 function Resolve-RunProfilePath {
@@ -199,16 +209,6 @@ function Get-DirtyWorkspaceGateInfo {
     status_lines = @($statusLines)
     disallowed_entries = @($disallowedEntries)
   }
-}
-
-  $items = @()
-  foreach ($item in $Value) {
-    if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item)) {
-      $items += [string]$item
-    }
-  }
-
-  return $items
 }
 
 function Get-StableProjectKey {

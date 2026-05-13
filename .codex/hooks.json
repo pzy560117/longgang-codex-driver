@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$(git rev-parse --show-toplevel)/scripts/harness/hook-stop-verify.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& { & (Join-Path (git rev-parse --show-toplevel) 'scripts/harness/hook-stop-verify.ps1') }\"",
             "timeout": 120,
             "statusMessage": "Running stop gate and continuation check"
           }

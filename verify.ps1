@@ -85,7 +85,10 @@ function Resolve-HookScriptReference {
   $expanded = $Command.Replace('$(git rev-parse --show-toplevel)', $Root.Replace('\', '/'))
   $scriptPath = $null
 
-  if ($expanded -match '"([^"]*hook-stop-verify\.ps1)"') {
+  if ($expanded -match "Join-Path[\s\S]*?['""]([^'""]*hook-stop-verify\.ps1)['""]") {
+    $scriptPath = Join-Path $Root $Matches[1]
+  }
+  elseif ($expanded -match '"([^"]*hook-stop-verify\.ps1)"') {
     $scriptPath = $Matches[1]
   }
   elseif ($expanded -match '(\S*hook-stop-verify\.ps1)') {
