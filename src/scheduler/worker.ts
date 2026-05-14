@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
+import { createExportFileService } from "../file-service/index.ts";
 import { createQueryExecutorBatchProcessor } from "../query-executor/index.ts";
 import {
   createCheckpointRepository,
   createExportAuditRepository,
+  createExportRegistryRepository,
   createExportTaskEventRepository,
   getDatabaseTime,
   type CheckpointRecord,
+  type ExportRegistryRecord,
   type ExportTaskLeaseRecord,
   type ExportTaskRecord
 } from "../repositories/index.ts";
@@ -25,6 +28,7 @@ export type SchedulerBatchCheckpoint = {
 export type SchedulerBatchResult = {
   checkpoint?: SchedulerBatchCheckpoint;
   outcome?: "continue" | "completed";
+  rows?: Record<string, unknown>[];
 };
 
 export type SchedulerBatchContext = {
@@ -45,6 +49,15 @@ export type SchedulerWorkerOptions = {
   leaseDurationSeconds?: number;
   maxTasksPerPoll?: number;
   batchProcessor?: SchedulerBatchProcessor;
+  fileService?: {
+    publishRows(input: {
+      task: ExportTaskRecord;
+      registry: ExportRegistryRecord;
+      attemptNo: number;
+      requestId: string;
+      rows: Record<string, unknown>[];
+    }): Promise<unknown>;
+  };
 };
 
 export type SchedulerPollResult = {
@@ -174,7 +187,8 @@ export function createSchedulerWorker(options: SchedulerWorkerOptions) {
         lease: acquired.lease,
         requestId,
         leaseDurationSeconds,
-        batchProcessor
+        batchProcessor,
+        fileService: options.fileService
       });
 
       result.renewed += processed.renewed;
@@ -341,6 +355,7 @@ async function processAcquiredLease(input: {
   requestId: string;
   leaseDurationSeconds: number;
   batchProcessor: SchedulerBatchProcessor;
+  fileService?: SchedulerWorkerOptions["fileService"];
 }): Promise<Omit<SchedulerPollResult, "dispatched">> {
   const result = {
     renewed: 0,
@@ -413,6 +428,22 @@ async function processAcquiredLease(input: {
     }
 
     if (batch.outcome === "completed") {
+      if (Array.isArray(batch.rows)) {
+        const registry = await createExportRegistryRepository(input.db).findRegistryByTaskCode(
+          input.task.taskCode
+        );
+        if (!registry) {
+          throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
+        }
+        const fileService = input.fileService ?? createExportFileService({ db: input.db });
+        await fileService.publishRows({
+          task: input.task,
+          registry,
+          attemptNo: input.lease.attemptNo,
+          requestId: input.requestId,
+          rows: batch.rows
+        });
+      }
       await markTaskTerminal({
         db: input.db,
         task: input.task,
@@ -460,7 +491,7 @@ async function processAcquiredLease(input: {
       attemptNo: input.lease.attemptNo,
       action: "EXECUTE_FAILED",
       result: "FAILED",
-      errorCode: "QUERY_EXECUTION_ERROR",
+      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
       requestId: input.requestId,
       now
     });

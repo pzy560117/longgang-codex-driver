@@ -18,6 +18,7 @@ import {
   isExportAdmin,
   type AuthContext
 } from "../audit-log/auth-context.ts";
+import { createExportFileService } from "../file-service/index.ts";
 
 type CreateTaskBody = {
   taskCode?: string;
@@ -413,7 +414,7 @@ export async function downloadExportTask(auth: AuthContext, taskId: string) {
     }
 
     const file = await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo);
-    if (!file || !file.publishedStorageKey || !file.deliveryReadyAt || file.expiresAt <= now) {
+    if (task.status !== "COMPLETED" || !file || !file.publishedStorageKey || !file.deliveryReadyAt) {
       return rejectWithAudit({
         db,
         auth,
@@ -426,6 +427,39 @@ export async function downloadExportTask(auth: AuthContext, taskId: string) {
         subsystemCode: task.subsystemCode
       });
     }
+    if (file.expiresAt <= now) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(410, "FILE_EXPIRED", "file expired"),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+    if (!file.checksumVerifiedAt || !file.publishedAt) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+          checksumAlgorithm: file.checksumAlgorithm
+        }),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    const downloadUrl = await createExportFileService({ db }).createDownloadUrl(
+      file.publishedStorageKey,
+      file.expiresAt
+    );
 
     await appendAudit({
       db,
@@ -440,7 +474,7 @@ export async function downloadExportTask(auth: AuthContext, taskId: string) {
 
     return {
       deliveryMode: "SIGNED_URL",
-      downloadUrl: `storage://${file.publishedStorageKey}`,
+      downloadUrl,
       storageKey: file.publishedStorageKey,
       expiresAt: file.expiresAt.toISOString(),
       fileName: file.fileName,

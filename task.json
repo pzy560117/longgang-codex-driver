@@ -719,7 +719,7 @@
                       "dependencies":  [
                                            "QUERY-EXECUTOR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "文件交付必须经过 tempStorageKey、checksum、publishedStorageKey 和 deliveryReadyAt 状态边界",
                                                        "下载元信息必须由 HTTP API 读取生产 file metadata repository",

@@ -26,13 +26,29 @@ function getTestDatabaseUrl() {
 function withTestDatabaseEnv() {
   const databaseUrl = getTestDatabaseUrl();
   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
+  const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = "https://oss.example.test";
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = "export-platform-test";
 
   return () => {
     if (previousDatabaseUrl === undefined) {
       delete process.env.EXPORT_PLATFORM_DATABASE_URL;
     } else {
       process.env.EXPORT_PLATFORM_DATABASE_URL = previousDatabaseUrl;
+    }
+
+    if (previousObjectStorageEndpoint === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = previousObjectStorageEndpoint;
+    }
+
+    if (previousObjectStorageBucket === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = previousObjectStorageBucket;
     }
   };
 }
@@ -377,6 +393,15 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   const canceledTask = await taskRepository.findTaskById(taskId);
   assert.equal(canceledTask?.status, "CANCELED");
 
+  const notReadyDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download`,
+    headers: createHeaders(`req-download-not-ready-${runId}`)
+  });
+
+  assert.equal(notReadyDownloadResponse.statusCode, 400);
+  assert.equal(notReadyDownloadResponse.json().code, "FILE_NOT_READY");
+
   const now = await getDatabaseTime(db);
   await fileRepository.saveFileMetadata({
     taskId,
@@ -395,6 +420,21 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     now
   });
 
+  const stillExecutingDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download`,
+    headers: createHeaders(`req-download-still-executing-${runId}`)
+  });
+
+  assert.equal(stillExecutingDownloadResponse.statusCode, 400);
+  assert.equal(stillExecutingDownloadResponse.json().code, "FILE_NOT_READY");
+
+  await taskRepository.updateTaskStatus({
+    taskId,
+    status: "COMPLETED",
+    now: await getDatabaseTime(db)
+  });
+
   const downloadResponse = await app.inject({
     method: "GET",
     url: `/api/export/tasks/${taskId}/download`,
@@ -404,6 +444,33 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(downloadResponse.statusCode, 200);
   assert.equal(downloadResponse.json().data.fileName, "purchase-orders.xlsx");
   assert.equal(downloadResponse.json().data.storageKey, "exports/published/purchase-orders.xlsx");
+  assert.match(downloadResponse.json().data.downloadUrl, /^https:\/\/oss\.example\.test\//);
+
+  await fileRepository.saveFileMetadata({
+    taskId,
+    attemptNo: 0,
+    fileName: "purchase-orders.xlsx",
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    fileSize: 1024,
+    checksum: "sha256:file-v1",
+    checksumAlgorithm: "SHA-256",
+    tempStorageKey: "exports/tmp/purchase-orders.xlsx",
+    publishedStorageKey: "exports/published/purchase-orders.xlsx",
+    expiresAt: new Date(now.getTime() - 10 * 60 * 1000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now: await getDatabaseTime(db)
+  });
+
+  const expiredDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download`,
+    headers: createHeaders(`req-download-expired-${runId}`)
+  });
+
+  assert.equal(expiredDownloadResponse.statusCode, 410);
+  assert.equal(expiredDownloadResponse.json().code, "FILE_EXPIRED");
 
   const auditLogs = await auditRepository.listAuditLogsForTask(taskId);
   assert.ok(auditLogs.some((log) => log.action === "DOWNLOAD" && log.result === "SUCCESS"));

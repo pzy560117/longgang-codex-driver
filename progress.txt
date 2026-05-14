@@ -325,3 +325,25 @@
 
 ### 备注：
 - Codex 输出包含失败或 BLOCKED，请人工查看。
+
+## [2026-05-14 23:44] - Task: FILE-SERVICE-001 实现临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP
+
+### 完成的工作：
+- 新增 `src/file-service/index.ts`，实现对象存储配置 BLOCKED、临时对象写入、checksum 校验、发布、分片 ZIP 元信息、文件阶段事件和下载签名 URL 生成。
+- 将 scheduler 在 `completed + rows` 批次结果上串联 file-service，发布成功后才将任务置为 `COMPLETED`。
+- 强化下载 API：任务未完成、未发布文件不可下载；过期文件返回 `FILE_EXPIRED`；下载元信息通过 file metadata repository 和对象存储签名 URL 生成。
+- 将 `npm run test:file` 从 planned stub 切换为真实 MySQL 集成测试，并更新验证矩阵。
+
+### 测试结果：
+- `npm run typecheck` 通过。
+- `npm run arch:check` 通过。
+- `npm run test:file` 使用真实 MySQL 通过，5/5。
+- `npm run test:api` 使用真实 MySQL 通过，2/2。
+- `npm run test:db` 使用真实 MySQL 通过，3/3。
+- 任务验证命令 `.\verify.ps1 -Commands "npm run arch:check","npm run test:file","npm run test:api","npm run test:db","git diff --check -- task.json plans docs/testing/verify-matrix.md"` 通过。
+
+### 审查结果：
+- 主控实现并用 TDD 红绿验证 file service、下载 guard 和 worker 串联路径；未使用内存 repository 或本地假路径作为生产完成证据。
+
+### 备注：
+- `FILE-SERVICE-001` 已标记为通过；后续 ready task 为 `CLEANUP-JOB-001`。
