@@ -1,4 +1,5 @@
-import { Migrator, type Kysely, type Migration, type MigrationProvider } from "kysely";
+import type { Kysely } from "kysely";
+import { Migrator, type Migration, type MigrationProvider } from "kysely/migration";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

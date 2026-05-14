@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { describe } from "node:test";
 import mysql from "mysql2";
 import { Kysely, MysqlDialect, sql } from "kysely";
 import { runMigrations } from "../../src/db/migrator.ts";
@@ -14,6 +14,12 @@ import {
 import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
 import { createCleanupJob } from "../../src/cleanup-job/index.ts";
 
+function serialTest(name, fn) {
+  return test(name, { concurrency: false }, fn);
+}
+
+describe("worker integration tests", { concurrency: false }, () => {
+
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
 
@@ -26,7 +32,7 @@ function getTestDatabaseUrl() {
   return databaseUrl;
 }
 
-test("worker tests require an explicit test database URL", () => {
+serialTest("worker tests require an explicit test database URL", () => {
   const originalTestDatabaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
   const originalDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
 
@@ -159,7 +165,7 @@ function batchResult(lastCursor, processedCount) {
   };
 }
 
-test("multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence", async (t) => {
+serialTest("multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
   const taskA = `exp-worker-${runId}-a`;
@@ -183,10 +189,8 @@ test("multiple workers dispatch only up to the registry concurrency limit and wr
     batchProcessor: async () => batchResult("order-200", 200)
   });
 
-  const [resultA, resultB] = await Promise.all([
-    workerA.pollAndProcessOnce(),
-    workerB.pollAndProcessOnce()
-  ]);
+  const resultA = await workerA.pollAndProcessOnce();
+  const resultB = await workerB.pollAndProcessOnce();
 
   assert.equal(resultA.dispatched + resultB.dispatched, 1);
 
@@ -216,7 +220,183 @@ test("multiple workers dispatch only up to the registry concurrency limit and wr
   assert.ok([100, 200].includes(Number(checkpoint.processed_count)));
 });
 
-test("subsystem concurrency limit is enforced across different task codes", async (t) => {
+serialTest("same worker resumes its own active lease while other workers still cannot acquire an unexpired lease", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${Date.now()}-resume`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const checkpoints = [];
+  let batchCallCount = 0;
+  let publishedRows;
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async ({ checkpoint }) => {
+      checkpoints.push(checkpoint ?? null);
+      batchCallCount += 1;
+      if (batchCallCount === 1) {
+        return batchResult("order-100", 100);
+      }
+      return {
+        checkpoint: {
+          lastCursor: "order-200",
+          processedCount: 200,
+          filePartNo: 1,
+          retryCount: 0,
+          batchSize: 500,
+          batchRowCount: 100,
+          backoffMs: 0
+        },
+        outcome: "completed",
+        rows: [{ "Order No": "PO-200" }]
+      };
+    },
+    fileService: {
+      async publishRows(input) {
+        publishedRows = input.rows;
+        return {
+          storageKey: "exports/published/po.xlsx"
+        };
+      }
+    }
+  });
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-999", 999)
+  });
+
+  const firstPoll = await workerA.pollAndProcessOnce();
+  const blockedOtherWorker = await workerB.pollAndProcessOnce();
+  const secondPoll = await workerA.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const leaseEvidence = await db
+    .selectFrom("export_task_leases")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+
+  assert.equal(firstPoll.dispatched, 1);
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(blockedOtherWorker.dispatched, 0);
+  assert.equal(secondPoll.dispatched, 1);
+  assert.equal(secondPoll.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+  assert.equal(task.lockOwner, null);
+  assert.equal(batchCallCount, 2);
+  assert.equal(checkpoints[0], null);
+  assert.equal(checkpoints[1].lastCursor, "order-100");
+  assert.deepEqual(publishedRows, [{ "Order No": "PO-200" }]);
+  assert.equal(leaseEvidence.lock_owner, "worker-a");
+  assert.equal(leaseEvidence.previous_lock_owner, null);
+  assert.equal(leaseEvidence.takeover_rule, "ACTIVE_LEASE_RESUME_SAME_OWNER");
+});
+
+serialTest("expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${runId}-publish-race`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  let takeoverResult;
+  let oldWorkerPublishCount = 0;
+  let newWorkerPublishCount = 0;
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => ({
+      checkpoint: {
+        lastCursor: "order-200",
+        processedCount: 200,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 200,
+        backoffMs: 0
+      },
+      outcome: "completed",
+      rows: [{ "Order No": "PO-200" }]
+    }),
+    fileService: {
+      async publishRows() {
+        newWorkerPublishCount += 1;
+        return {
+          storageKey: "exports/published/new-owner.xlsx"
+        };
+      }
+    }
+  });
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 1,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => ({
+      checkpoint: {
+        lastCursor: "order-100",
+        processedCount: 100,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 100,
+        backoffMs: 0
+      },
+      outcome: "completed",
+      rows: [{ "Order No": "PO-100" }]
+    }),
+    fileService: {
+      async publishRows() {
+        oldWorkerPublishCount += 1;
+        await db
+          .updateTable("export_tasks")
+          .set({
+            lock_expire_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+          })
+          .where("task_id", "=", taskId)
+          .execute();
+        takeoverResult = await workerB.pollAndProcessOnce();
+        return {
+          storageKey: "exports/published/old-owner.xlsx"
+        };
+      }
+    }
+  });
+
+  const oldWorkerResult = await workerA.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(oldWorkerResult.completed, 0);
+  assert.equal(oldWorkerResult.failed, 0);
+  assert.equal(oldWorkerPublishCount, 1);
+  assert.equal(newWorkerPublishCount, 1);
+  assert.equal(takeoverResult.dispatched, 1);
+  assert.equal(takeoverResult.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+  assert.equal(task.lockOwner, null);
+  assert.deepEqual(
+    audits.filter((audit) => audit.action === "EXECUTE_SUCCESS").map((audit) => audit.requestId),
+    ["scheduler:worker-b"]
+  );
+  assert.equal(
+    audits.some(
+      (audit) =>
+        audit.requestId === "scheduler:worker-a" &&
+        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+    ),
+    false
+  );
+});
+
+serialTest("subsystem concurrency limit is enforced across different task codes", async (t) => {
   const db = await createTestDatabase(t);
   const runId = `${Date.now()}-${process.pid}-${Math.random()}`;
   const subsystemCode = `purchase-shared-${runId}`;
@@ -275,7 +455,7 @@ test("subsystem concurrency limit is enforced across different task codes", asyn
   assert.equal(tasks.filter((task) => task.status === "PENDING").length, 1);
 });
 
-test("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
+serialTest("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
   const taskId = `exp-worker-${runId}-takeover`;
@@ -326,10 +506,61 @@ test("expired lease takeover keeps attemptNo and resumes from the latest checkpo
   assert.equal(resumedCheckpoint.lastCursor, "order-100");
 });
 
-test("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+serialTest("expired worker does not mark FAILED or overwrite the new owner after takeover", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
-  const taskId = `exp-worker-${runId}-cancel`;
+  const taskId = `exp-worker-${runId}-failure-race`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  let takeoverResult;
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-200", 200)
+  });
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 1,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => {
+      await db
+        .updateTable("export_tasks")
+        .set({
+          lock_expire_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+        })
+        .where("task_id", "=", taskId)
+        .execute();
+      takeoverResult = await workerB.pollAndProcessOnce();
+      throw new Error("late failure after lease takeover");
+    }
+  });
+
+  const oldWorkerResult = await workerA.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(oldWorkerResult.failed, 0);
+  assert.equal(takeoverResult.dispatched, 1);
+  assert.equal(takeoverResult.renewed, 1);
+  assert.equal(task.status, "EXECUTING");
+  assert.equal(task.lockOwner, "worker-b");
+  assert.equal(
+    audits.some(
+      (audit) =>
+        audit.requestId === "scheduler:worker-a" &&
+        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+    ),
+    false
+  );
+});
+
+serialTest("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-cancel-${Date.now()}`;
   await seedTask(db, { taskId, taskCode, subsystemCode });
 
   const worker = createSchedulerWorker({
@@ -370,7 +601,7 @@ test("executing cancel request is closed at the next persisted batch boundary", 
   );
 });
 
-test("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
   const taskId = `exp-worker-${runId}-retry`;
@@ -420,7 +651,7 @@ test("failed execution is retried only after FAILED and increments attemptNo bef
   assert.equal(executing.lockOwner, "worker-b");
 });
 
-test("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
+serialTest("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
   const taskId = "cleanup-success-01";
@@ -473,7 +704,7 @@ test("cleanup job poll once records task event and audit after successful object
   assert.equal(task.taskCode, taskCode);
 });
 
-test("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+serialTest("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
   const taskId = "cleanup-failed-01";
@@ -526,4 +757,6 @@ test("cleanup job poll once records retry audit and does not mark cleanup done w
   assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
   assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");
   assert.equal(metadata.tempStorageKey, "exports/tmp/cleanup.xlsx");
+});
+
 });

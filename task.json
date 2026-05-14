@@ -856,7 +856,7 @@
                                            "FILE-SERVICE-001",
                                            "CLEANUP-JOB-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "采购订单样板必须复用标准 registry、query、file、audit 链路",
                                                        "样板必须覆盖 0/1/20000/20001/100000/100001 行边界、脱敏和 ZIP 证据",

@@ -68,6 +68,8 @@ export type SchedulerPollResult = {
   failed: number;
 };
 
+type TerminalTaskStatus = "COMPLETED" | "FAILED" | "CANCELED";
+
 type CandidateRow = {
   task_id: string;
   task_code: string;
@@ -241,6 +243,11 @@ async function acquireNextLease(input: {
           eb("t.status", "=", "PENDING"),
           eb.and([
             eb("t.status", "=", "EXECUTING"),
+            eb("t.lock_owner", "=", input.workerId),
+            eb("t.lock_expire_at", ">", databaseTime)
+          ]),
+          eb.and([
+            eb("t.status", "=", "EXECUTING"),
             eb("t.lock_expire_at", "<", databaseTime)
           ])
         ])
@@ -252,6 +259,12 @@ async function acquireNextLease(input: {
       .execute();
 
     for (const candidate of candidates) {
+      const isOwnActiveLeaseResume =
+        candidate.status === "EXECUTING" &&
+        candidate.lock_owner === input.workerId &&
+        candidate.lock_expire_at instanceof Date &&
+        candidate.lock_expire_at > databaseTime;
+
       await trx
         .selectFrom("export_registries")
         .select("task_code")
@@ -270,7 +283,7 @@ async function acquireNextLease(input: {
         .execute();
 
       const activeCount = activeTasks.length;
-      if (activeCount >= candidate.concurrency_limit) {
+      if (!isOwnActiveLeaseResume && activeCount >= candidate.concurrency_limit) {
         continue;
       }
 
@@ -278,9 +291,15 @@ async function acquireNextLease(input: {
         databaseTime.getTime() + input.leaseDurationSeconds * 1000
       );
       const takeoverRule =
-        candidate.status === "EXECUTING"
+        isOwnActiveLeaseResume
+          ? "ACTIVE_LEASE_RESUME_SAME_OWNER"
+          : candidate.status === "EXECUTING"
           ? "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
           : "PENDING_OR_EXPIRED_KEEP_ATTEMPT";
+      const previousLockOwner =
+        takeoverRule === "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
+          ? candidate.lock_owner
+          : null;
 
       await trx
         .updateTable("export_tasks")
@@ -301,7 +320,7 @@ async function acquireNextLease(input: {
           task_id: candidate.task_id,
           attempt_no: candidate.attempt_no,
           lock_owner: input.workerId,
-          previous_lock_owner: candidate.lock_owner,
+          previous_lock_owner: previousLockOwner,
           lock_expire_at: lockExpireAt,
           lease_renewed_at: databaseTime,
           database_time: databaseTime,
@@ -311,7 +330,7 @@ async function acquireNextLease(input: {
         })
         .onDuplicateKeyUpdate({
           lock_owner: input.workerId,
-          previous_lock_owner: candidate.lock_owner,
+          previous_lock_owner: previousLockOwner,
           lock_expire_at: lockExpireAt,
           lease_renewed_at: databaseTime,
           database_time: databaseTime,
@@ -335,7 +354,7 @@ async function acquireNextLease(input: {
           taskId: candidate.task_id,
           attemptNo: candidate.attempt_no,
           lockOwner: input.workerId,
-          previousLockOwner: candidate.lock_owner,
+          previousLockOwner,
           lockExpireAt,
           leaseRenewedAt: databaseTime,
           databaseTime,
@@ -385,34 +404,15 @@ async function processAcquiredLease(input: {
         ...batch.checkpoint,
         now
       });
-
-      await createExportTaskEventRepository(input.db).appendTaskEvent({
-        eventId: `event_${randomUUID()}`,
-        taskId: input.task.taskId,
-        attemptNo: input.lease.attemptNo,
-        eventType: "QUERY_BATCH_DONE",
-        requestId: input.requestId,
-        queryTemplateVersion: input.task.configSnapshotDigest,
-        batchCheckpoint: JSON.stringify({
-          taskId: input.task.taskId,
-          attemptNo: input.lease.attemptNo,
-          requestId: input.requestId,
-          lockOwner: input.lease.lockOwner,
-          ...batch.checkpoint
-        }),
-        occurredAt: now,
-        now
-      });
     }
 
     if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
-      await markTaskTerminal({
+      const canceledAt = await markTaskTerminal({
         db: input.db,
         task: input.task,
         attemptNo: input.lease.attemptNo,
         lockOwner: input.lease.lockOwner,
-        status: "CANCELED",
-        now
+        status: "CANCELED"
       });
       await appendWorkerAudit({
         db: input.db,
@@ -421,7 +421,7 @@ async function processAcquiredLease(input: {
         action: "CANCEL_DONE",
         result: "SUCCESS",
         requestId: input.requestId,
-        now
+        now: canceledAt
       });
       result.canceled = 1;
       return result;
@@ -436,6 +436,13 @@ async function processAcquiredLease(input: {
           throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
         }
         const fileService = input.fileService ?? createExportFileService({ db: input.db });
+        await ensureLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
         await fileService.publishRows({
           task: input.task,
           registry,
@@ -444,13 +451,12 @@ async function processAcquiredLease(input: {
           rows: batch.rows
         });
       }
-      await markTaskTerminal({
+      const completedAt = await markTaskTerminal({
         db: input.db,
         task: input.task,
         attemptNo: input.lease.attemptNo,
         lockOwner: input.lease.lockOwner,
-        status: "COMPLETED",
-        now
+        status: "COMPLETED"
       });
       await appendWorkerAudit({
         db: input.db,
@@ -459,7 +465,7 @@ async function processAcquiredLease(input: {
         action: "EXECUTE_SUCCESS",
         result: "SUCCESS",
         requestId: input.requestId,
-        now
+        now: completedAt
       });
       result.completed = 1;
       return result;
@@ -476,15 +482,26 @@ async function processAcquiredLease(input: {
     result.renewed = renewed ? 1 : 0;
     return result;
   } catch (error) {
-    const now = await getDatabaseTime(input.db);
-    await markTaskTerminal({
-      db: input.db,
-      task: input.task,
-      attemptNo: input.lease.attemptNo,
-      lockOwner: input.lease.lockOwner,
-      status: "FAILED",
-      now
-    });
+    if (isLeaseLostError(error)) {
+      return result;
+    }
+
+    let failedAt: Date;
+    try {
+      failedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "FAILED"
+      });
+    } catch (terminalError) {
+      if (isLeaseLostError(terminalError)) {
+        return result;
+      }
+      throw terminalError;
+    }
+
     await appendWorkerAudit({
       db: input.db,
       task: input.task,
@@ -493,10 +510,25 @@ async function processAcquiredLease(input: {
       result: "FAILED",
       errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
       requestId: input.requestId,
-      now
+      now: failedAt
     });
     result.failed = 1;
     return result;
+  }
+}
+
+async function ensureLeaseAtBatchBoundary(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  taskId: string;
+  attemptNo: number;
+  lockOwner: string;
+  leaseDurationSeconds: number;
+}): Promise<void> {
+  const renewed = await renewLeaseAtBatchBoundary(input);
+  if (!renewed) {
+    throw leaseLostError(
+      `worker ${input.lockOwner} no longer owns an active lease for task ${input.taskId}`
+    );
   }
 }
 
@@ -559,23 +591,51 @@ async function markTaskTerminal(input: {
   task: ExportTaskRecord;
   attemptNo: number;
   lockOwner: string;
-  status: "COMPLETED" | "FAILED" | "CANCELED";
-  now: Date;
-}): Promise<void> {
-  await input.db
-    .updateTable("export_tasks")
-    .set({
-      status: input.status,
-      lock_owner: null,
-      lock_expire_at: null,
-      lease_renewed_at: null,
-      updated_at: input.now
-    })
-    .where("task_id", "=", input.task.taskId)
-    .where("attempt_no", "=", input.attemptNo)
-    .where("lock_owner", "=", input.lockOwner)
-    .where("status", "=", "EXECUTING")
-    .execute();
+  status: TerminalTaskStatus;
+}): Promise<Date> {
+  return input.db.transaction().execute(async (trx) => {
+    const databaseTime = await queryDatabaseTime(trx);
+    const activeLease = await trx
+      .selectFrom("export_tasks")
+      .select("task_id")
+      .where("task_id", "=", input.task.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .where("status", "=", "EXECUTING")
+      .where("lock_expire_at", ">", databaseTime)
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!activeLease) {
+      throw leaseLostError(
+        `worker ${input.lockOwner} cannot mark task ${input.task.taskId} as ${input.status}`
+      );
+    }
+
+    const updateResult = await trx
+      .updateTable("export_tasks")
+      .set({
+        status: input.status,
+        lock_owner: null,
+        lock_expire_at: null,
+        lease_renewed_at: null,
+        updated_at: databaseTime
+      })
+      .where("task_id", "=", input.task.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .where("status", "=", "EXECUTING")
+      .where("lock_expire_at", ">", databaseTime)
+      .executeTakeFirst();
+
+    if (toUpdatedRowCount(updateResult.numUpdatedRows) !== 1) {
+      throw leaseLostError(
+        `worker ${input.lockOwner} lost the lease before marking task ${input.task.taskId} terminal`
+      );
+    }
+
+    return databaseTime;
+  });
 }
 
 async function hasAcceptedCancelRequest(
@@ -635,4 +695,21 @@ async function appendWorkerAudit(input: {
     occurredAt: input.now,
     now: input.now
   });
+}
+
+function leaseLostError(message: string): Error {
+  const error = new Error(message);
+  error.name = "WORKER_LEASE_LOST";
+  return error;
+}
+
+function isLeaseLostError(error: unknown): boolean {
+  return error instanceof Error && error.name === "WORKER_LEASE_LOST";
+}
+
+function toUpdatedRowCount(value: bigint | number | undefined): number {
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  return Number(value ?? 0);
 }

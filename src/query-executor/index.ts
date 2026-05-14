@@ -7,6 +7,7 @@ import {
   createExportTaskEventRepository,
   getDatabaseTime
 } from "../repositories/index.ts";
+import { assertSamplePurchaseOrderRegistryContract } from "../sample-purchase-order/index.ts";
 import type {
   SchedulerBatchContext,
   SchedulerBatchResult
@@ -50,6 +51,27 @@ type RequestSnapshot = {
   queryParams?: Record<string, unknown>;
 };
 
+type ParameterSchemaDefinition = {
+  type?: string;
+};
+
+type ParameterSchema = {
+  type?: string;
+  required?: string[];
+  additionalProperties?: boolean;
+  properties?: Record<string, ParameterSchemaDefinition>;
+};
+
+type OrderByDefinition = {
+  field: string;
+  direction: "ASC" | "DESC";
+};
+
+type CursorToken = {
+  version: 1;
+  values: Record<string, string | number | boolean | null>;
+};
+
 type QueryExecutorResult = SchedulerBatchResult & {
   rows: Record<string, unknown>[];
 };
@@ -81,8 +103,22 @@ export function createQueryExecutorBatchProcessor() {
       context.task.authContextPayload,
       "PERMISSION_DENIED"
     );
+    assertSamplePurchaseOrderRegistryContract({
+      taskCode: registry.taskCode,
+      subsystemCode: registry.subsystemCode,
+      singleFileMaxRows: registry.singleFileMaxRows,
+      exportMaxRows: registry.exportMaxRows,
+      supportedFormats: registry.supportedFormats,
+      parameterSchema: registry.parameterSchema,
+      queryTemplate: registry.queryTemplate,
+      fieldMappings: registry.fieldMappings,
+      maskingPolicy: registry.maskingPolicy,
+      cursorField: registry.cursorField,
+      orderBy: registry.orderBy
+    });
     const queryParams = normalizeQueryParams(requestSnapshot.queryParams);
-    validateParameterSchema(registry.parameterSchema, queryParams);
+    const parameterSchema = parseParameterSchema(registry.parameterSchema);
+    validateParameterSchema(parameterSchema, queryParams);
 
     const template = parseQueryTemplate(registry.queryTemplate);
     validateTemplate(template);
@@ -93,19 +129,20 @@ export function createQueryExecutorBatchProcessor() {
     const cursorField = requireText(registry.cursorField, "QUERY_TEMPLATE_INVALID");
     const orderBy = parseOrderBy(registry.orderBy, cursorField);
     const scope = buildDataScope(authSnapshot);
+    const cursorToken = decodeCursorToken(context.checkpoint?.lastCursor ?? null, orderBy);
     const compiled = compileQuery({
       template,
       queryParams,
       authSnapshot,
       scope,
-      cursorField,
-      lastCursor: context.checkpoint?.lastCursor ?? null,
+      lastCursor: cursorToken,
       orderBy,
       limit: batchSize + 1
     });
 
     const rawRows = await executeSelect(context.db, compiled.sqlText, compiled.values);
     const limitedRows = rawRows.slice(0, batchSize);
+    validateCursorRows(limitedRows, orderBy, cursorToken);
     const mappedRows = mapRows({
       rows: limitedRows,
       mappings: fieldMappings,
@@ -120,7 +157,7 @@ export function createQueryExecutorBatchProcessor() {
     const now = await getDatabaseTime(context.db);
     const batchEventTime = new Date(now.getTime() + 1);
     const lastCursor = limitedRows.length
-      ? String(limitedRows[limitedRows.length - 1]?.[cursorField])
+      ? encodeCursorToken(createCursorToken(limitedRows[limitedRows.length - 1], orderBy))
       : context.checkpoint?.lastCursor ?? null;
     const checkpoint = {
       lastCursor,
@@ -132,6 +169,21 @@ export function createQueryExecutorBatchProcessor() {
       backoffMs: 0
     };
     const outcome = rawRows.length <= batchSize ? "completed" : "continue";
+    const rows =
+      outcome === "completed" && (context.checkpoint?.processedCount ?? 0) > 0
+        ? await collectCompletedRows({
+            db: context.db,
+            template,
+            queryParams,
+            scope,
+            orderBy,
+            batchSize,
+            fieldMappings,
+            maskingPolicy,
+            expectedCount: processedCount,
+            exportMaxRows: registry.exportMaxRows
+          })
+        : mappedRows;
 
     await appendQueryEvent({
       context,
@@ -158,7 +210,7 @@ export function createQueryExecutorBatchProcessor() {
     });
 
     return {
-      rows: mappedRows,
+      rows,
       checkpoint,
       outcome
     };
@@ -183,18 +235,28 @@ function normalizeQueryParams(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function parseParameterSchema(schemaPayload: string | null): ParameterSchema {
+  const schema = parseJson<ParameterSchema>(schemaPayload, "QUERY_TEMPLATE_INVALID");
+  if (schema.type && schema.type !== "object") {
+    throw queryError("QUERY_TEMPLATE_INVALID", "parameter schema must describe an object");
+  }
+  return schema;
+}
+
 function validateParameterSchema(
-  schemaPayload: string | null,
+  schema: ParameterSchema,
   queryParams: Record<string, unknown>
 ): void {
-  const schema = parseJson<{
-    required?: string[];
-    properties?: Record<string, { type?: string }>;
-  }>(schemaPayload, "QUERY_TEMPLATE_INVALID");
-
   for (const required of schema.required ?? []) {
     if (queryParams[required] === undefined || queryParams[required] === null) {
       throw queryError("QUERY_TEMPLATE_INVALID", `required parameter ${required} is missing`);
+    }
+  }
+
+  const allowedKeys = new Set(Object.keys(schema.properties ?? {}));
+  for (const key of Object.keys(queryParams)) {
+    if (allowedKeys.size > 0 && !allowedKeys.has(key)) {
+      throw queryError("QUERY_TEMPLATE_INVALID", `parameter ${key} is not declared`);
     }
   }
 
@@ -251,14 +313,23 @@ function parseOrderBy(value: string | null, cursorField: string): Array<{
   if (!value) {
     return [{ field: cursorField, direction: "ASC" }];
   }
-  const orderBy = JSON.parse(value) as Array<{ field?: string; direction?: string }>;
+  let orderBy: Array<{ field?: string; direction?: string }>;
+  try {
+    orderBy = JSON.parse(value) as Array<{ field?: string; direction?: string }>;
+  } catch {
+    throw queryError("QUERY_TEMPLATE_INVALID", "orderBy must be valid JSON");
+  }
   if (!Array.isArray(orderBy) || orderBy.length === 0) {
     return [{ field: cursorField, direction: "ASC" }];
   }
-  return orderBy.map((item) => ({
+  const normalized: OrderByDefinition[] = orderBy.map((item) => ({
     field: requireText(item.field, "QUERY_TEMPLATE_INVALID"),
     direction: item.direction?.toUpperCase() === "DESC" ? "DESC" : "ASC"
   }));
+  if (!normalized.some((item) => item.field === cursorField)) {
+    normalized.push({ field: cursorField, direction: "ASC" });
+  }
+  return dedupeOrderBy(normalized);
 }
 
 function buildDataScope(auth: AuthSnapshot): { tenantId: string; orgScope: string[] } {
@@ -280,9 +351,8 @@ function compileQuery(input: {
   queryParams: Record<string, unknown>;
   authSnapshot: AuthSnapshot;
   scope: { tenantId: string; orgScope: string[] };
-  cursorField: string;
-  lastCursor: string | null;
-  orderBy: Array<{ field: string; direction: "ASC" | "DESC" }>;
+  lastCursor: CursorToken | null;
+  orderBy: OrderByDefinition[];
   limit: number;
 }): { sqlText: string; values: unknown[] } {
   const values: unknown[] = [];
@@ -306,10 +376,8 @@ function compileQuery(input: {
   const dataScopeSql = `tenantId = ? AND orgId IN (${parameterList(input.scope.orgScope.length)})`;
   values.push(input.scope.tenantId, ...input.scope.orgScope);
 
-  const cursorSql = input.lastCursor ? ` AND ${quoteIdentifier(input.cursorField)} > ?` : "";
-  if (input.lastCursor) {
-    values.push(input.lastCursor);
-  }
+  const cursorPredicate = buildCursorPredicate(input.orderBy, input.lastCursor);
+  values.push(...cursorPredicate.values);
 
   const orderSql = input.orderBy
     .map((item) => `${quoteIdentifier(item.field)} ${item.direction}`)
@@ -317,7 +385,7 @@ function compileQuery(input: {
   values.push(input.limit);
 
   return {
-    sqlText: `SELECT * FROM (${sqlText}) AS export_query WHERE ${dataScopeSql}${cursorSql} ORDER BY ${orderSql} LIMIT ?`,
+    sqlText: `SELECT * FROM (${sqlText}) AS export_query WHERE ${dataScopeSql}${cursorPredicate.sql} ORDER BY ${orderSql} LIMIT ?`,
     values
   };
 }
@@ -331,6 +399,66 @@ async function executeSelect(
     CompiledQuery.raw(sqlText, values)
   );
   return result.rows as Record<string, unknown>[];
+}
+
+async function collectCompletedRows(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  template: QueryTemplate;
+  queryParams: Record<string, unknown>;
+  scope: { tenantId: string; orgScope: string[] };
+  orderBy: OrderByDefinition[];
+  batchSize: number;
+  fieldMappings: FieldMapping[];
+  maskingPolicy: MaskingPolicy;
+  expectedCount: number;
+  exportMaxRows: number;
+}): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let cursorToken: CursorToken | null = null;
+
+  while (rows.length < input.expectedCount) {
+    const compiled = compileQuery({
+      template: input.template,
+      queryParams: input.queryParams,
+      authSnapshot: {},
+      scope: input.scope,
+      lastCursor: cursorToken,
+      orderBy: input.orderBy,
+      limit: input.batchSize + 1
+    });
+    const rawRows = await executeSelect(input.db, compiled.sqlText, compiled.values);
+    const limitedRows = rawRows.slice(0, input.batchSize);
+    validateCursorRows(limitedRows, input.orderBy, cursorToken);
+
+    if (limitedRows.length === 0) {
+      break;
+    }
+
+    rows.push(
+      ...mapRows({
+        rows: limitedRows,
+        mappings: input.fieldMappings,
+        maskingPolicy: input.maskingPolicy
+      })
+    );
+    if (rows.length > input.exportMaxRows) {
+      throw queryError("EXPORT_LIMIT_EXCEEDED", "query result exceeds registry exportMaxRows");
+    }
+
+    cursorToken = createCursorToken(limitedRows[limitedRows.length - 1], input.orderBy);
+    if (rawRows.length <= input.batchSize) {
+      break;
+    }
+  }
+
+  if (rows.length !== input.expectedCount) {
+    throw queryError(
+      "QUERY_EXECUTION_ERROR",
+      `completed batch reconstruction mismatch: expected ${input.expectedCount} rows, got ${rows.length}`
+    );
+  }
+
+  return rows;
 }
 
 function mapRows(input: {
@@ -360,7 +488,7 @@ function validateMaskingRules(mappings: FieldMapping[], maskingPolicy: MaskingPo
     }
     const ruleCode = mapping.maskingRuleCode;
     const rule = ruleCode ? maskingPolicy.rules?.[ruleCode] : undefined;
-    if (!rule || rule.type !== "PHONE") {
+    if (!rule || !["PHONE", "PERSON_NAME"].includes(rule.type)) {
       throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode ?? ""} is missing`);
     }
   }
@@ -376,17 +504,25 @@ function maskValue(
   if (!rule) {
     throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode ?? ""} is missing`);
   }
-  if (rule.type !== "PHONE") {
-    throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode} is not supported`);
-  }
-
   const text = String(value ?? "");
-  const prefix = rule.preservePrefix ?? 3;
-  const suffix = rule.preserveSuffix ?? 4;
-  if (text.length <= prefix + suffix) {
-    return "*".repeat(text.length);
+  if (rule.type === "PHONE") {
+    const prefix = rule.preservePrefix ?? 3;
+    const suffix = rule.preserveSuffix ?? 4;
+    if (text.length <= prefix + suffix) {
+      return "*".repeat(text.length);
+    }
+    return `${text.slice(0, prefix)}${"*".repeat(text.length - prefix - suffix)}${text.slice(-suffix)}`;
   }
-  return `${text.slice(0, prefix)}${"*".repeat(text.length - prefix - suffix)}${text.slice(-suffix)}`;
+  if (rule.type === "PERSON_NAME") {
+    if (text.length <= 1) {
+      return "*";
+    }
+    if (text.length === 2) {
+      return `${text.slice(0, 1)}*`;
+    }
+    return `${text.slice(0, 1)}${"*".repeat(text.length - 2)}${text.slice(-1)}`;
+  }
+  throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode} is not supported`);
 }
 
 async function appendQueryEvent(input: {
@@ -415,6 +551,176 @@ function extractPlaceholders(templateText: string): string[] {
   return [...templateText.matchAll(placeholderPattern)].map((match) => match[1]);
 }
 
+function dedupeOrderBy(orderBy: OrderByDefinition[]): OrderByDefinition[] {
+  const seen = new Set<string>();
+  const normalized: OrderByDefinition[] = [];
+  for (const item of orderBy) {
+    if (seen.has(item.field)) {
+      continue;
+    }
+    seen.add(item.field);
+    normalized.push(item);
+  }
+  return normalized;
+}
+
+function decodeCursorToken(
+  lastCursor: string | null,
+  orderBy: OrderByDefinition[]
+): CursorToken | null {
+  if (!lastCursor) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(lastCursor) as CursorToken;
+    if (parsed?.version === 1 && parsed.values && typeof parsed.values === "object") {
+      return parsed;
+    }
+  } catch {
+    // Older checkpoints only persist the terminal cursor field value.
+  }
+  return {
+    version: 1,
+    values: {
+      [orderBy[orderBy.length - 1].field]: lastCursor
+    }
+  };
+}
+
+function encodeCursorToken(token: CursorToken): string {
+  return JSON.stringify(token);
+}
+
+function createCursorToken(row: Record<string, unknown>, orderBy: OrderByDefinition[]): CursorToken {
+  const values: CursorToken["values"] = {};
+  for (const item of orderBy) {
+    values[item.field] = normalizeCursorValue(row[item.field], item.field);
+  }
+  return { version: 1, values };
+}
+
+function buildCursorPredicate(
+  orderBy: OrderByDefinition[],
+  lastCursor: CursorToken | null
+): { sql: string; values: Array<string | number | boolean | null> } {
+  if (!lastCursor) {
+    return { sql: "", values: [] };
+  }
+
+  const clauses: string[] = [];
+  const values: Array<string | number | boolean | null> = [];
+  for (let index = 0; index < orderBy.length; index += 1) {
+    const andParts: string[] = [];
+    for (let prefixIndex = 0; prefixIndex < index; prefixIndex += 1) {
+      const prefixField = orderBy[prefixIndex].field;
+      andParts.push(`${quoteIdentifier(prefixField)} = ?`);
+      values.push(readCursorField(lastCursor, prefixField));
+    }
+    const field = orderBy[index].field;
+    andParts.push(
+      `${quoteIdentifier(field)} ${orderBy[index].direction === "DESC" ? "<" : ">"} ?`
+    );
+    values.push(readCursorField(lastCursor, field));
+    clauses.push(`(${andParts.join(" AND ")})`);
+  }
+
+  return {
+    sql: ` AND (${clauses.join(" OR ")})`,
+    values
+  };
+}
+
+function readCursorField(
+  token: CursorToken,
+  field: string
+): string | number | boolean | null {
+  if (!(field in token.values)) {
+    throw queryExecutionError(`cursor field ${field} is missing from checkpoint`);
+  }
+  return token.values[field] ?? null;
+}
+
+function validateCursorRows(
+  rows: Record<string, unknown>[],
+  orderBy: OrderByDefinition[],
+  lastCursor: CursorToken | null
+): void {
+  let previous = lastCursor;
+  for (const row of rows) {
+    const current = createCursorToken(row, orderBy);
+    if (previous && compareCursorTokens(previous, current, orderBy) >= 0) {
+      throw queryExecutionError("cursor values are duplicate or non-increasing");
+    }
+    previous = current;
+  }
+}
+
+function compareCursorTokens(
+  left: CursorToken,
+  right: CursorToken,
+  orderBy: OrderByDefinition[]
+): number {
+  for (const item of orderBy) {
+    const leftValue = readCursorField(left, item.field);
+    const rightValue = readCursorField(right, item.field);
+    const comparison = compareCursorValues(leftValue, rightValue);
+    if (comparison === 0) {
+      continue;
+    }
+    return item.direction === "DESC" ? comparison * -1 : comparison;
+  }
+  return 0;
+}
+
+function compareCursorValues(
+  left: string | number | boolean | null,
+  right: string | number | boolean | null
+): number {
+  if (left === right) {
+    return 0;
+  }
+  if (left === null || right === null) {
+    throw queryExecutionError("cursor field is missing or null");
+  }
+  if (typeof left === "number" && typeof right === "number") {
+    return left < right ? -1 : 1;
+  }
+  const leftText = String(left);
+  const rightText = String(right);
+  return leftText.localeCompare(rightText);
+}
+
+function normalizeCursorValue(
+  value: unknown,
+  field: string
+): string | number | boolean | null {
+  if (value === null || value === undefined) {
+    throw queryExecutionError(`cursor field ${field} is missing`);
+  }
+  if (value instanceof Date) {
+    return toDatabaseDateTimeLiteral(value);
+  }
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+function toDatabaseDateTimeLiteral(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  const seconds = String(value.getSeconds()).padStart(2, "0");
+  const milliseconds = String(value.getMilliseconds()).padStart(3, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+}
+
 function positiveInteger(value: number | null | undefined, fallback: number): number {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : fallback;
 }
@@ -441,4 +747,8 @@ function queryError(code: string, message: string): Error {
   const error = new Error(`${code}: ${message}`);
   error.name = code;
   return error;
+}
+
+function queryExecutionError(message: string): Error {
+  return queryError("QUERY_EXECUTION_ERROR", message);
 }

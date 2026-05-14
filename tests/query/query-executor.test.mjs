@@ -11,6 +11,10 @@ import {
 } from "../../src/repositories/index.ts";
 import { createQueryExecutorBatchProcessor } from "../../src/query-executor/index.ts";
 
+function parseCursorToken(lastCursor) {
+  return JSON.parse(lastCursor);
+}
+
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
 
@@ -312,7 +316,7 @@ test("query executor binds template, enforces data scope, masks sensitive fields
 
   assert.equal(result.outcome, "completed");
   assert.equal(result.checkpoint?.processedCount, 2);
-  assert.equal(result.checkpoint?.lastCursor, "order-002");
+  assert.equal(parseCursorToken(result.checkpoint?.lastCursor).values.orderId, "order-002");
   assert.equal(result.rows.length, 2);
   assert.deepEqual(
     result.rows.map((row) => row["Order ID"]),
@@ -332,7 +336,7 @@ test("query executor binds template, enforces data scope, masks sensitive fields
   assert.equal(events[0].queryTemplateVersion, "v1");
 });
 
-test("query executor resumes from checkpoint cursor and preserves cumulative processedCount", async (t) => {
+test("query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
@@ -386,13 +390,66 @@ test("query executor resumes from checkpoint cursor and preserves cumulative pro
 
   assert.equal(first.outcome, "continue");
   assert.equal(first.checkpoint.processedCount, 1);
-  assert.equal(first.checkpoint.lastCursor, "order-001");
+  assert.equal(parseCursorToken(first.checkpoint.lastCursor).values.orderId, "order-001");
   assert.equal(second.outcome, "completed");
   assert.equal(second.checkpoint.processedCount, 2);
-  assert.equal(second.checkpoint.lastCursor, "order-002");
+  assert.equal(parseCursorToken(second.checkpoint.lastCursor).values.orderId, "order-002");
   assert.deepEqual(
     second.rows.map((row) => row["Order ID"]),
-    ["order-002"]
+    ["order-001", "order-002"]
+  );
+});
+
+test("query executor accepts legacy string checkpoint cursors while producing structured cursor tokens", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-legacy-cursor",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  const result = await processor({
+    db,
+    task: {
+      ...task,
+      status: "EXECUTING",
+      lockOwner: "worker-query",
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now
+    },
+    lease: {
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      lockOwner: "worker-query",
+      previousLockOwner: null,
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now,
+      databaseTime: now,
+      takeoverRule: "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
+    },
+    checkpoint: {
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      lastCursor: "order-001",
+      processedCount: 1,
+      filePartNo: 1,
+      retryCount: 0,
+      batchSize: 1,
+      batchRowCount: 1,
+      backoffMs: 0
+    },
+    requestId: "req-query-legacy-cursor"
+  });
+
+  assert.equal(result.outcome, "completed");
+  assert.equal(parseCursorToken(result.checkpoint.lastCursor).values.orderId, "order-002");
+  assert.deepEqual(
+    result.rows.map((row) => row["Order ID"]),
+    ["order-001", "order-002"]
   );
 });
 

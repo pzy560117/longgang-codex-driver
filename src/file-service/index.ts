@@ -9,6 +9,7 @@ import {
   type ExportRegistryRecord,
   type ExportTaskRecord
 } from "../repositories/index.ts";
+import { renderExportPackage } from "./xlsx-package.ts";
 
 export type ObjectStoragePutInput = {
   storageKey: string;
@@ -55,6 +56,7 @@ export type ExportFileServiceOptions = {
 type FilePart = {
   partNo: number;
   fileName: string;
+  headers: string[];
   rows: Record<string, unknown>[];
 };
 
@@ -116,12 +118,22 @@ export function createExportFileService(options: ExportFileServiceOptions) {
 
   async function publishRows(input: PublishRowsInput): Promise<PublishedFile> {
     const now = await getDatabaseTime(options.db);
-    const parts = splitRows(input.rows, positiveInteger(input.registry.singleFileMaxRows, 20000));
+    const singleFileMaxRows = positiveInteger(input.registry.singleFileMaxRows, 20000);
+    const exportMaxRows = positiveInteger(input.registry.exportMaxRows, 100000);
+    if (input.rows.length > exportMaxRows) {
+      throw fileError("EXPORT_RENDER_ERROR", "row count exceeds registry exportMaxRows");
+    }
+
+    const headers = resolveHeaders(input.registry, input.rows);
+    const parts = splitRows(input.rows, headers, singleFileMaxRows);
     const packageFileName = buildFileName(input);
     const contentType = packageFileName.endsWith(".zip")
       ? "application/zip"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    const body = renderFileBody(parts, packageFileName);
+    const body = await renderFileBody(parts, packageFileName, {
+      totalRowCount: input.rows.length,
+      singleFileMaxRows
+    });
     const checksum = createChecksum(body);
     const storagePrefix = buildStoragePrefix(input.task, input.attemptNo, now);
     const tempStorageKey = `${storagePrefix}/tmp/${packageFileName}`;
@@ -259,9 +271,13 @@ async function appendFileEvent(input: {
   });
 }
 
-function splitRows(rows: Record<string, unknown>[], singleFileMaxRows: number): FilePart[] {
+function splitRows(
+  rows: Record<string, unknown>[],
+  headers: string[],
+  singleFileMaxRows: number
+): FilePart[] {
   if (rows.length === 0) {
-    return [{ partNo: 1, fileName: "part-0001.xlsx", rows: [] }];
+    return [{ partNo: 1, fileName: "part-0001.xlsx", headers, rows: [] }];
   }
 
   const parts: FilePart[] = [];
@@ -270,6 +286,7 @@ function splitRows(rows: Record<string, unknown>[], singleFileMaxRows: number): 
     parts.push({
       partNo,
       fileName: `part-${String(partNo).padStart(4, "0")}.xlsx`,
+      headers,
       rows: rows.slice(index, index + singleFileMaxRows)
     });
   }
@@ -288,26 +305,75 @@ function buildStoragePrefix(task: ExportTaskRecord, attemptNo: number, now: Date
   return `exports/${task.subsystemCode}/${task.taskCode}/${datePart}/${task.taskId}/${attemptNo}`;
 }
 
-function renderFileBody(parts: FilePart[], packageFileName: string): Buffer {
-  return Buffer.from(
-    JSON.stringify(
-      {
-        packageFileName,
-        parts: parts.map((part) => ({
-          partNo: part.partNo,
-          fileName: part.fileName,
-          rowCount: part.rows.length,
-          rows: part.rows
-        }))
-      },
-      null,
-      2
-    )
-  );
+async function renderFileBody(
+  parts: FilePart[],
+  packageFileName: string,
+  summary: {
+    totalRowCount: number;
+    singleFileMaxRows: number;
+  }
+): Promise<Buffer> {
+  void summary;
+  return renderExportPackage({
+    packageFileName,
+    parts
+  });
 }
 
 function createChecksum(body: Buffer): string {
   return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+}
+
+function resolveHeaders(
+  registry: ExportRegistryRecord,
+  rows: Record<string, unknown>[]
+): string[] {
+  const headers = parseFieldHeaders(registry);
+  if (headers.length === 0 && rows.length > 0) {
+    return Object.keys(rows[0]);
+  }
+  for (const row of rows) {
+    const rowHeaders = Object.keys(row);
+    if (
+      rowHeaders.length !== headers.length ||
+      rowHeaders.some((header, index) => header !== headers[index])
+    ) {
+      throw fileError("FIELD_MAPPING_INVALID", "row headers do not match registry field order");
+    }
+  }
+  return headers;
+}
+
+function parseFieldHeaders(registry: ExportRegistryRecord): string[] {
+  if (!registry.fieldMappings) {
+    return [];
+  }
+  let fieldMappings: Array<{
+    headerName?: unknown;
+    orderNo?: unknown;
+    exportable?: boolean;
+  }>;
+  try {
+    fieldMappings = JSON.parse(registry.fieldMappings) as Array<{
+      headerName?: unknown;
+      orderNo?: unknown;
+      exportable?: boolean;
+    }>;
+  } catch {
+    throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings must be valid JSON");
+  }
+  if (!Array.isArray(fieldMappings)) {
+    throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings must be an array");
+  }
+  return fieldMappings
+    .filter((mapping) => mapping.exportable !== false)
+    .sort((left, right) => Number(left.orderNo ?? 0) - Number(right.orderNo ?? 0))
+    .map((mapping) => {
+      if (typeof mapping.headerName !== "string" || mapping.headerName.length === 0) {
+        throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings contain empty headers");
+      }
+      return mapping.headerName;
+    });
 }
 
 function positiveInteger(value: number | null | undefined, fallback: number): number {

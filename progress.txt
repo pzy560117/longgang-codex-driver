@@ -381,3 +381,43 @@
 
 ### 备注：
 - Codex 输出包含失败或 BLOCKED，请人工查看。
+## [2026-05-15 00:49] - Task: SAMPLE-PURCHASE-ORDER-001 实现采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据
+
+### 完成的工作：
+- Codex 已完成实现，但 Stage 1 审查未通过。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: FAIL - 审查未通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-15 03:07] - Task: SAMPLE-PURCHASE-ORDER-001 状态收口
+
+### 完成的工作：
+- 已实现采购订单样板合同并复用公开 registry/task/download service、query、file、audit、worker 链路。
+- 覆盖 0/1/20000/20001/100000/100001 边界，默认 `batchSize=500` 的 10 万行多批次，100001 超限失败。
+- file service 已生成真实 XLSX/ZIP 二进制并用测试解析验证脱敏和分片。
+- scheduler 支持 same-owner active lease resume，并修复终态 lease race；`QUERY_BATCH_DONE` 去重。
+- 依赖升级 `fastify`/`kysely`/`jszip` 后 audit 0 high vulnerabilities，Node engine `>=22`。
+
+### 测试结果：
+- `npm audit` 0 vulnerabilities。
+- `npm run typecheck` 通过。
+- `npm run arch:check` 通过。
+- `npm run test:worker` 11/11 通过。
+- `npm run test:query` 8/8 通过。
+- `npm run test:file` 8/8 通过。
+- `npm run test:sample` 9/9 通过。
+- `npm run test:db` 3/3 通过。
+- `git diff --check` 通过。
+
+### 审查结果：
+- Stage 1: PASS。
+- Stage 2: PASS。
+
+### 备注：
+- 无剩余 blocker。

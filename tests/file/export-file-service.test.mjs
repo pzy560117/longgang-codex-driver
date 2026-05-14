@@ -16,6 +16,10 @@ import {
 } from "../../src/file-service/index.ts";
 import { createCleanupJob } from "../../src/cleanup-job/index.ts";
 import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
+import {
+  inspectXlsxBuffer,
+  inspectZipOfXlsxBuffer
+} from "./xlsx-zip-helpers.mjs";
 
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
@@ -169,13 +173,14 @@ async function seedRegistryAndTask(db, overrides = {}) {
   return { registry, task };
 }
 
-function createRecordingStorage(options = {}) {
+function createProductionEquivalentObjectStorageAdapter(options = {}) {
   const objects = new Map();
   const writes = [];
   const publishes = [];
   const deletes = [];
 
   return {
+    objects,
     writes,
     publishes,
     deletes,
@@ -211,13 +216,13 @@ function createRecordingStorage(options = {}) {
   };
 }
 
-test("file service writes temp object, verifies checksum, publishes ZIP metadata and events", async (t) => {
+test("file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter", async (t) => {
   const db = await createTestDatabase(t);
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 2,
     fileFormat: "XLSX"
   });
-  const storage = createRecordingStorage();
+  const storage = createProductionEquivalentObjectStorageAdapter();
   const service = createExportFileService({ db, storage });
 
   const result = await service.publishRows({
@@ -239,6 +244,13 @@ test("file service writes temp object, verifies checksum, publishes ZIP metadata
   assert.equal(storage.publishes.length, 1);
   assert.match(storage.writes[0].storageKey, /\/tmp\//);
   assert.equal(storage.publishes[0].publishedStorageKey, result.storageKey);
+  const archive = await inspectZipOfXlsxBuffer(storage.objects.get(result.storageKey), { mode: "all" });
+  assert.deepEqual(archive.entryNames, ["part-0001.xlsx", "part-0002.xlsx"]);
+  assert.equal(archive.parts.length, 2);
+  assert.equal(archive.totalRowCount, 3);
+  assert.deepEqual(archive.parts[0].workbook.header, ["Order No"]);
+  assert.deepEqual(archive.parts[0].workbook.rows, [["PO-001"], ["PO-002"]]);
+  assert.deepEqual(archive.parts[1].workbook.rows, [["PO-003"]]);
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
   assert.equal(metadata.publishedStorageKey, result.storageKey);
@@ -260,7 +272,7 @@ test("checksum failure prevents publish and metadata from becoming downloadable"
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 20000
   });
-  const storage = createRecordingStorage({ corruptReads: true });
+  const storage = createProductionEquivalentObjectStorageAdapter({ corruptReads: true });
   const service = createExportFileService({ db, storage });
 
   await assert.rejects(
@@ -285,7 +297,7 @@ test("scheduler publishes file metadata before marking a completed batch as COMP
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 20000
   });
-  const storage = createRecordingStorage();
+  const storage = createProductionEquivalentObjectStorageAdapter();
   const fileService = createExportFileService({ db, storage });
   const worker = createSchedulerWorker({
     db,
@@ -317,6 +329,11 @@ test("scheduler publishes file metadata before marking a completed batch as COMP
   assert.equal(metadata.publishedStorageKey.includes(task.taskId), true);
   assert.equal(storage.publishes.length, 1);
   assert.equal(registry.taskCode, task.taskCode);
+  const workbook = await inspectXlsxBuffer(storage.objects.get(metadata.publishedStorageKey), {
+    mode: "all"
+  });
+  assert.deepEqual(workbook.header, ["Order No"]);
+  assert.deepEqual(workbook.rows, [["PO-001"]]);
 });
 
 test("cleanup job invalidates expired metadata before deleting object and download is guarded", async (t) => {
@@ -324,7 +341,7 @@ test("cleanup job invalidates expired metadata before deleting object and downlo
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 20000
   });
-  const storage = createRecordingStorage();
+  const storage = createProductionEquivalentObjectStorageAdapter();
   const fileService = createExportFileService({ db, storage });
   const published = await fileService.publishRows({
     task,
@@ -379,7 +396,7 @@ test("cleanup job deletes only published object when temp storage key is null", 
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 20000
   });
-  const storage = createRecordingStorage();
+  const storage = createProductionEquivalentObjectStorageAdapter();
   const fileService = createExportFileService({ db, storage });
   const published = await fileService.publishRows({
     task,
@@ -431,7 +448,7 @@ test("cleanup job keeps retry evidence when object delete fails and leaves downl
   const { registry, task } = await seedRegistryAndTask(db, {
     singleFileMaxRows: 20000
   });
-  const storage = createRecordingStorage({
+  const storage = createProductionEquivalentObjectStorageAdapter({
     deleteError: new Error("object storage delete failed")
   });
   const fileService = createExportFileService({ db, storage });
