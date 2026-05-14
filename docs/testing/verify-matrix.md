@@ -18,8 +18,8 @@
 | MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
 | 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
 | scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
-| query executor | FR-006 / FR-008 / FR-009 / FR-014 | blocked-by-next-task | 待实现 query 任务 |
-| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | available / cleanup-entry-only | `src/jobs/cleanup-job.ts`；file service 实现待后续任务 |
+| query executor | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `tests/file/`、`tests/api/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
 | API / DB / worker 集成测试 | FR-001 - FR-014 | partial / API requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`；worker 联调待后续任务 |
 | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
 
@@ -35,6 +35,9 @@
 | API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
 | DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
 | worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、ZIP 分片和下载 guard 必须连接真实对象存储或其生产等价环境；依赖不可达时明确 BLOCKED |
+| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、ZIP 和压测证据；真实 MySQL 或对象存储不可达时明确 BLOCKED |
 | release 验证 | 待实现任务补齐 | fresh evidence 覆盖 P0/P1、失败态和 BLOCKED 项 |
 
 ## Requirement 验证入口
@@ -43,18 +46,18 @@
 | --- | --- | --- | --- |
 | FR-001 | contract / API / DB | HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
 | FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
-| FR-003 | contract / API / file | blocked-by-next-task | `contracts/openapi.yaml`、待创建 file 测试 |
+| FR-003 | contract / API / file | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `contracts/openapi.yaml`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
 | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
 | FR-005 | DB / worker | DB lease repository and worker polling available / requires-real-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
-| FR-006 | query / file / worker | blocked-by-next-task | 待创建 query/file/worker 测试 |
+| FR-006 | query / file / worker | planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` + `SAMPLE-PURCHASE-ORDER-001` | `tests/query/`、`tests/file/`、`tests/worker/`、`tests/sample/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
 | FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
-| FR-008 | query / DB / security | blocked-by-next-task | 待创建 query template 与数据范围测试 |
-| FR-009 | API / query / security | API auth context consumed / query masking still blocked-by-query-task | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-008 | query / DB / security | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+| FR-009 | API / query / security | API auth context consumed / query+file planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实依赖不可用时记录 `BLOCKED - 需要人工介入` |
 | FR-010 | audit / API / worker | API and worker audit writes wired / requires-real-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
-| FR-011 | file / cleanup job | blocked-by-next-task | 待创建 cleanup job 测试 |
+| FR-011 | file / cleanup job | planned-by `CLEANUP-JOB-001` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
 | FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
 | FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
-| FR-014 | sample / pressure / end-to-end | blocked-by-next-task | 待创建采购订单样板与压测证据 |
+| FR-014 | sample / pressure / end-to-end | planned-by `SAMPLE-PURCHASE-ORDER-001` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
 | STACK-ADR-001 | design / planned / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
 
 ## STACK-ADR-001 验证细则

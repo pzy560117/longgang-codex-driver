@@ -1,0 +1,32 @@
+BLOCKED - 需要人工介入
+
+当前任务: DB-SCHEMA-001 创建 MySQL schema、migration 和生产 repository 边界
+
+已完成的工作:
+- 新增 `src/db/migrator.ts`，提供 Kysely migration runner。
+- 新增 `src/repositories/` 生产 repository 边界：任务、幂等、注册配置、锁租约、批次检查点、文件元信息、审计日志、数据库时间入口。
+- 将 `npm run test:db` 改为真实 DB 测试入口，新增 `tests/db/export-repositories.test.mjs`，不使用内存库或 mock repository。
+- 更新 `docs/testing/verify-matrix.md`、`tests/db/README.md`、`src/db/README.md` 和 `arch:check` 覆盖范围。
+
+阻塞原因:
+- 当前环境没有可用真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL` 未设置，本地 `127.0.0.1:3306` 不通，Docker daemon 未运行。
+- `npm run test:db` 按任务要求明确失败并输出 `BLOCKED - 需要人工介入`，因此任务不能声明完成。
+- 我未提交代码：本任务 Prompt 明确禁止 `git add` / `git commit` / `git push`。
+
+验证结果:
+- `npm run typecheck`: PASS
+- `npm run arch:check`: PASS
+- `npm test`: PASS, 15/15
+- `git diff --check`: PASS
+- `npm run test:db`: FAIL/BLOCKED, 缺少真实 MySQL URL
+- `.\verify.ps1 -Commands @('npm run arch:check','npm run test:db','git diff --check')`: FAIL at `npm run test:db`
+
+需要人工操作:
+1. 准备真实 MySQL 测试库。
+2. 设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，例如 `mysql://user:password@host:3306/export_platform_test`。
+3. 重新运行 DB 验证。
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```

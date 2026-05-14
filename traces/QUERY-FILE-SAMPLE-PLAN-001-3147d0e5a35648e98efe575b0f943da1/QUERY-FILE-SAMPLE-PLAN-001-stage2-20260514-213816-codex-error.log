@@ -1,0 +1,1682 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e26b5-9f92-7bd1-81dd-4edfc70b1b04
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: QUERY-FILE-SAMPLE-PLAN-001
+- 描述: 拆分 query、file、cleanup 和采购订单样板的后续实现任务
+- Requirement IDs:
+- FR-003
+- FR-006
+- FR-008
+- FR-009
+- FR-011
+- FR-014
+- 测试命令: git diff --check -- task.json plans docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/architecture/constraints.md
+- docs/context/architecture-brief.md
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 2 审查口径处理：先读取适用的审查技能说明，然后检查本次 diff、相关任务内容和验证输出，只评估质量、测试、风险与可维护性。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'C:\\Users\\pzy666\\.codex\\skills\\.system\\..\\..\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage2-reviewer\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 667ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+
+ succeeded in 726ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+
+2026-05-14T13:38:37.024911Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 1 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw 'E:\2026\alpha-project\longgang-codex-driver\.agents[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 962ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw 'E:\2026\alpha-project\longgang-codex-driver\.agents[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+codex
+已读取 `code-review` 技能；`stage2-reviewer` 技能文件在本仓库 `.agents/skills/stage2-reviewer/SKILL.md` 不存在，我会按用户给出的 Stage 2 模板继续审查。接下来重点看 `task.json`、`plans` 和 `docs/testing/verify-matrix.md` 的实际改动与证据链。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- task.json plans docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json plans docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 943ms:
+ M docs/testing/verify-matrix.md
+ M plans/features/export-platform.dev-plan.md
+ M task.json
+?? traces/DB-SCHEMA-001-20260514-180239.json
+?? traces/DB-SCHEMA-001-a3b1a66736fa40fb998facbeeb5131b5/
+?? traces/QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1/
+?? traces/SCHEDULER-WORKER-001-20260514-211310.json
+?? traces/SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e/
+?? traces/TASK-API-HTTP-001-20260514-195053.json
+?? traces/TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c/
+
+ succeeded in 919ms:
+ docs/testing/verify-matrix.md              |  19 +-
+ plans/features/export-platform.dev-plan.md |  45 +++--
+ task.json                                  | 312 ++++++++++++++++++++++++++++-
+ 3 files changed, 348 insertions(+), 28 deletions(-)
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 883ms:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index 20656b3..7c1cb24 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -18,8 +18,8 @@
+ | MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+ | 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+ | scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+-| query executor | FR-006 / FR-008 / FR-009 / FR-014 | blocked-by-next-task | 待实现 query 任务 |
+-| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | available / cleanup-entry-only | `src/jobs/cleanup-job.ts`；file service 实现待后续任务 |
++| query executor | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
++| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `tests/file/`、`tests/api/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+ | API / DB / worker 集成测试 | FR-001 - FR-014 | partial / API requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`；worker 联调待后续任务 |
+ | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+ 
+@@ -35,6 +35,9 @@
+ | API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
+ | DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+ | worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
++| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
++| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、ZIP 分片和下载 guard 必须连接真实对象存储或其生产等价环境；依赖不可达时明确 BLOCKED |
++| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、ZIP 和压测证据；真实 MySQL 或对象存储不可达时明确 BLOCKED |
+ | release 验证 | 待实现任务补齐 | fresh evidence 覆盖 P0/P1、失败态和 BLOCKED 项 |
+ 
+ ## Requirement 验证入口
+@@ -43,18 +46,18 @@
+ | --- | --- | --- | --- |
+ | FR-001 | contract / API / DB | HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+ | FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+-| FR-003 | contract / API / file | blocked-by-next-task | `contracts/openapi.yaml`、待创建 file 测试 |
++| FR-003 | contract / API / file | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `contracts/openapi.yaml`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+ | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+ | FR-005 | DB / worker | DB lease repository and worker polling available / requires-real-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-006 | query / file / worker | blocked-by-next-task | 待创建 query/file/worker 测试 |
++| FR-006 | query / file / worker | planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` + `SAMPLE-PURCHASE-ORDER-001` | `tests/query/`、`tests/file/`、`tests/worker/`、`tests/sample/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+ | FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-008 | query / DB / security | blocked-by-next-task | 待创建 query template 与数据范围测试 |
+-| FR-009 | API / query / security | API auth context consumed / query masking still blocked-by-query-task | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs` |
++| FR-008 | query / DB / security | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
++| FR-009 | API / query / security | API auth context consumed / query+file planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实依赖不可用时记录 `BLOCKED - 需要人工介入` |
+ | FR-010 | audit / API / worker | API and worker audit writes wired / requires-real-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-011 | file / cleanup job | blocked-by-next-task | 待创建 cleanup job 测试 |
++| FR-011 | file / cleanup job | planned-by `CLEANUP-JOB-001` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+ | FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+ | FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-014 | sample / pressure / end-to-end | blocked-by-next-task | 待创建采购订单样板与压测证据 |
++| FR-014 | sample / pressure / end-to-end | planned-by `SAMPLE-PURCHASE-ORDER-001` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+ | STACK-ADR-001 | design / planned / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+ 
+ ## STACK-ADR-001 验证细则
+diff --git a/plans/features/export-platform.dev-plan.md b/plans/features/export-platform.dev-plan.md
+index fca6372..d140261 100644
+--- a/plans/features/export-platform.dev-plan.md
++++ b/plans/features/export-platform.dev-plan.md
+@@ -1,7 +1,7 @@
+ # DEV-PLAN：统一导出平台
+ 
+ **Feature ID**: `FEAT-EXPORT-PLATFORM-001`
+-**最后更新**: 2026-05-13
++**最后更新**: 2026-05-14
+ **用途**: 给后续实现任务提供可直接执行的拆分、边界、验证顺序和证据路径。
+ 
+ ## 1. 计划目标
+@@ -20,9 +20,9 @@
+ | P3 | 创建测试骨架 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | planned / blocked-by-contract 转为可执行 |
+ | P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等；创建成功响应必须回传 `idempotencyScope` | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
+ | P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
+-| P6 | 实现 file-service 与 cleanup-job | 临时对象、发布、过期清理、下载保护 | P2/P3 | FR-003、FR-011 |
+-| P7 | 实现 cancel/retry 和权限/脱敏 | 状态机、内部取消、权限和脱敏收口 | P2/P3 | FR-009、FR-012 |
+-| P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P4/P5/P6/P7 | FR-014 |
++| P6 | 实现 file-service | 临时对象、发布校验、下载元信息、分片打包 | P2/P3/P5 | FR-003、FR-006、FR-009 |
++| P7 | 实现 cleanup-job | 过期失效、对象删除、失败重试记录 | P2/P3/P6 | FR-003、FR-011 |
++| P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P5/P6/P7 | FR-014 |
+ 
+ ## 3. 模块边界与 owned paths
+ 
+@@ -55,17 +55,26 @@
+ | T12 cancel/retry / auth-mask | T2、T4、T6 | 依赖状态机、认证上下文和脱敏契约 |
+ | T13 purchase-order sample | T7、T8、T9、T10、T11、T12 | 依赖主链路稳定后再补样板压测和边界证据 |
+ 
++## 4.1 QUERY-FILE-SAMPLE-PLAN-001 落盘任务表
++
++| Task ID | 目标 | Dependencies | Owned paths | Verification | Evidence entry |
++| --- | --- | --- | --- | --- | --- |
++| `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
++| `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
++| `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
++| `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
++
+ ## 5. 验证顺序
+ 
+ 1. `git diff --check`
+ 2. `contracts/` 目录结构与 README 约定校验
+ 3. 契约文件校验
+-4. 契约测试
+-5. 后端单测
+-6. 调度和查询测试
+-7. 文件生成与清理测试
+-8. 采购订单样板压测和证据检查
+-9. `npm run arch:check`
++4. `npm run arch:check`
++5. `QUERY-EXECUTOR-001`: `npm run test:query`、`npm run test:worker`、`npm run test:db`
++6. `FILE-SERVICE-001`: `npm run test:file`、`npm run test:api`、`npm run test:db`
++7. `CLEANUP-JOB-001`: `npm run test:file`、`npm run test:worker`、`npm run test:db`
++8. `SAMPLE-PURCHASE-ORDER-001`: `npm run test:sample`、`npm run test:query`、`npm run test:file`、`npm run test:db`
++9. 真实 MySQL、对象存储或采购订单样板外部依赖不可达时输出 `BLOCKED - 需要人工介入`，不得用替身补齐 release 证据
+ 
+ ## 5.1 架构决策到实现任务映射
+ 
+@@ -98,20 +107,18 @@
+ 
+ ## 7. 后续实现任务建议
+ 
+-- 任务 A：已由 CONTRACT-001 复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001/002/003/004/007/008/009/010/012/013 的接口、状态、错误码和注册配置契约，包含 FR-002 的查询进度/详情路径，以及创建成功响应的 `idempotencyScope` 证据字段。
+-- 任务 B：落 `contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/`，把能力分区和示例契约先锚住。
+-- 任务 C：落 `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`，为创建、查询、进度/详情、下载、注册、调度、文件和样板建立最小测试骨架。
+-- 任务 D：落 `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/repositories/`、`src/db/`、`migrations/`，先完成主入口、注册配置、持久化和调度链路的最小可用实现。
+-- 任务 E：补 `src/query-executor/` 与 `src/file-service/`，最后接 `src/cleanup-job/`、`src/audit-log/`、`src/workers/`、`src/jobs/`、`scripts/arch-check.ts` 和样板压测。
+-- 任务 F：创建 `scripts/arch-check.ts` 与 `npm run arch:check`，把入口存在性、OpenAPI 路由映射、替身禁用、migration 覆盖和测试脚本完整性做成强制门槛。
++- `QUERY-EXECUTOR-001` 只负责 query-executor 生产链路，不承担 file-service、cleanup-job 或采购订单样板特例实现。
++- `FILE-SERVICE-001` 只负责文件发布与下载元信息，不承担 cleanup 删除逻辑。
++- `CLEANUP-JOB-001` 只负责先失效再删除和失败重试记录，不重写 query/file 主链路。
++- `SAMPLE-PURCHASE-ORDER-001` 只负责样板合同和边界证据，必须复用标准 registry/query/file/audit 链路，不新增采购订单平台特例接口。
+ 
+ ## 8. 验收顺序说明
+ 
+ - 先验收 FR-001、FR-002、FR-013，确认任务创建、查询进度/详情、幂等、配置快照和锁租约。
+-- 再验收 FR-008、FR-009，确认查询契约、数据范围和脱敏。
+-- 再验收 FR-006、FR-003、FR-011，确认分片、文件发布和过期清理。
++- 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
++- 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
+ - 再验收 FR-012，确认取消和重试状态机。
+-- 最后验收 FR-014，确认采购订单样板可作为主样板和压测证据。
++- 最后验收 `SAMPLE-PURCHASE-ORDER-001`，确认 FR-014 可作为主样板和压测证据，且真实依赖不可用时明确 BLOCKED。
+ 
+ ## 8.1 CONTRACT-001 契约验证入口
+ 
+diff --git a/task.json b/task.json
+index bfb5998..36b8b53 100644
+--- a/task.json
++++ b/task.json
+@@ -632,6 +632,313 @@
+                                          "每个未实现需求都有明确 blocked 或 planned 证据入口"
+                                      ]
+                   },
++                  {
++                      "id":  "QUERY-EXECUTOR-001",
++                      "description":  "实现 query-executor 生产链路，覆盖集中查询、数据范围、字段映射、脱敏和批次检查点",
++                      "task_kind":  "feature_impl",
++                      "phase":  "query-executor",
++                      "gate_profile":  "spec_required",
++                      "required_truth_sources":  [
++                                                     "product",
++                                                     "architecture",
++                                                     "contract",
++                                                     "testing"
++                                                 ],
++                      "priority":  65,
++                      "dependencies":  [
++                                           "QUERY-FILE-SAMPLE-PLAN-001",
++                                           "TASK-API-HTTP-001",
++                                           "SCHEDULER-WORKER-001"
++                                       ],
++                      "passes":  false,
++                      "architecture_constraints":  [
++                                                       "delivery_shape=independent_microservice，生产交付仍是独立 HTTP 服务 + worker + scheduled_job，不把 query-executor 降级为脚本或领域原型",
++                                                       "data_boundary=生产路径必须使用真实 MySQL 持久化批次检查点、配置快照、审计串联；对象存储或真实文件交付依赖若不可用需明确 BLOCKED，不得改用内存替身冒充完成",
++                                                       "http_worker_boundary=query-executor 只由已存在的 HTTP/task-api 与 scheduler worker 调用，不新增平台外特例入口；批次执行、续租和接管必须保持 worker/job 边界清晰",
++                                                       "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须以真实 MySQL query/worker 路径为主，真实依赖不可达时记录 BLOCKED - 需要人工介入"
++                                                   ],
++                      "forbidden_implementations":  [
++                                                        "禁止使用 InMemory、mock 或 fixture repository 作为 query-executor 生产实现或验收证据",
++                                                        "禁止执行调用方传入的原始 SQL，查询模板必须来自注册配置并受参数 schema 白名单约束",
++                                                        "禁止只靠 git diff --check、文档更新或契约存在就声明 query-executor 完成",
++                                                        "禁止绕过 HTTP/worker/job 边界，把集中查询、数据范围或脱敏逻辑塞进采购订单平台特例接口"
++                                                    ],
++                      "context_files":  [
++                                            "docs/architecture/constraints.md",
++                                            "docs/context/architecture-brief.md",
++                                            "docs/product/prd-lite.md",
++                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
++                                            "docs/testing/TRACEABILITY_MATRIX.md",
++                                            "docs/testing/verify-matrix.md",
++                                            "plans/features/export-platform.dev-plan.md",
++                                            "contracts/openapi.yaml",
++                                            "task.json"
++                                        ],
++                      "owned_paths":  [
++                                          "src/query-executor/",
++                                          "src/repositories/",
++                                          "src/audit-log/",
++                                          "tests/query/",
++                                          "tests/worker/",
++                                          "docs/testing/verify-matrix.md"
++                                      ],
++                      "requirement_ids":  [
++                                              "FR-006",
++                                              "FR-008",
++                                              "FR-009",
++                                              "FR-010",
++                                              "FR-014"
++                                          ],
++                      "produces_artifacts":  [
++                                                 "src/query-executor/",
++                                                 "tests/query/",
++                                                 "tests/worker/",
++                                                 "docs/testing/verify-matrix.md"
++                                             ],
++                      "execution":  {
++                                        "mode":  "single"
++                                    },
++                      "steps":  [
++                                    "实现注册配置驱动的参数 schema 校验、参数化查询模板绑定、数据范围叠加、字段映射和脱敏校验",
++                                    "持久化批次检查点、批次事件和失败收口，确保 worker 接管延续当前 attemptNo 并从最近检查点继续",
++                                    "补齐 query/worker 集成测试，验证真实 MySQL 下的模板执行、数据范围、脱敏失败和批次重试；对象存储或外部数据源不可用时明确 BLOCKED"
++                                ],
++                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
++                      "acceptance":  [
++                                         "FR-008 的模板、字段映射、脱敏和数据范围约束具备生产路径证据",
++                                         "FR-006 的批次检查点、阶段事件和接管继续由真实 MySQL 测试覆盖，依赖不可达时明确 BLOCKED",
++                                         "FR-009 的查询数据范围与脱敏失败路径不依赖 InMemory/mock 实现"
++                                     ]
++                  },
++                  {
++                      "id":  "FILE-SERVICE-001",
++                      "description":  "实现 file-service 生产链路，覆盖临时对象写入、发布校验、下载元信息和分片打包",
++                      "task_kind":  "feature_impl",
++                      "phase":  "file-service",
++                      "gate_profile":  "spec_required",
++                      "required_truth_sources":  [
++                                                     "product",
++                                                     "architecture",
++                                                     "contract",
++                                                     "testing"
++                                                 ],
++                      "priority":  70,
++                      "dependencies":  [
++                                           "QUERY-EXECUTOR-001"
++                                       ],
++                      "passes":  false,
++                      "architecture_constraints":  [
++                                                       "delivery_shape=independent_microservice，file-service 作为独立服务内部模块协作 query-executor / task-api / cleanup-job，不新增独立平台特例接口",
++                                                       "data_boundary=文件元信息、发布状态、checksum、expiresAt 和 attemptNo 必须走真实 MySQL；对象交付必须走真实对象存储或明确 BLOCKED，不得以内存文件系统冒充生产完成",
++                                                       "http_worker_boundary=下载仍经 HTTP API 暴露已发布对象元信息，文件生成由 worker 驱动，cleanup 作为独立 job 处理，不把发布/下载/清理混在一个入口里",
++                                                       "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收至少包含 file/API 路径验证，真实对象存储不可用时记录 BLOCKED - 需要人工介入"
++                                                   ],
++                      "forbidden_implementations":  [
++                                                        "禁止使用 InMemory、mock 或 fixture 存储适配器作为 file-service 生产实现或验收证据",
++                                                        "禁止让下载接口返回未发布对象、临时对象或未完成 checksum 校验的文件",
++                                                        "禁止只靠 git diff --check、文档更新或契约存在就声明 file-service 完成",
++                                                        "禁止把采购订单样板下载做成平台特例接口，必须复用标准 file-service 与 task-api 下载链路"
++                                                    ],
++                      "context_files":  [
++                                            "docs/architecture/constraints.md",
++                                            "docs/context/architecture-brief.md",
++                                            "docs/product/prd-lite.md",
++                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
++                                            "docs/testing/TRACEABILITY_MATRIX.md",
++                                            "docs/testing/verify-matrix.md",
++                                            "plans/features/export-platform.dev-plan.md",
++                                            "contracts/openapi.yaml",
++                                            "task.json"
++                                        ],
++                      "owned_paths":  [
++                                          "src/file-service/",
++                                          "src/task-api/",
++                                          "src/repositories/",
++                                          "tests/file/",
++                                          "tests/api/",
++                                          "docs/testing/verify-matrix.md"
++                                      ],
++                      "requirement_ids":  [
++                                              "FR-003",
++                                              "FR-006",
++                                              "FR-009",
++                                              "FR-011",
++                                              "FR-014"
++                                          ],
++                      "produces_artifacts":  [
++                                                 "src/file-service/",
++                                                 "tests/file/",
++                                                 "tests/api/",
++                                                 "docs/testing/verify-matrix.md"
++                                             ],
++                      "execution":  {
++                                        "mode":  "single"
++                                    },
++                      "steps":  [
++                                    "实现 tempStorageKey 写入、内容与元信息校验、publishedStorageKey 发布和下载元信息持久化",
++                                    "实现单文件阈值、ZIP 打包、空数据仅表头文件和交付准备事件，与 query-executor 阶段事件串联",
++                                    "补齐 file/API 集成测试，验证已发布对象下载、未发布对象拒绝、校验失败收口和对象存储不可用时的 BLOCKED 记录"
++                                ],
++                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
++                      "acceptance":  [
++                                         "FR-003 的已发布对象下载、元信息和权限前置边界具备生产路径证据",
++                                         "FR-006 的分片、打包、空数据和 file 事件能与 query-executor 串联",
++                                         "真实对象存储不可用时不伪造通过，明确输出 BLOCKED - 需要人工介入"
++                                     ]
++                  },
++                  {
++                      "id":  "CLEANUP-JOB-001",
++                      "description":  "实现 cleanup-job 生产链路，覆盖过期失效、对象清理和失败重试记录",
++                      "task_kind":  "feature_impl",
++                      "phase":  "cleanup-job",
++                      "gate_profile":  "spec_required",
++                      "required_truth_sources":  [
++                                                     "product",
++                                                     "architecture",
++                                                     "contract",
++                                                     "testing"
++                                                 ],
++                      "priority":  75,
++                      "dependencies":  [
++                                           "FILE-SERVICE-001"
++                                       ],
++                      "passes":  false,
++                      "architecture_constraints":  [
++                                                       "delivery_shape=independent_microservice，cleanup 作为独立 scheduled_job entry 运行，不把过期清理折叠回 HTTP handler 或 query worker",
++                                                       "data_boundary=过期标记、删除结果、失败原因和可重试记录必须走真实 MySQL；对象删除必须连接真实对象存储或明确 BLOCKED",
++                                                       "http_worker_boundary=cleanup-job 只处理先失效再删除的后台作业边界，不直接承担下载或查询职责",
++                                                       "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须覆盖 cleanup/file 路径，真实对象存储不可达时记录 BLOCKED - 需要人工介入"
++                                                   ],
++                      "forbidden_implementations":  [
++                                                        "禁止使用 InMemory、mock 或 fixture 清理仓库作为 cleanup-job 生产实现或验收证据",
++                                                        "禁止跳过先标记不可下载的步骤直接删除对象，或删除后仍可下载未发布/已过期对象",
++                                                        "禁止只靠 git diff --check、文档更新或契约存在就声明 cleanup-job 完成",
++                                                        "禁止为采购订单样板单独实现清理特例入口，必须复用标准 cleanup-job 链路"
++                                                    ],
++                      "context_files":  [
++                                            "docs/architecture/constraints.md",
++                                            "docs/context/architecture-brief.md",
++                                            "docs/product/prd-lite.md",
++                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
++                                            "docs/testing/TRACEABILITY_MATRIX.md",
++                                            "docs/testing/verify-matrix.md",
++                                            "plans/features/export-platform.dev-plan.md",
++                                            "contracts/openapi.yaml",
++                                            "task.json"
++                                        ],
++                      "owned_paths":  [
++                                          "src/cleanup-job/",
++                                          "src/jobs/",
++                                          "src/repositories/",
++                                          "tests/file/",
++                                          "tests/worker/",
++                                          "docs/testing/verify-matrix.md"
++                                      ],
++                      "requirement_ids":  [
++                                              "FR-003",
++                                              "FR-011"
++                                          ],
++                      "produces_artifacts":  [
++                                                 "src/cleanup-job/",
++                                                 "src/jobs/",
++                                                 "tests/file/",
++                                                 "tests/worker/",
++                                                 "docs/testing/verify-matrix.md"
++                                             ],
++                      "execution":  {
++                                        "mode":  "single"
++                                    },
++                      "steps":  [
++                                    "实现 cleanup job entry、过期扫描、不可下载标记、对象删除和失败重试记录",
++                                    "把清理动作与 file metadata、下载 guard 和审计事件串联，保证删除失败仍保留可追踪记录",
++                                    "补齐 cleanup/file/worker 测试，验证先失效后删除、删除失败重试和真实对象存储不可用时的 BLOCKED 处理"
++                                ],
++                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
++                      "acceptance":  [
++                                         "FR-011 的先失效再删除、失败重试和审计串联具备生产路径证据",
++                                         "FR-003 的过期后下载拒绝由 cleanup 与 file 链路共同验证",
++                                         "真实对象存储不可用时明确 BLOCKED，不得以内存适配器冒充清理完成"
++                                     ]
++                  },
++                  {
++                      "id":  "SAMPLE-PURCHASE-ORDER-001",
++                      "description":  "实现采购订单样板合同与真实回归证据，复用标准 query、file、audit 链路",
++                      "task_kind":  "feature_impl",
++                      "phase":  "sample-purchase-order",
++                      "gate_profile":  "spec_required",
++                      "required_truth_sources":  [
++                                                     "product",
++                                                     "architecture",
++                                                     "contract",
++                                                     "testing"
++                                                 ],
++                      "priority":  80,
++                      "dependencies":  [
++                                           "QUERY-EXECUTOR-001",
++                                           "FILE-SERVICE-001",
++                                           "CLEANUP-JOB-001"
++                                       ],
++                      "passes":  false,
++                      "architecture_constraints":  [
++                                                       "delivery_shape=independent_microservice，采购订单样板只是平台标准能力的可执行合同，不新增独立微服务或采购订单特例接口",
++                                                       "data_boundary=样板查询、文件、审计和压测证据必须走真实 MySQL 与真实对象存储，任一真实依赖不可用时明确 BLOCKED",
++                                                       "http_worker_boundary=样板必须复用 task-api、scheduler worker、query-executor、file-service、cleanup-job 与 audit-log 标准边界，不绕过 HTTP/worker/job 主链路",
++                                                       "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须覆盖 sample/query/file 真实链路与边界数据，真实依赖不可达时记录 BLOCKED - 需要人工介入"
++                                                   ],
++                      "forbidden_implementations":  [
++                                                        "禁止使用 InMemory、mock 或 fixture registry/query/file 实现来冒充采购订单样板完成",
++                                                        "禁止执行采购订单平台特例原始 SQL 或绕过注册配置、字段映射、脱敏和数据范围约束",
++                                                        "禁止让采购订单下载直接返回未发布对象，或通过样板专用下载接口绕过标准 file-service",
++                                                        "禁止只靠 git diff --check、文档更新或压测说明文档就声明采购订单样板完成"
++                                                    ],
++                      "context_files":  [
++                                            "docs/architecture/constraints.md",
++                                            "docs/context/architecture-brief.md",
++                                            "docs/product/prd-lite.md",
++                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
++                                            "docs/testing/TRACEABILITY_MATRIX.md",
++                                            "docs/testing/verify-matrix.md",
++                                            "plans/features/export-platform.dev-plan.md",
++                                            "contracts/openapi.yaml",
++                                            "task.json"
++                                        ],
++                      "owned_paths":  [
++                                          "src/query-executor/",
++                                          "src/file-service/",
++                                          "src/audit-log/",
++                                          "tests/sample/",
++                                          "tests/query/",
++                                          "tests/file/",
++                                          "docs/testing/verify-matrix.md"
++                                      ],
++                      "requirement_ids":  [
++                                              "FR-006",
++                                              "FR-008",
++                                              "FR-009",
++                                              "FR-010",
++                                              "FR-014"
++                                          ],
++                      "produces_artifacts":  [
++                                                 "tests/sample/",
++                                                 "tests/query/",
++                                                 "tests/file/",
++                                                 "docs/testing/verify-matrix.md"
++                                             ],
++                      "execution":  {
++                                        "mode":  "single"
++                                    },
++                      "steps":  [
++                                    "落地 purchase-order-export 注册配置、字段顺序、敏感字段脱敏和稳定游标排序要求，并复用标准 query/file/audit 链路",
++                                    "补齐 0/1/20000/20001/100000/100001 行边界验证、ZIP 分片、下载审计和 10 万行压测证据入口",
++                                    "在 sample/query/file 测试中验证无特例接口、无原始 SQL、无未发布对象下载；真实依赖不可用时明确 BLOCKED"
++                                ],
++                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
++                      "acceptance":  [
++                                         "FR-014 的采购订单样板通过标准 registry/query/file/audit 链路交付，不存在平台特例接口",
++                                         "边界数据、压测、敏感字段脱敏和下载证据具备真实依赖验证；依赖不可达时明确 BLOCKED",
++                                         "样板同时回归 FR-006/008/009/010 的主链路证据"
++                                     ]
++                  },
+                   {
+                       "id":  "RELEASE-001",
+                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
+@@ -646,7 +953,10 @@
+                                                  ],
+                       "priority":  90,
+                       "dependencies":  [
+-                                           "QUERY-FILE-SAMPLE-PLAN-001"
++                                           "QUERY-EXECUTOR-001",
++                                           "FILE-SERVICE-001",
++                                           "CLEANUP-JOB-001",
++                                           "SAMPLE-PURCHASE-ORDER-001"
+                                        ],
+                       "passes":  false,
+                       "context_files":  [
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 801ms:
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+
+codex
+初看本次是任务拆分和验证矩阵更新，没有生产代码改动。`git diff --check` 通过且只有换行提示；我还需要确认 `task.json` 的 JSON 可解析性、任务依赖链和新增验证命令是否存在明显质量缺口。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$json = Get-Content -Raw task.json | ConvertFrom-Json; $json.tasks | Where-Object id -in @('"'QUERY-FILE-SAMPLE-PLAN-001','QUERY-EXECUTOR-001','FILE-SERVICE-001','CLEANUP-JOB-001','SAMPLE-PURCHASE-ORDER-001','RELEASE-001') | Select-Object id,passes,priority,dependencies,test_command | Format-List" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "QUERY-FILE-SAMPLE-PLAN-001|QUERY-EXECUTOR-001|FILE-SERVICE-001|CLEANUP-JOB-001|SAMPLE-PURCHASE-ORDER-001|RELEASE-001|test:query|test:file|test:sample" task.json docs/testing/verify-matrix.md plans/features/export-platform.dev-plan.md package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --numstat -- task.json plans docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 915ms:
+
+[32;1mid           : [0mQUERY-FILE-SAMPLE-PLAN-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m60
+[32;1mdependencies : [0m{SCHEDULER-WORKER-001}
+[32;1mtest_command : [0mgit diff --check -- task.json plans docs/testing/verify-matrix.md
+
+[32;1mid           : [0mQUERY-EXECUTOR-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m65
+[32;1mdependencies : [0m{QUERY-FILE-SAMPLE-PLAN-001, TASK-API-HTTP-001, SCHEDULER-WORKER-001}
+[32;1mtest_command : [0mpowershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('
+               npm run arch:check','npm run test:query','npm run test:worker','npm run test:d
+               b','git diff --check -- task.json plans docs/testing/verify-matrix.md')
+
+[32;1mid           : [0mFILE-SERVICE-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m70
+[32;1mdependencies : [0m{QUERY-EXECUTOR-001}
+[32;1mtest_command : [0mpowershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('
+               npm run arch:check','npm run test:file','npm run test:api','npm run test:db','
+               git diff --check -- task.json plans docs/testing/verify-matrix.md')
+
+[32;1mid           : [0mCLEANUP-JOB-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m75
+[32;1mdependencies : [0m{FILE-SERVICE-001}
+[32;1mtest_command : [0mpowershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('
+               npm run arch:check','npm run test:file','npm run test:worker','npm run test:db
+               ','git diff --check -- task.json plans docs/testing/verify-matrix.md')
+
+[32;1mid           : [0mSAMPLE-PURCHASE-ORDER-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m80
+[32;1mdependencies : [0m{QUERY-EXECUTOR-001, FILE-SERVICE-001, CLEANUP-JOB-001}
+[32;1mtest_command : [0mpowershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('
+               npm run arch:check','npm run test:sample','npm run test:query','npm run test:f
+               ile','npm run test:db','git diff --check -- task.json plans docs/testing/verif
+               y-matrix.md')
+
+[32;1mid           : [0mRELEASE-001
+[32;1mpasses       : [0mFalse
+[32;1mpriority     : [0m90
+[32;1mdependencies : [0m{QUERY-EXECUTOR-001, FILE-SERVICE-001, CLEANUP-JOB-001, SAMPLE-PURCHASE-ORDER-
+               001}
+[32;1mtest_command : [0mpowershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
+
+
+ succeeded in 901ms:
+plans/features/export-platform.dev-plan.md:58:## 4.1 QUERY-FILE-SAMPLE-PLAN-001 落盘任务表
+plans/features/export-platform.dev-plan.md:62:| `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+plans/features/export-platform.dev-plan.md:63:| `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+plans/features/export-platform.dev-plan.md:64:| `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+plans/features/export-platform.dev-plan.md:65:| `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+plans/features/export-platform.dev-plan.md:73:5. `QUERY-EXECUTOR-001`: `npm run test:query`、`npm run test:worker`、`npm run test:db`
+plans/features/export-platform.dev-plan.md:74:6. `FILE-SERVICE-001`: `npm run test:file`、`npm run test:api`、`npm run test:db`
+plans/features/export-platform.dev-plan.md:75:7. `CLEANUP-JOB-001`: `npm run test:file`、`npm run test:worker`、`npm run test:db`
+plans/features/export-platform.dev-plan.md:76:8. `SAMPLE-PURCHASE-ORDER-001`: `npm run test:sample`、`npm run test:query`、`npm run test:file`、`npm run test:db`
+plans/features/export-platform.dev-plan.md:110:- `QUERY-EXECUTOR-001` 只负责 query-executor 生产链路，不承担 file-service、cleanup-job 或采购订单样板特例实现。
+plans/features/export-platform.dev-plan.md:111:- `FILE-SERVICE-001` 只负责文件发布与下载元信息，不承担 cleanup 删除逻辑。
+plans/features/export-platform.dev-plan.md:112:- `CLEANUP-JOB-001` 只负责先失效再删除和失败重试记录，不重写 query/file 主链路。
+plans/features/export-platform.dev-plan.md:113:- `SAMPLE-PURCHASE-ORDER-001` 只负责样板合同和边界证据，必须复用标准 registry/query/file/audit 链路，不新增采购订单平台特例接口。
+plans/features/export-platform.dev-plan.md:118:- 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
+plans/features/export-platform.dev-plan.md:119:- 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
+plans/features/export-platform.dev-plan.md:121:- 最后验收 `SAMPLE-PURCHASE-ORDER-001`，确认 FR-014 可作为主样板和压测证据，且真实依赖不可用时明确 BLOCKED。
+docs/testing/verify-matrix.md:21:| query executor | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:22:| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `tests/file/`、`tests/api/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:38:| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+docs/testing/verify-matrix.md:39:| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、ZIP 分片和下载 guard 必须连接真实对象存储或其生产等价环境；依赖不可达时明确 BLOCKED |
+docs/testing/verify-matrix.md:40:| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、ZIP 和压测证据；真实 MySQL 或对象存储不可达时明确 BLOCKED |
+docs/testing/verify-matrix.md:49:| FR-003 | contract / API / file | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `contracts/openapi.yaml`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:52:| FR-006 | query / file / worker | planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` + `SAMPLE-PURCHASE-ORDER-001` | `tests/query/`、`tests/file/`、`tests/worker/`、`tests/sample/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:54:| FR-008 | query / DB / security | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:55:| FR-009 | API / query / security | API auth context consumed / query+file planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实依赖不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:57:| FR-011 | file / cleanup job | planned-by `CLEANUP-JOB-001` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:60:| FR-014 | sample / pressure / end-to-end | planned-by `SAMPLE-PURCHASE-ORDER-001` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:69:| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+package.json:30:    "test:query": "node scripts/planned-test.mjs query",
+package.json:31:    "test:file": "node scripts/planned-test.mjs file",
+package.json:32:    "test:sample": "node scripts/planned-test.mjs sample"
+task.json:579:                      "id":  "QUERY-FILE-SAMPLE-PLAN-001",
+task.json:636:                      "id":  "QUERY-EXECUTOR-001",
+task.json:649:                                           "QUERY-FILE-SAMPLE-PLAN-001",
+task.json:706:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:714:                      "id":  "FILE-SERVICE-001",
+task.json:727:                                           "QUERY-EXECUTOR-001"
+task.json:782:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:790:                      "id":  "CLEANUP-JOB-001",
+task.json:803:                                           "FILE-SERVICE-001"
+task.json:856:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:864:                      "id":  "SAMPLE-PURCHASE-ORDER-001",
+task.json:877:                                           "QUERY-EXECUTOR-001",
+task.json:878:                                           "FILE-SERVICE-001",
+task.json:879:                                           "CLEANUP-JOB-001"
+task.json:935:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:943:                      "id":  "RELEASE-001",
+task.json:956:                                           "QUERY-EXECUTOR-001",
+task.json:957:                                           "FILE-SERVICE-001",
+task.json:958:                                           "CLEANUP-JOB-001",
+task.json:959:                                           "SAMPLE-PURCHASE-ORDER-001"
+
+ succeeded in 904ms:
+11	8	docs/testing/verify-matrix.md
+26	19	plans/features/export-platform.dev-plan.md
+311	1	task.json
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'plans/features/export-platform.dev-plan.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 920ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "kysely": "^0.27.4",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test tests/worker/*.test.mjs",
+    "test:query": "node scripts/planned-test.mjs query",
+    "test:file": "node scripts/planned-test.mjs file",
+    "test:sample": "node scripts/planned-test.mjs sample"
+  }
+}
+
+
+codex
+`task.json` 可以被 PowerShell JSON parser 解析，新增任务脚本名也已在 `package.json` 中登记为 planned tests。现在我会抽查新增任务的约束、禁止实现、owned paths 与 release 依赖，判断是否有阻塞性的可维护性或验证风险。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content plans/features/export-platform.dev-plan.md | ForEach-Object { $i++; if ($i -ge 55 -and $i -le 123) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content task.json | ForEach-Object { $i++; if ($i -ge 579 -and $i -le 970) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content docs/testing/verify-matrix.md | ForEach-Object { $i++; if ($i -ge 15 -and $i -le 70) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw scripts/planned-test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 755ms:
+  15: | STACK-ADR-001 设计 / 计划基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design / planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+  16: | OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
+  17: | 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / route-handler-service-db wired | `src/server.ts`、`src/routes/route-manifest.ts`、`src/task-api/service.ts`、`src/registry-config/service.ts`、`src/audit-log/service.ts`、`tests/api/export-http-api.test.mjs` |
+  18: | MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+  19: | 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+  20: | scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+  21: | query executor | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+  22: | file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `tests/file/`、`tests/api/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  23: | API / DB / worker 集成测试 | FR-001 - FR-014 | partial / API requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`；worker 联调待后续任务 |
+  24: | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+  25: 
+  26: ## 计划验证入口
+  27: 
+  28: | 阶段 | 命令 / 证据 | 最低要求 |
+  29: | --- | --- | --- |
+  30: | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
+  31: | 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+  32: | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
+  33: | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
+  34: | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
+  35: | API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
+  36: | DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+  37: | worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+  38: | query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+  39: | file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、ZIP 分片和下载 guard 必须连接真实对象存储或其生产等价环境；依赖不可达时明确 BLOCKED |
+  40: | sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、ZIP 和压测证据；真实 MySQL 或对象存储不可达时明确 BLOCKED |
+  41: | release 验证 | 待实现任务补齐 | fresh evidence 覆盖 P0/P1、失败态和 BLOCKED 项 |
+  42: 
+  43: ## Requirement 验证入口
+  44: 
+  45: | Req ID | 后续验证类型 | 当前状态 | 证据路径 |
+  46: | --- | --- | --- | --- |
+  47: | FR-001 | contract / API / DB | HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+  48: | FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+  49: | FR-003 | contract / API / file | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `contracts/openapi.yaml`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  50: | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+  51: | FR-005 | DB / worker | DB lease repository and worker polling available / requires-real-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+  52: | FR-006 | query / file / worker | planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` + `SAMPLE-PURCHASE-ORDER-001` | `tests/query/`、`tests/file/`、`tests/worker/`、`tests/sample/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  53: | FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+  54: | FR-008 | query / DB / security | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+  55: | FR-009 | API / query / security | API auth context consumed / query+file planned-by `QUERY-EXECUTOR-001` + `FILE-SERVICE-001` | `src/audit-log/auth-context.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实依赖不可用时记录 `BLOCKED - 需要人工介入` |
+  56: | FR-010 | audit / API / worker | API and worker audit writes wired / requires-real-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+  57: | FR-011 | file / cleanup job | planned-by `CLEANUP-JOB-001` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  58: | FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+  59: | FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+  60: | FR-014 | sample / pressure / end-to-end | planned-by `SAMPLE-PURCHASE-ORDER-001` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  61: | STACK-ADR-001 | design / planned / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+  62: 
+  63: ## STACK-ADR-001 验证细则
+  64: 
+  65: `scripts/arch-check.ts` / `npm run arch:check` 的最低检查项、适用范围和状态如下：
+  66: 
+  67: | 项目 | 内容 |
+  68: | --- | --- |
+  69: | 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+  70: | 适用范围 | 后续 `feature_impl` 的固定架构门禁；适用于脚手架、实现、worker、db、file 和 sample 相关任务 |
+
+ succeeded in 779ms:
+ 579:                       "id":  "QUERY-FILE-SAMPLE-PLAN-001",
+ 580:                       "description":  "拆分 query、file、cleanup 和采购订单样板的后续实现任务",
+ 581:                       "task_kind":  "feature_plan",
+ 582:                       "phase":  "implementation-planning",
+ 583:                       "gate_profile":  "spec_required",
+ 584:                       "required_truth_sources":  [
+ 585:                                                      "product",
+ 586:                                                      "architecture",
+ 587:                                                      "contract",
+ 588:                                                      "testing"
+ 589:                                                  ],
+ 590:                       "priority":  60,
+ 591:                       "dependencies":  [
+ 592:                                            "SCHEDULER-WORKER-001"
+ 593:                                        ],
+ 594:                       "passes":  false,
+ 595:                       "context_files":  [
+ 596:                                             "docs/product/prd-lite.md",
+ 597:                                             "docs/architecture/constraints.md",
+ 598:                                             "docs/context/architecture-brief.md",
+ 599:                                             "docs/testing/verify-matrix.md",
+ 600:                                             "task.json"
+ 601:                                         ],
+ 602:                       "owned_paths":  [
+ 603:                                           "task.json",
+ 604:                                           "plans/features/",
+ 605:                                           "docs/testing/verify-matrix.md"
+ 606:                                       ],
+ 607:                       "requirement_ids":  [
+ 608:                                               "FR-003",
+ 609:                                               "FR-006",
+ 610:                                               "FR-008",
+ 611:                                               "FR-009",
+ 612:                                               "FR-011",
+ 613:                                               "FR-014"
+ 614:                                           ],
+ 615:                       "produces_artifacts":  [
+ 616:                                                  "task.json",
+ 617:                                                  "plans/features/export-platform.dev-plan.md",
+ 618:                                                  "docs/testing/verify-matrix.md"
+ 619:                                              ],
+ 620:                       "execution":  {
+ 621:                                         "mode":  "single"
+ 622:                                     },
+ 623:                       "steps":  [
+ 624:                                     "基于已验证的 API、DB 和 worker 边界拆分 query-executor、file-service、cleanup-job 和 sample-purchase-order 任务",
+ 625:                                     "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+ 626:                                     "确保后续任务能覆盖集中查询、字段映射、脱敏、文件发布、清理和 10 万行样板证据"
+ 627:                                 ],
+ 628:                       "test_command":  "git diff --check -- task.json plans docs/testing/verify-matrix.md",
+ 629:                       "acceptance":  [
+ 630:                                          "query/file/sample 不再与 API 或 scheduler 混在一个大任务中",
+ 631:                                          "后续任务具备可验证生产路径",
+ 632:                                          "每个未实现需求都有明确 blocked 或 planned 证据入口"
+ 633:                                      ]
+ 634:                   },
+ 635:                   {
+ 636:                       "id":  "QUERY-EXECUTOR-001",
+ 637:                       "description":  "实现 query-executor 生产链路，覆盖集中查询、数据范围、字段映射、脱敏和批次检查点",
+ 638:                       "task_kind":  "feature_impl",
+ 639:                       "phase":  "query-executor",
+ 640:                       "gate_profile":  "spec_required",
+ 641:                       "required_truth_sources":  [
+ 642:                                                      "product",
+ 643:                                                      "architecture",
+ 644:                                                      "contract",
+ 645:                                                      "testing"
+ 646:                                                  ],
+ 647:                       "priority":  65,
+ 648:                       "dependencies":  [
+ 649:                                            "QUERY-FILE-SAMPLE-PLAN-001",
+ 650:                                            "TASK-API-HTTP-001",
+ 651:                                            "SCHEDULER-WORKER-001"
+ 652:                                        ],
+ 653:                       "passes":  false,
+ 654:                       "architecture_constraints":  [
+ 655:                                                        "delivery_shape=independent_microservice，生产交付仍是独立 HTTP 服务 + worker + scheduled_job，不把 query-executor 降级为脚本或领域原型",
+ 656:                                                        "data_boundary=生产路径必须使用真实 MySQL 持久化批次检查点、配置快照、审计串联；对象存储或真实文件交付依赖若不可用需明确 BLOCKED，不得改用内存替身冒充完成",
+ 657:                                                        "http_worker_boundary=query-executor 只由已存在的 HTTP/task-api 与 scheduler worker 调用，不新增平台外特例入口；批次执行、续租和接管必须保持 worker/job 边界清晰",
+ 658:                                                        "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须以真实 MySQL query/worker 路径为主，真实依赖不可达时记录 BLOCKED - 需要人工介入"
+ 659:                                                    ],
+ 660:                       "forbidden_implementations":  [
+ 661:                                                         "禁止使用 InMemory、mock 或 fixture repository 作为 query-executor 生产实现或验收证据",
+ 662:                                                         "禁止执行调用方传入的原始 SQL，查询模板必须来自注册配置并受参数 schema 白名单约束",
+ 663:                                                         "禁止只靠 git diff --check、文档更新或契约存在就声明 query-executor 完成",
+ 664:                                                         "禁止绕过 HTTP/worker/job 边界，把集中查询、数据范围或脱敏逻辑塞进采购订单平台特例接口"
+ 665:                                                     ],
+ 666:                       "context_files":  [
+ 667:                                             "docs/architecture/constraints.md",
+ 668:                                             "docs/context/architecture-brief.md",
+ 669:                                             "docs/product/prd-lite.md",
+ 670:                                             "docs/testing/ACCEPTANCE_EXAMPLES.md",
+ 671:                                             "docs/testing/TRACEABILITY_MATRIX.md",
+ 672:                                             "docs/testing/verify-matrix.md",
+ 673:                                             "plans/features/export-platform.dev-plan.md",
+ 674:                                             "contracts/openapi.yaml",
+ 675:                                             "task.json"
+ 676:                                         ],
+ 677:                       "owned_paths":  [
+ 678:                                           "src/query-executor/",
+ 679:                                           "src/repositories/",
+ 680:                                           "src/audit-log/",
+ 681:                                           "tests/query/",
+ 682:                                           "tests/worker/",
+ 683:                                           "docs/testing/verify-matrix.md"
+ 684:                                       ],
+ 685:                       "requirement_ids":  [
+ 686:                                               "FR-006",
+ 687:                                               "FR-008",
+ 688:                                               "FR-009",
+ 689:                                               "FR-010",
+ 690:                                               "FR-014"
+ 691:                                           ],
+ 692:                       "produces_artifacts":  [
+ 693:                                                  "src/query-executor/",
+ 694:                                                  "tests/query/",
+ 695:                                                  "tests/worker/",
+ 696:                                                  "docs/testing/verify-matrix.md"
+ 697:                                              ],
+ 698:                       "execution":  {
+ 699:                                         "mode":  "single"
+ 700:                                     },
+ 701:                       "steps":  [
+ 702:                                     "实现注册配置驱动的参数 schema 校验、参数化查询模板绑定、数据范围叠加、字段映射和脱敏校验",
+ 703:                                     "持久化批次检查点、批次事件和失败收口，确保 worker 接管延续当前 attemptNo 并从最近检查点继续",
+ 704:                                     "补齐 query/worker 集成测试，验证真实 MySQL 下的模板执行、数据范围、脱敏失败和批次重试；对象存储或外部数据源不可用时明确 BLOCKED"
+ 705:                                 ],
+ 706:                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+ 707:                       "acceptance":  [
+ 708:                                          "FR-008 的模板、字段映射、脱敏和数据范围约束具备生产路径证据",
+ 709:                                          "FR-006 的批次检查点、阶段事件和接管继续由真实 MySQL 测试覆盖，依赖不可达时明确 BLOCKED",
+ 710:                                          "FR-009 的查询数据范围与脱敏失败路径不依赖 InMemory/mock 实现"
+ 711:                                      ]
+ 712:                   },
+ 713:                   {
+ 714:                       "id":  "FILE-SERVICE-001",
+ 715:                       "description":  "实现 file-service 生产链路，覆盖临时对象写入、发布校验、下载元信息和分片打包",
+ 716:                       "task_kind":  "feature_impl",
+ 717:                       "phase":  "file-service",
+ 718:                       "gate_profile":  "spec_required",
+ 719:                       "required_truth_sources":  [
+ 720:                                                      "product",
+ 721:                                                      "architecture",
+ 722:                                                      "contract",
+ 723:                                                      "testing"
+ 724:                                                  ],
+ 725:                       "priority":  70,
+ 726:                       "dependencies":  [
+ 727:                                            "QUERY-EXECUTOR-001"
+ 728:                                        ],
+ 729:                       "passes":  false,
+ 730:                       "architecture_constraints":  [
+ 731:                                                        "delivery_shape=independent_microservice，file-service 作为独立服务内部模块协作 query-executor / task-api / cleanup-job，不新增独立平台特例接口",
+ 732:                                                        "data_boundary=文件元信息、发布状态、checksum、expiresAt 和 attemptNo 必须走真实 MySQL；对象交付必须走真实对象存储或明确 BLOCKED，不得以内存文件系统冒充生产完成",
+ 733:                                                        "http_worker_boundary=下载仍经 HTTP API 暴露已发布对象元信息，文件生成由 worker 驱动，cleanup 作为独立 job 处理，不把发布/下载/清理混在一个入口里",
+ 734:                                                        "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收至少包含 file/API 路径验证，真实对象存储不可用时记录 BLOCKED - 需要人工介入"
+ 735:                                                    ],
+ 736:                       "forbidden_implementations":  [
+ 737:                                                         "禁止使用 InMemory、mock 或 fixture 存储适配器作为 file-service 生产实现或验收证据",
+ 738:                                                         "禁止让下载接口返回未发布对象、临时对象或未完成 checksum 校验的文件",
+ 739:                                                         "禁止只靠 git diff --check、文档更新或契约存在就声明 file-service 完成",
+ 740:                                                         "禁止把采购订单样板下载做成平台特例接口，必须复用标准 file-service 与 task-api 下载链路"
+ 741:                                                     ],
+ 742:                       "context_files":  [
+ 743:                                             "docs/architecture/constraints.md",
+ 744:                                             "docs/context/architecture-brief.md",
+ 745:                                             "docs/product/prd-lite.md",
+ 746:                                             "docs/testing/ACCEPTANCE_EXAMPLES.md",
+ 747:                                             "docs/testing/TRACEABILITY_MATRIX.md",
+ 748:                                             "docs/testing/verify-matrix.md",
+ 749:                                             "plans/features/export-platform.dev-plan.md",
+ 750:                                             "contracts/openapi.yaml",
+ 751:                                             "task.json"
+ 752:                                         ],
+ 753:                       "owned_paths":  [
+ 754:                                           "src/file-service/",
+ 755:                                           "src/task-api/",
+ 756:                                           "src/repositories/",
+ 757:                                           "tests/file/",
+ 758:                                           "tests/api/",
+ 759:                                           "docs/testing/verify-matrix.md"
+ 760:                                       ],
+ 761:                       "requirement_ids":  [
+ 762:                                               "FR-003",
+ 763:                                               "FR-006",
+ 764:                                               "FR-009",
+ 765:                                               "FR-011",
+ 766:                                               "FR-014"
+ 767:                                           ],
+ 768:                       "produces_artifacts":  [
+ 769:                                                  "src/file-service/",
+ 770:                                                  "tests/file/",
+ 771:                                                  "tests/api/",
+ 772:                                                  "docs/testing/verify-matrix.md"
+ 773:                                              ],
+ 774:                       "execution":  {
+ 775:                                         "mode":  "single"
+ 776:                                     },
+ 777:                       "steps":  [
+ 778:                                     "实现 tempStorageKey 写入、内容与元信息校验、publishedStorageKey 发布和下载元信息持久化",
+ 779:                                     "实现单文件阈值、ZIP 打包、空数据仅表头文件和交付准备事件，与 query-executor 阶段事件串联",
+ 780:                                     "补齐 file/API 集成测试，验证已发布对象下载、未发布对象拒绝、校验失败收口和对象存储不可用时的 BLOCKED 记录"
+ 781:                                 ],
+ 782:                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+ 783:                       "acceptance":  [
+ 784:                                          "FR-003 的已发布对象下载、元信息和权限前置边界具备生产路径证据",
+ 785:                                          "FR-006 的分片、打包、空数据和 file 事件能与 query-executor 串联",
+ 786:                                          "真实对象存储不可用时不伪造通过，明确输出 BLOCKED - 需要人工介入"
+ 787:                                      ]
+ 788:                   },
+ 789:                   {
+ 790:                       "id":  "CLEANUP-JOB-001",
+ 791:                       "description":  "实现 cleanup-job 生产链路，覆盖过期失效、对象清理和失败重试记录",
+ 792:                       "task_kind":  "feature_impl",
+ 793:                       "phase":  "cleanup-job",
+ 794:                       "gate_profile":  "spec_required",
+ 795:                       "required_truth_sources":  [
+ 796:                                                      "product",
+ 797:                                                      "architecture",
+ 798:                                                      "contract",
+ 799:                                                      "testing"
+ 800:                                                  ],
+ 801:                       "priority":  75,
+ 802:                       "dependencies":  [
+ 803:                                            "FILE-SERVICE-001"
+ 804:                                        ],
+ 805:                       "passes":  false,
+ 806:                       "architecture_constraints":  [
+ 807:                                                        "delivery_shape=independent_microservice，cleanup 作为独立 scheduled_job entry 运行，不把过期清理折叠回 HTTP handler 或 query worker",
+ 808:                                                        "data_boundary=过期标记、删除结果、失败原因和可重试记录必须走真实 MySQL；对象删除必须连接真实对象存储或明确 BLOCKED",
+ 809:                                                        "http_worker_boundary=cleanup-job 只处理先失效再删除的后台作业边界，不直接承担下载或查询职责",
+ 810:                                                        "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须覆盖 cleanup/file 路径，真实对象存储不可达时记录 BLOCKED - 需要人工介入"
+ 811:                                                    ],
+ 812:                       "forbidden_implementations":  [
+ 813:                                                         "禁止使用 InMemory、mock 或 fixture 清理仓库作为 cleanup-job 生产实现或验收证据",
+ 814:                                                         "禁止跳过先标记不可下载的步骤直接删除对象，或删除后仍可下载未发布/已过期对象",
+ 815:                                                         "禁止只靠 git diff --check、文档更新或契约存在就声明 cleanup-job 完成",
+ 816:                                                         "禁止为采购订单样板单独实现清理特例入口，必须复用标准 cleanup-job 链路"
+ 817:                                                     ],
+ 818:                       "context_files":  [
+ 819:                                             "docs/architecture/constraints.md",
+ 820:                                             "docs/context/architecture-brief.md",
+ 821:                                             "docs/product/prd-lite.md",
+ 822:                                             "docs/testing/ACCEPTANCE_EXAMPLES.md",
+ 823:                                             "docs/testing/TRACEABILITY_MATRIX.md",
+ 824:                                             "docs/testing/verify-matrix.md",
+ 825:                                             "plans/features/export-platform.dev-plan.md",
+ 826:                                             "contracts/openapi.yaml",
+ 827:                                             "task.json"
+ 828:                                         ],
+ 829:                       "owned_paths":  [
+ 830:                                           "src/cleanup-job/",
+ 831:                                           "src/jobs/",
+ 832:                                           "src/repositories/",
+ 833:                                           "tests/file/",
+ 834:                                           "tests/worker/",
+ 835:                                           "docs/testing/verify-matrix.md"
+ 836:                                       ],
+ 837:                       "requirement_ids":  [
+ 838:                                               "FR-003",
+ 839:                                               "FR-011"
+ 840:                                           ],
+ 841:                       "produces_artifacts":  [
+ 842:                                                  "src/cleanup-job/",
+ 843:                                                  "src/jobs/",
+ 844:                                                  "tests/file/",
+ 845:                                                  "tests/worker/",
+ 846:                                                  "docs/testing/verify-matrix.md"
+ 847:                                              ],
+ 848:                       "execution":  {
+ 849:                                         "mode":  "single"
+ 850:                                     },
+ 851:                       "steps":  [
+ 852:                                     "实现 cleanup job entry、过期扫描、不可下载标记、对象删除和失败重试记录",
+ 853:                                     "把清理动作与 file metadata、下载 guard 和审计事件串联，保证删除失败仍保留可追踪记录",
+ 854:                                     "补齐 cleanup/file/worker 测试，验证先失效后删除、删除失败重试和真实对象存储不可用时的 BLOCKED 处理"
+ 855:                                 ],
+ 856:                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+ 857:                       "acceptance":  [
+ 858:                                          "FR-011 的先失效再删除、失败重试和审计串联具备生产路径证据",
+ 859:                                          "FR-003 的过期后下载拒绝由 cleanup 与 file 链路共同验证",
+ 860:                                          "真实对象存储不可用时明确 BLOCKED，不得以内存适配器冒充清理完成"
+ 861:                                      ]
+ 862:                   },
+ 863:                   {
+ 864:                       "id":  "SAMPLE-PURCHASE-ORDER-001",
+ 865:                       "description":  "实现采购订单样板合同与真实回归证据，复用标准 query、file、audit 链路",
+ 866:                       "task_kind":  "feature_impl",
+ 867:                       "phase":  "sample-purchase-order",
+ 868:                       "gate_profile":  "spec_required",
+ 869:                       "required_truth_sources":  [
+ 870:                                                      "product",
+ 871:                                                      "architecture",
+ 872:                                                      "contract",
+ 873:                                                      "testing"
+ 874:                                                  ],
+ 875:                       "priority":  80,
+ 876:                       "dependencies":  [
+ 877:                                            "QUERY-EXECUTOR-001",
+ 878:                                            "FILE-SERVICE-001",
+ 879:                                            "CLEANUP-JOB-001"
+ 880:                                        ],
+ 881:                       "passes":  false,
+ 882:                       "architecture_constraints":  [
+ 883:                                                        "delivery_shape=independent_microservice，采购订单样板只是平台标准能力的可执行合同，不新增独立微服务或采购订单特例接口",
+ 884:                                                        "data_boundary=样板查询、文件、审计和压测证据必须走真实 MySQL 与真实对象存储，任一真实依赖不可用时明确 BLOCKED",
+ 885:                                                        "http_worker_boundary=样板必须复用 task-api、scheduler worker、query-executor、file-service、cleanup-job 与 audit-log 标准边界，不绕过 HTTP/worker/job 主链路",
+ 886:                                                        "test_double_policy=InMemory/mock/fixture 仅允许 unit tests；feature_impl 验收必须覆盖 sample/query/file 真实链路与边界数据，真实依赖不可达时记录 BLOCKED - 需要人工介入"
+ 887:                                                    ],
+ 888:                       "forbidden_implementations":  [
+ 889:                                                         "禁止使用 InMemory、mock 或 fixture registry/query/file 实现来冒充采购订单样板完成",
+ 890:                                                         "禁止执行采购订单平台特例原始 SQL 或绕过注册配置、字段映射、脱敏和数据范围约束",
+ 891:                                                         "禁止让采购订单下载直接返回未发布对象，或通过样板专用下载接口绕过标准 file-service",
+ 892:                                                         "禁止只靠 git diff --check、文档更新或压测说明文档就声明采购订单样板完成"
+ 893:                                                     ],
+ 894:                       "context_files":  [
+ 895:                                             "docs/architecture/constraints.md",
+ 896:                                             "docs/context/architecture-brief.md",
+ 897:                                             "docs/product/prd-lite.md",
+ 898:                                             "docs/testing/ACCEPTANCE_EXAMPLES.md",
+ 899:                                             "docs/testing/TRACEABILITY_MATRIX.md",
+ 900:                                             "docs/testing/verify-matrix.md",
+ 901:                                             "plans/features/export-platform.dev-plan.md",
+ 902:                                             "contracts/openapi.yaml",
+ 903:                                             "task.json"
+ 904:                                         ],
+ 905:                       "owned_paths":  [
+ 906:                                           "src/query-executor/",
+ 907:                                           "src/file-service/",
+ 908:                                           "src/audit-log/",
+ 909:                                           "tests/sample/",
+ 910:                                           "tests/query/",
+ 911:                                           "tests/file/",
+ 912:                                           "docs/testing/verify-matrix.md"
+ 913:                                       ],
+ 914:                       "requirement_ids":  [
+ 915:                                               "FR-006",
+ 916:                                               "FR-008",
+ 917:                                               "FR-009",
+ 918:                                               "FR-010",
+ 919:                                               "FR-014"
+ 920:                                           ],
+ 921:                       "produces_artifacts":  [
+ 922:                                                  "tests/sample/",
+ 923:                                                  "tests/query/",
+ 924:                                                  "tests/file/",
+ 925:                                                  "docs/testing/verify-matrix.md"
+ 926:                                              ],
+ 927:                       "execution":  {
+ 928:                                         "mode":  "single"
+ 929:                                     },
+ 930:                       "steps":  [
+ 931:                                     "落地 purchase-order-export 注册配置、字段顺序、敏感字段脱敏和稳定游标排序要求，并复用标准 query/file/audit 链路",
+ 932:                                     "补齐 0/1/20000/20001/100000/100001 行边界验证、ZIP 分片、下载审计和 10 万行压测证据入口",
+ 933:                                     "在 sample/query/file 测试中验证无特例接口、无原始 SQL、无未发布对象下载；真实依赖不可用时明确 BLOCKED"
+ 934:                                 ],
+ 935:                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+ 936:                       "acceptance":  [
+ 937:                                          "FR-014 的采购订单样板通过标准 registry/query/file/audit 链路交付，不存在平台特例接口",
+ 938:                                          "边界数据、压测、敏感字段脱敏和下载证据具备真实依赖验证；依赖不可达时明确 BLOCKED",
+ 939:                                          "样板同时回归 FR-006/008/009/010 的主链路证据"
+ 940:                                      ]
+ 941:                   },
+ 942:                   {
+ 943:                       "id":  "RELEASE-001",
+ 944:                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
+ 945:                       "task_kind":  "release",
+ 946:                       "phase":  "verify",
+ 947:                       "gate_profile":  "release_required",
+ 948:                       "required_truth_sources":  [
+ 949:                                                      "product",
+ 950:                                                      "architecture",
+ 951:                                                      "contract",
+ 952:                                                      "testing"
+ 953:                                                  ],
+ 954:                       "priority":  90,
+ 955:                       "dependencies":  [
+ 956:                                            "QUERY-EXECUTOR-001",
+ 957:                                            "FILE-SERVICE-001",
+ 958:                                            "CLEANUP-JOB-001",
+ 959:                                            "SAMPLE-PURCHASE-ORDER-001"
+ 960:                                        ],
+ 961:                       "passes":  false,
+ 962:                       "context_files":  [
+ 963:                                             "docs/product/acceptance-criteria.md",
+ 964:                                             "docs/architecture/constraints.md",
+ 965:                                             "docs/testing/verify-matrix.md",
+ 966:                                             "contracts/openapi.yaml",
+ 967:                                             "task.json"
+ 968:                                         ],
+ 969:                       "owned_paths":  [
+ 970:                                           "docs/testing/",
+
+ succeeded in 828ms:
+  55: | T12 cancel/retry / auth-mask | T2、T4、T6 | 依赖状态机、认证上下文和脱敏契约 |
+  56: | T13 purchase-order sample | T7、T8、T9、T10、T11、T12 | 依赖主链路稳定后再补样板压测和边界证据 |
+  57: 
+  58: ## 4.1 QUERY-FILE-SAMPLE-PLAN-001 落盘任务表
+  59: 
+  60: | Task ID | 目标 | Dependencies | Owned paths | Verification | Evidence entry |
+  61: | --- | --- | --- | --- | --- | --- |
+  62: | `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+  63: | `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  64: | `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  65: | `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+  66: 
+  67: ## 5. 验证顺序
+  68: 
+  69: 1. `git diff --check`
+  70: 2. `contracts/` 目录结构与 README 约定校验
+  71: 3. 契约文件校验
+  72: 4. `npm run arch:check`
+  73: 5. `QUERY-EXECUTOR-001`: `npm run test:query`、`npm run test:worker`、`npm run test:db`
+  74: 6. `FILE-SERVICE-001`: `npm run test:file`、`npm run test:api`、`npm run test:db`
+  75: 7. `CLEANUP-JOB-001`: `npm run test:file`、`npm run test:worker`、`npm run test:db`
+  76: 8. `SAMPLE-PURCHASE-ORDER-001`: `npm run test:sample`、`npm run test:query`、`npm run test:file`、`npm run test:db`
+  77: 9. 真实 MySQL、对象存储或采购订单样板外部依赖不可达时输出 `BLOCKED - 需要人工介入`，不得用替身补齐 release 证据
+  78: 
+  79: ## 5.1 架构决策到实现任务映射
+  80: 
+  81: | 架构决策 | 约束 | 后续任务必须落点 | 验证影响 |
+  82: | --- | --- | --- | --- |
+  83: | HTTP 框架与入口 | Fastify + Node.js 20+，生产入口为 `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` | `src/routes/`、`src/task-api/`、`src/scheduler/`、`src/file-service/`、`src/cleanup-job/` | HTTP 服务、worker 和 job 启动方式一致 |
+  84: | DB 客户端与迁移 | Kysely + `mysql2`，迁移由 Kysely Migrator 或等价 TypeScript runner 承担 | `src/db/`、`migrations/`、`tests/db/` | 真实 MySQL 客户端、schema 和 migration 可验证 |
+  85: | 测试层级 | Vitest，按 contract / api / db / worker / query / file / sample 分层 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | 后续 feature_impl 必须能落到具体测试层 |
+  86: | DB 抢锁与租约 | `lockOwner + lockExpireAt + leaseRenewedAt`，时间以数据库时间为准，默认租约 5 分钟 | `contracts/scheduler/`、`tests/worker/`、`src/scheduler/` | FR-005 / FR-013 的抢锁、续租、接管测试 |
+  87: | 执行尝试 | `attemptNo` 按任务隔离；锁接管不递增，FAILED 重试才递增 | `contracts/api/`、`contracts/scheduler/`、`contracts/audit/`、`tests/api/`、`tests/worker/` | 取消/重试、失败证据和文件路径测试 |
+  88: | 配置快照 | 创建任务时固化注册配置、请求摘要和认证上下文摘要 | `contracts/api/`、`contracts/query/`、`src/task-api/`、`src/registry-config/` | 幂等冲突、快照沿用、模板冲突测试 |
+  89: | 批次检查点 | 至少包含 `lastCursor`、`processedCount`、`filePartNo`、`attemptNo`、`retryCount` | `contracts/scheduler/`、`contracts/query/`、`tests/worker/`、`tests/query/` | 接管继续、批次重试和压测证据 |
+  90: | 临时对象发布 | `tempStorageKey -> checksum -> publishedStorageKey -> deliveryReadyAt` | `contracts/file/`、`tests/file/`、`src/file-service/` | 未发布对象不可下载、校验失败不交付 |
+  91: | 认证上下文 | 最小字段 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId` | `contracts/api/`、`contracts/query/`、`tests/api/`、`tests/query/` | 任务可见性、数据范围、下载权限测试 |
+  92: | 审计链路 | 动作审计 + 阶段事件必须能按 `taskId/attemptNo/requestId` 串联 | `contracts/audit/`、`tests/api/`、`tests/worker/`、`src/audit-log/` | FR-010 与所有失败态证据 |
+  93: | 架构检查 | 入口、契约映射、生产入口禁用替身、migration 覆盖和脚本完整性 | `scripts/arch-check.ts`、`tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`、`migrations/`、`package.json` | `npm run arch:check` 是后续 feature_impl 的必跑入口之一 |
+  94: 
+  95: ## 6. 阶段输出
+  96: 
+  97: | 阶段 | 必须输出 | 说明 |
+  98: | --- | --- | --- |
+  99: | P1 | `docs/context/*`、`docs/testing/*`、`plans/features/export-platform.dev-plan.md` | 分析与测试左移材料必须闭环 |
+ 100: | P2 | `contracts/openapi.yaml`、schema、错误码、状态矩阵、`migrations/` 初始约定 | 先固定实现门槛 |
+ 101: | P3 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` 基础测试骨架 | 为后续实现提供 affected tests |
+ 102: | P4 | task-api 与 registry-config 可执行骨架 | 覆盖创建、查询、注册、幂等 |
+ 103: | P5 | scheduler 与 query-executor 可执行骨架 | 覆盖抢锁、游标、批次、数据范围 |
+ 104: | P6 | file-renderer 与 cleanup-job 可执行骨架 | 覆盖发布边界与过期清理 |
+ 105: | P7 | cancel/retry 与权限/脱敏可执行骨架 | 覆盖状态机和安全边界 |
+ 106: | P8 | 采购订单样板证据 | 覆盖边界数据、压测和脱敏校验 |
+ 107: 
+ 108: ## 7. 后续实现任务建议
+ 109: 
+ 110: - `QUERY-EXECUTOR-001` 只负责 query-executor 生产链路，不承担 file-service、cleanup-job 或采购订单样板特例实现。
+ 111: - `FILE-SERVICE-001` 只负责文件发布与下载元信息，不承担 cleanup 删除逻辑。
+ 112: - `CLEANUP-JOB-001` 只负责先失效再删除和失败重试记录，不重写 query/file 主链路。
+ 113: - `SAMPLE-PURCHASE-ORDER-001` 只负责样板合同和边界证据，必须复用标准 registry/query/file/audit 链路，不新增采购订单平台特例接口。
+ 114: 
+ 115: ## 8. 验收顺序说明
+ 116: 
+ 117: - 先验收 FR-001、FR-002、FR-013，确认任务创建、查询进度/详情、幂等、配置快照和锁租约。
+ 118: - 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
+ 119: - 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
+ 120: - 再验收 FR-012，确认取消和重试状态机。
+ 121: - 最后验收 `SAMPLE-PURCHASE-ORDER-001`，确认 FR-014 可作为主样板和压测证据，且真实依赖不可用时明确 BLOCKED。
+ 122: 
+ 123: ## 8.1 CONTRACT-001 契约验证入口
+
+ succeeded in 738ms:
+const scope = process.argv[2] ?? "unknown";
+
+console.error(
+  `[${scope}] verification is a planned entry. Implement the production path before using this as passing evidence.`
+);
+process.exit(1);
+
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | - | - |
+
+## Verification
+
+- 已检查命令:
+  - `git diff --check -- task.json plans docs/testing/verify-matrix.md`
+  - `Get-Content -Raw task.json | ConvertFrom-Json`
+  - `rg -n "QUERY-EXECUTOR-001|FILE-SERVICE-001|CLEANUP-JOB-001|SAMPLE-PURCHASE-ORDER-001|test:query|test:file|test:sample" ...`
+  - 抽查 `package.json`、`scripts/planned-test.mjs`、新增任务依赖和验证矩阵条目
+- 结果摘要:
+  - `git diff --check` 退出码 0，仅有 LF/CRLF 提示。
+  - `task.json` 可解析，新增任务依赖链和 `RELEASE-001` 依赖收口一致。
+  - `test:query` / `test:file` / `test:sample` 已存在，当前是明确失败的 planned entry，不会被误用为通过证据。
+  - 本次为计划/任务队列与验证矩阵改动，未发现生产代码、密钥、调试输出或无关文件改动进入审查范围。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | - |
+tokens used
+95,933

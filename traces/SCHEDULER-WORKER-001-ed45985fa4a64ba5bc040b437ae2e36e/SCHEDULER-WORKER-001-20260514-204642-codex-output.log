@@ -1,0 +1,62 @@
+SUCCESS: The process with PID 22932 (child process of PID 26756) has been terminated.
+SUCCESS: The process with PID 26756 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 22860 (child process of PID 24988) has been terminated.
+SUCCESS: The process with PID 24988 (child process of PID 25560) has been terminated.
+SUCCESS: The process with PID 25560 (child process of PID 26804) has been terminated.
+SUCCESS: The process with PID 22112 (child process of PID 26704) has been terminated.
+SUCCESS: The process with PID 26704 (child process of PID 7052) has been terminated.
+SUCCESS: The process with PID 7052 (child process of PID 14132) has been terminated.
+SUCCESS: The process with PID 14132 (child process of PID 26804) has been terminated.
+SUCCESS: The process with PID 14476 (child process of PID 24104) has been terminated.
+SUCCESS: The process with PID 24104 (child process of PID 25912) has been terminated.
+SUCCESS: The process with PID 25912 (child process of PID 21108) has been terminated.
+SUCCESS: The process with PID 21108 (child process of PID 26804) has been terminated.
+## Requirement IDs
+- FR-005
+- FR-010
+- FR-012
+- FR-013
+
+## Summary
+- 实现了 scheduler worker 生产路径：DB polling、registry 并发上限、原子抢锁、租约续租、租约过期接管、批次 checkpoint/event、取消边界收口、失败落库与 FAILED 重试边界。
+- `npm run test:worker` 已从 planned placeholder 切换为真实 worker 集成测试。
+- 未执行 commit：本任务模板明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- [src/scheduler/worker.ts](E:/2026/alpha-project/longgang-codex-driver/src/scheduler/worker.ts:116): 新增 scheduler worker 核心实现。
+- [src/workers/scheduler-worker.ts](E:/2026/alpha-project/longgang-codex-driver/src/workers/scheduler-worker.ts:20): 生产入口接入真实 DB worker poll。
+- [tests/worker/scheduler-worker.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:136): 覆盖多 worker、接管、取消、失败重试。
+- [package.json](E:/2026/alpha-project/longgang-codex-driver/package.json): `test:worker` 指向真实测试。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 同步 worker 证据入口。
+
+## Validation
+- `EXPORT_PLATFORM_TEST_DATABASE_URL=mysql://root:export_platform_test_password@127.0.0.1:33306/export_platform_test; .\verify.ps1 -Commands @("npm run arch:check","npm run test:worker","npm run test:db","git diff --check")`: PASS
+- `npm run typecheck`: PASS
+- 不设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时，`test:worker` / `test:db` 会按约束明确 BLOCKED。
+
+## Evidence
+- `tests/worker/scheduler-worker.test.mjs`: 证明 FR-005/010/012/013 worker 租约、接管、取消、重试边界。
+- `docs/testing/verify-matrix.md`: 证明验证矩阵已更新到 worker 真实测试入口。
+- `export-platform-test-mysql` Docker 容器: 真实 MySQL 验证依赖，端口 `33306`。
+
+## Architecture Constraints
+- `worker entry`: PASS - `src/workers/scheduler-worker.ts`
+- `MySQL polling + DB lock`: PASS - `src/scheduler/worker.ts`
+- `database time for lease`: PASS - `CURRENT_TIMESTAMP(3)` 查询
+- `no InMemory/mock production repo`: PASS - 测试与验证使用真实 MySQL
+- `batch-boundary cancel/renew`: PASS - worker 集成测试覆盖
+
+## Knowledge References
+- none - 已检查 knowledge catalog，无 scheduler-specific 条目可引用。
+
+## Knowledge Outputs
+- `GUIDELINE-SCHEDULER-001`: guideline - Worker 集成验证必须注入真实 MySQL URL - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- query executor 尚未实现，当前 worker 的批处理执行点通过接口预留，后续 query 任务需要接入真实执行器。
+- 工作区已有未跟踪 `traces/` 运行产物未处理，按任务边界未修改。

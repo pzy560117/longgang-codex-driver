@@ -1,0 +1,50 @@
+## Requirement IDs
+- FR-001, FR-002, FR-004, FR-007, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已把 `create/detail/list/download/cancel/retry/registry` HTTP handler 从 scaffold 501 切到真实 service + Kysely/MySQL repository。
+- 新增认证上下文解析、审计写入、任务 API service、注册配置 service。
+- `test:api` 已从 planned stub 改为真实 API 集成测试，并使用真实 MySQL（Docker 容器 `export-platform-test-mysql`，端口 `33306`）验证通过。
+
+## Files Changed
+- `src/task-api/service.ts`: 任务 create/list/detail/download/cancel/retry service。
+- `src/registry-config/service.ts`: registry create/list/detail/update/enable/disable service。
+- `src/audit-log/auth-context.ts`, `src/audit-log/service.ts`: auth context 与审计写入。
+- `src/routes/**`: handler 串联 service，route context 支持 Fastify request。
+- `src/repositories/*.ts`: 补 list/status/retry/enable/disable DB 方法。
+- `tests/api/export-http-api.test.mjs`: 真实 HTTP + MySQL API 集成测试。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 补 handler/service/repository/audit/test 追踪断言。
+- `docs/testing/verify-matrix.md`, `package.json`: 更新 API 验证入口和证据状态。
+
+## Validation
+- `& .\verify.ps1 -ProjectRoot . -Commands 'npm run arch:check','npm run test:contract','npm run test:api','git diff --check'`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:api`: PASS，真实 MySQL 路径，2/2 tests passed
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明 HTTP handler 经 Fastify 串到 MySQL repository、幂等、禁用配置、详情/列表、取消/重试、下载元信息。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI operation 到 handler/service/repository/audit/API test 可追踪。
+- `docs/testing/verify-matrix.md`: 更新 FR 级验证状态和真实 MySQL 依赖说明。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `src/server.ts` HTTP entry 保持可用。
+- `API Boundary via contracts/openapi.yaml`: PASS - route manifest 与 contract tests 覆盖 operation 映射。
+- `DB repository production path`: PASS - service 使用 Kysely/MySQL repository，未使用内存实现。
+- `Test double policy`: PASS - API 测试要求 `EXPORT_PLATFORM_TEST_DATABASE_URL`，使用真实 MySQL。
+- `forbidden InMemory/mock/fixture production path`: PASS - `npm run arch:check` 通过。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-HARNESS-VERIFY-ARGS`: pitfall - `verify.ps1` 多命令调用需显式传 `-ProjectRoot`，否则命令数组会误绑定位置参数 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- worker 租约接管、query executor、file service 完整交付仍属后续任务范围。
+- Docker MySQL 测试容器 `export-platform-test-mysql` 当前仍在运行，用于本轮 API 验证。
+- 未提交：本任务模板明确禁止 `git add/git commit`，提交应交由 runtime commit gate。

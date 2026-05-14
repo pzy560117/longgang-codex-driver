@@ -1,7 +1,7 @@
 # DEV-PLAN：统一导出平台
 
 **Feature ID**: `FEAT-EXPORT-PLATFORM-001`
-**最后更新**: 2026-05-13
+**最后更新**: 2026-05-14
 **用途**: 给后续实现任务提供可直接执行的拆分、边界、验证顺序和证据路径。
 
 ## 1. 计划目标
@@ -20,9 +20,9 @@
 | P3 | 创建测试骨架 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | planned / blocked-by-contract 转为可执行 |
 | P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等；创建成功响应必须回传 `idempotencyScope` | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
 | P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
-| P6 | 实现 file-service 与 cleanup-job | 临时对象、发布、过期清理、下载保护 | P2/P3 | FR-003、FR-011 |
-| P7 | 实现 cancel/retry 和权限/脱敏 | 状态机、内部取消、权限和脱敏收口 | P2/P3 | FR-009、FR-012 |
-| P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P4/P5/P6/P7 | FR-014 |
+| P6 | 实现 file-service | 临时对象、发布校验、下载元信息、分片打包 | P2/P3/P5 | FR-003、FR-006、FR-009 |
+| P7 | 实现 cleanup-job | 过期失效、对象删除、失败重试记录 | P2/P3/P6 | FR-003、FR-011 |
+| P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P5/P6/P7 | FR-014 |
 
 ## 3. 模块边界与 owned paths
 
@@ -55,17 +55,26 @@
 | T12 cancel/retry / auth-mask | T2、T4、T6 | 依赖状态机、认证上下文和脱敏契约 |
 | T13 purchase-order sample | T7、T8、T9、T10、T11、T12 | 依赖主链路稳定后再补样板压测和边界证据 |
 
+## 4.1 QUERY-FILE-SAMPLE-PLAN-001 落盘任务表
+
+| Task ID | 目标 | Dependencies | Owned paths | Verification | Evidence entry |
+| --- | --- | --- | --- | --- | --- |
+| `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+| `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+| `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+| `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；真实 MySQL 或对象存储不可用时记录 `BLOCKED - 需要人工介入` |
+
 ## 5. 验证顺序
 
 1. `git diff --check`
 2. `contracts/` 目录结构与 README 约定校验
 3. 契约文件校验
-4. 契约测试
-5. 后端单测
-6. 调度和查询测试
-7. 文件生成与清理测试
-8. 采购订单样板压测和证据检查
-9. `npm run arch:check`
+4. `npm run arch:check`
+5. `QUERY-EXECUTOR-001`: `npm run test:query`、`npm run test:worker`、`npm run test:db`
+6. `FILE-SERVICE-001`: `npm run test:file`、`npm run test:api`、`npm run test:db`
+7. `CLEANUP-JOB-001`: `npm run test:file`、`npm run test:worker`、`npm run test:db`
+8. `SAMPLE-PURCHASE-ORDER-001`: `npm run test:sample`、`npm run test:query`、`npm run test:file`、`npm run test:db`
+9. 真实 MySQL、对象存储或采购订单样板外部依赖不可达时输出 `BLOCKED - 需要人工介入`，不得用替身补齐 release 证据
 
 ## 5.1 架构决策到实现任务映射
 
@@ -98,20 +107,18 @@
 
 ## 7. 后续实现任务建议
 
-- 任务 A：已由 CONTRACT-001 复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001/002/003/004/007/008/009/010/012/013 的接口、状态、错误码和注册配置契约，包含 FR-002 的查询进度/详情路径，以及创建成功响应的 `idempotencyScope` 证据字段。
-- 任务 B：落 `contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/`，把能力分区和示例契约先锚住。
-- 任务 C：落 `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`，为创建、查询、进度/详情、下载、注册、调度、文件和样板建立最小测试骨架。
-- 任务 D：落 `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/repositories/`、`src/db/`、`migrations/`，先完成主入口、注册配置、持久化和调度链路的最小可用实现。
-- 任务 E：补 `src/query-executor/` 与 `src/file-service/`，最后接 `src/cleanup-job/`、`src/audit-log/`、`src/workers/`、`src/jobs/`、`scripts/arch-check.ts` 和样板压测。
-- 任务 F：创建 `scripts/arch-check.ts` 与 `npm run arch:check`，把入口存在性、OpenAPI 路由映射、替身禁用、migration 覆盖和测试脚本完整性做成强制门槛。
+- `QUERY-EXECUTOR-001` 只负责 query-executor 生产链路，不承担 file-service、cleanup-job 或采购订单样板特例实现。
+- `FILE-SERVICE-001` 只负责文件发布与下载元信息，不承担 cleanup 删除逻辑。
+- `CLEANUP-JOB-001` 只负责先失效再删除和失败重试记录，不重写 query/file 主链路。
+- `SAMPLE-PURCHASE-ORDER-001` 只负责样板合同和边界证据，必须复用标准 registry/query/file/audit 链路，不新增采购订单平台特例接口。
 
 ## 8. 验收顺序说明
 
 - 先验收 FR-001、FR-002、FR-013，确认任务创建、查询进度/详情、幂等、配置快照和锁租约。
-- 再验收 FR-008、FR-009，确认查询契约、数据范围和脱敏。
-- 再验收 FR-006、FR-003、FR-011，确认分片、文件发布和过期清理。
+- 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
+- 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
 - 再验收 FR-012，确认取消和重试状态机。
-- 最后验收 FR-014，确认采购订单样板可作为主样板和压测证据。
+- 最后验收 `SAMPLE-PURCHASE-ORDER-001`，确认 FR-014 可作为主样板和压测证据，且真实依赖不可用时明确 BLOCKED。
 
 ## 8.1 CONTRACT-001 契约验证入口
 

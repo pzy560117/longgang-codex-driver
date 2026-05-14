@@ -1,0 +1,72 @@
+SUCCESS: The process with PID 12000 (child process of PID 7912) has been terminated.
+SUCCESS: The process with PID 24524 (child process of PID 23940) has been terminated.
+SUCCESS: The process with PID 7912 (child process of PID 21340) has been terminated.
+SUCCESS: The process with PID 23940 (child process of PID 5396) has been terminated.
+SUCCESS: The process with PID 21340 (child process of PID 23752) has been terminated.
+SUCCESS: The process with PID 5396 (child process of PID 7784) has been terminated.
+SUCCESS: The process with PID 23752 (child process of PID 16688) has been terminated.
+SUCCESS: The process with PID 7784 (child process of PID 16688) has been terminated.
+SUCCESS: The process with PID 12980 (child process of PID 12964) has been terminated.
+SUCCESS: The process with PID 12964 (child process of PID 25956) has been terminated.
+SUCCESS: The process with PID 25956 (child process of PID 25912) has been terminated.
+SUCCESS: The process with PID 25912 (child process of PID 16688) has been terminated.
+SUCCESS: The process with PID 27520 (child process of PID 27308) has been terminated.
+SUCCESS: The process with PID 27308 (child process of PID 14332) has been terminated.
+SUCCESS: The process with PID 14332 (child process of PID 9876) has been terminated.
+SUCCESS: The process with PID 9876 (child process of PID 22284) has been terminated.
+SUCCESS: The process with PID 22284 (child process of PID 16688) has been terminated.
+SUCCESS: The process with PID 25840 (child process of PID 21460) has been terminated.
+SUCCESS: The process with PID 23568 (child process of PID 8020) has been terminated.
+SUCCESS: The process with PID 21460 (child process of PID 18796) has been terminated.
+SUCCESS: The process with PID 8020 (child process of PID 24664) has been terminated.
+SUCCESS: The process with PID 18796 (child process of PID 22956) has been terminated.
+SUCCESS: The process with PID 24664 (child process of PID 5648) has been terminated.
+SUCCESS: The process with PID 22956 (child process of PID 11580) has been terminated.
+SUCCESS: The process with PID 5648 (child process of PID 16688) has been terminated.
+SUCCESS: The process with PID 11580 (child process of PID 16688) has been terminated.
+## Requirement IDs
+- FR-003, FR-006, FR-008, FR-009, FR-011, FR-014
+
+## Summary
+- 已拆分后续实现任务：`QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`。
+- 已为每个 `feature_impl` 补齐 `architecture_constraints`、`forbidden_implementations`、`owned_paths`、`test_command` 和验收入口。
+- `RELEASE-001` 已改为等待 4 个新增实现任务；`QUERY-FILE-SAMPLE-PLAN-001.passes` 保持 `false`，由 runtime 处理状态。
+
+## Files Changed
+- [task.json](E:/2026/alpha-project/longgang-codex-driver/task.json): 新增 4 个后续实现任务并调整 release 依赖。
+- [export-platform.dev-plan.md](E:/2026/alpha-project/longgang-codex-driver/plans/features/export-platform.dev-plan.md): 增加本轮任务拆分表、依赖、验证命令和证据入口。
+- [verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 将相关 blocked 项调整为 planned-by 对应任务，并补充真实依赖 BLOCKED 口径。
+
+## Validation
+- `git diff --check -- task.json plans docs/testing/verify-matrix.md`: PASS - 仅有 CRLF 提示，无空白错误。
+- `Get-Content -Raw task.json | ConvertFrom-Json`: PASS - JSON 可解析。
+- 任务字段自检: PASS - 4 个新增任务均包含约束、禁令、owned paths、验证命令，且 `execution.mode=single`。
+
+## Evidence
+- `task.json`: 证明 query/file/cleanup/sample 已拆成独立 driver 任务。
+- `plans/features/export-platform.dev-plan.md`: 证明后续实现顺序、验证命令和证据路径已落盘。
+- `docs/testing/verify-matrix.md`: 证明 FR-003/006/008/009/011/014 都有 planned 或 BLOCKED 入口。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 新增任务均保留 HTTP service + worker + scheduled_job 边界。
+- `test_double_policy`: PASS - 明确禁止 InMemory/mock/fixture 冒充生产完成。
+- `data/file dependency`: PASS - 真实 MySQL、对象存储或外部数据源不可用时要求 BLOCKED。
+- `forbidden_implementations`: PASS - 覆盖原始 SQL、未发布对象下载、只靠文档或 diff 完成、采购订单特例接口。
+
+## Knowledge References
+- `KNOWLEDGE-CATALOG`: Knowledge Catalog - used_in: 阶段知识入口判断 - `docs/knowledge/knowledge-catalog.md`
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: dev-plan 既有计划约束 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 任务拆分和验证入口 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `npm run test:query`、`npm run test:file`、`npm run test:sample` 仍是后续实现任务的计划验证入口，当前不能作为通过证据。
+- 后续实现需要真实 MySQL、对象存储和样板数据；依赖不可用时必须 BLOCKED。
+- 本轮按 Driver 强制边界未执行 `git add` / `git commit`。

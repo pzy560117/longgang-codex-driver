@@ -1,0 +1,36 @@
+SUCCESS: The process with PID 20360 (child process of PID 19948) has been terminated.
+SUCCESS: The process with PID 19948 (child process of PID 27408) has been terminated.
+SUCCESS: The process with PID 27408 (child process of PID 27212) has been terminated.
+SUCCESS: The process with PID 27212 (child process of PID 6516) has been terminated.
+SUCCESS: The process with PID 6516 (child process of PID 25496) has been terminated.
+SUCCESS: The process with PID 17580 (child process of PID 3992) has been terminated.
+SUCCESS: The process with PID 3992 (child process of PID 10072) has been terminated.
+SUCCESS: The process with PID 10072 (child process of PID 27620) has been terminated.
+SUCCESS: The process with PID 27620 (child process of PID 25496) has been terminated.
+SUCCESS: The process with PID 26808 (child process of PID 23472) has been terminated.
+SUCCESS: The process with PID 23472 (child process of PID 26420) has been terminated.
+SUCCESS: The process with PID 26420 (child process of PID 8872) has been terminated.
+SUCCESS: The process with PID 8872 (child process of PID 25496) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-API-HTTP-001-S1-F001 | HIGH | missing_requirement | backend | `AC-004` 要求 `createdBy/createdAtRange/fileFormat` 与用户/管理员可见性；当前 `listExportTasks` 只处理 `taskCode/status/subsystemCode`：[service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:129) | 补齐历史查询正式筛选维度、分页入参和普通用户/管理员可见性过滤；必要时补 DB 字段或用审计/任务创建者字段支撑可见性。 | `npm run test:api` |
+| TASK-API-HTTP-001-S1-F002 | HIGH | missing_requirement | backend | `AC-009` / FR-009 要求无权限创建或下载返回 403 并审计；当前 `requireAuthContext` 只校验 header 存在，不做操作权限、任务可见性或下载权限判断：[auth-context.ts](E:/2026/alpha-project/longgang-codex-driver/src/audit-log/auth-context.ts:27) | 增加权限/可见性 guard，覆盖创建、查询、下载、registry 操作；无权限返回 `PERMISSION_DENIED` 403，并写入失败审计。 | `npm run test:api` |
+| TASK-API-HTTP-001-S1-F003 | HIGH | missing_requirement | backend | `AC-010` 要求失败也可追溯；当前 `TASK_DISABLED`、`IDEMPOTENCY_CONFLICT`、`INVALID_TASK_STATE` 等错误在写审计前直接抛出：[service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:90) | 将 API 失败路径纳入审计：禁用、幂等冲突、非法状态、未找到、文件未就绪、权限失败都写 `result/errorCode/requestId`。 | `npm run test:api` |
+| TASK-API-HTTP-001-S1-F004 | HIGH | contract_gap | backend | OpenAPI `POST /export/tasks` 声明幂等冲突为 409：[openapi.yaml](E:/2026/alpha-project/longgang-codex-driver/contracts/openapi.yaml:305)；实现返回 400：[service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:90) | 将幂等摘要冲突改为 HTTP 409，并补同一 `clientRequestId` 不同参数的 API 验收。 | `npm run test:api` |
+| TASK-API-HTTP-001-S1-F005 | MEDIUM | contract_gap | contract | `x-contract-implementation-trace` 仍指向不存在的 `src/services/...` 和拆分 repository 路径：[openapi.yaml](E:/2026/alpha-project/longgang-codex-driver/contracts/openapi.yaml:37) | 更新 OpenAPI trace 到实际 `src/task-api/service.ts`、`src/registry-config/service.ts`、当前 repository 和 API 测试路径，或按契约补齐对应文件。 | `npm run test:contract` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-API-HTTP-001-S1-F001 | backend | backend-worker | 1 | true |
+| TASK-API-HTTP-001-S1-F002 | backend | backend-worker | 1 | true |
+| TASK-API-HTTP-001-S1-F003 | backend | backend-worker | 1 | true |
+| TASK-API-HTTP-001-S1-F004 | backend | backend-worker | 1 | true |
+| TASK-API-HTTP-001-S1-F005 | contract | backend-worker | 1 | false |

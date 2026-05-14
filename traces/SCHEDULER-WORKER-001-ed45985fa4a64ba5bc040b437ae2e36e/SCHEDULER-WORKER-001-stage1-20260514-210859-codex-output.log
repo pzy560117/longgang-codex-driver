@@ -1,0 +1,29 @@
+SUCCESS: The process with PID 27116 (child process of PID 26848) has been terminated.
+SUCCESS: The process with PID 26848 (child process of PID 24700) has been terminated.
+SUCCESS: The process with PID 24700 (child process of PID 25532) has been terminated.
+SUCCESS: The process with PID 25532 (child process of PID 26928) has been terminated.
+SUCCESS: The process with PID 24900 (child process of PID 14068) has been terminated.
+SUCCESS: The process with PID 27244 (child process of PID 23448) has been terminated.
+SUCCESS: The process with PID 23448 (child process of PID 26928) has been terminated.
+SUCCESS: The process with PID 22852 (child process of PID 27040) has been terminated.
+SUCCESS: The process with PID 27040 (child process of PID 27536) has been terminated.
+SUCCESS: The process with PID 27536 (child process of PID 2960) has been terminated.
+SUCCESS: The process with PID 2960 (child process of PID 22576) has been terminated.
+SUCCESS: The process with PID 22576 (child process of PID 26928) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SCHEDULER-WORKER-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:13` 要求同一子系统执行数不超过配置值；`src/scheduler/worker.ts:236-249` 只锁当前 `task_code` 的 registry 行，再按 `subsystem_code` 计数，跨 taskCode 同子系统并发 worker 可能同时看到 active=0；`tests/worker/scheduler-worker.test.mjs:193-235` 未覆盖同一 subsystem、不同 taskCode 的并发抢锁。 | 增加子系统级原子串行化策略，例如锁定同一 `subsystem_code` 下的 registry/任务范围或引入 subsystem lease；补一个同 subsystem 不同 taskCode、concurrencyLimit=1 的并发 worker 测试。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run test:worker','npm run test:db','git diff --check')` |
+| SCHEDULER-WORKER-001-S1-F002 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:53` 要求锁接管保留原锁持有者证据；`src/scheduler/worker.ts:277-297` 对 `export_task_leases` 使用 `(task_id, attempt_no)` 主键并 `onDuplicateKeyUpdate` 覆盖 `lock_owner`；`migrations/001_initial_export_platform.ts:75-91` 也只允许同 task/attempt 一条 lease 记录；`tests/worker/scheduler-worker.test.mjs:193-235` 只断言接管后 `lockOwner=worker-b`，未断言原 `worker-a` 证据仍可追溯。 | 调整 lease/audit 证据模型，保留每次抢锁/续租/接管记录或至少保留 previousLockOwner，并在接管审计中写明原 owner、新 owner、attemptNo、checkpoint；补测试断言原锁持有者证据未被覆盖。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run test:worker','npm run test:db','git diff --check')` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SCHEDULER-WORKER-001-S1-F001 | backend | backend-worker | 1 | yes |
+| SCHEDULER-WORKER-001-S1-F002 | backend | backend-worker | 1 | yes |
