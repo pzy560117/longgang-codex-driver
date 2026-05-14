@@ -13,7 +13,7 @@
 | 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
 | 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
 | STACK-ADR-001 设计 / 计划基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design / planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
-| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / needs re-review | `contracts/openapi.yaml` |
+| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
 | 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | not-started | 待创建 |
 | MySQL schema / migration | FR-001 - FR-014 | not-started | 待创建 |
 | 生产 repository | FR-001 - FR-014 | not-started | 待创建 |
@@ -28,7 +28,8 @@
 | 阶段 | 命令 / 证据 | 最低要求 |
 | --- | --- | --- |
 | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
-| 契约复核 | `contracts/openapi.yaml` lint 或等价命令 | 契约可解析，公开 operation 与需求矩阵一致 |
+| 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum` |
+| 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误 |
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | API 集成测试 | 待脚手架任务创建 | 公开 route/handler 与 OpenAPI operation 对齐 |
 | DB 集成测试 | 待 DB schema 任务创建 | migration、repository、事务/锁行为可验证 |

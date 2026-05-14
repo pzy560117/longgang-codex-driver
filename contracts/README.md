@@ -1,7 +1,7 @@
 # Contracts 目录约定：统一导出平台
 
 **Feature ID**: `FEAT-EXPORT-PLATFORM-001`
-**最后更新**: 2026-05-13
+**最后更新**: 2026-05-14
 
 ## 1. 目录目标
 
@@ -108,6 +108,27 @@ contracts/
 | `REGISTRY_CONFLICT` | 409 | 注册 `taskCode` 冲突 |
 | `INTERNAL_ERROR` | 500 | 未分类服务端错误 |
 
+## 3.5 CONTRACT-REVIEW-001 生产边界追踪要求
+
+`contracts/openapi.yaml` 通过 `x-contract-implementation-trace` 固化每个公开 operation 的后续实现追踪要求。该扩展只声明后续生产路径义务，不作为实现已完成证据。
+
+| operationId | HTTP 入口 | Requirement IDs | 后续 handler | DB / worker / audit / file 追踪要求 | 后续测试映射 |
+| --- | --- | --- | --- | --- | --- |
+| `createExportTask` | `POST /api/export/tasks` | FR-001 / FR-009 / FR-013 | `src/routes/export/tasks/create-export-task.handler.ts` | DB: task、idempotency、registry、audit；worker: 消费已提交 `PENDING`；audit: `CREATE` | contract / api / db |
+| `listExportTasks` | `GET /api/export/tasks` | FR-004 / FR-009 / FR-010 | `src/routes/export/tasks/list-export-tasks.handler.ts` | DB: task、file、audit；audit: `QUERY_HISTORY`；file: 只返回已发布文件元信息 | contract / api |
+| `getExportTask` | `GET /api/export/tasks/{taskId}` | FR-002 / FR-010 / FR-013 | `src/routes/export/tasks/get-export-task.handler.ts` | DB: task、event、attempt、file；worker: checkpoint / lease 证据；audit: `DETAIL_VIEW` | contract / api |
+| `downloadExportTask` | `GET /api/export/tasks/{taskId}/download` | FR-003 / FR-009 / FR-010 | `src/routes/export/tasks/download-export-task.handler.ts` | DB: task、file、audit；file: published object、checksum、expiry、delivery mode；audit: `DOWNLOAD` | contract / file |
+| `cancelExportTask` | `POST /api/export/tasks/{taskId}/cancel` | FR-012 / FR-010 | `src/routes/export/tasks/cancel-export-task.handler.ts` | DB: task、event、audit；worker: EXECUTING 批次边界收口；audit: cancel request/done | contract / worker |
+| `retryExportTask` | `POST /api/export/tasks/{taskId}/retry` | FR-012 / FR-013 / FR-010 | `src/routes/export/tasks/retry-export-task.handler.ts` | DB: task、attempt、event、audit；worker: 仅 FAILED 入队新尝试；audit: retry request | contract / db |
+| `createExportRegistry` | `POST /api/export/registries` | FR-007 / FR-008 / FR-009 | `src/routes/export/registries/create-export-registry.handler.ts` | DB: registry、registry version、audit；query: schema/template/mapping/masking snapshot；audit: `REGISTRY_CREATE` | contract / api |
+| `listExportRegistries` | `GET /api/export/registries` | FR-007 / FR-008 / FR-009 | `src/routes/export/registries/list-export-registries.handler.ts` | DB: registry、registry version；audit: `REGISTRY_QUERY` | contract |
+| `getExportRegistry` | `GET /api/export/registries/{taskCode}` | FR-007 / FR-008 / FR-013 | `src/routes/export/registries/get-export-registry.handler.ts` | DB: registry、registry version；snapshot digest 必须可追溯；audit: `REGISTRY_DETAIL` | contract |
+| `updateExportRegistry` | `PUT /api/export/registries/{taskCode}` | FR-007 / FR-008 / FR-013 | `src/routes/export/registries/update-export-registry.handler.ts` | DB: registry、registry version、audit；worker/query: 更新只影响新任务，旧任务继续使用快照；audit: `REGISTRY_UPDATE` | contract / db |
+| `enableExportRegistry` | `POST /api/export/registries/{taskCode}/enable` | FR-007 | `src/routes/export/registries/enable-export-registry.handler.ts` | DB: registry、audit；audit: `REGISTRY_ENABLE` | contract |
+| `disableExportRegistry` | `POST /api/export/registries/{taskCode}/disable` | FR-007 | `src/routes/export/registries/disable-export-registry.handler.ts` | DB: registry、audit；后续创建必须返回 `TASK_DISABLED`；audit: `REGISTRY_DISABLE` | contract |
+
+后续 HTTP handler 实现任务必须从该表和 `openapi.yaml` 扩展生成 route / handler / test TODO，且不得把 OpenAPI 契约、Markdown 表格或 `git diff --check` 作为 production path 完成证据。
+
 ## 4. 契约编写规则
 
 1. `openapi.yaml` 只放对外 API 的正式入口和状态/错误码锚点。
@@ -140,7 +161,8 @@ contracts/
 当前任务的最小验证命令为：
 
 ```powershell
-powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"
+git diff --check -- contracts docs/testing/verify-matrix.md
+npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml
 ```
 
 后续创建 Node 或契约测试工程后，应把 OpenAPI 校验固化为 package script，例如：
