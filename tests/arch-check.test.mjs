@@ -120,11 +120,11 @@ test("arch:check is declared as the scaffold gate", () => {
   assert.equal(packageJson.scripts?.["arch:check"], "tsx scripts/arch-check.ts");
 });
 
-test("verify matrix marks API and DB repository boundaries as available while downstream worker work remains blocked", () => {
+test("verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline", () => {
   assert.match(verifyMatrix, /\|\s*FR-001\s*\|\s*contract \/ API \/ DB\s*\|\s*HTTP handler-service-repository wired \/ requires-real-mysql\s*\|/);
   assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*DB lease repository and worker polling available \/ requires-real-mysql\s*\|/);
   assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*API and worker audit writes wired \/ requires-real-mysql\s*\|/);
-  assert.match(verifyMatrix, /\|\s*STACK-ADR-001\s*\|\s*design \/ planned \/ arch-check\s*\|\s*available \/ DB repository boundary added\s*\|/);
+  assert.match(verifyMatrix, /\|\s*STACK-ADR-001 设计基线\s*\|\s*FR-001 \/ FR-002 \/ FR-003 \/ FR-004 \/ FR-005 \/ FR-006 \/ FR-007 \/ FR-008 \/ FR-009 \/ FR-010 \/ FR-011 \/ FR-012 \/ FR-013 \/ FR-014\s*\|\s*design-baseline \/ implemented-by-release\s*\|\s*`docs\/context\/architecture-brief\.md`、`plans\/features\/export-platform\.dev-plan\.md`\s*\|/);
 });
 
 test("createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象", async () => {
