@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import http from "node:http";
 import test from "node:test";
 import mysql from "mysql2";
 import { Kysely, MysqlDialect } from "kysely";
@@ -173,6 +175,137 @@ async function seedRegistryAndTask(db, overrides = {}) {
   return { registry, task };
 }
 
+async function createLocalObjectStorageServer(t, options = {}) {
+  const bucket = options.bucket ?? "export-platform-test";
+  const objects = new Map();
+  const requests = [];
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const requestBucket = pathSegments.shift();
+    const storageKey = decodeStorageKey(pathSegments);
+
+    if (requestBucket !== bucket || !storageKey) {
+      response.statusCode = 404;
+      response.end("not found");
+      return;
+    }
+
+    const copySource = request.headers["x-export-copy-source"];
+    requests.push({
+      method: request.method ?? "GET",
+      storageKey,
+      pathname: url.pathname,
+      search: url.search,
+      copySource: typeof copySource === "string" ? copySource : null,
+      contentType: request.headers["content-type"] ?? null
+    });
+
+    if (request.method === "PUT") {
+      if (typeof copySource === "string") {
+        const [sourceBucket, ...sourceKeySegments] = copySource.split("/");
+        const sourceStorageKey = sourceKeySegments.join("/");
+        if (sourceBucket !== bucket || !objects.has(sourceStorageKey)) {
+          response.statusCode = 404;
+          response.end("missing source object");
+          return;
+        }
+        objects.set(storageKey, Buffer.from(objects.get(sourceStorageKey)));
+        response.statusCode = 201;
+        response.end("copied");
+        return;
+      }
+
+      const body = await readRequestBody(request);
+      objects.set(storageKey, body);
+      response.statusCode = 201;
+      response.end("stored");
+      return;
+    }
+
+    if (request.method === "GET") {
+      const body = objects.get(storageKey);
+      if (!body) {
+        response.statusCode = 404;
+        response.end("missing object");
+        return;
+      }
+
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/octet-stream");
+      response.end(body);
+      return;
+    }
+
+    response.statusCode = 405;
+    response.end("method not allowed");
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  t.after(
+    () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      })
+  );
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("failed to resolve local object storage server address");
+  }
+
+  return {
+    bucket,
+    endpoint: `http://127.0.0.1:${address.port}`,
+    objects,
+    requests
+  };
+}
+
+async function readRequestBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+function decodeStorageKey(segments) {
+  return segments.map((segment) => decodeURIComponent(segment)).join("/");
+}
+
+async function withObjectStorageEnv(config, callback) {
+  const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
+
+  try {
+    return await callback();
+  } finally {
+    if (originalEndpoint === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = originalEndpoint;
+    }
+
+    if (originalBucket === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = originalBucket;
+    }
+  }
+}
+
 function createProductionEquivalentObjectStorageAdapter(options = {}) {
   const objects = new Map();
   const writes = [];
@@ -265,6 +398,82 @@ test("file service writes temp object, verifies checksum, and publishes ZIP meta
     events.map((event) => event.eventType),
     ["DELIVERY_READY", "FILE_VERIFIED", "PACKAGE_DONE", "FILE_PART_WRITTEN", "FILE_PART_WRITTEN"]
   );
+});
+
+test("env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 2,
+    fileFormat: "XLSX"
+  });
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+
+  await withObjectStorageEnv(objectStorageServer, async () => {
+    const service = createExportFileService({ db });
+    const result = await service.publishRows({
+      task,
+      registry,
+      attemptNo: 0,
+      requestId: "req-file-env-storage",
+      rows: [
+        { "Order No": "PO-001" },
+        { "Order No": "PO-002" },
+        { "Order No": "PO-003" }
+      ]
+    });
+
+    const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+    assert.ok(metadata);
+    assert.equal(result.contentType, "application/zip");
+    assert.equal(result.fileName.endsWith(".zip"), true);
+    assert.equal(result.storageKey, metadata.publishedStorageKey);
+    assert.equal(metadata.checksum, result.checksum);
+    assert.equal(metadata.checksumAlgorithm, "SHA-256");
+    assert.ok(metadata.checksumVerifiedAt instanceof Date);
+    assert.ok(metadata.deliveryReadyAt instanceof Date);
+    assert.ok(objectStorageServer.objects.has(metadata.tempStorageKey));
+    assert.ok(objectStorageServer.objects.has(metadata.publishedStorageKey));
+
+    const publishedBuffer = Buffer.from(objectStorageServer.objects.get(metadata.publishedStorageKey));
+    const tempBuffer = Buffer.from(objectStorageServer.objects.get(metadata.tempStorageKey));
+    assert.deepEqual(publishedBuffer, tempBuffer);
+
+    const archive = await inspectZipOfXlsxBuffer(publishedBuffer, { mode: "all" });
+    assert.deepEqual(archive.entryNames, ["part-0001.xlsx", "part-0002.xlsx"]);
+    assert.equal(archive.totalRowCount, 3);
+    assert.deepEqual(archive.parts[0].workbook.rows, [["PO-001"], ["PO-002"]]);
+    assert.deepEqual(archive.parts[1].workbook.rows, [["PO-003"]]);
+
+    const downloadUrl = await service.createDownloadUrl(metadata.publishedStorageKey, metadata.expiresAt);
+    assert.match(
+      downloadUrl,
+      new RegExp(
+        `^${objectStorageServer.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/${objectStorageServer.bucket}/`
+      )
+    );
+    assert.match(downloadUrl, /[?&]expiresAt=/);
+
+    const downloadResponse = await fetch(downloadUrl);
+    assert.equal(downloadResponse.ok, true);
+    const downloadedBuffer = Buffer.from(await downloadResponse.arrayBuffer());
+    assert.deepEqual(downloadedBuffer, publishedBuffer);
+    const downloadedArchive = await inspectZipOfXlsxBuffer(downloadedBuffer, { mode: "all" });
+    assert.equal(downloadedArchive.totalRowCount, 3);
+
+    assert.deepEqual(
+      objectStorageServer.requests.map((request) => `${request.method} ${request.storageKey}`),
+      [
+        `PUT ${metadata.tempStorageKey}`,
+        `GET ${metadata.tempStorageKey}`,
+        `PUT ${metadata.publishedStorageKey}`,
+        `GET ${metadata.publishedStorageKey}`
+      ]
+    );
+    assert.equal(
+      objectStorageServer.requests[2].copySource,
+      `${objectStorageServer.bucket}/${metadata.tempStorageKey}`
+    );
+  });
 });
 
 test("checksum failure prevents publish and metadata from becoming downloadable", async (t) => {
