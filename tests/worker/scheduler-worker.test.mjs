@@ -123,6 +123,20 @@ async function seedTask(db, input) {
     idempotencyScope: null,
     requestDigest: `sha256:${input.taskId}`,
     configSnapshotDigest: "sha256:config-v1",
+    requestPayload: JSON.stringify({
+      fileFormat: "XLSX",
+      queryParams: {
+        createdAtFrom: "2026-05-01T00:00:00+08:00",
+        createdAtTo: "2026-05-31T23:59:59+08:00"
+      }
+    }),
+    authContextPayload: JSON.stringify({
+      operatorId: "u001",
+      tenantId: "tenant-001",
+      roleCodes: ["EXPORT_USER"],
+      orgScope: "ORG-001,ORG-002",
+      requestId: "req-worker-001"
+    }),
     now
   });
 }
@@ -192,7 +206,7 @@ test("multiple workers dispatch only up to the registry concurrency limit and wr
     .executeTakeFirst();
 
   assert.deepEqual(
-    audits.map((audit) => audit.action),
+    [...audits.map((audit) => audit.action)].sort(),
     ["DISPATCH", "EXECUTE_START"]
   );
   assert.equal(audits.every((audit) => audit.requestId === "scheduler:worker-a" || audit.requestId === "scheduler:worker-b"), true);

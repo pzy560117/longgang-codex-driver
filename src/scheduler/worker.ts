@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
+import { createQueryExecutorBatchProcessor } from "../query-executor/index.ts";
 import {
   createCheckpointRepository,
   createExportAuditRepository,
@@ -66,6 +67,8 @@ type CandidateRow = {
   idempotency_scope: string | null;
   request_digest: string;
   config_snapshot_digest: string;
+  request_payload: string | null;
+  auth_context_payload: string | null;
   attempt_no: number;
   lock_owner: string | null;
   lock_expire_at: Date | null;
@@ -88,6 +91,8 @@ function toTaskRecord(row: CandidateRow): ExportTaskRecord {
     idempotencyScope: row.idempotency_scope,
     requestDigest: row.request_digest,
     configSnapshotDigest: row.config_snapshot_digest,
+    requestPayload: row.request_payload,
+    authContextPayload: row.auth_context_payload,
     attemptNo: row.attempt_no,
     lockOwner: row.lock_owner,
     lockExpireAt: row.lock_expire_at,
@@ -109,9 +114,7 @@ async function queryDatabaseTime(db: Kysely<ExportPlatformDatabase>): Promise<Da
   return new Date(row.database_time);
 }
 
-async function defaultBatchProcessor(): Promise<SchedulerBatchResult> {
-  throw new Error("QUERY_EXECUTOR_NOT_CONFIGURED");
-}
+const defaultBatchProcessor = createQueryExecutorBatchProcessor();
 
 export function createSchedulerWorker(options: SchedulerWorkerOptions) {
   const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
@@ -208,6 +211,8 @@ async function acquireNextLease(input: {
         "t.idempotency_scope",
         "t.request_digest",
         "t.config_snapshot_digest",
+        "t.request_payload",
+        "t.auth_context_payload",
         "t.attempt_no",
         "t.lock_owner",
         "t.lock_expire_at",

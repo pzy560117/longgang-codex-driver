@@ -27,7 +27,7 @@
     "test:api": "node --import tsx --test tests/api/*.test.mjs",
     "test:db": "node --import tsx --test tests/db/*.test.mjs",
     "test:worker": "node --import tsx --test tests/worker/*.test.mjs",
-    "test:query": "node scripts/planned-test.mjs query",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test tests/query/*.test.mjs",
     "test:file": "node scripts/planned-test.mjs file",
     "test:sample": "node scripts/planned-test.mjs sample"
   }

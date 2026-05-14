@@ -242,6 +242,17 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
       idempotencyScope,
       requestDigest,
       configSnapshotDigest: registry.configSnapshotDigest,
+      requestPayload: JSON.stringify({
+        fileFormat: body.fileFormat,
+        queryParams: body.queryParams ?? null
+      }),
+      authContextPayload: JSON.stringify({
+        operatorId: auth.operatorId,
+        tenantId: auth.tenantId,
+        roleCodes: auth.roleCodes,
+        orgScope: auth.orgScope,
+        requestId: auth.requestId
+      }),
       now
     });
 

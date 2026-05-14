@@ -166,6 +166,28 @@
 
 ### 备注：
 - Codex 输出包含失败或 BLOCKED，请人工查看。
+## [2026-05-14 22:45] - Task: QUERY-EXECUTOR-001 实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点
+
+### 完成的工作：
+- 接管 driver 未完成的 query executor 实现，补齐 `src/query-executor/index.ts` 生产批处理器。
+- 将任务创建时的 request/auth snapshot 持久化到 MySQL，并让 scheduler 默认串联 query executor。
+- 增加 `006_task_execution_context_snapshot` migration、真实 MySQL query 测试和 DB/worker 回归覆盖。
+
+### 测试结果：
+- `npm run typecheck` 通过。
+- `npm run arch:check` 通过。
+- `npm run test:query` 使用真实 MySQL 通过，7/7。
+- `npm run test:worker` 使用真实 MySQL 通过，6/6。
+- `npm run test:db` 使用真实 MySQL 通过，3/3。
+- `npm run test:api` 使用真实 MySQL 通过，2/2。
+- `npm test` 通过，17/17。
+- 任务验证命令 `.\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` 通过。
+
+### 审查结果：
+- 主控恢复 driver 未完成会话；未使用测试替身、内存实现或 planned 占位作为完成证据。
+
+### 备注：
+- `QUERY-EXECUTOR-001` 已标记为通过；后续 ready task 为 `FILE-SERVICE-001`。
 ## [2026-05-14 18:44] - Task: DB-SCHEMA-001 创建 MySQL schema、migration 和生产 repository 边界
 
 ### 完成的工作：
@@ -289,3 +311,17 @@
 
 ### 备注：
 - 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-14 22:30] - Task: QUERY-EXECUTOR-001 实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点
+
+### 完成的工作：
+- Codex 会话未完成。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 未进入 Stage 1 审查。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- Codex 输出包含失败或 BLOCKED，请人工查看。

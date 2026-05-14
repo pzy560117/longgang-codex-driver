@@ -12,6 +12,8 @@ export type CreatePendingTaskInput = {
   idempotencyScope: string | null;
   requestDigest: string;
   configSnapshotDigest: string;
+  requestPayload: string | null;
+  authContextPayload: string | null;
   now: Date;
 };
 
@@ -27,6 +29,8 @@ export type ExportTaskRecord = {
   idempotencyScope: string | null;
   requestDigest: string;
   configSnapshotDigest: string;
+  requestPayload: string | null;
+  authContextPayload: string | null;
   attemptNo: number;
   lockOwner: string | null;
   lockExpireAt: Date | null;
@@ -53,6 +57,8 @@ function toTaskRecord(row: {
   idempotency_scope: string | null;
   request_digest: string;
   config_snapshot_digest: string;
+  request_payload: string | null;
+  auth_context_payload: string | null;
   attempt_no: number;
   lock_owner: string | null;
   lock_expire_at: Date | null;
@@ -72,6 +78,8 @@ function toTaskRecord(row: {
     idempotencyScope: row.idempotency_scope,
     requestDigest: row.request_digest,
     configSnapshotDigest: row.config_snapshot_digest,
+    requestPayload: row.request_payload,
+    authContextPayload: row.auth_context_payload,
     attemptNo: row.attempt_no,
     lockOwner: row.lock_owner,
     lockExpireAt: row.lock_expire_at,
@@ -99,6 +107,8 @@ export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
             idempotency_scope: input.idempotencyScope,
             request_digest: input.requestDigest,
             config_snapshot_digest: input.configSnapshotDigest,
+            request_payload: input.requestPayload,
+            auth_context_payload: input.authContextPayload,
             attempt_no: 0,
             lock_owner: null,
             lock_expire_at: null,

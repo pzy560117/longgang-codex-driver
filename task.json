@@ -650,7 +650,7 @@
                                            "TASK-API-HTTP-001",
                                            "SCHEDULER-WORKER-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "query executor 必须走生产 DB repository 和认证上下文数据范围",
                                                        "字段映射、脱敏、批次检查点和失败审计必须可追踪到 taskId、attemptNo、requestId",

@@ -149,10 +149,27 @@ test("repositories persist registry, task idempotency, lease, checkpoint, file a
     taskId,
     taskCode,
     subsystemCode: "purchase",
+    tenantId: "tenant-001",
+    createdBy: "u001",
+    fileFormat: "XLSX",
     clientRequestId: "client-001",
     idempotencyScope,
     requestDigest: "sha256:request-v1",
     configSnapshotDigest: "sha256:config-v1",
+    requestPayload: JSON.stringify({
+      fileFormat: "XLSX",
+      queryParams: {
+        createdAtFrom: "2026-05-01T00:00:00+08:00",
+        createdAtTo: "2026-05-31T23:59:59+08:00"
+      }
+    }),
+    authContextPayload: JSON.stringify({
+      operatorId: "u001",
+      tenantId: "tenant-001",
+      roleCodes: ["EXPORT_USER"],
+      orgScope: "ORG-001",
+      requestId: "req-001"
+    }),
     now
   });
 
@@ -252,6 +269,11 @@ test("repositories persist registry, task idempotency, lease, checkpoint, file a
 
   assert.equal(task?.status, "EXECUTING");
   assert.equal(task?.lockOwner, "worker-a");
+  assert.equal(
+    JSON.parse(task?.requestPayload ?? "{}").queryParams.createdAtFrom,
+    "2026-05-01T00:00:00+08:00"
+  );
+  assert.equal(JSON.parse(task?.authContextPayload ?? "{}").tenantId, "tenant-001");
   assert.equal(registry?.enabled, true);
   assert.equal(registry?.configSnapshotDigest, "sha256:config-v1");
   assert.deepEqual(JSON.parse(registry?.supportedFormats ?? "[]"), ["XLSX", "CSV"]);

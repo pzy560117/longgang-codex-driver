@@ -10,6 +10,8 @@ export interface ExportTasksTable {
   idempotency_scope: string | null;
   request_digest: string;
   config_snapshot_digest: string;
+  request_payload: string | null;
+  auth_context_payload: string | null;
   attempt_no: number;
   lock_owner: string | null;
   lock_expire_at: Date | null;
