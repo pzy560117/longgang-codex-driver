@@ -1,0 +1,72 @@
+SUCCESS: The process with PID 10180 (child process of PID 37792) has been terminated.
+SUCCESS: The process with PID 37792 (child process of PID 7512) has been terminated.
+SUCCESS: The process with PID 7512 (child process of PID 25164) has been terminated.
+SUCCESS: The process with PID 25164 (child process of PID 27196) has been terminated.
+SUCCESS: The process with PID 27196 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 20676 (child process of PID 12120) has been terminated.
+SUCCESS: The process with PID 12120 (child process of PID 22588) has been terminated.
+SUCCESS: The process with PID 22588 (child process of PID 25888) has been terminated.
+SUCCESS: The process with PID 25888 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 38108 (child process of PID 20572) has been terminated.
+SUCCESS: The process with PID 20572 (child process of PID 27060) has been terminated.
+SUCCESS: The process with PID 27060 (child process of PID 13636) has been terminated.
+SUCCESS: The process with PID 13636 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 24972 (child process of PID 15552) has been terminated.
+SUCCESS: The process with PID 15552 (child process of PID 41832) has been terminated.
+SUCCESS: The process with PID 41832 (child process of PID 30692) has been terminated.
+SUCCESS: The process with PID 30692 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 36004 (child process of PID 33576) has been terminated.
+SUCCESS: The process with PID 33576 (child process of PID 24936) has been terminated.
+SUCCESS: The process with PID 24936 (child process of PID 29560) has been terminated.
+SUCCESS: The process with PID 29560 (child process of PID 38208) has been terminated.
+SUCCESS: The process with PID 38208 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 10876 (child process of PID 12964) has been terminated.
+SUCCESS: The process with PID 12964 (child process of PID 18760) has been terminated.
+SUCCESS: The process with PID 18760 (child process of PID 5096) has been terminated.
+SUCCESS: The process with PID 5096 (child process of PID 12912) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-013
+- FR-014
+
+## Summary
+- 已确定技术栈：Node.js 20+、TypeScript、Fastify、Kysely + `mysql2`、Kysely Migrator/TS migration runner、Vitest、真实 MySQL 集成测试入口。
+- 已同步目录结构、`npm run arch:check` 门禁、后续 owned paths 约束到 dev-plan、architecture brief、verify-matrix。
+- 按本轮强制边界未修改 `task.json`，也未执行 git commit。
+
+## Files Changed
+- `docs/context/architecture-brief.md`: 补齐 STACK-ADR 技术栈、入口、目录、arch check 与 owned paths 约束。
+- `plans/features/export-platform.dev-plan.md`: 同步后续任务拆分、测试层级、migration 与 arch-check 落点。
+- `docs/testing/verify-matrix.md`: 新增 STACK-ADR-001 验证细则。
+
+## Validation
+- `git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json`: PASS - exit 0，仅 CRLF 提示，无 whitespace error。
+- `rg ...残留检查`: PASS - 未命中 `tests/backend`、`tests/scheduler`、`tests/*`、`MySQL client` 等残留。
+
+## Evidence
+- `docs/context/architecture-brief.md`: 证明架构决策、目录结构、检查命令已落地。
+- `plans/features/export-platform.dev-plan.md`: 证明后续实现 owned paths 和验证入口已规划。
+- `docs/testing/verify-matrix.md`: 证明 `arch:check` planned 状态和最低检查项已进入验证矩阵。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 技术栈和入口按 http_service + worker + scheduled_job 设计。
+- `data_boundary=MySQL`: PASS - Kysely + `mysql2`、`migrations/`、真实 MySQL 测试入口已记录。
+- `test_double_policy`: PASS - `arch:check` 明确禁止生产入口引用 `InMemory*`、mock、fixture。
+- `feature_impl_arch_check`: PASS - 后续 feature_impl 固定包含 `npm run arch:check`。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: STACK-ADR 文档知识引用入口 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 约束架构规则落到可验证文档 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `DECISION-STACK-ADR-001`: decision - 独立微服务技术栈与 arch-check 门禁 - suggested - `docs/knowledge/decisions/DECISION-STACK-ADR-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `task.json` 中 `SERVICE-SCAFFOLD-001` 仍有笼统 `tests/` owned path；本轮模板强制禁止修改 `task.json`，已在文档中标明需由后续 harness-writer/planner 修正。
+- 当前 `scripts/arch-check.ts` 和 `npm run arch:check` 仍是 planned，实际脚本由后续脚手架任务创建。

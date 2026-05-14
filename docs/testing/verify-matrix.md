@@ -55,6 +55,18 @@
 | FR-014 | sample / pressure / end-to-end | not-started | 待创建采购订单样板与压测证据 |
 | STACK-ADR-001 | design / planned / arch-check | planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`npm run arch:check` |
 
+## STACK-ADR-001 验证细则
+
+`scripts/arch-check.ts` / `npm run arch:check` 的最低检查项、适用范围和状态如下：
+
+| 项目 | 内容 |
+| --- | --- |
+| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+| 适用范围 | 后续 `feature_impl` 的固定架构门禁；适用于脚手架、实现、worker、db、file 和 sample 相关任务 |
+| 当前状态 | planned |
+| 证据路径 | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`npm run arch:check` |
+| 备注 | `npm run arch:check` 不能被 `git diff --check`、OpenAPI lint、单测或人工检查替代 |
+
 ## 最终规则
 
 - `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。

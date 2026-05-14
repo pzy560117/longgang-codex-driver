@@ -169,13 +169,13 @@
 
 | 模块 | 后续契约 owned paths | 后续测试 owned paths | 后续实现 owned paths | 首要覆盖 |
 | --- | --- | --- | --- | --- |
-| `task-api` | `contracts/openapi.yaml`、`contracts/api/` | `tests/contract/`、`tests/backend/` | `src/task-api/` | FR-001、FR-002、FR-003、FR-004、FR-012、FR-013 |
-| `registry-config` | `contracts/api/`、`contracts/query/` | `tests/contract/`、`tests/backend/`、`tests/query/` | `src/registry-config/` | FR-007、FR-008、FR-013 |
-| `scheduler` | `contracts/scheduler/` | `tests/scheduler/` | `src/scheduler/` | FR-005、FR-013 |
+| `task-api` | `contracts/openapi.yaml`、`contracts/api/` | `tests/contract/`、`tests/api/` | `src/task-api/` | FR-001、FR-002、FR-003、FR-004、FR-012、FR-013 |
+| `registry-config` | `contracts/api/`、`contracts/query/` | `tests/contract/`、`tests/api/`、`tests/query/` | `src/registry-config/` | FR-007、FR-008、FR-013 |
+| `scheduler` | `contracts/scheduler/` | `tests/worker/` | `src/scheduler/` | FR-005、FR-013 |
 | `query-executor` | `contracts/query/` | `tests/query/` | `src/query-executor/` | FR-006、FR-008、FR-009、FR-014 |
 | `file-service` | `contracts/file/` | `tests/file/` | `src/file-service/` | FR-003、FR-006、FR-011 |
-| `cleanup-job` | `contracts/file/` | `tests/file/`、`tests/scheduler/` | `src/cleanup-job/` | FR-011 |
-| `audit-log` | `contracts/audit/` | `tests/backend/`、`tests/contract/` | `src/audit-log/` | FR-010、FR-013 |
+| `cleanup-job` | `contracts/file/` | `tests/file/`、`tests/worker/` | `src/cleanup-job/` | FR-011 |
+| `audit-log` | `contracts/audit/` | `tests/contract/`、`tests/api/`、`tests/worker/` | `src/audit-log/` | FR-010、FR-013 |
 | `sample-purchase-order` | `contracts/sample/`、`contracts/query/` | `tests/sample/`、`tests/query/`、`tests/file/` | `src/sample-purchase-order/` | FR-014 |
 
 当前仓库已存在 `contracts/README.md`，但尚未创建 `contracts/openapi.yaml`、分区契约目录、`tests/` 或 `src/`。后续任务创建这些路径时，应在任务 owned paths 中显式列出对应分区。
@@ -232,6 +232,7 @@
 - HTTP 框架: Fastify
 - MySQL 客户端: Kysely + `mysql2`
 - Migration 工具: Kysely Migrator 或等价 TypeScript migration runner
+- 测试分层: `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`
 - 测试运行器: Vitest
 - 真实 MySQL 集成测试: `testcontainers` 或显式 `EXPORT_PLATFORM_TEST_DATABASE_URL`
 - 公共 API truth source: `contracts/openapi.yaml`
@@ -267,7 +268,7 @@
 - `tests/file/`
 - `tests/sample/`
 
-后续实现任务不得把 owned paths 继续笼统写成仅 `src/` 或仅 `tests/`。`STACK-ADR-001` 的计划任务应在下一轮由 `harness-writer` 或 `planner` 拆分到这些具体模块路径。
+后续实现任务不得把 owned paths 继续笼统写成仅 `src/` 或仅 `tests/`。`STACK-ADR-001` 的计划任务应在下一轮由 `harness-writer` 或 `planner` 拆分到这些具体模块路径，并至少覆盖 HTTP routes、services、repositories、migrations、workers、jobs、tests 与 arch check。
 
 ### 14.4 架构检查命令
 
@@ -281,6 +282,10 @@
 3. 生产入口不得引用 `InMemory*`、mock、fixture。
 4. `migrations/` 必须覆盖 task、registry、lease/checkpoint、file metadata、audit log。
 5. `package.json` scripts 必须包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample`。
+6. `src/db/` 必须提供真实 MySQL 客户端和 migration 运行入口，不能把 migration 逻辑藏进测试替身。
+7. `tests/worker/`、`tests/db/`、`tests/query/`、`tests/file/`、`tests/sample/` 必须分别对应各自 owned paths，而不是共享笼统 `tests/`。
+
+`npm run arch:check` 是后续 `feature_impl` 的固定验证入口之一，不能被 `git diff --check`、OpenAPI lint 或单元测试替代。
 
 ### 14.5 部署入口约束
 
@@ -298,6 +303,8 @@
 - 文件相关：`src/file-service/`、`src/jobs/`
 - 审计相关：`src/audit-log/`
 - 数据访问相关：`src/repositories/`、`src/db/`
+- 迁移相关：`migrations/`
+- 检查脚本相关：`scripts/arch-check.ts`
 - 测试相关：`tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`
 
 当前 `task.json` 中的 `SERVICE-SCAFFOLD-001` 仍含笼统 `tests/` 边界；由于本轮强制边界不修改 `task.json`，下一次由 `harness-writer` 或 `planner` 处理计划时，应把它拆成 `tests/contract/`、`tests/api/`、`tests/worker/` 等具体路径，再进入后续实现任务。

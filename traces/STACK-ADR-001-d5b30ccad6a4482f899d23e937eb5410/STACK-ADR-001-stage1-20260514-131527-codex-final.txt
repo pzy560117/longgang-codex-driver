@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+
+审查要点：`docs/architecture/constraints.md` 已明确 `independent_microservice`、HTTP API、MySQL 持久化、worker/job、测试替身策略、禁止实现和 Definition of Done；`docs/context/architecture-brief.md` 与 `plans/features/export-platform.dev-plan.md` 已记录 Node.js 20+、TypeScript、Fastify、Kysely/mysql2、Vitest、目录结构和 `npm run arch:check`/`scripts/arch-check.ts`；`docs/testing/verify-matrix.md` 已把 STACK-ADR-001 标为 design/planned，并定义后续 `feature_impl` 的架构检查入口。
+
+已复验：`git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json` 通过，仅有 LF/CRLF warning，不构成 Stage 1 功能/规格失败项。

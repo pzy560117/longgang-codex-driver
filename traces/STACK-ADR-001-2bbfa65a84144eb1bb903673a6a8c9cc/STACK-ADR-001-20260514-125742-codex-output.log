@@ -1,0 +1,74 @@
+SUCCESS: The process with PID 4092 (child process of PID 22996) has been terminated.
+SUCCESS: The process with PID 15172 (child process of PID 4232) has been terminated.
+SUCCESS: The process with PID 22996 (child process of PID 41756) has been terminated.
+SUCCESS: The process with PID 4232 (child process of PID 34388) has been terminated.
+SUCCESS: The process with PID 41756 (child process of PID 29116) has been terminated.
+SUCCESS: The process with PID 34388 (child process of PID 10148) has been terminated.
+SUCCESS: The process with PID 29116 (child process of PID 38212) has been terminated.
+SUCCESS: The process with PID 10148 (child process of PID 38212) has been terminated.
+SUCCESS: The process with PID 18652 (child process of PID 17656) has been terminated.
+SUCCESS: The process with PID 17656 (child process of PID 30988) has been terminated.
+SUCCESS: The process with PID 30988 (child process of PID 25400) has been terminated.
+SUCCESS: The process with PID 25400 (child process of PID 38212) has been terminated.
+SUCCESS: The process with PID 42332 (child process of PID 21664) has been terminated.
+SUCCESS: The process with PID 21664 (child process of PID 14836) has been terminated.
+SUCCESS: The process with PID 14836 (child process of PID 15724) has been terminated.
+SUCCESS: The process with PID 15724 (child process of PID 19772) has been terminated.
+SUCCESS: The process with PID 19772 (child process of PID 38212) has been terminated.
+SUCCESS: The process with PID 3128 (child process of PID 1172) has been terminated.
+SUCCESS: The process with PID 1172 (child process of PID 1828) has been terminated.
+SUCCESS: The process with PID 1828 (child process of PID 3516) has been terminated.
+SUCCESS: The process with PID 3516 (child process of PID 28912) has been terminated.
+SUCCESS: The process with PID 28912 (child process of PID 38212) has been terminated.
+SUCCESS: The process with PID 30660 (child process of PID 17540) has been terminated.
+SUCCESS: The process with PID 17540 (child process of PID 31596) has been terminated.
+SUCCESS: The process with PID 31596 (child process of PID 38468) has been terminated.
+SUCCESS: The process with PID 38468 (child process of PID 38212) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-013
+- FR-014
+
+## Summary
+- 已落盘 `STACK-ADR-001` 技术栈决策：Node.js 20+、TypeScript、Fastify、Kysely + `mysql2`、Kysely Migrator/等价 TS migration runner、Vitest。
+- 已定义独立微服务目录结构、生产入口和 `npm run arch:check` / `scripts/arch-check.ts` 架构检查入口。
+- 已记录后续 `feature_impl` 不能只靠文档或 `git diff --check` 通过，必须进入 `arch:check`、具体测试层级和 migration/entry 证据。
+- 已提交：`e50d495 docs: land STACK-ADR-001 architecture constraints`
+
+## Files Changed
+- `docs/context/architecture-brief.md`: 新增 `STACK-ADR-001` 技术栈、入口、目录结构、部署入口、arch check 和 owned_paths 约束。
+- `plans/features/export-platform.dev-plan.md`: 补充具体模块 owned paths、验证顺序、架构检查入口和后续实现任务约束。
+- `docs/testing/verify-matrix.md`: 新增 `STACK-ADR-001` design/planned 证据行，固定 `npm run arch:check` 为后续实现验证入口。
+
+## Validation
+- `git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json`: PASS
+- `git status --short`: PASS - 仅剩 runtime 产物 `traces/STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc/` 未跟踪
+
+## Evidence
+- `docs/context/architecture-brief.md`: 证明技术栈、目录结构、生产入口和 `arch:check` 已进入架构 brief。
+- `plans/features/export-platform.dev-plan.md`: 证明后续实现拆分、owned paths 和验证顺序已更新。
+- `docs/testing/verify-matrix.md`: 证明验证矩阵已记录 STACK-ADR-001 和后续 arch check 门槛。
+- `e50d495`: 本任务文档改动提交。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 技术栈和入口按 HTTP service + worker + cleanup job 定义。
+- `runtime=http_service+worker+scheduled_job`: PASS - 已固定 `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts`。
+- `feature_impl arch:check`: PASS - 已定义 `npm run arch:check` / `scripts/arch-check.ts` 最低检查项。
+- `no InMemory/mock production path`: PASS - 已纳入 arch check 和 verify-matrix 后续门槛。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 架构决策留知识引用入口 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 将约束落到可验证文档和命令 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `none`: 未新增知识条目建议
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `task.json` 本轮按强制边界未修改；其中 `SERVICE-SCAFFOLD-001` 仍含笼统 `tests/`，已在文档中标记后续需由 `harness-writer` 或计划任务拆成具体测试路径。
+- `npm run arch:check` 尚未运行，因为脚手架和 `scripts/arch-check.ts` 还未创建。
