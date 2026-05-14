@@ -1,8 +1,14 @@
 # 验收标准
 
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**最后更新**: 2026-05-13
-**负责人**: ANALYSIS-001
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
+
+## 当前状态
+
+- API / DB / worker / query / file / sample 已完成 fresh-pass 验证。
+- live object storage gate 仍为 BLOCKED，必须具备真实 endpoint / bucket 且设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 本文件保留的历史基线仅用于追溯最初验收设计，不代表当前实现状态。
 
 > 本文件是 testing 层可执行验收入口，口径来源为 `docs/product/acceptance-criteria.md`。如二者冲突，以 `docs/product/acceptance-criteria.md` 为产品真相源，并在本文件标记 gap 后同步修正。
 
@@ -62,6 +68,6 @@
 
 ## 使用规则
 
-- 当前仓库尚无业务实现代码，所有 `planned` 或 `blocked-by-contract` 行必须在后续契约和实现任务中转成可执行测试。
+- 历史基线中的原始计划口径仅代表旧版分析，不得当作当前状态。
 - Testing 层不得新增产品未确认的状态、错误码、筛选项或字段；如需新增，先回填 `docs/product/*`。
-- release 前每条 P0/P1 必需项必须有 fresh evidence 或明确 BLOCKED 记录。
+- release 阶段每条 P0/P1 必需项必须有 fresh evidence；仅 live object storage smoke 可保留 BLOCKED 记录。

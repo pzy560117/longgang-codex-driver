@@ -1,9 +1,15 @@
 # 回归计划
 
 **功能 / 发布版本**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**任务 ID**: ANALYSIS-001
-**最后更新**: 2026-05-13
-**负责人**: ANALYSIS-001
+**任务 ID**: RELEASE-001
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
+
+## 状态说明
+
+- API / DB / worker / query / file / sample 已完成 fresh-pass 验证。
+- live object storage smoke 仍为 BLOCKED，需真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 下方保留的“当前状态”仅表示回归集合的执行记录，不再沿用预实现口径。
 
 ## 1. 受影响范围
 
@@ -20,24 +26,24 @@
 
 | 回归 ID | 需求 | 必测场景 | Seed | 当前状态 |
 | --- | --- | --- | --- | --- |
-| REG-P0-001 | FR-001 / FR-013 | 创建任务、幂等命中、幂等冲突、快照沿用 | `seed-create-base-001`、`seed-idempotency-001` | planned |
-| REG-P0-002 | FR-002 / FR-004 / FR-010 | 任务详情、进度、历史分页、本人/管理员可见性、审计字段 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | planned |
-| REG-P0-003 | FR-005 / FR-012 / FR-013 | 多实例抢锁、租约续租、锁接管、取消、FAILED 重试 | `seed-lock-001`、`seed-cancel-retry-001` | planned |
-| REG-P0-004 | FR-007 / FR-008 | 注册配置、disabled、查询模板、字段映射、游标字段 | `seed-registry-001`、`seed-contract-001` | blocked-by-contract |
-| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | planned |
-| REG-P0-006 | FR-009 / FR-014 | 权限拒绝、数据范围、联系人脱敏、采购订单 10 万行边界 | `seed-auth-001`、`seed-purchase-order-001` | blocked-by-contract |
+| REG-P0-001 | FR-001 / FR-013 | 创建任务、幂等命中、幂等冲突、快照沿用 | `seed-create-base-001`、`seed-idempotency-001` | fresh-pass |
+| REG-P0-002 | FR-002 / FR-004 / FR-010 | 任务详情、进度、历史分页、本人/管理员可见性、审计字段 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | fresh-pass |
+| REG-P0-003 | FR-005 / FR-012 / FR-013 | 多实例抢锁、租约续租、锁接管、取消、FAILED 重试 | `seed-lock-001`、`seed-cancel-retry-001` | fresh-pass |
+| REG-P0-004 | FR-007 / FR-008 | 注册配置、disabled、查询模板、字段映射、游标字段 | `seed-registry-001`、`seed-contract-001` | fresh-pass |
+| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | fresh-pass |
+| REG-P0-006 | FR-009 / FR-014 | 权限拒绝、数据范围、联系人脱敏、采购订单 10 万行边界 | `seed-auth-001`、`seed-purchase-order-001` | fresh-pass |
 
 ## 3. P1 回归集合
 
 | 回归 ID | 需求 | 必测场景 | Seed | 当前状态 |
 | --- | --- | --- | --- | --- |
-| REG-P1-001 | FR-011 | 过期标记、410 失效、清理失败可重试 | `seed-cleanup-001` | planned |
-| REG-P1-002 | FR-012 | PENDING 取消、EXECUTING 批次边界取消、非法状态返回 `INVALID_TASK_STATE` | `seed-cancel-retry-001` | planned |
+| REG-P1-001 | FR-011 | 过期标记、410 失效、清理失败可重试 | `seed-cleanup-001` | fresh-pass |
+| REG-P1-002 | FR-012 | PENDING 取消、EXECUTING 批次边界取消、非法状态返回 `INVALID_TASK_STATE` | `seed-cancel-retry-001` | fresh-pass |
 
 ## 4. 发布证据
 
-- verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`，当前 ANALYSIS-001 必须通过。
-- 契约验证：后续 CONTRACT-001 在 `contracts/` 和 `docs/testing/verify-matrix.md` 中补齐。
-- 后端 / 调度 / 查询 / 文件验证：后续 CORE/SCHED/QUERY/FILE/SAMPLE 任务落地真实命令。
+- verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`，当前 RELEASE-001 已通过。
+- 契约验证：CONTRACT-001 已完成，相关结果已收敛到 `contracts/` 与 `docs/testing/verify-matrix.md`。
+- 后端 / 调度 / 查询 / 文件验证：API / DB / worker / query / file / sample 已完成 fresh-pass 结果归档。
 - 当前证据路径：`progress.txt`、`traces/ANALYSIS-001-*`、`docs/testing/verify-matrix.md`。
-- 若某项仍为 `blocked-by-contract`，不得在 release 阶段写 PASS；必须保留 blocker、owner 和下一任务入口。
+- 若某项仍为 BLOCKED，仅限 live object storage smoke 场景；必须保留真实环境前置条件与验证入口。
