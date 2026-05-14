@@ -1315,8 +1315,10 @@ function Convert-TruthSourceStateToBulletLines {
   $lines = @()
   foreach ($state in $States) {
     $status = if ($state.satisfied) { "OK" } else { "MISSING" }
-    $presentText = if ($state.present_paths.Count -gt 0) { $state.present_paths -join ", " } else { "无" }
-    $missingText = if ($state.missing_requirements.Count -gt 0) { $state.missing_requirements -join "; " } else { "无" }
+    $presentPaths = @(ConvertTo-StringArray -Value $state.present_paths)
+    $missingRequirements = @(ConvertTo-StringArray -Value $state.missing_requirements)
+    $presentText = if ($presentPaths.Count -gt 0) { $presentPaths -join ", " } else { "无" }
+    $missingText = if ($missingRequirements.Count -gt 0) { $missingRequirements -join "; " } else { "无" }
     $lines += "- [$status] $($state.source): present=$presentText; missing=$missingText"
   }
 
