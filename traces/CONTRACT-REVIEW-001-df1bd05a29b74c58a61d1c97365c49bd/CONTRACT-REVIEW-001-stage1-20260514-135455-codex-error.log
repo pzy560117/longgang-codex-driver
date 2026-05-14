@@ -2804,3 +2804,154 @@ powershell -NoProfile -Command "npm run test:contract"
 
 codex
 我会补用 `stage1-reviewer` 技能来校准输出格式和判定边界；当前审查仍是只读，不会改文件。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage1-reviewer\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-14T05:55:39.405261Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.9 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw E:\2026\alpha-project\longgang-codex-driver\.agents\[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage1-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 922ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw E:\2026\alpha-project\longgang-codex-driver\.agents\[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage1-reviewer\SKILL.md' because it does not exist.[0m
+
+codex
+本地列出的 `stage1-reviewer` 技能路径不存在，我按用户给出的 Stage 1 模板继续执行，并只依赖仓库真相源与审查规则。下一步我会用 YAML 解析做契约一致性检查。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Command rg -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Command npx -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 741ms:
+C:\Users\pzy666\AppData\Local\Microsoft\WinGet\Links\rg.exe
+
+ succeeded in 775ms:
+C:\Program Files\nodejs\npx.ps1
+
+ succeeded in 816ms:
+C:\Users\pzy666\AppData\Local\Programs\Python\Python312\python.exe
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "@'
+import yaml
+from pathlib import Path
+p=Path('contracts/openapi.yaml')
+s=yaml.safe_load(p.read_text(encoding='utf-8'))
+ops=[]
+for path,item in s.get('paths',{}).items():
+    for method,op in item.items():
+        if method.lower() in ['get','post','put','patch','delete']:
+            ops.append((op.get('operationId'), method.upper(), path, op.get('tags')))
+print('operations', len(ops))
+for row in ops:
+    print(row)
+trace=s.get('x-contract-implementation-trace',{}).get('operations',{})
+print('trace_count', len(trace))
+print('missing_trace', [op[0] for op in ops if op[0] not in trace])
+print('extra_trace', [k for k in trace if k not in [op[0] for op in ops]])
+resp_codes=set(s['components']['schemas']['ResponseCode']['enum'])
+audit_actions=set(s['components']['schemas']['AuditEvent']['properties']['action']['enum'])
+trace_bad_audit=[]
+for oid,t in trace.items():
+    for a in t.get('audit',[]) or []:
+        if a not in audit_actions:
+            trace_bad_audit.append((oid,a))
+print('bad_audit', trace_bad_audit)
+# collect codes in examples and x-contract-errorResponses/status
+bad_codes=[]
+def walk(obj,path=''):
+    if isinstance(obj,dict):
+        if 'code' in obj and isinstance(obj['code'],str) and obj['code'].isupper() and obj['code'] not in resp_codes:
+            bad_codes.append((path+'.code',obj['code']))
+        for k,v in obj.items():
+            walk(v, f'{path}/{k}')
+    elif isinstance(obj,list):
+        for i,v in enumerate(obj):
+            walk(v, f'{path}[{i}]')
+walk(s)
+print('bad_codes', bad_codes[:50], 'count', len(bad_codes))
+# trace required keys
+required=['http','requirements','handler','service','repository','db','worker','audit','file','tests']
+missing_keys=[]
+for oid,t in trace.items():
+    for k in required:
+        if k not in t:
+            missing_keys.append((oid,k))
+print('missing_trace_keys', missing_keys)
+'@ | python -" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 982ms:
+operations 12
+('createExportTask', 'POST', '/export/tasks', ['ExportTasks'])
+('listExportTasks', 'GET', '/export/tasks', ['ExportTasks'])
+('getExportTask', 'GET', '/export/tasks/{taskId}', ['ExportTasks'])
+('downloadExportTask', 'GET', '/export/tasks/{taskId}/download', ['ExportTasks'])
+('cancelExportTask', 'POST', '/export/tasks/{taskId}/cancel', ['ExportTasks'])
+('retryExportTask', 'POST', '/export/tasks/{taskId}/retry', ['ExportTasks'])
+('createExportRegistry', 'POST', '/export/registries', ['ExportRegistries'])
+('listExportRegistries', 'GET', '/export/registries', ['ExportRegistries'])
+('getExportRegistry', 'GET', '/export/registries/{taskCode}', ['ExportRegistries'])
+('updateExportRegistry', 'PUT', '/export/registries/{taskCode}', ['ExportRegistries'])
+('enableExportRegistry', 'POST', '/export/registries/{taskCode}/enable', ['ExportRegistries'])
+('disableExportRegistry', 'POST', '/export/registries/{taskCode}/disable', ['ExportRegistries'])
+trace_count 12
+missing_trace []
+extra_trace []
+bad_audit []
+bad_codes [] count 0
+missing_trace_keys []
+
+codex
+结构化检查显示 12 个公开 operation 都有 trace，审计动作和示例错误码都落在公开枚举内。现在我还需要确认 OpenAPI lint 和文档 diff 检查是否能作为本任务 fresh evidence。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- contracts docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'powershell -NoProfile -Command "npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml"' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 799ms:
+ succeeded in 8546ms:
+
+    [33m╔[33m═══════════════════════════════════════════════════════[33m╗[39m
+    [33m║                                                       ║[39m
+    [33m║[39m  A new version of [36mRedocly CLI[39m ([32m2.30.5[39m) is available.  [33m║[39m
+    [33m║[39m  Update now: `[36mnpm i -g @redocly/cli@latest[39m`.          [33m║[39m
+    [33m║[39m  Changelog: https://redocly.com/docs/cli/changelog/   [33m║[39m
+    [33m║                                                       ║[39m
+    [33m╚[33m═══════════════════════════════════════════════════════[33m╝[39m
+
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 133ms
+
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | `contracts/openapi.yaml`、`contracts/README.md`、`docs/architecture/constraints.md`、`docs/testing/verify-matrix.md` | 无需修复 | `git diff --check -- contracts docs/testing/verify-matrix.md`; `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |
+
+审查结论：`CONTRACT-REVIEW-001` 当前符合 `feature_design / spec_required` 门禁。架构约束包已明确交付形态、API 边界、持久化、worker 边界、测试替身策略、禁止实现和 DoD；OpenAPI 的 12 个公开 operation 均有 handler/service/repository/DB/worker/audit/file/tests 后续映射；审计动作和公开错误码均落在枚举内。
+
+已验证：`git diff --check -- contracts docs/testing/verify-matrix.md` 通过，`@redocly/cli@1.34.5 lint contracts/openapi.yaml` 通过。当前任务不是 UI 任务，也不是 `feature_impl`，未触发视觉还原或生产实现证据门禁。
+tokens used
+61,496
