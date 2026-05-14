@@ -18,15 +18,16 @@
 6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
 7. 是否存在明显性能、可访问性或回归风险。
 8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
-9. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
-10. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
 
 ## Finding 规则
 
 每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
 
 - severity: `HIGH` / `MEDIUM` / `LOW`
-- category: `type_safety` / `test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
 - owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
 - evidence: 文件路径、测试输出、日志路径或命令结果
 - recommended_fix: 下一轮 repair worker 可直接执行的修复建议

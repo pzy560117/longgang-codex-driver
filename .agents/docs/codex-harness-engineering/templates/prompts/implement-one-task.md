@@ -14,7 +14,7 @@
 Driver 会在本模板后追加 `## Driver Context`，其中包含：
 
 - 当前任务 ID、描述、类型、阶段、优先级和依赖
-- task session 策略、truth source、context files、produces artifacts
+- task session 策略、truth source、context files、produces artifacts、architecture constraints、forbidden implementations
 - knowledge catalog、knowledge query budget 和归档约束（如任务声明）
 - 子代理策略
 - 执行步骤、验收标准和测试命令
@@ -24,12 +24,13 @@ Driver 会在本模板后追加 `## Driver Context`，其中包含：
 1. 先阅读 Driver Context。
 2. 只读取优先上下文源和任务相关文件；信息不足时再做最小范围扩展检索。
 3. 如果存在 `docs/knowledge/knowledge-catalog.md`，先按任务阶段判断是否需要读取 `docs/knowledge/catalog.md` 和相关条目；遵守 `knowledge_query_budget`，不要贪婪读取整库。
-4. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
-5. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
-6. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
-7. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
-8. 自检是否满足验收标准、测试影响、知识引用和 forbidden path 约束。
-9. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、knowledge references、knowledge outputs 和剩余风险。
+4. 先确认 Architecture Constraints Packet：读取 `docs/architecture/constraints.md`（如存在）、任务的 `architecture_constraints` 和 `forbidden_implementations`；如果当前任务需要生产路径，不得用测试替身、内存实现或领域原型替代。
+5. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
+6. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
+7. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
+8. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
+9. 自检是否满足验收标准、测试影响、架构约束、知识引用和 forbidden path 约束。
+10. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、architecture constraints result、knowledge references、knowledge outputs 和剩余风险。
 
 ## 强制边界
 
@@ -40,6 +41,9 @@ Driver 会在本模板后追加 `## Driver Context`，其中包含：
 - 不要执行 `git add`、`git commit`、`git push`、`git reset`、`git checkout`。
 - 不要修改与当前任务无关的文件。
 - 不要在没有验收示例或追溯矩阵支撑时自行猜测 P0/P1 业务规则。
+- 不要在没有 `docs/architecture/constraints.md` 或等价架构约束说明时开始 `feature_impl`；如果任务缺少约束但明显涉及服务形态、数据持久化、外部接口或 worker，输出 BLOCKED。
+- 不要把 `InMemory*`、mock、fixture、local-only adapter 或纯领域原型作为生产实现完成，除非任务 `architecture_constraints` 明确声明 `delivery_shape=domain-prototype`。
+- 不要违反任务 `forbidden_implementations`；如发现当前任务验收与 forbidden implementation 冲突，输出 BLOCKED。
 - 如果子代理策略是 `off`，不要主动使用子代理。
 - 如果子代理策略不是 `off`，只有在存在两个以上独立子问题时才可使用，并且只消费结构化结论。
 - 如果本轮是 stop hook 强制继续后的续跑，子代理启用前必须先重读对应 docs / rules / skills；只有明确授权的 writer 角色可以写它们被分配的路径，其余子代理保持只读。
@@ -91,6 +95,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
 
 ## Evidence
 - `path`: what it proves
+
+## Architecture Constraints
+- `constraint`: PASS / FAIL / NOT_APPLICABLE - evidence
 
 ## Knowledge References
 - `id`: title - used_in - `path`

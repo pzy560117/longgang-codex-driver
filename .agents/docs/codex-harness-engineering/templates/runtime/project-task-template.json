@@ -53,6 +53,7 @@
       "context_files": [
         "AGENTS.md",
         "project-task-template.json",
+        "docs/architecture/constraints.md",
         "docs/product/prd-lite.md",
         "docs/product/acceptance-criteria.md",
         "docs/product/requirement-interface-matrix.md",
@@ -61,6 +62,7 @@
       ],
       "owned_paths": [
         "docs/product/",
+        "docs/architecture/",
         "docs/testing/",
         "plans/"
       ],
@@ -69,6 +71,7 @@
       ],
       "produces_artifacts": [
         "docs/testing/verify-matrix.md",
+        "docs/architecture/constraints.md",
         "task.json"
       ],
       "execution": {
@@ -77,11 +80,13 @@
       "steps": [
         "把模板中的 <feature-slug>、用户故事标题、requirement_ids、owned_paths、context_files 和 test_command 全部替换成当前项目真实值",
         "确认 task 依赖、优先级、execution.mode 和 non_blocking_dirty_paths 已与当前项目约束一致",
+        "确认 Architecture Constraints Packet 已明确交付形态、API 边界、数据持久化、worker/异步边界、测试替身策略、禁止实现和 Definition of Done",
         "确认当前 task.json 已经是正式任务队列，不再保留领域示例、smoke 占位或过期路径"
       ],
       "test_command": "git diff --check",
       "acceptance": [
         "任务队列只保留当前项目真实阶段与用户故事",
+        "架构约束包已成为后续实现任务的前置 truth source",
         "plan 入口已经使用 plans/**/*.dev-plan.md 路径体系",
         "后续任务不再依赖聊天补 requirement_ids、owned_paths 或验证命令"
       ]
@@ -107,10 +112,12 @@
         "docs/product/state-matrix.yaml",
         "docs/product/acceptance-criteria.md",
         "docs/product/requirement-interface-matrix.md",
+        "docs/architecture/constraints.md",
         "plans/features/<feature-slug>.dev-plan.md"
       ],
       "owned_paths": [
         "docs/product/",
+        "docs/architecture/",
         "docs/testing/",
         "docs/context/"
       ],
@@ -122,6 +129,7 @@
         "docs/context/feature-pack.md",
         "docs/context/repo-map.md",
         "docs/context/architecture-brief.md",
+        "docs/architecture/constraints.md",
         "docs/testing/ACCEPTANCE_CRITERIA.md",
         "docs/testing/ACCEPTANCE_EXAMPLES.md",
         "docs/testing/TRACEABILITY_MATRIX.md",
@@ -139,11 +147,13 @@
       "steps": [
         "围绕已确认 spec 补齐页面清单、状态矩阵、边界条件、异常流和难点研究",
         "把 Requirement IDs 映射到界面、状态、接口、测试层级、测试数据和证据路径",
+        "把系统交付形态、API/数据/worker 边界、测试替身策略和禁止实现写入 Architecture Constraints Packet",
         "生成后续设计和实现必须依赖的 feature-pack、repo-map、architecture-brief 与 testing truth source"
       ],
       "test_command": "git diff --check",
       "acceptance": [
         "产品追溯和测试左移文档已补齐且可被后续任务直接消费",
+        "架构约束包足以让后续任务区分 production path、domain prototype 和 test double",
         "repo_context 与 testing truth source 已达到后续 design / implement 阶段可用状态"
       ]
     },
@@ -231,6 +241,7 @@
         "docs/context/feature-pack.md",
         "docs/context/repo-map.md",
         "docs/context/architecture-brief.md",
+        "docs/architecture/constraints.md",
         "docs/design/design-brief.md",
         "docs/design/component-map.md",
         "docs/testing/TRACEABILITY_MATRIX.md",
@@ -257,11 +268,13 @@
       "steps": [
         "把后续实现按用户故事顺序映射到 dev-plan、affected tests、验证命令和证据路径",
         "确认每个实现任务都已有 requirement_ids、owned_paths、context_files 和最小可行验收闭环",
+        "确认每个 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证架构形态的 test_command",
         "明确哪些故事必须串行，哪些依赖可在后续手工改成并行"
       ],
       "test_command": "git diff --check",
       "acceptance": [
         "dev-plan、verify-matrix 和 story 级执行顺序保持一致",
+        "实现任务不会把测试替身、内存实现或领域原型伪装成生产完成",
         "后续实现与 release 任务的验证边界已经明确且可执行"
       ]
     },
@@ -286,9 +299,21 @@
       "story_id": "US1",
       "story_priority": "P0/P1",
       "independent_test": "替换为 US1 的独立验证方式，例如一个最短闭环页面或一条完整 API/业务路径",
+      "architecture_constraints": [
+        "delivery_shape=<replace-with-microservice|monolith|frontend_app|cli|library|domain-prototype>",
+        "api_boundary=<replace-with-http|grpc|mq|cli|none>",
+        "data_boundary=<replace-with-mysql|postgresql|redis|filesystem|none>",
+        "test_double_policy=<replace-with-inmemory-tests-only|domain-prototype-allowed|none>"
+      ],
+      "forbidden_implementations": [
+        "禁止把测试替身、mock、InMemory repository 或领域原型作为生产路径完成",
+        "禁止只运行 git diff --check 就声明 feature_impl 完成",
+        "替换为当前项目最容易跑偏的具体禁止实现"
+      ],
       "context_files": [
         "docs/product/prd-lite.md",
         "docs/product/requirement-interface-matrix.md",
+        "docs/architecture/constraints.md",
         "docs/context/feature-pack.md",
         "docs/design/design-brief.md",
         "docs/design/component-map.md",
@@ -320,9 +345,10 @@
         "仅实现首个可单独交付的用户故事，并同步补齐其 affected tests 与必要文档",
         "运行与 US1 对应的真实验证命令，记录可回溯证据"
       ],
-      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:verify','git diff --check')",
       "acceptance": [
         "US1 能作为 MVP 独立演示或独立验收",
+        "US1 满足 Architecture Constraints Packet，不以测试替身冒充生产实现",
         "US1 的 Requirement IDs、测试映射和证据路径完整可追溯"
       ]
     },
@@ -347,9 +373,20 @@
       "story_id": "US2",
       "story_priority": "P1/P2",
       "independent_test": "替换为 US2 的独立验证方式；若与 US1 强依赖，请同步调整 dependencies",
+      "architecture_constraints": [
+        "delivery_shape=<replace-with-project-shape>",
+        "api_boundary=<replace-with-public-entry>",
+        "data_boundary=<replace-with-persistence-or-none>",
+        "test_double_policy=<replace-with-policy>"
+      ],
+      "forbidden_implementations": [
+        "禁止把测试替身、mock、InMemory repository 或领域原型作为生产路径完成",
+        "替换为 US2 的具体禁止实现"
+      ],
       "context_files": [
         "docs/product/prd-lite.md",
         "docs/product/requirement-interface-matrix.md",
+        "docs/architecture/constraints.md",
         "docs/context/feature-pack.md",
         "docs/design/design-brief.md",
         "docs/design/component-map.md",
@@ -381,9 +418,10 @@
         "确保 US2 可作为独立增量交付，不把未确认范围混入同一任务",
         "补齐 US2 的 affected tests、回归说明和证据路径"
       ],
-      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:verify','git diff --check')",
       "acceptance": [
         "US2 范围清晰且不与其他故事混杂",
+        "US2 满足 Architecture Constraints Packet，不以测试替身冒充生产实现",
         "US2 的实现、验证和证据链可独立审查"
       ]
     },
@@ -408,9 +446,20 @@
       "story_id": "US3",
       "story_priority": "P2/P3",
       "independent_test": "替换为 US3 的独立验证方式；如果不需要第三个故事，可删除该任务并重排优先级",
+      "architecture_constraints": [
+        "delivery_shape=<replace-with-project-shape>",
+        "api_boundary=<replace-with-public-entry>",
+        "data_boundary=<replace-with-persistence-or-none>",
+        "test_double_policy=<replace-with-policy>"
+      ],
+      "forbidden_implementations": [
+        "禁止把测试替身、mock、InMemory repository 或领域原型作为生产路径完成",
+        "替换为 US3 的具体禁止实现"
+      ],
       "context_files": [
         "docs/product/prd-lite.md",
         "docs/product/requirement-interface-matrix.md",
+        "docs/architecture/constraints.md",
         "docs/context/feature-pack.md",
         "docs/design/design-brief.md",
         "docs/design/component-map.md",
@@ -442,9 +491,10 @@
         "只承接剩余优先级最高且可单独验收的增量，不把 release 收口动作混入本故事",
         "完成 US3 的实现、测试映射和证据沉淀"
       ],
-      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+      "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:verify','git diff --check')",
       "acceptance": [
         "US3 的增量边界和独立验收方式已明确",
+        "US3 满足 Architecture Constraints Packet，不以测试替身冒充生产实现",
         "US3 的实现证据可直接服务最终 release 验证"
       ]
     },

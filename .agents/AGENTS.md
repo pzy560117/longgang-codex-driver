@@ -18,11 +18,15 @@
 - 修改后必须运行与改动直接对应的验证；文档改动至少运行 `git diff --check`。
 - 测试范围从需求收敛阶段开始定义；P0/P1 需求进入实现前必须有可追溯验收、测试数据和证据路径。
 - 外部系统、开源栈、第三方平台或真实环境集成需求，完成声明必须包含真实依赖接入、成功态证据和失败态证据。
+- 需求分析或编码前必须先形成 Architecture Constraints Packet：至少明确交付形态、API 边界、数据持久化、异步/worker 边界、测试替身策略、禁止实现和 Definition of Done。
+- `feature_impl` 任务必须携带可执行的 `architecture_constraints`、`forbidden_implementations` 和对应验证命令；禁止把测试替身、内存实现或领域原型伪装成生产路径完成，除非任务明确标记为 `domain-prototype`。
+- Stage 1 Review 必须先审查架构约束符合性，再审查业务规格；若交付形态、API/DB/worker/部署入口或测试替身策略与约束冲突，必须直接 FAIL。
 - 阻塞时追加 `progress.txt`，输出 `BLOCKED - 需要人工介入`，然后停止。
 
 ## 必读索引
 
 - Harness 架构：`docs/harness/architecture.md`
+- 架构约束包：`docs/architecture/constraints.md`
 - 新项目使用：`docs/harness/new-project-usage.md`
 - Task 会话与 `task.json` 细则：`docs/harness/task-session-strategy.md`
 - 规则治理与 AGENTS.md 分层：`docs/harness/rule-governance.md`
