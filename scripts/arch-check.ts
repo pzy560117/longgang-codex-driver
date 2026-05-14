@@ -17,6 +17,8 @@ const requiredFiles = [
   "src/jobs/cleanup-job.ts",
   "src/routes/register-routes.ts",
   "src/routes/route-manifest.ts",
+  "src/db/migrator.ts",
+  "src/repositories/index.ts",
   "migrations/001_initial_export_platform_schema.sql"
 ];
 
@@ -44,6 +46,7 @@ const requiredMigrationMarkers = [
   "export_task_leases",
   "export_task_checkpoints",
   "export_task_files",
+  "export_task_events",
   "export_audit_logs"
 ];
 
@@ -194,7 +197,7 @@ function checkOpenApiRouteMapping(): void {
 }
 
 function checkMigrationCoverage(): void {
-  const migration = read("migrations/001_initial_export_platform_schema.sql").toLowerCase();
+  const migration = collectMigrationSql().toLowerCase();
   for (const marker of requiredMigrationMarkers) {
     if (!migration.includes(marker)) {
       fail(`migration missing marker ${marker}`);
@@ -209,7 +212,16 @@ function checkSqlMigrationSyntaxGuards(migrationSql: string): void {
 }
 
 function checkSqlMigrationSyntax(): void {
-  checkSqlMigrationSyntaxGuards(read("migrations/001_initial_export_platform_schema.sql"));
+  checkSqlMigrationSyntaxGuards(collectMigrationSql());
+}
+
+function collectMigrationSql(): string {
+  const migrationDir = path.join(root, "migrations");
+  return readdirSync(migrationDir)
+    .filter((fileName) => fileName.endsWith(".sql"))
+    .sort()
+    .map((fileName) => read(path.join("migrations", fileName)))
+    .join("\n");
 }
 
 function getExpectedDatabaseTableNames(): string[] {
@@ -243,6 +255,7 @@ export {
   checkPackageScripts,
   checkRequiredFiles,
   checkSqlMigrationSyntaxGuards,
+  collectMigrationSql,
   getExpectedDatabaseTableNames,
   getProductionScanRoots,
   parseOpenApiOperations

@@ -15,12 +15,12 @@
 | STACK-ADR-001 设计 / 计划基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design / planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
 | OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
 | 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / scaffold | `src/server.ts`、`src/routes/route-manifest.ts`、`tests/server.test.mjs` |
-| MySQL schema / migration | FR-001 - FR-014 | available / scaffold | `migrations/001_initial_export_platform_schema.sql`、`npm run arch:check` |
-| 生产 repository | FR-001 - FR-014 | blocked-by-next-task | 待实现 DB repository 任务 |
+| MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+| 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
 | scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / entry-only | `src/workers/scheduler-worker.ts`；DB 抢锁实现待 worker 任务 |
 | query executor | FR-006 / FR-008 / FR-009 / FR-014 | blocked-by-next-task | 待实现 query 任务 |
 | file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | available / cleanup-entry-only | `src/jobs/cleanup-job.ts`；file service 实现待后续任务 |
-| API / DB / worker 集成测试 | FR-001 - FR-014 | blocked-by-next-task | 待实现 API / DB / worker 联调任务 |
+| API / DB / worker 集成测试 | FR-001 - FR-014 | partial / DB requires-real-mysql | `tests/db/export-repositories.test.mjs`；API / worker 联调待后续任务 |
 | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
 
 ## 计划验证入口
@@ -33,7 +33,7 @@
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
 | API 集成测试 | blocked-by-next-task | 公开 route/handler 与 OpenAPI operation 对齐 |
-| DB 集成测试 | blocked-by-next-task | migration、repository、事务/锁行为可验证 |
+| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
 | worker 集成测试 | blocked-by-next-task | DB polling、抢锁、续租、接管、取消和重试边界可验证 |
 | release 验证 | 待实现任务补齐 | fresh evidence 覆盖 P0/P1、失败态和 BLOCKED 项 |
 
@@ -41,21 +41,21 @@
 
 | Req ID | 后续验证类型 | 当前状态 | 证据路径 |
 | --- | --- | --- | --- |
-| FR-001 | contract / API / DB | blocked-by-next-task | `contracts/openapi.yaml`、待创建 API/DB 测试 |
+| FR-001 | contract / API / DB | DB repository available / API blocked-by-next-task | `contracts/openapi.yaml`、`src/repositories/export-task.repository.ts`、`tests/db/export-repositories.test.mjs` |
 | FR-002 | contract / API / DB | blocked-by-next-task | `contracts/openapi.yaml`、待创建 API/DB 测试 |
 | FR-003 | contract / API / file | blocked-by-next-task | `contracts/openapi.yaml`、待创建 file 测试 |
 | FR-004 | contract / API / DB | blocked-by-next-task | `contracts/openapi.yaml`、待创建 API/DB 测试 |
-| FR-005 | DB / worker | blocked-by-next-task | 待创建 worker 与 DB lease 测试 |
+| FR-005 | DB / worker | DB lease repository available / worker blocked-by-next-task | `src/repositories/export-lease.repository.ts`、`tests/db/export-repositories.test.mjs` |
 | FR-006 | query / file / worker | blocked-by-next-task | 待创建 query/file/worker 测试 |
-| FR-007 | contract / API / DB | blocked-by-next-task | `contracts/openapi.yaml`、待创建 registry 测试 |
+| FR-007 | contract / API / DB | DB registry repository available / API blocked-by-next-task | `contracts/openapi.yaml`、`src/repositories/export-registry.repository.ts`、`tests/db/export-repositories.test.mjs` |
 | FR-008 | query / DB / security | blocked-by-next-task | 待创建 query template 与数据范围测试 |
 | FR-009 | API / query / security | blocked-by-next-task | 待创建认证上下文、权限、脱敏测试 |
-| FR-010 | audit / API / worker | blocked-by-next-task | 待创建审计链路测试 |
+| FR-010 | audit / API / worker | DB audit repository available / API-worker blocked-by-next-task | `src/repositories/export-audit.repository.ts`、`tests/db/export-repositories.test.mjs` |
 | FR-011 | file / cleanup job | blocked-by-next-task | 待创建 cleanup job 测试 |
 | FR-012 | API / worker / state-machine | blocked-by-next-task | 待创建取消/重试测试 |
-| FR-013 | API / DB / worker | blocked-by-next-task | 待创建幂等、配置快照、锁租约测试 |
+| FR-013 | API / DB / worker | DB idempotency/snapshot/lease repository available / API-worker blocked-by-next-task | `src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`tests/db/export-repositories.test.mjs` |
 | FR-014 | sample / pressure / end-to-end | blocked-by-next-task | 待创建采购订单样板与压测证据 |
-| STACK-ADR-001 | design / planned / arch-check | planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`npm run arch:check` |
+| STACK-ADR-001 | design / planned / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
 
 ## STACK-ADR-001 验证细则
 
@@ -63,10 +63,10 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
 | 适用范围 | 后续 `feature_impl` 的固定架构门禁；适用于脚手架、实现、worker、db、file 和 sample 相关任务 |
-| 当前状态 | planned |
-| 证据路径 | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`npm run arch:check` |
+| 当前状态 | available / DB repository boundary added |
+| 证据路径 | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
 | 备注 | `npm run arch:check` 不能被 `git diff --check`、OpenAPI lint、单测或人工检查替代 |
 
 ## 最终规则

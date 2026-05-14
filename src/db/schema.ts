@@ -19,13 +19,22 @@ export interface ExportRegistriesTable {
   task_code: string;
   subsystem_code: string;
   display_name: string;
-  enabled: number;
+  enabled: number | boolean;
   concurrency_limit: number;
   file_retention_days: number;
   task_history_retention_days: number;
   single_file_max_rows: number;
   export_max_rows: number;
   datasource_code: string;
+  supported_formats: string | null;
+  parameter_schema: string | null;
+  query_template: string | null;
+  field_mappings: string | null;
+  masking_policy: string | null;
+  data_scope_template: string | null;
+  cursor_field: string | null;
+  order_by: string | null;
+  batch_size: number | null;
   config_snapshot_digest: string;
   created_at: Date;
   updated_at: Date;
@@ -106,6 +115,19 @@ export interface ExportAuditLogsTable {
   created_at: Date;
 }
 
+export interface ExportTaskEventsTable {
+  event_id: string;
+  task_id: string;
+  attempt_no: number;
+  event_type: string;
+  request_id: string;
+  datasource_code: string | null;
+  query_template_version: string | null;
+  batch_checkpoint: string | null;
+  occurred_at: Date;
+  created_at: Date;
+}
+
 export interface ExportPlatformDatabase {
   export_tasks: ExportTasksTable;
   export_task_idempotency: ExportTaskIdempotencyTable;
@@ -114,5 +136,6 @@ export interface ExportPlatformDatabase {
   export_task_leases: ExportTaskLeasesTable;
   export_task_checkpoints: ExportTaskCheckpointsTable;
   export_task_files: ExportTaskFilesTable;
+  export_task_events: ExportTaskEventsTable;
   export_audit_logs: ExportAuditLogsTable;
 }

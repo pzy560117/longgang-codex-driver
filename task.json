@@ -377,7 +377,7 @@
                       "dependencies":  [
                                            "SERVICE-SCAFFOLD-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "生产路径使用 MySQL 或等价关系型数据库",
                                                        "任务、注册配置、锁租约、批次检查点、文件元信息、审计日志必须有 schema/migration",

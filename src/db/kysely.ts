@@ -1,5 +1,5 @@
-import { Kysely, MysqlDialect } from "kysely";
-import mysql from "mysql2/promise";
+import { Kysely, MysqlDialect, type MysqlDialectConfig } from "kysely";
+import mysql from "mysql2";
 import { loadConfig, type ExportPlatformConfig } from "../config/index.ts";
 import type { ExportPlatformDatabase } from "./schema.ts";
 
@@ -28,7 +28,7 @@ export function createDatabase(): Kysely<ExportPlatformDatabase> {
 
   return new Kysely<ExportPlatformDatabase>({
     dialect: new MysqlDialect({
-      pool: mysql.createPool(createMysqlPoolOptions(config))
+      pool: mysql.createPool(createMysqlPoolOptions(config)) as unknown as MysqlDialectConfig["pool"]
     })
   });
 }

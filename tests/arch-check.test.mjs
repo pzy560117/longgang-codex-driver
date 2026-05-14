@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { loadConfig } from "../src/config/env.ts";
 import { createDatabase } from "../src/db/index.ts";
@@ -20,14 +20,17 @@ const verifyMatrix = readFileSync(
   "utf8"
 );
 const schemaSource = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
-const tsMigrationSource = readFileSync(
-  new URL("../migrations/001_initial_export_platform.ts", import.meta.url),
-  "utf8"
-);
-const sqlMigrationSource = readFileSync(
-  new URL("../migrations/001_initial_export_platform_schema.sql", import.meta.url),
-  "utf8"
-);
+const migrationsUrl = new URL("../migrations/", import.meta.url);
+const tsMigrationSource = readdirSync(migrationsUrl)
+  .filter((fileName) => fileName.endsWith(".ts"))
+  .sort()
+  .map((fileName) => readFileSync(new URL(fileName, migrationsUrl), "utf8"))
+  .join("\n");
+const sqlMigrationSource = readdirSync(migrationsUrl)
+  .filter((fileName) => fileName.endsWith(".sql"))
+  .sort()
+  .map((fileName) => readFileSync(new URL(fileName, migrationsUrl), "utf8"))
+  .join("\n");
 
 function collectMatches(source, regex) {
   return [...source.matchAll(regex)].map((match) => match[1]).sort();
@@ -66,11 +69,20 @@ function collectSchemaColumns(source) {
 function collectTsMigrationColumns(source) {
   const tables = new Map();
   const tablePattern = /\.createTable\("([a-z0-9_]+)"\)([\s\S]*?)(?=\.execute\(\);)/g;
+  const alterPattern = /\.alterTable\("([a-z0-9_]+)"\)([\s\S]*?)(?=\.execute\(\);)/g;
 
   for (const match of source.matchAll(tablePattern)) {
     tables.set(
       match[1],
       collectMatches(match[2], /\.addColumn\("([a-z0-9_]+)"/g)
+    );
+  }
+
+  for (const match of source.matchAll(alterPattern)) {
+    const existingColumns = tables.get(match[1]) ?? [];
+    tables.set(
+      match[1],
+      [...new Set([...existingColumns, ...collectMatches(match[2], /\.addColumn\("([a-z0-9_]+)"/g)])].sort()
     );
   }
 
@@ -80,6 +92,7 @@ function collectTsMigrationColumns(source) {
 function collectSqlMigrationColumns(source) {
   const tables = new Map();
   const tablePattern = /^CREATE TABLE ([a-z0-9_]+) \(\n([\s\S]*?)\n\);/gm;
+  const alterPattern = /^ALTER TABLE ([a-z0-9_]+)\n([\s\S]*?);/gm;
 
   for (const match of source.matchAll(tablePattern)) {
     const columns = match[2]
@@ -92,6 +105,14 @@ function collectSqlMigrationColumns(source) {
     tables.set(match[1], columns);
   }
 
+  for (const match of source.matchAll(alterPattern)) {
+    const addedColumns = [...match[2].matchAll(/ADD COLUMN ([a-z0-9_]+)\s+/gim)]
+      .map((columnMatch) => columnMatch[1])
+      .sort();
+    const existingColumns = tables.get(match[1]) ?? [];
+    tables.set(match[1], [...new Set([...existingColumns, ...addedColumns])].sort());
+  }
+
   return Object.fromEntries([...tables.entries()].sort());
 }
 
@@ -99,11 +120,11 @@ test("arch:check is declared as the scaffold gate", () => {
   assert.equal(packageJson.scripts?.["arch:check"], "tsx scripts/arch-check.ts");
 });
 
-test("verify matrix marks downstream DB/API/worker work as blocked or planned", () => {
-  assert.match(verifyMatrix, /\|\s*FR-001\s*\|\s*contract \/ API \/ DB\s*\|\s*blocked-by-next-task\s*\|/);
-  assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*blocked-by-next-task\s*\|/);
-  assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*blocked-by-next-task\s*\|/);
-  assert.match(verifyMatrix, /\|\s*STACK-ADR-001\s*\|\s*design \/ planned \/ arch-check\s*\|\s*planned\s*\|/);
+test("verify matrix marks DB repository boundary as available and downstream API/worker work as blocked", () => {
+  assert.match(verifyMatrix, /\|\s*FR-001\s*\|\s*contract \/ API \/ DB\s*\|\s*DB repository available \/ API blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*DB lease repository available \/ worker blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*DB audit repository available \/ API-worker blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*STACK-ADR-001\s*\|\s*design \/ planned \/ arch-check\s*\|\s*available \/ DB repository boundary added\s*\|/);
 });
 
 test("createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象", async () => {
