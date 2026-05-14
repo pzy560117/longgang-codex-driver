@@ -247,7 +247,11 @@ export function createExportFileService(options: ExportFileServiceOptions) {
     return storage.createDownloadUrl(storageKey, expiresAt);
   }
 
-  return { publishRows, createDownloadUrl };
+  async function readObject(storageKey: string): Promise<Buffer> {
+    return storage.readObject(storageKey);
+  }
+
+  return { publishRows, createDownloadUrl, readObject };
 }
 
 async function appendFileEvent(input: {

@@ -39,21 +39,22 @@
 | query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
 | file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
 | sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
-| release 验证 | deferred until `SAMPLE-PURCHASE-ORDER-001` | API、DB、worker 已有真实 MySQL 任务级证据；query/file/cleanup/sample 仍需先由后续任务补齐，不能提前 release |
+| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | `SAMPLE-PURCHASE-ORDER-001` 之后已执行 release_required 中可自动化的 API、DB、worker、query、file、sample 与基线校验；真实/live object storage smoke 仍无仓内自动化证据，release 结论必须保持 BLOCKED，不能写成 fully passed |
 
-## RELEASE-001 队列修复快照（2026-05-14）
+## RELEASE-001 fresh release evidence snapshot（2026-05-15）
 
 | 验证项 | 关联需求 | 状态 | 证据 / 归因 |
 | --- | --- | --- | --- |
-| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | completed-before-release | `TASK-API-HTTP-001` 已使用真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 验证 `npm run test:api` |
-| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | completed-before-release | `DB-SCHEMA-001` 与 `SCHEDULER-WORKER-001` 已使用真实 MySQL 验证 `npm run test:db` |
-| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | completed-before-release | `SCHEDULER-WORKER-001` 已使用真实 MySQL 验证 `npm run test:worker` |
-| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | 当前只具备任务入口，必须先实现生产路径 |
-| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | completed-by `FILE-SERVICE-001` / requires-real-mysql + production-equivalent object-storage adapter + local env-backed HTTP adapter | `npm run test:file` 覆盖 temp object、checksum、publish、真实 XLSX OOXML/ZIP 二进制解析、scheduler 串联、对象存储缺失 BLOCKED，以及 `createObjectStorageFromEnv()` 的本地 HTTP put/read/publish/download URL 流程；`npm run test:api` 覆盖下载元信息 guard；adapter 证据不得写成 live OSS/S3 已验证 |
-| Cleanup job 验证 | FR-003 / FR-011 | production-path wired / requires-real-mysql + production-equivalent object-storage adapter | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；环境驱动对象存储或 MySQL 不可达时记录 `BLOCKED - 需要人工介入` |
-| Sample 样板验证 | FR-014 | executable-by `SAMPLE-PURCHASE-ORDER-001` / requires-real-mysql + production-equivalent object-storage adapter | `src/sample-purchase-order/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample` 覆盖公开 registry/task/download service、worker、`0/1/20000/20001/100000/100001` 边界、脱敏、真实 XLSX/ZIP 二进制解析、默认批次 10 万行、审计和事件串联；真实 MySQL 不可达时记录 `BLOCKED - 需要人工介入`，真实对象存储不可达时不得把 adapter 证据写成 live release evidence |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | fresh-pass | `npm run test:api` 2 pass, 0 fail；使用真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`，覆盖 Fastify + MySQL production path |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | fresh-pass | `npm run test:db` 3 pass, 0 fail；覆盖 migration / repository durable evidence |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | fresh-pass | `npm run test:worker` 11 pass, 0 fail；覆盖并发限制、租约续租/接管、取消、重试、cleanup 成功/失败 |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | fresh-pass | `npm run test:query` 8 pass, 0 fail；覆盖模板绑定、数据范围、脱敏、checkpoint、失败收口 |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | fresh-pass for MySQL + adapter/local-HTTP evidence | `npm run test:file` 9 pass, 0 fail；覆盖 temp object、checksum、publish、env-backed local HTTP adapter、cleanup guard / 重试；该项只证明生产等价 adapter 与本地 HTTP 驱动 `createObjectStorageFromEnv()` 协议链路，不构成 live OSS/S3 release evidence |
+| Sample 样板验证 | FR-014 | fresh-pass for MySQL + adapter evidence | `npm run test:sample` 9 pass, 0 fail；覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP、10 万行默认批次；sample suite 只在 adapter/local HTTP 口径下成立，不构成 live object storage release evidence |
+| Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。仓库已有 production-equivalent adapter 与 env-backed local HTTP adapter 证据，但不能把 adapter/local HTTP 结果写成 release fully passed |
+| 契约 / 基线校验 | FR-001 - FR-014 | fresh-pass | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均通过 |
 
-> 结论：`RELEASE-001` 不应直接依赖 `QUERY-FILE-SAMPLE-PLAN-001`。release 已延后到 `SAMPLE-PURCHASE-ORDER-001` 之后，避免 query/file/cleanup/sample 仍未实现时提前收口。
+> 结论：`RELEASE-001` 已取得 API、DB、worker、query、file、sample 的本轮 fresh evidence，但真实/live object storage release evidence 仍为 `BLOCKED - 需要人工介入`。因此 release 只能描述为“部分 fresh evidence 已通过，live object storage gate blocked”，不能写成 fully passed。
 
 ## Requirement 验证入口
 

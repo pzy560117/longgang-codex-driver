@@ -28,6 +28,34 @@ type CreateTaskBody = {
   queryParams?: unknown;
 };
 
+export type DownloadDeliveryMode = "SIGNED_URL" | "STREAM";
+
+type DownloadSignedUrlResponse = {
+  deliveryMode: "SIGNED_URL";
+  downloadUrl: string;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
+type DownloadStreamResponse = {
+  deliveryMode: "STREAM";
+  body: Buffer;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
 function digest(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
@@ -126,6 +154,63 @@ async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) =
     return await operation(db);
   } finally {
     await db.destroy();
+  }
+}
+
+function resolveDownloadMode(mode: string | undefined): DownloadDeliveryMode {
+  if (!mode || mode === "SIGNED_URL") {
+    return "SIGNED_URL";
+  }
+  if (mode === "STREAM") {
+    return "STREAM";
+  }
+
+  throw new ApiError(400, "VALIDATION_ERROR", "mode must be SIGNED_URL or STREAM", {
+    mode
+  });
+}
+
+function toDownloadMetadata(
+  file: NonNullable<Awaited<ReturnType<ReturnType<typeof createExportFileRepository>["findFileMetadata"]>>>
+) {
+  return {
+    storageKey: file.publishedStorageKey!,
+    expiresAt: file.expiresAt.toISOString(),
+    fileName: file.fileName,
+    contentType: file.contentType,
+    fileSize: file.fileSize,
+    checksum: file.checksum,
+    checksumAlgorithm: file.checksumAlgorithm,
+    attemptNo: file.attemptNo
+  };
+}
+
+function toStorageApiError(error: unknown, file: { checksumAlgorithm: string }): ApiError {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+    return new ApiError(502, "EXPORT_RENDER_ERROR", error.message);
+  }
+
+  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+    return new ApiError(500, "FILE_VERIFY_ERROR", error.message, {
+      checksumAlgorithm: file.checksumAlgorithm
+    });
+  }
+
+  return new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+    checksumAlgorithm: file.checksumAlgorithm
+  });
+}
+
+function validateStreamBody(file: { fileSize: number; checksum: string; checksumAlgorithm: string }, body: Buffer) {
+  const checksum = `sha256:${createHash("sha256").update(body).digest("hex")}`;
+  if (body.byteLength !== file.fileSize || checksum !== file.checksum) {
+    throw new ApiError(500, "FILE_VERIFY_ERROR", "streamed file verification failed", {
+      checksumAlgorithm: file.checksumAlgorithm
+    });
   }
 }
 
@@ -380,9 +465,14 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
   });
 }
 
-export async function downloadExportTask(auth: AuthContext, taskId: string) {
+export async function downloadExportTask(
+  auth: AuthContext,
+  taskId: string,
+  requestedMode?: string
+): Promise<DownloadSignedUrlResponse | DownloadStreamResponse> {
   return withDatabase(async (db) => {
     const now = await getDatabaseTime(db);
+    const deliveryMode = resolveDownloadMode(requestedMode);
     const task = await createExportTaskRepository(db).findTaskById(taskId);
     if (!task) {
       return rejectWithAudit({
@@ -456,10 +546,39 @@ export async function downloadExportTask(auth: AuthContext, taskId: string) {
       });
     }
 
-    const downloadUrl = await createExportFileService({ db }).createDownloadUrl(
-      file.publishedStorageKey,
-      file.expiresAt
-    );
+    const fileService = createExportFileService({ db });
+    const metadata = toDownloadMetadata(file);
+    let responseData: DownloadSignedUrlResponse | DownloadStreamResponse;
+
+    try {
+      if (deliveryMode === "STREAM") {
+        const body = await fileService.readObject(file.publishedStorageKey);
+        validateStreamBody(file, body);
+        responseData = {
+          deliveryMode,
+          body,
+          ...metadata
+        };
+      } else {
+        responseData = {
+          deliveryMode,
+          downloadUrl: await fileService.createDownloadUrl(file.publishedStorageKey, file.expiresAt),
+          ...metadata
+        };
+      }
+    } catch (error) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: toStorageApiError(error, file),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
 
     await appendAudit({
       db,
@@ -472,18 +591,7 @@ export async function downloadExportTask(auth: AuthContext, taskId: string) {
       now
     });
 
-    return {
-      deliveryMode: "SIGNED_URL",
-      downloadUrl,
-      storageKey: file.publishedStorageKey,
-      expiresAt: file.expiresAt.toISOString(),
-      fileName: file.fileName,
-      contentType: file.contentType,
-      fileSize: file.fileSize,
-      checksum: file.checksum,
-      checksumAlgorithm: file.checksumAlgorithm,
-      attemptNo: file.attemptNo
-    };
+    return responseData;
   });
 }
 

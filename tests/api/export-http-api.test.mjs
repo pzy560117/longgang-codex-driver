@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { once } from "node:events";
+import http from "node:http";
 import test from "node:test";
 import mysql from "mysql2";
 import { Kysely, MysqlDialect } from "kysely";
@@ -23,14 +26,16 @@ function getTestDatabaseUrl() {
   return databaseUrl;
 }
 
-function withTestDatabaseEnv() {
+function withTestDatabaseEnv(objectStorageConfig = {}) {
   const databaseUrl = getTestDatabaseUrl();
   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
   const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
-  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = "https://oss.example.test";
-  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = "export-platform-test";
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT =
+    objectStorageConfig.endpoint ?? "https://oss.example.test";
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET =
+    objectStorageConfig.bucket ?? "export-platform-test";
 
   return () => {
     if (previousDatabaseUrl === undefined) {
@@ -67,8 +72,8 @@ async function createTestDatabase(t) {
   return db;
 }
 
-async function createServer(t) {
-  const restoreEnv = withTestDatabaseEnv();
+async function createServer(t, objectStorageConfig) {
+  const restoreEnv = withTestDatabaseEnv(objectStorageConfig);
   const app = createExportPlatformServer();
 
   t.after(async () => {
@@ -163,6 +168,75 @@ async function auditLogsByRequestId(db, requestId) {
     .execute();
 }
 
+async function createLocalObjectStorageServer(t, options = {}) {
+  const bucket = options.bucket ?? "export-platform-test";
+  const objects = new Map();
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const requestBucket = pathSegments.shift();
+    const storageKey = decodeStorageKey(pathSegments);
+
+    if (requestBucket !== bucket || !storageKey) {
+      response.statusCode = 404;
+      response.end("not found");
+      return;
+    }
+
+    if (request.method === "GET") {
+      const body = objects.get(storageKey);
+      if (!body) {
+        response.statusCode = 404;
+        response.end("missing object");
+        return;
+      }
+
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/octet-stream");
+      response.end(body);
+      return;
+    }
+
+    response.statusCode = 405;
+    response.end("method not allowed");
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  t.after(
+    () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      })
+  );
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("failed to resolve local object storage server address");
+  }
+
+  return {
+    bucket,
+    endpoint: `http://127.0.0.1:${address.port}`,
+    objects
+  };
+}
+
+function decodeStorageKey(segments) {
+  return segments.map((segment) => decodeURIComponent(segment)).join("/");
+}
+
+function checksum(body) {
+  return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+}
+
 test("HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL", () => {
   const previousTestDatabaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
@@ -190,7 +264,8 @@ test("HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL", () => {
 
 test("registry/task HTTP flow persists through Fastify + MySQL production path", async (t) => {
   const db = await createTestDatabase(t);
-  const app = await createServer(t);
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+  const app = await createServer(t, objectStorageServer);
   const auditRepository = createExportAuditRepository(db);
   const taskRepository = createExportTaskRepository(db);
   const fileRepository = createExportFileRepository(db);
@@ -402,14 +477,15 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(notReadyDownloadResponse.statusCode, 400);
   assert.equal(notReadyDownloadResponse.json().code, "FILE_NOT_READY");
 
+  const streamBody = Buffer.from("stream-download-body");
   const now = await getDatabaseTime(db);
   await fileRepository.saveFileMetadata({
     taskId,
     attemptNo: 0,
     fileName: "purchase-orders.xlsx",
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    fileSize: 1024,
-    checksum: "sha256:file-v1",
+    fileSize: streamBody.byteLength,
+    checksum: checksum(streamBody),
     checksumAlgorithm: "SHA-256",
     tempStorageKey: "exports/tmp/purchase-orders.xlsx",
     publishedStorageKey: "exports/published/purchase-orders.xlsx",
@@ -444,15 +520,52 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(downloadResponse.statusCode, 200);
   assert.equal(downloadResponse.json().data.fileName, "purchase-orders.xlsx");
   assert.equal(downloadResponse.json().data.storageKey, "exports/published/purchase-orders.xlsx");
-  assert.match(downloadResponse.json().data.downloadUrl, /^https:\/\/oss\.example\.test\//);
+  assert.match(
+    downloadResponse.json().data.downloadUrl,
+    new RegExp(`^${objectStorageServer.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`)
+  );
+
+  objectStorageServer.objects.set("exports/published/purchase-orders.xlsx", streamBody);
+
+  const streamDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download?mode=STREAM`,
+    headers: createHeaders(`req-download-stream-${runId}`)
+  });
+
+  assert.equal(streamDownloadResponse.statusCode, 200);
+  assert.match(streamDownloadResponse.headers["content-type"], /^application\/octet-stream/);
+  assert.equal(
+    streamDownloadResponse.headers["x-export-file-name"],
+    "purchase-orders.xlsx"
+  );
+  assert.equal(streamDownloadResponse.headers["x-export-file-size"], String(streamBody.byteLength));
+  assert.equal(streamDownloadResponse.headers["x-export-checksum"], checksum(streamBody));
+  assert.equal(streamDownloadResponse.headers["x-export-checksum-algorithm"], "SHA-256");
+  assert.equal(streamDownloadResponse.headers["x-export-attempt-no"], "0");
+  assert.equal(streamDownloadResponse.body, "stream-download-body");
+
+  objectStorageServer.objects.set(
+    "exports/published/purchase-orders.xlsx",
+    Buffer.from("corrupted-stream-download-body")
+  );
+
+  const corruptedStreamDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download?mode=STREAM`,
+    headers: createHeaders(`req-download-stream-corrupted-${runId}`)
+  });
+
+  assert.equal(corruptedStreamDownloadResponse.statusCode, 500);
+  assert.equal(corruptedStreamDownloadResponse.json().code, "FILE_VERIFY_ERROR");
 
   await fileRepository.saveFileMetadata({
     taskId,
     attemptNo: 0,
     fileName: "purchase-orders.xlsx",
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    fileSize: 1024,
-    checksum: "sha256:file-v1",
+    fileSize: streamBody.byteLength,
+    checksum: checksum(streamBody),
     checksumAlgorithm: "SHA-256",
     tempStorageKey: "exports/tmp/purchase-orders.xlsx",
     publishedStorageKey: "exports/published/purchase-orders.xlsx",
