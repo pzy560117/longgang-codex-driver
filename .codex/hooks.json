@@ -29,6 +29,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "pwsh -NoProfile -Command \"Add-Content -LiteralPath (Join-Path (git rev-parse --show-toplevel) '.codex/stop-hook-fired.log') -Value (Get-Date -Format o)\"",
+            "timeout": 30,
+            "statusMessage": "Testing Stop hook side effect"
+          },
+          {
+            "type": "command",
             "command": "pwsh -NoProfile -Command \"& { & (Join-Path (git rev-parse --show-toplevel) 'scripts/harness/hook-stop-verify.ps1') }\"",
             "timeout": 120,
             "statusMessage": "Running stop gate and continuation check"
