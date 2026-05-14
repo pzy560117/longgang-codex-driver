@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 24364 (child process of PID 10680) has been terminated.
+SUCCESS: The process with PID 10680 (child process of PID 41588) has been terminated.
+SUCCESS: The process with PID 41588 (child process of PID 30988) has been terminated.
+SUCCESS: The process with PID 30988 (child process of PID 20692) has been terminated.
+SUCCESS: The process with PID 20692 (child process of PID 4396) has been terminated.
+SUCCESS: The process with PID 35220 (child process of PID 33396) has been terminated.
+SUCCESS: The process with PID 33396 (child process of PID 13664) has been terminated.
+SUCCESS: The process with PID 13664 (child process of PID 8564) has been terminated.
+SUCCESS: The process with PID 8564 (child process of PID 4396) has been terminated.
+SUCCESS: The process with PID 23528 (child process of PID 12340) has been terminated.
+SUCCESS: The process with PID 12340 (child process of PID 21272) has been terminated.
+SUCCESS: The process with PID 21272 (child process of PID 41204) has been terminated.
+SUCCESS: The process with PID 41204 (child process of PID 4396) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| CONTRACT-REVIEW-001-S1-F001 | HIGH | contract_gap | contract | `contracts/openapi.yaml:113`, `:125`, `:136`, `:147`, `:159`, `:170` 的 `x-contract-implementation-trace` 要求 `REGISTRY_CREATE/QUERY/DETAIL/UPDATE/ENABLE/DISABLE` 审计动作；但 `AuditEvent.action` enum 在 `contracts/openapi.yaml:1765` 附近只包含 `CREATE/DISPATCH/EXECUTE_* /CANCEL_* /RETRY_REQUEST/DOWNLOAD/EXPIRE_MARK/CLEANUP_FAILED`，无法表达 registry operation 的审计事件。 | 统一 registry 审计动作口径：如果 registry 操作需要独立审计动作，把 `REGISTRY_CREATE/REGISTRY_QUERY/REGISTRY_DETAIL/REGISTRY_UPDATE/REGISTRY_ENABLE/REGISTRY_DISABLE` 加入 `AuditEvent.action` enum，并同步 `contracts/README.md`、测试矩阵和后续 contract test 映射；如果不需要独立动作，则移除 `x-contract-implementation-trace` 中的 registry audit 要求并改为现有动作。 | `powershell -NoProfile -Command "npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml"`；并增加/执行契约一致性检查，确认 `x-contract-implementation-trace.*.audit[]` 全部存在于 `components.schemas.AuditEvent.properties.action.enum`。 |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| CONTRACT-REVIEW-001-S1-F001 | contract | contract/docs worker | 1 | yes |

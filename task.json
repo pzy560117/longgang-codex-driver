@@ -209,7 +209,7 @@
                       "dependencies":  [
                                            "STACK-ADR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "context_files":  [
                                             "contracts/README.md",
                                             "contracts/openapi.yaml",

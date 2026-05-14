@@ -28,8 +28,8 @@
 | 阶段 | 命令 / 证据 | 最低要求 |
 | --- | --- | --- |
 | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
-| 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum` |
-| 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误 |
+| 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+| 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | API 集成测试 | 待脚手架任务创建 | 公开 route/handler 与 OpenAPI operation 对齐 |
 | DB 集成测试 | 待 DB schema 任务创建 | migration、repository、事务/锁行为可验证 |
@@ -71,6 +71,7 @@
 ## 最终规则
 
 - `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。
+- `feature_impl` 任务不得只以“契约存在”或“契约 lint 通过”作为完成证据；还必须满足 handler、repository / adapter、worker、file、DB 和测试的生产路径证据要求。
 - 每个实现任务必须从 `docs/architecture/constraints.md` 复制 `architecture_constraints` 和 `forbidden_implementations`。
 - 没有真实依赖时必须记录 `BLOCKED - 需要人工介入`，不得用测试替身绕过。
 - `STACK-ADR-001` 当前仍是 design / planned 基线；后续 `feature_impl` 不得只靠文档和 `git diff --check` 通过，必须先具备 `npm run arch:check` 所需的入口、路由映射和 migration 证据。

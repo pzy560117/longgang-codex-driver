@@ -112,6 +112,21 @@ contracts/
 
 `contracts/openapi.yaml` 通过 `x-contract-implementation-trace` 固化每个公开 operation 的后续实现追踪要求。该扩展只声明后续生产路径义务，不作为实现已完成证据。
 
+追踪条目至少要同时说明：
+
+- `handler` 对应的 HTTP 入口。
+- 后续 `service`、`repository` 或 `adapter` 责任边界。
+- 相关 `db`、`worker`、`audit`、`file` 义务。
+- 对应的 `contract / api / db / worker / file` 测试路径。
+
+约束补充：
+
+- 审计 `action` 必须落在 `components.schemas.AuditEvent.properties.action.enum` 中，不能通过扩展字段或外部约定绕开。
+- 对外错误码必须来自 `components.schemas.ResponseCode`，不得在响应示例或实现计划中引入未收录的公开错误码。
+- `x-contract-implementation-trace` 只代表后续实现输入，不代表实现完成证据，不能替代 handler、repository、worker、file 或测试的实际落地。
+- 注册配置、下载、幂等、取消重试、配置快照和权限上下文必须与 `docs/architecture/constraints.md` 的 `independent_microservice`、DB/worker 边界和测试替身策略保持一致。
+- `InMemory*`、mock repository 和 fixture repository 只能进入单元测试路径，不能作为生产边界追踪或完成声明的一部分。
+
 | operationId | HTTP 入口 | Requirement IDs | 后续 handler | DB / worker / audit / file 追踪要求 | 后续测试映射 |
 | --- | --- | --- | --- | --- | --- |
 | `createExportTask` | `POST /api/export/tasks` | FR-001 / FR-009 / FR-013 | `src/routes/export/tasks/create-export-task.handler.ts` | DB: task、idempotency、registry、audit；worker: 消费已提交 `PENDING`；audit: `CREATE` | contract / api / db |
@@ -128,6 +143,8 @@ contracts/
 | `disableExportRegistry` | `POST /api/export/registries/{taskCode}/disable` | FR-007 | `src/routes/export/registries/disable-export-registry.handler.ts` | DB: registry、audit；后续创建必须返回 `TASK_DISABLED`；audit: `REGISTRY_DISABLE` | contract |
 
 后续 HTTP handler 实现任务必须从该表和 `openapi.yaml` 扩展生成 route / handler / test TODO，且不得把 OpenAPI 契约、Markdown 表格或 `git diff --check` 作为 production path 完成证据。
+
+`openapi.yaml` 里的 `ResponseCode` 和 `AuditEvent.action` 已经是当前契约的公开枚举锚点。后续实现如果需要新增公开错误码或审计动作，必须先同步契约与验证矩阵，再进入实现。
 
 ## 4. 契约编写规则
 

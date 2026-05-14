@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 1500 (child process of PID 33228) has been terminated.
+SUCCESS: The process with PID 33228 (child process of PID 29800) has been terminated.
+SUCCESS: The process with PID 29800 (child process of PID 4976) has been terminated.
+SUCCESS: The process with PID 4976 (child process of PID 12152) has been terminated.
+SUCCESS: The process with PID 39044 (child process of PID 8576) has been terminated.
+SUCCESS: The process with PID 8576 (child process of PID 6936) has been terminated.
+SUCCESS: The process with PID 6936 (child process of PID 35536) has been terminated.
+SUCCESS: The process with PID 35536 (child process of PID 22272) has been terminated.
+SUCCESS: The process with PID 22272 (child process of PID 12152) has been terminated.
+SUCCESS: The process with PID 40752 (child process of PID 10608) has been terminated.
+SUCCESS: The process with PID 10608 (child process of PID 14840) has been terminated.
+SUCCESS: The process with PID 14840 (child process of PID 16728) has been terminated.
+SUCCESS: The process with PID 16728 (child process of PID 12152) has been terminated.
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 已复核并补齐 OpenAPI 到微服务生产边界的追踪锚点。
+- 为 12 个公开 operation 增加 handler、DB、worker、audit、file、测试映射要求。
+- 已把契约 lint 命令写入 verify-matrix，并采用可通过的 Redocly 固定版本。
+
+## Files Changed
+- `contracts/openapi.yaml`: 新增 `x-contract-implementation-trace`
+- `contracts/README.md`: 新增 CONTRACT-REVIEW-001 生产边界追踪矩阵
+- `docs/testing/verify-matrix.md`: 更新 OpenAPI 契约状态和验证命令
+
+## Validation
+- `git diff --check -- contracts docs/testing/verify-matrix.md`: PASS
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- operation trace check: PASS，`operationIds=12 traceEntries=12 missing=`
+
+## Evidence
+- `contracts/openapi.yaml`: 机器可读 operation 到生产边界映射
+- `contracts/README.md`: 人工复核矩阵和后续实现要求
+- `docs/testing/verify-matrix.md`: 契约 lint 进入验证矩阵
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 仅补契约边界，不伪造实现完成
+- `API Boundary`: PASS - 每个公开 operation 映射到后续 handler/test
+- `Data/Worker/File/Audit Boundary`: PASS - 显式列出 DB、worker、audit、file 追踪义务
+- `Forbidden Implementations`: PASS - 未引入 InMemory/mock/fixture/生产替身
+
+## Knowledge References
+- `none`: 当前知识库 cold start，未发现契约复核专用知识条目；仅按 knowledge catalog 流程完成筛选
+
+## Knowledge Outputs
+- `suggested-GUIDELINE-CONTRACT-001`: guideline - OpenAPI operation 必须携带后续生产边界追踪 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `npx --yes @redocly/cli lint` latest 在当前 Windows/Node 环境中显示契约有效后触发 libuv assertion，因此验证矩阵固定为 `@redocly/cli@1.34.5`。
+- 工作区已有未跟踪 `traces/CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94/`，按任务边界未修改。
+- 本轮未提交；当前任务模板明确禁止 `git add` / `git commit` / `git push`。

@@ -1,0 +1,46 @@
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-007, FR-008, FR-009, FR-010, FR-012, FR-013
+
+## Summary
+- 补强 `contracts/openapi.yaml` 的 `x-contract-implementation-trace`，12 个公开 operation 均补齐 handler、service、repository / adapter、DB、worker、audit、file、测试映射。
+- 更新契约 README 和 verify-matrix，明确契约/lint 只能作为后续实现输入，不能作为 `feature_impl` 完成证据。
+
+## Files Changed
+- `contracts/openapi.yaml`: 补齐 operation 到生产边界与测试路径追踪。
+- `contracts/README.md`: 增加 CONTRACT-REVIEW-001 生产边界与枚举约束说明。
+- `docs/testing/verify-matrix.md`: 固化 OpenAPI lint、diff check 和非完成证据规则。
+
+## Validation
+- `git diff --check -- contracts docs/testing/verify-matrix.md`: PASS
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- operation trace completeness check: PASS - 12 operations
+- audit action enum check: PASS - 13 actions
+- public ResponseCode enum check: PASS - 23 declared codes
+
+## Evidence
+- `contracts/openapi.yaml`: OpenAPI 可作为后续 HTTP handler / service / repository / worker / file / audit 实现输入。
+- `contracts/README.md`: 记录契约追踪扩展不是实现完成证据。
+- `docs/testing/verify-matrix.md`: 契约验证命令和后续实现门禁已进入验证矩阵。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - trace 映射到 HTTP handler、service、repository / adapter、worker/file/audit 边界。
+- `API Boundary`: PASS - 公开 operation 均有 handler 和测试映射。
+- `Data Boundary`: PASS - trace 映射到后续 DB/repository 义务。
+- `Test Double Policy`: PASS - README 明确 mock/InMemory/fixture 不得作为生产边界证据。
+- `Forbidden Implementations`: PASS - verify-matrix 明确契约存在或 lint 通过不能证明 `feature_impl` 完成。
+
+## Knowledge References
+- `none`: 本轮只读取 cold-start catalog，未引用具体知识条目作为依据。
+
+## Knowledge Outputs
+- `GUIDELINE-CONTRACT-001`: guideline - OpenAPI production trace must not be treated as implementation evidence - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 后续实现仍需创建真实 handler、repository、worker、file service、DB migration 和测试；本轮只完成契约复核。
+- 工作区存在未跟踪 `traces/` runtime 产物，未触碰。
+- 按 Driver Context 强制边界，本轮未执行 `git add` / `git commit`。
