@@ -7,7 +7,7 @@
 
 ## 状态说明
 
-- 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞；DB / worker / query / file / sample 本轮未执行，不能再写成 fresh-pass。
+- 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞；DB / worker / query / file / sample 本轮未执行，不能再写成历史通过记录。
 - live object storage smoke 仍为 BLOCKED，需真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`；当前 release 证据不能用 adapter/local HTTP 结果替代。
 - 下方保留的“当前状态”仅表示回归集合的执行记录，不再沿用预实现口径。
 

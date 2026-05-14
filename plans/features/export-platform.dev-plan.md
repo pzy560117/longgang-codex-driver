@@ -6,8 +6,8 @@
 
 ## 当前实现与验证状态
 
-- RELEASE-001 已进入当前实现态，API / DB / worker / query / file / sample 相关 fresh-pass 结果已收口到 testing 文档。
-- live object storage smoke 仍为唯一明确 BLOCKED 点，前提是真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- RELEASE-001 当前状态为 BLOCKED：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍然 blocked。
+- 历史 历史通过记录 结果可保留为旧证据，但不能作为当前 latest release evidence 或 completion/pass 依据。
 - 以下内容保留计划分层和任务入口，但其中的历史扩展措辞应理解为原始计划背景，不是当前 truth source。
 
 ## 1. 计划目标
@@ -23,7 +23,7 @@
 | --- | --- | --- | --- | --- |
 | P1 | 固定分析与测试左移材料 | `docs/context/*`、`docs/testing/*` | 产品真相源 | 最先 |
 | P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | CONTRACT-001 已落 `contracts/openapi.yaml`；FR-001/002/003/004/007/008/009/010/012/013 先验收 |
-| P3 | 测试骨架与回归归档 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | 历史基线说明转为归档，当前状态以 fresh-pass 为准 |
+| P3 | 测试骨架与回归归档 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | P2 | 历史基线说明转为归档，当前状态以最新 release 证据为准；旧 历史通过记录 只能作历史记录，不能替代当前 blocked 口径 |
 | P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等；创建成功响应必须回传 `idempotencyScope` | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
 | P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
 | P6 | 实现 file-service | 临时对象、发布校验、下载元信息、分片打包 | P2/P3/P5 | FR-003、FR-006、FR-009 |
@@ -37,7 +37,7 @@
 | 需求与测试文档 | `docs/context/`、`docs/testing/` | 已可直接写入 |
 | 开发计划 | `plans/features/export-platform.dev-plan.md` | 已创建 |
 | 契约 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | `contracts/README.md` 已存在；当前契约与验证口径已纳入 RELEASE-001 状态 |
-| 测试 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | 当前测试层用于承载 fresh-pass 证据与回归 |
+| 测试 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | 当前测试层用于承载当前 release blocked 下的回归与证据；历史 历史通过记录 仅可作为旧记录 |
 | 服务实现 | `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/query-executor/`、`src/file-service/`、`src/cleanup-job/`、`src/audit-log/`、`src/repositories/`、`src/db/` | 当前实现态已覆盖主要模块边界 |
 | 迁移与检查 | `migrations/`、`scripts/arch-check.ts` | 当前验证闭环的一部分，不再表述为预实现脚手架 |
 | 运行入口 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts`、`src/config/` | 当前运行入口口径用于已实现链路与回归验证 |
@@ -65,10 +65,10 @@
 
 | Task ID | 目标 | Dependencies | Owned paths | Verification | Evidence entry |
 | --- | --- | --- | --- | --- | --- |
-| `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；当前链路已 fresh-pass，真实 MySQL 或外部数据源不可用时才记录 `BLOCKED - 需要人工介入` |
-| `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；当前链路已 fresh-pass，live object storage smoke 仍需真实环境 |
-| `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；当前链路已 fresh-pass |
-| `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；当前链路已 fresh-pass，live object storage smoke 仍需真实环境 |
+| `QUERY-EXECUTOR-001` | 落地集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点 | `QUERY-FILE-SAMPLE-PLAN-001`、`TASK-API-HTTP-001`、`SCHEDULER-WORKER-001` | `src/query-executor/`、`src/repositories/`、`src/audit-log/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；历史 历史通过记录 仅作旧证据，当前 release 仍 blocked 时不得作为 completion/pass 依据 |
+| `FILE-SERVICE-001` | 落地临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP | `QUERY-EXECUTOR-001` | `src/file-service/`、`src/task-api/`、`src/repositories/`、`tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/api/`、`docs/testing/verify-matrix.md`；历史 历史通过记录 仅作旧证据，live object storage smoke 仍 blocked，不能写成当前通过 |
+| `CLEANUP-JOB-001` | 落地 cleanup job entry、先失效后删除和失败重试记录 | `FILE-SERVICE-001` | `src/cleanup-job/`、`src/jobs/`、`src/repositories/`、`tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/file/`、`tests/worker/`、`docs/testing/verify-matrix.md`；历史 历史通过记录 仅作旧证据 |
+| `SAMPLE-PURCHASE-ORDER-001` | 用采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据 | `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001` | `src/query-executor/`、`src/file-service/`、`src/audit-log/`、`tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')` | `tests/sample/`、`tests/query/`、`tests/file/`、`docs/testing/verify-matrix.md`；历史 历史通过记录 仅作旧证据，live object storage smoke 仍需真实环境 |
 
 ## 5. 验证顺序
 
@@ -128,7 +128,7 @@
 
 ## 8.1 CONTRACT-001 契约验证入口
 
-当前契约任务的 fresh evidence 命令：
+当前契约任务的 当前证据 命令：
 
 ```powershell
 powershell -NoProfile -Command ".\verify.ps1 -Commands 'git diff --check'; npx --yes @redocly/cli lint contracts/openapi.yaml"

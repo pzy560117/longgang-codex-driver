@@ -4,7 +4,7 @@
 **最后更新**: 2026-05-15
 **负责人**: RELEASE-001
 
-> 本文件提供验收示例索引。当前自动化用例、契约文件和实现测试已由 RELEASE-001 统一收口；live object storage smoke 仍需真实环境和写入授权。
+> 本文件提供验收示例索引。当前 RELEASE-001 blocked：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史自动化用例、契约文件和实现测试仅可作为旧证据。
 
 ## 核心场景
 

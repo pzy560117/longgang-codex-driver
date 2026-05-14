@@ -26,4 +26,4 @@
 - 每条 P0/P1 需求都必须恰好出现一次，或被明确拆分。
 - 每一行都必须指向至少一个测试层级和一个证据路径。
 - API / 数据行必须包含契约或 schema 校验证据。
-- 当前 release 状态以 API / DB / worker / query / file / sample fresh-pass 与 live object storage BLOCKED 为准；历史分析口径不得覆盖当前 `src`、`tests`、`migrations` 证据。
+- 当前 RELEASE-001 状态为 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked；历史 历史通过记录 仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。

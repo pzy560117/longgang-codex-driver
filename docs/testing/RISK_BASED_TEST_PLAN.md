@@ -22,7 +22,7 @@
 
 - P0 必测：FR-001、FR-002、FR-003、FR-004、FR-005、FR-006、FR-007、FR-008、FR-009、FR-010、FR-013、FR-014。
 - P1 必测：FR-011、FR-012；发布前至少覆盖主路径、非法状态和负向清理证据。
-- 当前 release 状态已具备 API / DB / worker / query / file / sample 的 fresh-pass 证据；live object storage smoke 仍需真实环境和写入授权。
+- 当前 RELEASE-001 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史 历史通过记录 仅能作为旧证据，不能作为当前 release 依据。
 
 ## 3. 退出条件
 

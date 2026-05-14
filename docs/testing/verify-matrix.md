@@ -45,16 +45,16 @@
 
 | 验证项 | 关联需求 | 状态 | 证据 / 归因 |
 | --- | --- | --- | --- |
-| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成 fresh-pass |
-| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，DB 集成测试本轮未执行，不能沿用历史 fresh-pass 作为当前 release evidence |
-| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，worker 集成测试本轮未执行，不能沿用历史 fresh-pass 作为当前 release evidence |
-| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，query executor 验证本轮未执行，不能沿用历史 fresh-pass 作为当前 release evidence |
-| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前 fresh-pass 或 live OSS/S3 release evidence |
-| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前 fresh-pass 或 live object storage release evidence |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成历史通过记录 |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，DB 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，worker 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，query executor 验证本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
+| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
 | Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。该项不能用历史 adapter/local HTTP 结果替代当前 release evidence |
-| 契约 / 基线校验 | FR-001 - FR-014 | fresh-pass / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
 
-> 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史 fresh-pass 只能作为旧证据保留，不能写成当前 fully passed。
+> 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史通过记录只能作为旧证据保留，不能写成当前 fully passed。
 
 ## Requirement 验证入口
 

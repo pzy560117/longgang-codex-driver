@@ -3,8 +3,8 @@
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
 **任务 ID**: RELEASE-001
 **Seed 负责人**: RELEASE-001
-**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按真实 MySQL 隔离执行
-**Seed 命令**: 由对应测试套件创建当前回归数据；live object storage smoke 需真实 endpoint / bucket 与写入授权
+**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按真实 MySQL 隔离执行；当前 RELEASE-001 blocked，历史 历史通过记录 仅可作为旧证据
+**Seed 命令**: 由对应测试套件创建当前回归数据；当前 RELEASE-001 blocked，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，live object storage smoke 也仍需真实 endpoint / bucket 与写入授权
 
 ## 1. 账号与权限上下文
 
