@@ -1,8 +1,8 @@
 # 需求追溯矩阵
 
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**最后更新**: 2026-05-13
-**负责人**: ANALYSIS-001
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
 
 | Req ID | 业务规则 | 页面 / 组件 | 状态 | API / 契约 | 测试层级 | 测试文件 / 计划 | 证据路径 | 风险 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -26,4 +26,4 @@
 - 每条 P0/P1 需求都必须恰好出现一次，或被明确拆分。
 - 每一行都必须指向至少一个测试层级和一个证据路径。
 - API / 数据行必须包含契约或 schema 校验证据。
-- 当前仓库无业务代码时，测试层级允许标注为 `contract`、`planned` 或 `blocked-by-contract`，但不得伪装成已有 `src` 实现。
+- 当前 release 状态以 API / DB / worker / query / file / sample fresh-pass 与 live object storage BLOCKED 为准；历史分析口径不得覆盖当前 `src`、`tests`、`migrations` 证据。

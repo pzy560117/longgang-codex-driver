@@ -45,5 +45,5 @@
 - verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')`，当前 RELEASE-001 已通过。
 - 契约验证：CONTRACT-001 已完成，相关结果已收敛到 `contracts/` 与 `docs/testing/verify-matrix.md`。
 - 后端 / 调度 / 查询 / 文件验证：API / DB / worker / query / file / sample 已完成 fresh-pass 结果归档。
-- 当前证据路径：`progress.txt`、`traces/ANALYSIS-001-*`、`docs/testing/verify-matrix.md`。
+- 当前证据路径：`progress.txt`、`traces/RELEASE-001-*`、`docs/testing/verify-matrix.md`。
 - 若某项仍为 BLOCKED，仅限 live object storage smoke 场景；必须保留真实环境前置条件与验证入口。

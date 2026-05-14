@@ -1,9 +1,9 @@
 # 证据协议
 
 **功能 / 项目**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**任务 ID**: ANALYSIS-001
-**最后更新**: 2026-05-13
-**负责人**: ANALYSIS-001
+**任务 ID**: RELEASE-001
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
 
 ## 1. 必需证据
 
@@ -11,16 +11,16 @@
 | --- | --- | --- | --- |
 | 产品真相源对齐 | FR-001 - FR-014 | 引用 `docs/product/*`，不得把聊天补充或旧模板当作需求来源。 | `docs/product/prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` |
 | 追溯矩阵 | FR-001 - FR-014 | 每个 FR 至少有验收、测试层级、seed 和后续验证入口。 | `docs/testing/TRACEABILITY_MATRIX.md` |
-| 测试数据 | FR-001 - FR-014 | 每个 FR 对齐一个 planned fixture 或 seed，并声明重置策略。 | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/test-data-plan.md` |
-| 风险与回归 | FR-001 - FR-014 | 高风险项、P0/P1 回归集合和 `blocked-by-contract` 项必须可定位。 | `docs/testing/RISK_BASED_TEST_PLAN.md`、`docs/testing/REGRESSION_PLAN.md` |
-| 验证命令 | FR-001 - FR-014 | ANALYSIS-001 至少执行文档和 runtime 相关验证，不伪造未实现测试。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` |
-| 执行记录 | FR-001 - FR-014 | 记录 driver 实现、Stage 1、测试、Stage 2 的日志和结论。 | `progress.txt`、`traces/ANALYSIS-001-*` |
+| 测试数据 | FR-001 - FR-014 | 每个 FR 对齐一个 seed 或可执行数据入口，并声明重置策略。 | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/test-data-plan.md` |
+| 风险与回归 | FR-001 - FR-014 | 高风险项、P0/P1 回归集合和 live object storage BLOCKED 项必须可定位。 | `docs/testing/RISK_BASED_TEST_PLAN.md`、`docs/testing/REGRESSION_PLAN.md` |
+| 验证命令 | FR-001 - FR-014 | RELEASE-001 执行当前 release gate，不伪造未接入的 live object storage 证据。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| 执行记录 | FR-001 - FR-014 | 记录 driver 实现、Stage 1、测试、Stage 2 的日志和结论。 | `progress.txt`、`traces/RELEASE-001-*` |
 
 ## 2. 新鲜度规则
 
 - 证据必须来自当前变更集和当前 driver 会话；复用旧日志时必须说明其只作为历史背景。
-- `planned` 表示分析阶段定义了入口，不能等同 PASS。
-- `blocked-by-contract` 表示需要 CONTRACT-001 或后续实现任务补齐真实契约/代码/测试命令。
+- 历史分析入口只作为追溯背景，不能等同 PASS。
+- live object storage 缺少真实 endpoint / bucket 或 smoke 写入授权时，必须记录 `BLOCKED - 需要人工介入`。
 - 最终 release 证据必须包含退出码、命令、trace 路径、Requirement ID、测试文件或验证矩阵入口。
 - 若验证失败，必须在 `progress.txt` 记录失败阶段、失败原因和下一步，不得手工把任务标记为通过。
 

@@ -1,9 +1,9 @@
 # 基于风险的测试计划
 
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**任务 ID**: ANALYSIS-001
-**最后更新**: 2026-05-13
-**负责人**: ANALYSIS-001
+**任务 ID**: RELEASE-001
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
 
 ## 1. 风险分级
 
@@ -22,10 +22,10 @@
 
 - P0 必测：FR-001、FR-002、FR-003、FR-004、FR-005、FR-006、FR-007、FR-008、FR-009、FR-010、FR-013、FR-014。
 - P1 必测：FR-011、FR-012；发布前至少覆盖主路径、非法状态和负向清理证据。
-- 当前 ANALYSIS-001 只产出计划、矩阵和证据入口；应用代码、契约文件和真实测试在后续 ARCH/CONTRACT/CORE/SCHED/QUERY/FILE/SAMPLE 任务中落地。
+- 当前 release 状态已具备 API / DB / worker / query / file / sample 的 fresh-pass 证据；live object storage smoke 仍需真实环境和写入授权。
 
 ## 3. 退出条件
 
 - `docs/testing/TRACEABILITY_MATRIX.md`、`TEST_DATA_MATRIX.md`、`test-matrix.md`、`verify-matrix.md` 能追溯 FR-001 至 FR-014。
 - 高风险项均有 seed、后续验证层级和证据路径。
-- 若后续实现阶段缺少契约或代码路径，必须在 `progress.txt` 记录 `BLOCKED - 需要人工介入`，不得把 planned 证据写成 PASS。
+- 若 live object storage 或其它真实依赖不可达，必须在 `progress.txt` 记录 `BLOCKED - 需要人工介入`，不得把 adapter/local HTTP 证据写成 PASS。

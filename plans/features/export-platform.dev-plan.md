@@ -8,13 +8,13 @@
 
 - RELEASE-001 已进入当前实现态，API / DB / worker / query / file / sample 相关 fresh-pass 结果已收口到 testing 文档。
 - live object storage smoke 仍为唯一明确 BLOCKED 点，前提是真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
-- 以下内容保留计划分层和任务入口，但其中的历史“后续创建”措辞应理解为原始计划背景，不是当前 truth source。
+- 以下内容保留计划分层和任务入口，但其中的历史扩展措辞应理解为原始计划背景，不是当前 truth source。
 
 ## 1. 计划目标
 
 - 先把契约、测试矩阵和证据路径固定，再进入实现。
 - 当前仓库的实现与验证已覆盖 RELEASE-001 主链路；`contracts/README.md` 作为契约入口已存在，配套契约和测试结果已纳入当前验证闭环。
-- 任一后续任务不能倒退到“无业务代码/后续创建”口径，必须基于当前实现态继续演进。
+- 任一后续任务不能倒退到预实现口径，必须基于当前实现态继续演进。
 - `STACK-ADR-001` 已要求后续实现 owned paths 必须按 `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/query-executor/`、`src/file-service/`、`src/cleanup-job/`、`src/audit-log/`、`src/repositories/`、`src/db/`、`migrations/`、`scripts/arch-check.ts`、`tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` 拆分，不能只写笼统 `src/` 或 `tests/`。
 
 ## 2. 任务拆分
@@ -39,7 +39,7 @@
 | 契约 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | `contracts/README.md` 已存在；当前契约与验证口径已纳入 RELEASE-001 状态 |
 | 测试 | `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/` | 当前测试层用于承载 fresh-pass 证据与回归 |
 | 服务实现 | `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/query-executor/`、`src/file-service/`、`src/cleanup-job/`、`src/audit-log/`、`src/repositories/`、`src/db/` | 当前实现态已覆盖主要模块边界 |
-| 迁移与检查 | `migrations/`、`scripts/arch-check.ts` | 当前验证闭环的一部分，不再表述为后续脚手架 |
+| 迁移与检查 | `migrations/`、`scripts/arch-check.ts` | 当前验证闭环的一部分，不再表述为预实现脚手架 |
 | 运行入口 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts`、`src/config/` | 当前运行入口口径用于已实现链路与回归验证 |
 | 共享抽象 | `packages/` | 仅在确有拆分需要时创建 |
 

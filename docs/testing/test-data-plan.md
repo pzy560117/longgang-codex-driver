@@ -1,10 +1,10 @@
 # 测试数据计划
 
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
-**任务 ID**: ANALYSIS-001
-**Seed 负责人**: ANALYSIS-001
-**重置命令**: planned，后续实现任务按真实测试框架补齐
-**Seed 命令**: planned，当前仅定义 fixture 合同
+**任务 ID**: RELEASE-001
+**Seed 负责人**: RELEASE-001
+**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按真实 MySQL 隔离执行
+**Seed 命令**: 由对应测试套件创建当前回归数据；live object storage smoke 需真实 endpoint / bucket 与写入授权
 
 ## 1. 账号与权限上下文
 
@@ -44,6 +44,6 @@
 
 ## 4. 重置规则
 
-- 所有 seed 在后续测试实现中必须可重复创建、隔离和清理。
-- 当前仓库无业务代码时，所有 seed 均为 planned fixture，不代表已有测试工厂。
+- 所有 seed 在当前测试实现中必须可重复创建、隔离和清理。
+- 历史 seed 合同已转为当前回归数据入口，不得再表达为未实现测试工厂。
 - 破坏性场景必须隔离任务、文件对象和审计数据；失败后保留 `taskId`、`requestId`、`attemptNo` 供定位。
