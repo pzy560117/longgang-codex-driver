@@ -195,6 +195,22 @@
 
 ### 备注：
 - 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-14 22:05] - Task: RELEASE-001 队列修复与 release 延后
+
+### 完成的工作：
+- 将 `QUERY-FILE-SAMPLE-PLAN-001` 已写入 dev-plan 的 `QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001` 追加回 `task.json`。
+- 将 `RELEASE-001` 依赖从 `QUERY-FILE-SAMPLE-PLAN-001` 调整为 `SAMPLE-PURCHASE-ORDER-001`，避免 query/file/cleanup/sample 未实现时提前 release。
+- 修正 `docs/testing/verify-matrix.md` 中 release 快照措辞：API/DB/worker 保留为前置真实 MySQL 任务级证据，query/file/cleanup/sample 保留为 planned-by 后续任务。
+
+### 测试结果：
+- `git diff --check -- task.json plans docs/testing/verify-matrix.md progress.txt` 通过。
+- `npm test` 通过，17/17。
+
+### 审查结果：
+- 主控人工队列修复，未把任何新增实现任务标记为通过。
+
+### 备注：
+- 提交后重新运行 driver，预期下一个 ready task 为 `QUERY-EXECUTOR-001`。
 ## [2026-05-14 20:42] - Task: TASK-API-HTTP-001 实现任务与注册配置 HTTP API、handler、service 和 DB repository 串联
 
 ### 完成的工作：
@@ -259,3 +275,17 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+## [2026-05-14 21:49] - Task: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+### 完成的工作：
+- Codex 已完成实现，但 Stage 1 审查未通过。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: FAIL - 审查未通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。

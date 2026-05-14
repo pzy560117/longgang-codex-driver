@@ -633,6 +633,282 @@
                                      ]
                   },
                   {
+                      "id":  "QUERY-EXECUTOR-001",
+                      "description":  "实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点",
+                      "task_kind":  "feature_impl",
+                      "phase":  "query-executor",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  70,
+                      "dependencies":  [
+                                           "QUERY-FILE-SAMPLE-PLAN-001",
+                                           "TASK-API-HTTP-001",
+                                           "SCHEDULER-WORKER-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "query executor 必须走生产 DB repository 和认证上下文数据范围",
+                                                       "字段映射、脱敏、批次检查点和失败审计必须可追踪到 taskId、attemptNo、requestId",
+                                                       "批次游标和进度必须写入 MySQL，不得只保存在进程内存"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止用 fixture 或 hard-coded result 作为 query 验收证据",
+                                                        "禁止绕过 registry config snapshot 执行查询",
+                                                        "禁止只新增 planned-test 占位脚本就声明完成"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/requirement-interface-matrix.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/context/architecture-brief.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md"
+                                        ],
+                      "owned_paths":  [
+                                          "src/query-executor/",
+                                          "src/repositories/",
+                                          "src/audit-log/",
+                                          "tests/query/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-006",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/query-executor/",
+                                                 "tests/query/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "实现 query executor 生产入口、参数 schema、模板绑定和 registry config snapshot 消费",
+                                    "实现字段映射、脱敏、数据范围过滤、游标分页和批次 checkpoint 写入",
+                                    "补齐真实 MySQL query 测试、worker 串联测试和失败审计证据"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "acceptance":  [
+                                         "FR-006/008/009 的 query 生产路径有真实 MySQL 证据",
+                                         "字段映射、脱敏和数据范围不依赖测试替身",
+                                         "批次 checkpoint 与 worker attemptNo 可追踪"
+                                     ]
+                  },
+                  {
+                      "id":  "FILE-SERVICE-001",
+                      "description":  "实现临时对象写入、checksum 校验、发布、下载元信息和分片 ZIP",
+                      "task_kind":  "feature_impl",
+                      "phase":  "file-service",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  75,
+                      "dependencies":  [
+                                           "QUERY-EXECUTOR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "文件交付必须经过 tempStorageKey、checksum、publishedStorageKey 和 deliveryReadyAt 状态边界",
+                                                       "下载元信息必须由 HTTP API 读取生产 file metadata repository",
+                                                       "文件发布失败必须写入审计和可重试失败原因"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止未发布对象可下载",
+                                                        "禁止用本地假路径或内存 buffer 伪装对象存储发布证据",
+                                                        "禁止 file service 兼做 cleanup job 删除职责"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/context/architecture-brief.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md"
+                                        ],
+                      "owned_paths":  [
+                                          "src/file-service/",
+                                          "src/task-api/",
+                                          "src/repositories/",
+                                          "tests/file/",
+                                          "tests/api/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-003",
+                                              "FR-006",
+                                              "FR-009",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/file-service/",
+                                                 "tests/file/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "实现 file service 的临时对象写入、checksum 校验、发布和分片 ZIP 元信息",
+                                    "把下载 API 串联到 file metadata repository 和发布状态 guard",
+                                    "补齐文件发布、未发布不可下载、checksum 失败和 API 下载元信息测试"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "acceptance":  [
+                                         "FR-003/006/009 的 file 生产路径有证据",
+                                         "下载只暴露已发布且有权限的文件元信息",
+                                         "对象存储不可用时明确 BLOCKED，不用替身冒充 release 证据"
+                                     ]
+                  },
+                  {
+                      "id":  "CLEANUP-JOB-001",
+                      "description":  "实现 cleanup job entry、先失效后删除和失败重试记录",
+                      "task_kind":  "feature_impl",
+                      "phase":  "cleanup-job",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  80,
+                      "dependencies":  [
+                                           "FILE-SERVICE-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "cleanup 必须作为 scheduled job entry 运行",
+                                                       "过期文件必须先失效元信息，再删除对象，并记录失败重试证据",
+                                                       "cleanup 状态必须持久化到 MySQL 并可与 file metadata 和 audit 串联"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只写 cleanup service 而没有 job entry",
+                                                        "禁止删除对象后才失效元信息",
+                                                        "禁止吞掉对象删除失败或不记录重试原因"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/context/architecture-brief.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md"
+                                        ],
+                      "owned_paths":  [
+                                          "src/cleanup-job/",
+                                          "src/jobs/",
+                                          "src/repositories/",
+                                          "tests/file/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-003",
+                                              "FR-011"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/cleanup-job/",
+                                                 "src/jobs/cleanup-job.ts",
+                                                 "tests/file/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "实现 cleanup job entry 和过期文件扫描",
+                                    "实现先失效元信息、再删除对象、失败重试和审计记录",
+                                    "补齐 cleanup 正常删除、删除失败重试和元信息 guard 测试"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "acceptance":  [
+                                         "FR-011 的 cleanup job 有生产入口和持久化证据",
+                                         "过期清理遵守先失效后删除",
+                                         "删除失败可追踪且不会误标 release 完成"
+                                     ]
+                  },
+                  {
+                      "id":  "SAMPLE-PURCHASE-ORDER-001",
+                      "description":  "实现采购订单样板回归标准 registry/query/file/audit 链路和 10 万行证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "sample-purchase-order",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  85,
+                      "dependencies":  [
+                                           "QUERY-EXECUTOR-001",
+                                           "FILE-SERVICE-001",
+                                           "CLEANUP-JOB-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "采购订单样板必须复用标准 registry、query、file、audit 链路",
+                                                       "样板必须覆盖 0/1/20000/20001/100000/100001 行边界、脱敏和 ZIP 证据",
+                                                       "压测证据必须记录真实依赖接入状态、成功态和失败态"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止新增采购订单专用外部接口绕过标准链路",
+                                                        "禁止用小数据 fixture 代替 10 万行边界证据",
+                                                        "禁止对象存储或真实 MySQL 不可用时伪造通过"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/context/architecture-brief.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md"
+                                        ],
+                      "owned_paths":  [
+                                          "src/query-executor/",
+                                          "src/file-service/",
+                                          "src/audit-log/",
+                                          "tests/sample/",
+                                          "tests/query/",
+                                          "tests/file/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "tests/sample/",
+                                                 "tests/query/",
+                                                 "tests/file/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "定义采购订单 registry/query/file 样板合同并接入标准链路",
+                                    "实现边界数据、脱敏、分片 ZIP 和 10 万行样板验证",
+                                    "记录真实 MySQL、对象存储、成功态和失败态证据"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "acceptance":  [
+                                         "FR-014 有采购订单样板、边界数据和压测证据",
+                                         "样板复用标准链路，不新增特例接口",
+                                         "release 前 query/file/sample 证据一致"
+                                     ]
+                  },
+                  {
                       "id":  "RELEASE-001",
                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
                       "task_kind":  "release",
@@ -646,7 +922,7 @@
                                                  ],
                       "priority":  90,
                       "dependencies":  [
-                                           "QUERY-FILE-SAMPLE-PLAN-001"
+                                           "SAMPLE-PURCHASE-ORDER-001"
                                        ],
                       "passes":  false,
                       "context_files":  [

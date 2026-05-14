@@ -20,7 +20,7 @@
 | scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
 | query executor | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | `tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
 | file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | planned-by `FILE-SERVICE-001` + `CLEANUP-JOB-001` | `tests/file/`、`tests/api/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实对象存储不可用时记录 `BLOCKED - 需要人工介入` |
-| API / DB / worker 集成测试 | FR-001 - FR-014 | partial / API requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`；worker 联调待后续任务 |
+| API / DB / worker 集成测试 | FR-001 - FR-014 | available / requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
 | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
 
 ## 计划验证入口
@@ -38,7 +38,21 @@
 | query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
 | file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、ZIP 分片和下载 guard 必须连接真实对象存储或其生产等价环境；依赖不可达时明确 BLOCKED |
 | sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、ZIP 和压测证据；真实 MySQL 或对象存储不可达时明确 BLOCKED |
-| release 验证 | 待实现任务补齐 | fresh evidence 覆盖 P0/P1、失败态和 BLOCKED 项 |
+| release 验证 | deferred until `SAMPLE-PURCHASE-ORDER-001` | API、DB、worker 已有真实 MySQL 任务级证据；query/file/cleanup/sample 仍需先由后续任务补齐，不能提前 release |
+
+## RELEASE-001 队列修复快照（2026-05-14）
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | completed-before-release | `TASK-API-HTTP-001` 已使用真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 验证 `npm run test:api` |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | completed-before-release | `DB-SCHEMA-001` 与 `SCHEDULER-WORKER-001` 已使用真实 MySQL 验证 `npm run test:db` |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | completed-before-release | `SCHEDULER-WORKER-001` 已使用真实 MySQL 验证 `npm run test:worker` |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | planned-by `QUERY-EXECUTOR-001` | 当前只具备任务入口，必须先实现生产路径 |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | planned-by `FILE-SERVICE-001` | 当前只具备任务入口，必须先实现生产路径 |
+| Cleanup job 验证 | FR-003 / FR-011 | planned-by `CLEANUP-JOB-001` | 当前只具备任务入口，必须先实现生产路径 |
+| Sample 样板验证 | FR-014 | planned-by `SAMPLE-PURCHASE-ORDER-001` | 当前只具备任务入口，必须先实现生产路径 |
+
+> 结论：`RELEASE-001` 不应直接依赖 `QUERY-FILE-SAMPLE-PLAN-001`。release 已延后到 `SAMPLE-PURCHASE-ORDER-001` 之后，避免 query/file/cleanup/sample 仍未实现时提前收口。
 
 ## Requirement 验证入口
 
