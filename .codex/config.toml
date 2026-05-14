@@ -15,6 +15,7 @@ approval_policy = "on-request"
 [features]
 # hooks 作为 stop-gate 增强层默认启用；driver 仍是主链路。
 # Windows 继续以 PowerShell driver 为主，hooks 只负责结束前补一轮 reflection / feedback。
+codex_hooks = true
 hooks = true
 
 [agents]
