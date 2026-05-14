@@ -121,7 +121,8 @@ else {
     "feature_design",
     "feature_plan",
     "feature_impl",
-    "release"
+    "release",
+    "archive"
   )
   $allowedGateProfiles = @(
     "lightweight",
@@ -137,8 +138,24 @@ else {
     "design",
     "plan",
     "testing",
-    "contract"
+    "contract",
+    "knowledge"
   )
+  $runtimeTruthSources = $null
+  if ($null -ne $runtime -and $null -ne $runtime.PSObject.Properties["handoff"]) {
+    $handoff = $runtime.handoff
+    if ($null -ne $handoff -and $null -ne $handoff.PSObject.Properties["truth_sources"]) {
+      $runtimeTruthSources = $handoff.truth_sources
+    }
+  }
+  if ($null -ne $runtimeTruthSources) {
+    foreach ($truthSourceProperty in $runtimeTruthSources.PSObject.Properties) {
+      $truthSourceName = [string]$truthSourceProperty.Name
+      if (-not [string]::IsNullOrWhiteSpace($truthSourceName) -and $allowedTruthSources -notcontains $truthSourceName) {
+        $allowedTruthSources += $truthSourceName
+      }
+    }
+  }
 
   $taskIds = @{}
   foreach ($task in @($taskDocument.tasks)) {

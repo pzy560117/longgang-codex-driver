@@ -1031,6 +1031,44 @@ function Get-ExistingDevPlans {
   return $paths
 }
 
+function Get-RuntimeTruthSourceMap {
+  <#
+    读取 task.json runtime.handoff.truth_sources 中声明的项目自定义 truth source。
+  #>
+  param([string]$Root)
+
+  $taskPath = Join-Path $Root "task.json"
+  $truthSourceMap = @{}
+  if (-not (Test-Path -LiteralPath $taskPath)) {
+    return $truthSourceMap
+  }
+
+  try {
+    $taskDocument = Get-Content -LiteralPath $taskPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  }
+  catch {
+    return $truthSourceMap
+  }
+
+  $runtime = Get-ObjectPropertyValue -InputObject $taskDocument -Name "runtime"
+  $handoff = Get-ObjectPropertyValue -InputObject $runtime -Name "handoff"
+  $truthSources = Get-ObjectPropertyValue -InputObject $handoff -Name "truth_sources"
+  if ($null -eq $truthSources) {
+    return $truthSourceMap
+  }
+
+  foreach ($property in $truthSources.PSObject.Properties) {
+    $truthSourceName = [string]$property.Name
+    if ([string]::IsNullOrWhiteSpace($truthSourceName)) {
+      continue
+    }
+
+    $truthSourceMap[$truthSourceName] = ConvertTo-StringArray -Value $property.Value
+  }
+
+  return $truthSourceMap
+}
+
 function Get-TruthSourceState {
   <#
     按 truth source 类型收集已满足和缺失的真相源。
@@ -1041,6 +1079,7 @@ function Get-TruthSourceState {
   )
 
   $states = @()
+  $runtimeTruthSourceMap = Get-RuntimeTruthSourceMap -Root $Root
   foreach ($truthSource in @(ConvertTo-UniqueStringArray -Items $RequiredTruthSources)) {
     switch ($truthSource) {
       "repo_context" {
@@ -1204,11 +1243,25 @@ function Get-TruthSourceState {
         }
       }
       default {
-        $states += [PSCustomObject]@{
-          source = $truthSource
-          satisfied = $false
-          present_paths = @()
-          missing_requirements = @("unsupported truth source")
+        if ($runtimeTruthSourceMap.ContainsKey($truthSource)) {
+          $requiredPaths = @(ConvertTo-StringArray -Value $runtimeTruthSourceMap[$truthSource])
+          $presentPaths = Get-ExistingRelativePaths -Root $Root -RelativePaths $requiredPaths
+          $missingRequirements = @($requiredPaths | Where-Object { $presentPaths -notcontains $_ })
+
+          $states += [PSCustomObject]@{
+            source = $truthSource
+            satisfied = ($requiredPaths.Count -gt 0 -and $missingRequirements.Count -eq 0)
+            present_paths = $presentPaths
+            missing_requirements = $missingRequirements
+          }
+        }
+        else {
+          $states += [PSCustomObject]@{
+            source = $truthSource
+            satisfied = $false
+            present_paths = @()
+            missing_requirements = @("unsupported truth source")
+          }
         }
       }
     }

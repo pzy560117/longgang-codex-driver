@@ -283,9 +283,16 @@ function Test-CommitPathOwnership {
     [string[]]$NonBlockingDirtyPaths
   )
 
+  $defaultRuntimeAllowedPaths = @(
+    "task.json",
+    "progress.txt",
+    "traces/",
+    "artifacts/"
+  )
   $allowed = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
   foreach ($path in @(
       (Convert-OwnedPathsToPrefixes -Task $Task) +
+      (ConvertTo-StringArray -Value $defaultRuntimeAllowedPaths) +
       (ConvertTo-StringArray -Value $RuntimeAllowedPaths) +
       (ConvertTo-StringArray -Value $NonBlockingDirtyPaths)
     )) {
@@ -686,7 +693,7 @@ function Test-RecoverableCodexCompletion {
     return $false
   }
 
-  if (Test-CodexBlocked -Output $Output) {
+  if (Test-CodexBlocked -Output $LastMessage) {
     return $false
   }
 
@@ -1024,6 +1031,44 @@ function Get-ExistingDevPlans {
   return $paths
 }
 
+function Get-RuntimeTruthSourceMap {
+  <#
+    读取 task.json runtime.handoff.truth_sources 中声明的项目自定义 truth source。
+  #>
+  param([string]$Root)
+
+  $taskPath = Join-Path $Root "task.json"
+  $truthSourceMap = @{}
+  if (-not (Test-Path -LiteralPath $taskPath)) {
+    return $truthSourceMap
+  }
+
+  try {
+    $taskDocument = Get-Content -LiteralPath $taskPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  }
+  catch {
+    return $truthSourceMap
+  }
+
+  $runtime = Get-ObjectPropertyValue -InputObject $taskDocument -Name "runtime"
+  $handoff = Get-ObjectPropertyValue -InputObject $runtime -Name "handoff"
+  $truthSources = Get-ObjectPropertyValue -InputObject $handoff -Name "truth_sources"
+  if ($null -eq $truthSources) {
+    return $truthSourceMap
+  }
+
+  foreach ($property in $truthSources.PSObject.Properties) {
+    $truthSourceName = [string]$property.Name
+    if ([string]::IsNullOrWhiteSpace($truthSourceName)) {
+      continue
+    }
+
+    $truthSourceMap[$truthSourceName] = ConvertTo-StringArray -Value $property.Value
+  }
+
+  return $truthSourceMap
+}
+
 function Get-TruthSourceState {
   <#
     按 truth source 类型收集已满足和缺失的真相源。
@@ -1034,6 +1079,7 @@ function Get-TruthSourceState {
   )
 
   $states = @()
+  $runtimeTruthSourceMap = Get-RuntimeTruthSourceMap -Root $Root
   foreach ($truthSource in @(ConvertTo-UniqueStringArray -Items $RequiredTruthSources)) {
     switch ($truthSource) {
       "repo_context" {
@@ -1137,7 +1183,7 @@ function Get-TruthSourceState {
         }
       }
       "plan" {
-        $presentPaths = Get-ExistingDevPlans -Root $Root
+        $presentPaths = @(Get-ExistingDevPlans -Root $Root)
         $missingRequirements = @()
         if ($presentPaths.Count -eq 0) {
           $missingRequirements += "plans\\**\\*.dev-plan.md"
@@ -1197,11 +1243,25 @@ function Get-TruthSourceState {
         }
       }
       default {
-        $states += [PSCustomObject]@{
-          source = $truthSource
-          satisfied = $false
-          present_paths = @()
-          missing_requirements = @("unsupported truth source")
+        if ($runtimeTruthSourceMap.ContainsKey($truthSource)) {
+          $requiredPaths = @(ConvertTo-StringArray -Value $runtimeTruthSourceMap[$truthSource])
+          $presentPaths = Get-ExistingRelativePaths -Root $Root -RelativePaths $requiredPaths
+          $missingRequirements = @($requiredPaths | Where-Object { $presentPaths -notcontains $_ })
+
+          $states += [PSCustomObject]@{
+            source = $truthSource
+            satisfied = ($requiredPaths.Count -gt 0 -and $missingRequirements.Count -eq 0)
+            present_paths = $presentPaths
+            missing_requirements = $missingRequirements
+          }
+        }
+        else {
+          $states += [PSCustomObject]@{
+            source = $truthSource
+            satisfied = $false
+            present_paths = @()
+            missing_requirements = @("unsupported truth source")
+          }
         }
       }
     }
@@ -1289,7 +1349,7 @@ function Get-ReviewContextPaths {
     "docs\testing\failure-triage.md"
   )
 
-  $planPaths = Get-ExistingDevPlans -Root $Root
+  $planPaths = @(Get-ExistingDevPlans -Root $Root)
   $contextFiles = Get-ExistingRelativePaths -Root $Root -RelativePaths $ExecutionPolicy.context_files
   $truthSourceState = Get-TruthSourceState -Root $Root -RequiredTruthSources $ExecutionPolicy.required_truth_sources
 
@@ -1311,7 +1371,7 @@ function Get-ReviewVerdict {
   #>
   param([string]$Output)
 
-  $matches = [regex]::Matches($Output, '(?im)^\s*(?:Final\s+Verdict|Verdict)\s*[:：]\s*(PASS|FAIL)\b|^\s*[-*]\s*(PASS|FAIL)\b')
+  $matches = [regex]::Matches($Output, '(?im)^\s*(?:[-*]\s*)?(?:Final\s+Verdict|Verdict)\s*[:：]\s*(PASS|FAIL)\b|^\s*[-*]\s*(PASS|FAIL)\b')
   if ($matches.Count -gt 0) {
     $lastMatch = $matches[$matches.Count - 1]
     foreach ($group in $lastMatch.Groups) {
@@ -1482,11 +1542,17 @@ function Invoke-CodexTask {
 
   Set-Content -LiteralPath $promptPath -Value $Prompt -Encoding UTF8
 
-  $arguments = @(
-    "exec",
-    "--full-auto",
-    "--sandbox",
-    $Sandbox,
+  $arguments = @("exec")
+  if ($Sandbox -eq "danger-full-access") {
+    $arguments += "--dangerously-bypass-approvals-and-sandbox"
+  }
+  else {
+    $arguments += @(
+      "--sandbox",
+      $Sandbox
+    )
+  }
+  $arguments += @(
     "--color",
     "never",
     "--disable",
@@ -1639,8 +1705,15 @@ function Invoke-TestCommand {
 
   Push-Location $Root
   try {
-    $output = powershell -NoProfile -Command $Command 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $output = powershell -NoProfile -Command $Command 2>&1
+      $exitCode = $LASTEXITCODE
+    }
+    finally {
+      $ErrorActionPreference = $previousErrorActionPreference
+    }
     $outputText = ($output -join "`n")
     $outputLog = $null
     if (-not [string]::IsNullOrWhiteSpace($LogDirectory)) {
@@ -1866,7 +1939,7 @@ function Invoke-OneTask {
   $prompt = New-ImplementationPrompt -Task $task -ExecutionPolicy $executionPolicy -TaskSessionId $taskSessionId
   Write-Step "Codex 执行中，完整日志将写入 $taskLogDirectory"
   $codexResult = Invoke-CodexTask -Prompt $prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId $task.id -Sandbox "danger-full-access" -ActivityLabel "实现阶段" -CaptureJsonEvents:$CaptureJsonEvents
-  $codexBlocked = Test-CodexBlocked -Output $codexResult.Output
+  $codexBlocked = Test-CodexBlocked -Output $codexResult.LastMessage
   $codexRecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $codexResult.ExitCode -Output $codexResult.Output -LastMessage $codexResult.LastMessage
 
   if ($codexRecoverableCompletion -and $codexResult.ExitCode -ne 0) {
@@ -1929,7 +2002,7 @@ function Invoke-OneTask {
 
   Write-Step "实现完成，开始 Stage 1 审查。"
   $stage1Prompt = New-Stage1ReviewPrompt -Task $task -Root $ProjectRoot -ExecutionPolicy $executionPolicy -ReviewContext $reviewContext
-  $stage1Result = Invoke-CodexTask -Prompt $stage1Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage1" -Sandbox "read-only" -ActivityLabel "Stage 1 审查" -CaptureJsonEvents:$CaptureJsonEvents
+  $stage1Result = Invoke-CodexTask -Prompt $stage1Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage1" -Sandbox "danger-full-access" -ActivityLabel "Stage 1 审查" -CaptureJsonEvents:$CaptureJsonEvents
   $stage1Verdict = Get-ReviewVerdict -Output $stage1Result.Output
   $stage1RecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $stage1Result.ExitCode -Output $stage1Result.Output -LastMessage $stage1Result.LastMessage
 
@@ -2062,7 +2135,7 @@ function Invoke-OneTask {
 
   Write-Step "测试通过，开始 Stage 2 审查。"
   $stage2Prompt = New-Stage2ReviewPrompt -Task $task -Root $ProjectRoot -ExecutionPolicy $executionPolicy -ReviewContext $reviewContext -TestResult $testResult
-  $stage2Result = Invoke-CodexTask -Prompt $stage2Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage2" -Sandbox "read-only" -ActivityLabel "Stage 2 审查" -CaptureJsonEvents:$CaptureJsonEvents
+  $stage2Result = Invoke-CodexTask -Prompt $stage2Prompt -Root $ProjectRoot -Command $CodexCommand -LogDirectory $taskLogDirectory -TaskId "$($task.id)-stage2" -Sandbox "danger-full-access" -ActivityLabel "Stage 2 审查" -CaptureJsonEvents:$CaptureJsonEvents
   $stage2Verdict = Get-ReviewVerdict -Output $stage2Result.Output
   $stage2RecoverableCompletion = Test-RecoverableCodexCompletion -ExitCode $stage2Result.ExitCode -Output $stage2Result.Output -LastMessage $stage2Result.LastMessage
 
@@ -2200,7 +2273,7 @@ function Invoke-OneTask {
     Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "unexpected_paths" -Value $ownershipResult.UnexpectedPaths -Force
     $tracePayload.failed_stage = "commit_path_ownership"
     $tracePayload.status = "failed"
-    $tracePayload.blocked_reason = "changed paths 超出 owned_paths / runtime allowlist"
+    Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "blocked_reason" -Value "changed paths 超出 owned_paths / runtime allowlist" -Force
     $tracePayload.files_changed = & git -C $ProjectRoot status --short
     $tracePayload.ended_at = (Get-Date).ToString("o")
     Save-Trace -Directory $TracePath -Trace $tracePayload | Out-Null
