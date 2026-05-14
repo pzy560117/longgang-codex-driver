@@ -10,6 +10,24 @@ export function createExportPlatformServer(
     logger: false
   });
 
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    (_request, body, done) => {
+      const text = typeof body === "string" ? body : body.toString("utf8");
+      if (text.trim().length === 0) {
+        done(null, {});
+        return;
+      }
+
+      try {
+        done(null, JSON.parse(text));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    }
+  );
+
   app.get("/health", async () => ({
     status: "ok",
     service: config.serviceName,

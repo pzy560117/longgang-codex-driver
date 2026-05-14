@@ -49,6 +49,8 @@ export type ExportRegistryRecord = {
   orderBy: string | null;
   batchSize: number | null;
   configSnapshotDigest: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 function toRegistryRecord(row: {
@@ -72,6 +74,8 @@ function toRegistryRecord(row: {
   order_by: string | null;
   batch_size: number | null;
   config_snapshot_digest: string;
+  created_at?: Date;
+  updated_at?: Date;
 }): ExportRegistryRecord {
   return {
     taskCode: row.task_code,
@@ -93,7 +97,9 @@ function toRegistryRecord(row: {
     cursorField: row.cursor_field,
     orderBy: row.order_by,
     batchSize: row.batch_size,
-    configSnapshotDigest: row.config_snapshot_digest
+    configSnapshotDigest: row.config_snapshot_digest,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -178,6 +184,51 @@ export function createExportRegistryRepository(db: Kysely<ExportPlatformDatabase
         .executeTakeFirst();
 
       return row ? toRegistryRecord(row) : undefined;
+    },
+
+    async listRegistries(filters: {
+      taskCode?: string;
+      subsystemCode?: string;
+      enabled?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}): Promise<ExportRegistryRecord[]> {
+      let query = db.selectFrom("export_registries").selectAll();
+
+      if (filters.taskCode) {
+        query = query.where("task_code", "=", filters.taskCode);
+      }
+      if (filters.subsystemCode) {
+        query = query.where("subsystem_code", "=", filters.subsystemCode);
+      }
+      if (filters.enabled !== undefined) {
+        query = query.where("enabled", "=", filters.enabled);
+      }
+
+      const rows = await query
+        .orderBy("updated_at", "desc")
+        .limit(filters.limit ?? 50)
+        .offset(filters.offset ?? 0)
+        .execute();
+
+      return rows.map(toRegistryRecord);
+    },
+
+    async setRegistryEnabled(input: {
+      taskCode: string;
+      enabled: boolean;
+      now: Date;
+    }): Promise<ExportRegistryRecord | undefined> {
+      await db
+        .updateTable("export_registries")
+        .set({
+          enabled: input.enabled,
+          updated_at: input.now
+        })
+        .where("task_code", "=", input.taskCode)
+        .execute();
+
+      return this.findRegistryByTaskCode(input.taskCode);
     }
   };
 }

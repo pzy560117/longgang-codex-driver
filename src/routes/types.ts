@@ -1,4 +1,4 @@
-import type { FastifyReply } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -8,6 +8,7 @@ export interface RouteParams {
 
 export interface RouteContext {
   params: RouteParams;
+  request: FastifyRequest;
 }
 
 export interface RouteHandler {

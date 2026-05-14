@@ -28,198 +28,188 @@ x-contract-implementation-trace:
   description: |
     CONTRACT-REVIEW-001 requires every public operation to stay traceable to
     later HTTP handler, persistence, worker, audit, file and test obligations.
-    Paths below are planned implementation targets, not current implementation evidence.
+    Paths below are the current TASK-API-HTTP-001 implementation evidence.
   operations:
     createExportTask:
       http: POST /api/export/tasks
       requirements: [FR-001, FR-009, FR-013]
       acceptanceExamples: [AE-001, AE-009, AE-014]
       handler: src/routes/export/tasks/create-export-task.handler.ts
-      service: src/services/export/tasks/create-export-task.service.ts
-      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-idempotency.repository.ts, src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts, src/adapters/task-registry.adapter.ts]
+      service: src/task-api/service.ts
+      repository: [src/repositories/export-task.repository.ts, src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_tasks, export_task_idempotency, export_registries, export_audit_logs]
       worker: [src/workers/scheduler-worker.ts must consume committed PENDING task with idempotency and snapshot invariants]
       audit: [CREATE]
       file: [none]
       tests:
-        - tests/contract/export-tasks.create.contract.test.ts
-        - tests/api/export-tasks.create.api.test.ts
-        - tests/db/export-task.repository.test.ts
-        - tests/db/export-task-idempotency.repository.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     listExportTasks:
       http: GET /api/export/tasks
       requirements: [FR-004, FR-009, FR-010]
       acceptanceExamples: [AE-004, AE-009, AE-010]
       handler: src/routes/export/tasks/list-export-tasks.handler.ts
-      service: src/services/export/tasks/list-export-tasks.service.ts
-      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-file.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts]
+      service: src/task-api/service.ts
+      repository: [src/repositories/export-task.repository.ts, src/repositories/export-file.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_tasks, export_task_files, export_audit_logs]
       worker: [none]
       audit: [QUERY_HISTORY]
       file: [published file metadata only, unpublished objects excluded]
       tests:
-        - tests/contract/export-tasks.list.contract.test.ts
-        - tests/api/export-tasks.visibility.api.test.ts
-        - tests/db/export-task-list.repository.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     getExportTask:
       http: GET /api/export/tasks/{taskId}
       requirements: [FR-002, FR-010, FR-013]
       acceptanceExamples: [AE-002, AE-010, AE-013]
       handler: src/routes/export/tasks/get-export-task.handler.ts
-      service: src/services/export/tasks/get-export-task.service.ts
-      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-event.repository.ts, src/repositories/export-task-attempt.repository.ts, src/repositories/export-task-file.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts, src/adapters/task-visibility.adapter.ts]
-      db: [export_tasks, export_task_events, export_task_attempts, export_task_files]
+      service: src/task-api/service.ts
+      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-event.repository.ts, src/repositories/export-checkpoint.repository.ts, src/repositories/export-file.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
+      db: [export_tasks, export_task_events, export_task_checkpoints, export_task_files]
       worker: [batch checkpoint and lease fields are worker-produced evidence]
       audit: [DETAIL_VIEW]
       file: [file metadata must exclude unpublished objects]
       tests:
-        - tests/contract/export-tasks.detail.contract.test.ts
-        - tests/api/export-tasks.detail.api.test.ts
-        - tests/db/export-task-detail.repository.test.ts
-        - tests/worker/export-task-checkpoint.contract.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     downloadExportTask:
       http: GET /api/export/tasks/{taskId}/download
       requirements: [FR-003, FR-009, FR-010]
       acceptanceExamples: [AE-003, AE-009, AE-021]
       handler: src/routes/export/tasks/download-export-task.handler.ts
-      service: src/services/export/tasks/download-export-task.service.ts
-      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-file.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/file-storage.adapter.ts, src/adapters/auth-context.adapter.ts]
+      service: src/task-api/service.ts
+      repository: [src/repositories/export-task.repository.ts, src/repositories/export-file.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_tasks, export_task_files, export_audit_logs]
       worker: [none]
       audit: [DOWNLOAD]
       file: [file service must validate published object, checksum, expiry and delivery mode]
       tests:
-        - tests/contract/export-tasks.download.contract.test.ts
-        - tests/file/export-file-download.guard.test.ts
-        - tests/api/export-task-download.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     cancelExportTask:
       http: POST /api/export/tasks/{taskId}/cancel
       requirements: [FR-012, FR-010]
       acceptanceExamples: [AE-012]
       handler: src/routes/export/tasks/cancel-export-task.handler.ts
-      service: src/services/export/tasks/cancel-export-task.service.ts
+      service: src/task-api/service.ts
       repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-event.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_tasks, export_task_events, export_audit_logs]
       worker: [EXECUTING cancel closes at a persisted batch boundary]
       audit: [CANCEL_REQUEST, CANCEL_DONE]
       file: [none]
       tests:
-        - tests/contract/export-tasks.cancel.contract.test.ts
-        - tests/worker/export-task-cancel-boundary.test.ts
-        - tests/api/export-task-cancel.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     retryExportTask:
       http: POST /api/export/tasks/{taskId}/retry
       requirements: [FR-012, FR-013, FR-010]
       acceptanceExamples: [AE-012, AE-013]
       handler: src/routes/export/tasks/retry-export-task.handler.ts
-      service: src/services/export/tasks/retry-export-task.service.ts
-      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-attempt.repository.ts, src/repositories/export-task-event.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts, src/adapters/task-snapshot.adapter.ts]
-      db: [export_tasks, export_task_attempts, export_task_events, export_audit_logs]
+      service: src/task-api/service.ts
+      repository: [src/repositories/export-task.repository.ts, src/repositories/export-task-event.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
+      db: [export_tasks, export_task_events, export_audit_logs]
       worker: [retry enqueues a new attempt only for FAILED tasks]
       audit: [RETRY_REQUEST]
       file: [none]
       tests:
-        - tests/contract/export-tasks.retry.contract.test.ts
-        - tests/db/export-task-attempt.repository.test.ts
-        - tests/worker/export-task-retry.contract.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     createExportRegistry:
       http: POST /api/export/registries
       requirements: [FR-007, FR-008, FR-009]
       acceptanceExamples: [AE-007, AE-008, AE-016]
       handler: src/routes/export/registries/create-export-registry.handler.ts
-      service: src/services/export/registries/create-export-registry.service.ts
-      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-registry-version.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts, src/adapters/query-template.adapter.ts]
+      service: src/registry-config/service.ts
+      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_registry_versions, export_audit_logs]
       worker: [none]
       audit: [REGISTRY_CREATE]
       file: [none]
       tests:
-        - tests/contract/export-registries.create.contract.test.ts
-        - tests/api/export-registries.create.api.test.ts
-        - tests/db/export-registry.repository.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     listExportRegistries:
       http: GET /api/export/registries
       requirements: [FR-007, FR-008, FR-009]
       acceptanceExamples: [AE-007, AE-008]
       handler: src/routes/export/registries/list-export-registries.handler.ts
-      service: src/services/export/registries/list-export-registries.service.ts
-      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-registry-version.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts]
+      service: src/registry-config/service.ts
+      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_registry_versions]
       worker: [none]
       audit: [REGISTRY_QUERY]
       file: [none]
       tests:
-        - tests/contract/export-registries.list.contract.test.ts
-        - tests/api/export-registries.visibility.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     getExportRegistry:
       http: GET /api/export/registries/{taskCode}
       requirements: [FR-007, FR-008, FR-013]
       acceptanceExamples: [AE-007, AE-008, AE-016]
       handler: src/routes/export/registries/get-export-registry.handler.ts
-      service: src/services/export/registries/get-export-registry.service.ts
-      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-registry-version.repository.ts]
-      adapter: [src/adapters/task-snapshot.adapter.ts, src/adapters/auth-context.adapter.ts]
+      service: src/registry-config/service.ts
+      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_registry_versions]
       worker: [none]
       audit: [REGISTRY_DETAIL]
       file: [registry snapshot only, no task file payload]
       tests:
-        - tests/contract/export-registries.detail.contract.test.ts
-        - tests/db/export-registry-snapshot.repository.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     updateExportRegistry:
       http: PUT /api/export/registries/{taskCode}
       requirements: [FR-007, FR-008, FR-013]
       acceptanceExamples: [AE-007, AE-008, AE-016]
       handler: src/routes/export/registries/update-export-registry.handler.ts
-      service: src/services/export/registries/update-export-registry.service.ts
-      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-registry-version.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts, src/adapters/query-template.adapter.ts, src/adapters/task-snapshot.adapter.ts]
+      service: src/registry-config/service.ts
+      repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_registry_versions, export_audit_logs]
       worker: [updated config applies only to newly created tasks]
       audit: [REGISTRY_UPDATE]
       file: [none]
       tests:
-        - tests/contract/export-registries.update.contract.test.ts
-        - tests/db/export-registry-snapshot.repository.test.ts
-        - tests/api/export-registries.update.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     enableExportRegistry:
       http: POST /api/export/registries/{taskCode}/enable
       requirements: [FR-007]
       acceptanceExamples: [AE-007]
       handler: src/routes/export/registries/enable-export-registry.handler.ts
-      service: src/services/export/registries/enable-export-registry.service.ts
+      service: src/registry-config/service.ts
       repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_audit_logs]
       worker: [none]
       audit: [REGISTRY_ENABLE]
       file: [none]
       tests:
-        - tests/contract/export-registries.enable.contract.test.ts
-        - tests/api/export-registries.enable.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
     disableExportRegistry:
       http: POST /api/export/registries/{taskCode}/disable
       requirements: [FR-007]
       acceptanceExamples: [AE-007]
       handler: src/routes/export/registries/disable-export-registry.handler.ts
-      service: src/services/export/registries/disable-export-registry.service.ts
+      service: src/registry-config/service.ts
       repository: [src/repositories/export-registry.repository.ts, src/repositories/export-audit.repository.ts]
-      adapter: [src/adapters/auth-context.adapter.ts]
+      adapter: [src/audit-log/auth-context.ts]
       db: [export_registries, export_audit_logs]
       worker: [future create requests must fail with TASK_DISABLED]
       audit: [REGISTRY_DISABLE]
       file: [none]
       tests:
-        - tests/contract/export-registries.disable.contract.test.ts
-        - tests/api/export-registries.disable.api.test.ts
+        - tests/contract/openapi-route-mapping.contract.test.mjs
+        - tests/api/export-http-api.test.mjs
 paths:
   /export/tasks:
     post:

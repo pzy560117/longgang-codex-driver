@@ -2,6 +2,9 @@ export interface ExportTasksTable {
   task_id: string;
   task_code: string;
   subsystem_code: string;
+  tenant_id: string;
+  created_by: string;
+  file_format: string;
   status: string;
   client_request_id: string | null;
   idempotency_scope: string | null;

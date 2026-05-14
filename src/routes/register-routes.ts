@@ -60,7 +60,10 @@ export async function handleApiRoute(
     return false;
   }
 
-  routeMatch.route.handler({ params: routeMatch.params }, response);
+  routeMatch.route.handler(
+    { params: routeMatch.params, request: response.request },
+    response
+  );
   return true;
 }
 
@@ -79,7 +82,7 @@ export function registerRoutes(app: FastifyInstance): void {
       method: route.method,
       url: fastifyPath,
       handler: async (request, response) => {
-        route.handler({ params: request.params as Record<string, string> }, response);
+        await route.handler({ params: request.params as Record<string, string>, request }, response);
       }
     });
   }

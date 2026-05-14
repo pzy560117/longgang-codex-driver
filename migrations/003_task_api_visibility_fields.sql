@@ -1,0 +1,3 @@
+ALTER TABLE export_tasks
+  ADD COLUMN created_by VARCHAR(128) NOT NULL DEFAULT 'system',
+  ADD COLUMN file_format VARCHAR(16) NOT NULL DEFAULT 'XLSX';

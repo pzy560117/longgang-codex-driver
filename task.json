@@ -446,7 +446,7 @@
                       "dependencies":  [
                                            "DB-SCHEMA-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "每个公开 operation 必须有 route/handler、service、DB repository 和测试映射",
                                                        "HTTP API 必须消费认证上下文",

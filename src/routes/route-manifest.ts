@@ -21,7 +21,8 @@ export type OperationRoute = {
   tests: string[];
 };
 
-const scaffoldContractTest = "tests/contract/openapi-route-mapping.contract.test.mjs";
+const routeContractTest = "tests/contract/openapi-route-mapping.contract.test.mjs";
+const httpApiTest = "tests/api/export-http-api.test.mjs";
 
 export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
   {
@@ -30,7 +31,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks",
     handlerPath: "src/routes/export/tasks/create-export-task.handler.ts",
     handler: createExportTask,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "listExportTasks",
@@ -38,7 +39,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks",
     handlerPath: "src/routes/export/tasks/list-export-tasks.handler.ts",
     handler: listExportTasks,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "getExportTask",
@@ -46,7 +47,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks/{taskId}",
     handlerPath: "src/routes/export/tasks/get-export-task.handler.ts",
     handler: getExportTask,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "downloadExportTask",
@@ -54,7 +55,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks/{taskId}/download",
     handlerPath: "src/routes/export/tasks/download-export-task.handler.ts",
     handler: downloadExportTask,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "cancelExportTask",
@@ -62,7 +63,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks/{taskId}/cancel",
     handlerPath: "src/routes/export/tasks/cancel-export-task.handler.ts",
     handler: cancelExportTask,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "retryExportTask",
@@ -70,7 +71,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/tasks/{taskId}/retry",
     handlerPath: "src/routes/export/tasks/retry-export-task.handler.ts",
     handler: retryExportTask,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "createExportRegistry",
@@ -78,7 +79,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries",
     handlerPath: "src/routes/export/registries/create-export-registry.handler.ts",
     handler: createExportRegistry,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "listExportRegistries",
@@ -86,7 +87,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries",
     handlerPath: "src/routes/export/registries/list-export-registries.handler.ts",
     handler: listExportRegistries,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "getExportRegistry",
@@ -94,7 +95,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries/{taskCode}",
     handlerPath: "src/routes/export/registries/get-export-registry.handler.ts",
     handler: getExportRegistry,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "updateExportRegistry",
@@ -102,7 +103,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries/{taskCode}",
     handlerPath: "src/routes/export/registries/update-export-registry.handler.ts",
     handler: updateExportRegistry,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "enableExportRegistry",
@@ -110,7 +111,7 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries/{taskCode}/enable",
     handlerPath: "src/routes/export/registries/enable-export-registry.handler.ts",
     handler: enableExportRegistry,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   },
   {
     operationId: "disableExportRegistry",
@@ -118,6 +119,6 @@ export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
     path: "/api/export/registries/{taskCode}/disable",
     handlerPath: "src/routes/export/registries/disable-export-registry.handler.ts",
     handler: disableExportRegistry,
-    tests: [scaffoldContractTest]
+    tests: [routeContractTest, httpApiTest]
   }
 ];

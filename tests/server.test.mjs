@@ -78,7 +78,7 @@ test("HTTP 服务可独立启动并暴露 health", async (t) => {
   assert.equal(health.entries.cleanupJob, true);
 });
 
-test("公开脚手架 API 返回受控 501 响应", async (t) => {
+test("公开 API 在缺少认证上下文时返回受控 401 响应", async (t) => {
   const port = 40252;
   const server = await startServer({
     ...loadConfig(),
@@ -95,16 +95,16 @@ test("公开脚手架 API 返回受控 501 响应", async (t) => {
   });
   const taskBody = await taskResponse.json();
 
-  assert.equal(taskResponse.status, 501);
-  assert.equal(taskBody.code, "INTERNAL_ERROR");
-  assert.equal(taskBody.data.operationId, "createExportTask");
+  assert.equal(taskResponse.status, 401);
+  assert.equal(taskBody.code, "AUTH_CONTEXT_MISSING");
+  assert.equal(taskBody.data, null);
 
   const registryResponse = await fetch(`http://127.0.0.1:${port}/api/export/registries`, {
     method: "POST"
   });
   const registryBody = await registryResponse.json();
 
-  assert.equal(registryResponse.status, 501);
-  assert.equal(registryBody.code, "INTERNAL_ERROR");
-  assert.equal(registryBody.data.operationId, "createExportRegistry");
+  assert.equal(registryResponse.status, 401);
+  assert.equal(registryBody.code, "AUTH_CONTEXT_MISSING");
+  assert.equal(registryBody.data, null);
 });
