@@ -661,6 +661,38 @@ function Invoke-NativeCommandQuiet {
   }
 }
 
+function Resolve-NativeApplicationCommand {
+  <#
+    将命令名解析为 Start-Process 可直接启动的原生命令。
+    Windows 上 npm/pwsh shim 可能优先返回 .ps1 或无扩展文件，Start-Process 不能稳定执行它们。
+  #>
+  param([string]$Command)
+
+  if ([string]::IsNullOrWhiteSpace($Command)) {
+    return $Command
+  }
+
+  if ([System.IO.Path]::IsPathRooted($Command) -or (Test-Path -LiteralPath $Command)) {
+    return $Command
+  }
+
+  $candidates = @(Get-Command $Command -All -ErrorAction SilentlyContinue)
+  $nativeExtensions = @(".exe", ".cmd", ".bat", ".com")
+  foreach ($candidate in $candidates) {
+    $path = [string]$candidate.Path
+    if ([string]::IsNullOrWhiteSpace($path)) {
+      continue
+    }
+
+    $extension = [System.IO.Path]::GetExtension($path)
+    if ($candidate.CommandType -eq "Application" -and $nativeExtensions -contains $extension.ToLowerInvariant()) {
+      return $path
+    }
+  }
+
+  return $Command
+}
+
 function Test-CodexBlocked {
   <#
     只识别 Codex 内层按约定输出的固定 BLOCKED 行。
@@ -1567,8 +1599,9 @@ function Invoke-CodexTask {
     $arguments += "--json"
   }
 
+  $resolvedCommand = Resolve-NativeApplicationCommand -Command $Command
   $process = Start-Process `
-    -FilePath $Command `
+    -FilePath $resolvedCommand `
     -ArgumentList $arguments `
     -WorkingDirectory $Root `
     -RedirectStandardInput $promptPath `
