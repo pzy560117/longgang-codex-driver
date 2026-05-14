@@ -1,0 +1,40 @@
+﻿
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (1.0575ms)
+✔ verify matrix marks downstream DB/API/worker work as blocked or planned (0.445ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (2.1626ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (1.0293ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.5702ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.8381ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (1.1065ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.3635ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.504ms)
+✔ OpenAPI operationIds are represented by route manifest entries (3.4538ms)
+✔ 脚手架声明的服务入口脚本存在 (1.2566ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.3903ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.1915ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (91.0921ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开脚手架 API 返回受控 501 响应 (23.3042ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 981.7597
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'task.json', LF will be replaced by CRLF the next time Git touches it

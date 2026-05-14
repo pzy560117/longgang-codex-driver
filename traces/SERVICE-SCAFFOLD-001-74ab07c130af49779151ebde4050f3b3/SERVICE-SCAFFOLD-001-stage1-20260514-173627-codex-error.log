@@ -1,0 +1,3446 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e25d8-3b58-7431-adec-78d81f81e189
+--------
+user
+# Stage 1 Review Prompt 模板
+
+你是 Stage 1 Reviewer。只审查**当前实现是否符合 Product Spec / Design Brief / 设计稿 / DEV-PLAN**，不要讨论代码风格。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- Task Kind: `<task-kind>`
+- Gate Profile: `<gate-profile>`
+- 对应 Phase: `<phase>`
+
+## 真相源
+
+- Truth source completeness: `<truth-source-state>`
+- Product Spec: `<product-spec>`
+- Design Brief: `<design-brief>`
+- Testing truth source: `<testing-truth-source>`
+- Knowledge Catalog: `docs/knowledge/knowledge-catalog.md` / `docs/knowledge/catalog.md`（如存在）
+- Architecture Constraints Packet: `docs/architecture/constraints.md`（如存在）
+- 设计稿 / Figma: `<design-source>`
+- DEV-PLAN: `<dev-plan>`
+- 状态矩阵: `<state-matrix>`
+
+## 必查项
+
+1. 先审查 Architecture Constraints Packet：交付形态、API 边界、数据持久化、worker/异步边界、测试替身策略、禁止实现和 Definition of Done 是否已明确。
+2. 如果当前任务是 `feature_impl`，是否携带 `architecture_constraints`、`forbidden_implementations` 和能验证架构形态的 `test_command`。
+3. 当前实现是否符合交付形态；例如微服务必须有 API/handler/启动入口/DB 或 worker 证据，不能只有领域 service class。
+4. 是否使用 `InMemory*`、mock、fixture、local-only adapter 或领域原型替代生产路径；除非任务明确标记 `domain-prototype`，否则这类情况必须 FAIL。
+5. Contract / OpenAPI / protobuf 等公开契约是否能追踪到 handler、service、测试和证据路径。
+6. 功能有没有漏实现。
+7. 有没有多做 Product Spec 没要求的内容。
+8. 每条 P0/P1 需求是否有 Requirement ID，并且能追溯到页面、状态、字段、操作、接口、测试和验收。
+9. 是否存在“页面有功能但需求没有”的多余实现。
+10. 高风险难点是否已在 `difficulty-research.md` 中提前研究并落实到计划。
+11. 页面状态是否完整：`default / empty / loading / error / disabled / permission / mobile`。
+12. AI 生成界面图是否已通过 `ui-image-review.md`，并已转成 `image-to-frontend-spec.md`。
+13. 前端 UI 任务是否已在真实浏览器截图，并把截图保存到 `artifacts/visual-review/`。
+14. 浏览器实拍图是否已和设计参考图通过 `visual-parity-review.md` 完成对比，且 Verdict 为 PASS。
+15. 交互是否与设计稿、Design Brief、CSS/token 和 Image To Frontend Spec 冲突。
+16. 验收示例、TRACEABILITY_MATRIX、测试矩阵和任务上下文之间是否一致。
+17. Contract 相关行为是否与当前 Spec 一致。
+18. 如果需求需要异常路径、权限路径或极端数据路径，这些路径是否已经进入测试或规格文档。
+19. 如果任务声明 `required_truth_sources` 包含 `knowledge`，或任务阶段是 `archive`，是否读取并使用了 `docs/knowledge/` 的索引与相关条目。
+20. 如果实现明显复用了项目经验，最终报告是否列出 `knowledge_references`；如果产生了可复用经验，是否列出 `knowledge_outputs` 建议。
+21. 是否把单次经验直接升级成 `AGENTS.md` 或全局规则；如有，必须有 proven evidence 或用户明确要求。
+
+如果当前任务涉及页面 UI，而缺少参考图、浏览器截图或视觉还原对比报告，Stage 1 必须输出 `FAIL`。只有在任务明确不是 UI 任务，或 `screen-states.md` / `image-to-frontend-spec.md` 明确豁免该状态时，才可以跳过视觉还原闸门。
+
+## 忽略项
+
+下面这些属于外层 driver 在 Stage 1 之后统一处理的状态收口，不要在 Stage 1 中作为失败项：
+
+- `task.json` 中的 `passes=true`
+- `progress.txt` 完成记录
+- `traces/` 目录和 trace 文件
+- 自动 `git commit`
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S1-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `architecture_gap` / `forbidden_implementation` / `missing_requirement` / `extra_scope` / `state_gap` / `visual_gap` / `contract_gap` / `truth_source_missing` / `knowledge_gap`
+- owner: `frontend` / `backend` / `contract` / `design` / `product` / `controller`
+- evidence: 文件路径、截图路径、日志路径或具体页面/状态
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令或报告路径
+
+## 输出格式
+
+```markdown
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- 只要存在 `HIGH` 问题，结论必须是 `FAIL`。
+- 如果 `gate-profile` 不是 `lightweight`，缺少 required truth source 必须视为 `HIGH`。
+- 如果 `feature_impl` 缺少架构约束，或实现与架构约束冲突，必须视为 `HIGH`。
+- 如果生产路径使用测试替身或内存实现冒充完成，必须视为 `HIGH`。
+- 不要在 Stage 1 讨论命名、格式化、测试框架选型这类代码质量问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: SERVICE-SCAFFOLD-001
+- 描述: 从零创建独立微服务脚手架、生产入口和架构检查
+- Task Kind: feature_impl
+- Gate Profile: spec_required
+- Requirement IDs:
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+- 验收标准:
+- 服务可作为独立微服务启动或被测试启动
+- arch:check 能阻止无生产入口或 InMemory 生产引用
+- 后续 DB、API、worker 任务有明确目录和验证入口
+
+优先真相源:
+
+### Product
+- docs\product\prd-lite.md
+- docs\product\page-inventory.md
+- docs\product\state-matrix.yaml
+- docs\product\acceptance-criteria.md
+- docs\product\requirement-interface-matrix.md
+- docs\product\difficulty-research.md
+
+### Design
+- 无
+
+### Testing
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+### DEV-PLAN
+- plans\features\export-platform.dev-plan.md
+
+### Contract
+- contracts\openapi.yaml
+
+### Task Context Files
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- plans/features/export-platform.dev-plan.md
+- docs/testing/verify-matrix.md
+
+### Truth Source Completeness
+- [OK] product: present=docs\product\prd-lite.md, docs\product\page-inventory.md, docs\product\state-matrix.yaml, docs\product\acceptance-criteria.md, docs\product\requirement-interface-matrix.md, docs\product\difficulty-research.md; missing=无
+- [OK] architecture: present=docs/architecture/constraints.md, docs/context/architecture-brief.md, docs/context/repo-map.md; missing=无
+- [OK] contract: present=contracts\openapi.yaml; missing=无
+- [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
+
+审查要求:
+- 只看功能完整性、状态覆盖、与设计和计划的一致性。
+- 不要重写代码，不要实现新功能。
+- 如果 Gate Profile 不是 lightweight，缺少 required truth source 视为阻塞性问题。
+- 如果 Gate Profile 是 lightweight，可以记录缺口，但不要把 driver 自己负责的状态文件当作失败项。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性功能/状态/设计偏差，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 1 口径只做一致性审查，不改代码。先读取任务相关真相源、计划、契约和当前实现入口，再对照微服务交付形态与禁止实现规则给出 Verdict。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Force' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg --files' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 836ms:
+
+    Directory: E:\2026\alpha-project\longgang-codex-driver
+
+[32;1mMode   [0m[32;1m              LastWriteTime[0m [32;1;3m        Length[0m[32;1m Name[0m
+[32;1m----   [0m [32;1m             -------------[0m [32;1m        ------[0m [32;1m----[0m
+d----           2026/5/13    10:48                [44;1m.agents[0m
+d----           2026/5/14    12:52                [44;1m.codex[0m
+d--h-           2026/5/14    17:35                [44;1m.git[0m
+d----           2026/5/13    10:47                [44;1magent[0m
+d----           2026/5/13    20:20                [44;1mcontracts[0m
+d----           2026/5/14    11:19                [44;1mdocs[0m
+d----           2026/5/14    14:06                [44;1mmigrations[0m
+d----           2026/5/14    15:38                [44;1mnode_modules[0m
+d----           2026/5/13    15:11                [44;1mplans[0m
+d----           2026/5/14    14:06                [44;1mscripts[0m
+d----           2026/5/14    14:10                [44;1msrc[0m
+d----           2026/5/14    14:10                [44;1mtests[0m
+d----           2026/5/14    17:33                [44;1mtraces[0m
+-a---           2026/5/14    14:30             14 .gitignore
+-a---           2026/5/14    11:19           3025 AGENTS.md
+-a---           2026/5/12    11:02          13131 [33;1mbootstrap-codex-harness.ps1[0m
+-a---           2026/5/14    13:05          85067 [33;1mcodex-loop.ps1[0m
+-a---           2026/5/14    12:08           6329 [33;1mdoctor.ps1[0m
+-a---           2026/4/16    10:11            835 [33;1menv-check.ps1[0m
+-a---           2026/5/14    15:38          42802 package-lock.json
+-a---           2026/5/14    15:37           1072 package.json
+-a---           2026/5/14    16:01           4319 progress.txt
+-a---           2026/5/14    11:22          22920 project-task-template.json
+-a---           2026/4/26     8:27           2503 smoke-task.json
+-a---           2026/5/14    15:37          46909 task.json
+-a---           2026/5/12     9:25           5637 trace.schema.json
+-a---           2026/5/14    15:37            345 tsconfig.json
+-a---           2026/5/13    22:14           8917 [33;1mverify.ps1[0m
+
+
+ succeeded in 884ms:
+ M docs/testing/verify-matrix.md
+ M progress.txt
+ M task.json
+ M traces/SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0/SERVICE-SCAFFOLD-001-20260514-135553-codex-error.log
+?? .gitignore
+?? migrations/
+?? package-lock.json
+?? package.json
+?? scripts/arch-check.ts
+?? scripts/planned-test.mjs
+?? src/
+?? tests/
+?? traces/SERVICE-SCAFFOLD-001-20260514-144738.json
+?? traces/SERVICE-SCAFFOLD-001-20260514-150750.json
+?? traces/SERVICE-SCAFFOLD-001-20260514-152130.json
+?? traces/SERVICE-SCAFFOLD-001-20260514-153435.json
+?? traces/SERVICE-SCAFFOLD-001-20260514-160103.json
+?? traces/SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570/
+?? traces/SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb/
+?? traces/SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3/
+?? traces/SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6/
+?? traces/SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0/
+?? traces/SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b/
+?? traces/SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c/
+?? traces/SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39/
+?? tsconfig.json
+
+ succeeded in 901ms:
+verify.ps1
+tsconfig.json
+package-lock.json
+codex-loop.ps1
+bootstrap-codex-harness.ps1
+AGENTS.md
+traces\CONTRACT-REVIEW-001-20260514-135951.json
+traces\CONTRACT-REVIEW-001-20260514-135553.json
+traces\CONTRACT-REVIEW-001-20260514-133355.json
+trace.schema.json
+traces\FRESH-INIT-001-20260514-122103.json
+migrations\001_initial_export_platform_schema.sql
+migrations\001_initial_export_platform.ts
+env-check.ps1
+doctor.ps1
+tests\worker\README.md
+task.json
+tests\server.test.mjs
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-prompt.txt
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-codex-output.log
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-codex-error.log
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-prompt.txt
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-output.log
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-error.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-test-20260514-135026.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-prompt.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-output.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-final.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-error.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-prompt.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-output.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-final.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-error.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-prompt.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-output.log
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-final.txt
+traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-error.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-test-20260514-135649.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-prompt.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-output.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-final.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-error.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-prompt.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-output.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-final.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-error.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-prompt.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-output.log
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-final.txt
+traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-error.log
+traces\STACK-ADR-001-20260514-132106.json
+tests\sample\README.md
+agent\workflows\speckit.verify.md
+agent\workflows\speckit.taskstoissues.md
+agent\workflows\speckit.tasks.md
+agent\workflows\speckit.specify.md
+agent\workflows\speckit.plan.md
+agent\workflows\speckit.implement.md
+agent\workflows\speckit.e2e-testing.md
+agent\workflows\speckit.constitution.md
+agent\workflows\speckit.clarify.md
+agent\workflows\speckit.checklist.md
+agent\workflows\speckit.analyze.md
+agent\workflows\README.md
+agent\verify.ps1
+agent\trace.schema.json
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-prompt.txt
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-output.log
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-error.log
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-prompt.txt
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-output.log
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-error.log
+tests\query\README.md
+docs\testing\verify-matrix.md
+docs\testing\TRACEABILITY_MATRIX.md
+docs\testing\TEST_STRATEGY.md
+docs\testing\TEST_DATA_MATRIX.md
+docs\testing\test-report.md
+docs\testing\test-matrix.md
+docs\testing\test-data-plan.md
+docs\testing\RISK_BASED_TEST_PLAN.md
+docs\testing\REGRESSION_PLAN.md
+docs\testing\failure-triage.md
+docs\testing\failure-findings.example.json
+docs\testing\EVIDENCE_PROTOCOL.md
+docs\testing\e2e-plan.md
+docs\testing\coverage-policy.md
+docs\testing\ACCEPTANCE_EXAMPLES.md
+docs\testing\ACCEPTANCE_CRITERIA.md
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-prompt.txt
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-output.log
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-error.log
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-prompt.txt
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-output.log
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-error.log
+src\workers\scheduler-worker.ts
+traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-prompt.txt
+traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-codex-output.log
+traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-codex-error.log
+src\task-api\README.md
+src\server.ts
+traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-prompt.txt
+traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-output.log
+traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-final.txt
+traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-error.log
+src\scheduler\README.md
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-prompt.txt
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-output.log
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-final.txt
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-error.log
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-prompt.txt
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-output.log
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-final.txt
+traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-error.log
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-prompt.txt
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-output.log
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-error.log
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-test-20260514-152130.log
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-prompt.txt
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-output.log
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-error.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-test-20260514-155338.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-prompt.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-output.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-error.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-prompt.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-output.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-error.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-prompt.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-output.log
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-error.log
+traces\SERVICE-SCAFFOLD-001-20260514-160103.json
+traces\SERVICE-SCAFFOLD-001-20260514-153435.json
+traces\SERVICE-SCAFFOLD-001-20260514-152130.json
+traces\SERVICE-SCAFFOLD-001-20260514-150750.json
+traces\SERVICE-SCAFFOLD-001-20260514-144738.json
+docs\context\repo-map.md
+docs\context\feature-pack.md
+docs\context\architecture-brief.md
+src\routes\types.ts
+src\routes\scaffold-handler.ts
+src\routes\route-manifest.ts
+src\routes\registry.ts
+src\routes\register-routes.ts
+src\routes\http.ts
+src\routes\health.ts
+tests\file\README.md
+contracts\README.md
+contracts\openapi.yaml
+traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-prompt.txt
+traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-codex-output.log
+traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-codex-error.log
+docs\architecture\constraints.md
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-prompt.txt
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-codex-output.log
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-codex-error.log
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-prompt.txt
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-output.log
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-error.log
+tests\db\README.md
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-test-20260514-153013.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-prompt.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-output.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-error.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-prompt.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-output.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-error.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-prompt.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-output.log
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-final.txt
+traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-error.log
+traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-codex-output.log
+traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-codex-error.log
+traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-prompt.txt
+agent\skills\better-icons\SKILL.md
+tests\contract\openapi-route-mapping.contract.test.mjs
+tests\arch-check.test.mjs
+agent\skills\coding-standards\SKILL.md
+src\cleanup-job\README.md
+tests\api\README.md
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-test-20260514-131716.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-prompt.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-output.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-final.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-error.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-prompt.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-output.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-final.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-error.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-prompt.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-output.log
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-final.txt
+traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-error.log
+agent\skills\code-reviewer\SKILL.md
+src\audit-log\README.md
+smoke-task.json
+src\routes\export\tasks\retry-export-task.route.ts
+src\routes\export\tasks\retry-export-task.handler.ts
+src\routes\export\tasks\list-export-tasks.route.ts
+src\routes\export\tasks\list-export-tasks.handler.ts
+src\routes\export\tasks\get-export-task.route.ts
+src\routes\export\tasks\get-export-task.handler.ts
+src\routes\export\tasks\download-export-task.route.ts
+src\routes\export\tasks\download-export-task.handler.ts
+src\routes\export\tasks\create-export-task.route.ts
+src\routes\export\tasks\create-export-task.handler.ts
+src\routes\export\tasks\cancel-export-task.route.ts
+src\routes\export\tasks\cancel-export-task.handler.ts
+agent\rules\testing.md
+agent\rules\patterns.md
+agent\rules\constitution.md
+agent\rules\coding-style.md
+agent\rules\agents.md
+agent\README.md
+agent\project-task-template.json
+agent\PACKAGE.md
+agent\install-agent.ps1
+agent\install-agent-here.ps1
+agent\env-check.ps1
+agent\skills\deep-interview\SKILL.md
+agent\skills\code-review\SKILL.md
+agent\skills\database\SKILL.md
+scripts\planned-test.mjs
+src\routes\export\registries\update-export-registry.route.ts
+src\routes\export\registries\update-export-registry.handler.ts
+src\routes\export\registries\list-export-registries.route.ts
+src\routes\export\registries\list-export-registries.handler.ts
+src\routes\export\registries\get-export-registry.route.ts
+src\routes\export\registries\get-export-registry.handler.ts
+src\routes\export\registries\enable-export-registry.route.ts
+src\routes\export\registries\enable-export-registry.handler.ts
+src\routes\export\registries\disable-export-registry.route.ts
+src\routes\export\registries\disable-export-registry.handler.ts
+src\routes\export\registries\create-export-registry.route.ts
+src\routes\export\registries\create-export-registry.handler.ts
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-test-20260514-121842.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-prompt.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-output.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-final.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-error.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-prompt.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-output.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-final.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-error.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-prompt.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-output.log
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-final.txt
+traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-error.log
+agent\skills\data-flow-spec\SKILL.md
+agent\docs\harness\trace-format.md
+agent\docs\harness\team-knowledge-sync.md
+agent\docs\harness\task-session-strategy.md
+agent\docs\harness\speckit-requirements-gate.md
+agent\docs\harness\spec-to-ui-to-code-workflow.md
+agent\docs\harness\sandbox-policy.md
+agent\docs\harness\rule-governance.md
+agent\docs\harness\regression-rules.md
+agent\docs\harness\prompt-knowledge-integration.md
+agent\docs\harness\new-project-usage.md
+agent\docs\harness\knowledge-lint.md
+agent\docs\harness\knowledge-import.md
+agent\docs\harness\knowledge-architecture.md
+agent\docs\harness\architecture.md
+scripts\harness\hook-stop-verify.ps1
+scripts\arch-check.ts
+agent\skills\continuous-learning\SKILL.md
+agent\skills\continuous-learning\evaluate-session.sh
+agent\skills\continuous-learning\config.json
+agent\skills\core-rules\SKILL.md
+scripts\ai-workflow\check-ai-sync-drift.ps1
+project-task-template.json
+progress.txt
+src\repositories\README.md
+agent\skills\consistency-checklist\SKILL.md
+agent\skills\clickhouse-io\SKILL.md
+agent\skills\docker\SKILL.md
+src\registry-config\README.md
+agent\skills\django-drf\SKILL.md
+docs\product\page-inventory.md
+docs\product\difficulty-research.md
+docs\product\acceptance-criteria.md
+docs\product\requirement-interface-matrix.md
+docs\product\prd-lite.md
+docs\product\state-matrix.yaml
+agent\skills\claude-openrouter-clash-debug\SKILL.md
+src\query-executor\README.md
+agent\skills\doc-updater\SKILL.md
+agent\docs\ecc-zh-CN\TROUBLESHOOTING.md
+agent\docs\ecc-zh-CN\the-security-guide.md
+agent\docs\ecc-zh-CN\the-openclaw-guide.md
+agent\docs\ecc-zh-CN\SPONSORS.md
+agent\docs\ecc-zh-CN\SPONSORING.md
+agent\docs\ecc-zh-CN\SECURITY.md
+agent\docs\ecc-zh-CN\README.md
+src\jobs\cleanup-job.ts
+package.json
+agent\skills\claude-openrouter-clash-debug\scripts\ensure-openrouter-rule.ps1
+agent\skills\claude-openrouter-clash-debug\scripts\diagnose-openrouter-route.ps1
+agent\skills\e2e-runner\SKILL.md
+src\http\types.ts
+agent\docs\ecc-zh-CN\plugins\README.md
+agent\skills\claude-openrouter-clash-debug\references\windows-openrouter-clash-playbook.md
+src\file-service\README.md
+agent\docs\ecc-zh-CN\AGENTS.md
+src\config\index.ts
+src\config\env.ts
+src\db\schema.ts
+src\db\README.md
+src\db\kysely.ts
+src\db\index.ts
+agent\docs\ecc-zh-CN\hooks\README.md
+agent\skills\cicd\SKILL.md
+docs\harness\trace-format.md
+docs\harness\team-knowledge-sync.md
+docs\harness\task-session-strategy.md
+docs\harness\spec-to-ui-to-code-workflow.md
+docs\harness\sandbox-policy.md
+docs\harness\rule-governance.md
+docs\harness\regression-rules.md
+docs\harness\prompt-knowledge-integration.md
+docs\harness\new-project-usage.md
+docs\harness\knowledge-lint.md
+docs\harness\knowledge-import.md
+docs\harness\knowledge-architecture.md
+docs\harness\architecture.md
+agent\skills\learn\SKILL.md
+agent\skills\glue-coding\SKILL.md
+agent\docs\ecc-zh-CN\examples\user-CLAUDE.md
+agent\docs\ecc-zh-CN\examples\saas-nextjs-CLAUDE.md
+agent\docs\ecc-zh-CN\examples\rust-api-CLAUDE.md
+agent\docs\ecc-zh-CN\examples\go-microservice-CLAUDE.md
+agent\docs\ecc-zh-CN\examples\django-api-CLAUDE.md
+agent\docs\ecc-zh-CN\examples\CLAUDE.md
+agent\docs\ecc-zh-CN\CONTRIBUTING.md
+agent\docs\ecc-zh-CN\agents\typescript-reviewer.md
+agent\docs\ecc-zh-CN\agents\tdd-guide.md
+agent\docs\ecc-zh-CN\agents\security-reviewer.md
+agent\docs\ecc-zh-CN\agents\rust-reviewer.md
+agent\docs\ecc-zh-CN\agents\rust-build-resolver.md
+agent\docs\ecc-zh-CN\agents\refactor-cleaner.md
+agent\docs\ecc-zh-CN\agents\pytorch-build-resolver.md
+agent\docs\ecc-zh-CN\agents\python-reviewer.md
+agent\docs\ecc-zh-CN\agents\planner.md
+agent\docs\ecc-zh-CN\agents\loop-operator.md
+agent\docs\ecc-zh-CN\agents\kotlin-build-resolver.md
+agent\docs\ecc-zh-CN\agents\java-reviewer.md
+agent\docs\ecc-zh-CN\agents\java-build-resolver.md
+agent\docs\ecc-zh-CN\agents\harness-optimizer.md
+agent\docs\ecc-zh-CN\agents\go-reviewer.md
+agent\docs\ecc-zh-CN\agents\go-build-resolver.md
+agent\docs\ecc-zh-CN\agents\e2e-runner.md
+agent\docs\ecc-zh-CN\agents\docs-lookup.md
+agent\docs\ecc-zh-CN\agents\doc-updater.md
+agent\docs\ecc-zh-CN\agents\database-reviewer.md
+agent\docs\ecc-zh-CN\agents\cpp-reviewer.md
+agent\docs\ecc-zh-CN\agents\cpp-build-resolver.md
+agent\docs\ecc-zh-CN\agents\code-reviewer.md
+agent\docs\ecc-zh-CN\agents\chief-of-staff.md
+agent\docs\ecc-zh-CN\agents\build-error-resolver.md
+agent\docs\ecc-zh-CN\agents\architect.md
+agent\skills\checkpoint\SKILL.md
+agent\skills\build-error-resolver\SKILL.md
+agent\skills\xlsx\SKILL.md
+agent\skills\langgraph\SKILL.md
+agent\skills\baseline-ui\SKILL.md
+agent\docs\ecc-zh-CN\contexts\review.md
+agent\skills\github-research\SKILL.md
+agent\docs\ecc-zh-CN\contexts\research.md
+agent\docs\ecc-zh-CN\contexts\dev.md
+docs\knowledge\knowledge-catalog.md
+agent\skills\celery-tasks\SKILL.md
+docs\knowledge\guidelines\GUIDELINE-RULES-001.md
+agent\skills\knowledge-base\SKILL.md
+agent\skills\webapp-testing\SKILL.md
+agent\skills\browser-e2e-testing\SKILL.md
+agent\docs\ecc-zh-CN\commands\verify.md
+agent\docs\ecc-zh-CN\commands\update-docs.md
+agent\docs\ecc-zh-CN\commands\update-codemaps.md
+agent\docs\ecc-zh-CN\commands\test-coverage.md
+agent\docs\ecc-zh-CN\commands\tdd.md
+agent\docs\ecc-zh-CN\commands\skill-health.md
+agent\docs\ecc-zh-CN\commands\skill-create.md
+agent\docs\ecc-zh-CN\commands\setup-pm.md
+agent\docs\ecc-zh-CN\commands\rust-test.md
+agent\docs\ecc-zh-CN\commands\rust-review.md
+agent\docs\ecc-zh-CN\commands\rust-build.md
+agent\docs\ecc-zh-CN\commands\rules-distill.md
+agent\docs\ecc-zh-CN\commands\resume-session.md
+agent\docs\ecc-zh-CN\commands\refactor-clean.md
+agent\docs\ecc-zh-CN\commands\quality-gate.md
+agent\docs\ecc-zh-CN\commands\python-review.md
+agent\docs\ecc-zh-CN\commands\prune.md
+agent\docs\ecc-zh-CN\commands\prompt-optimize.md
+agent\docs\ecc-zh-CN\commands\promote.md
+agent\docs\ecc-zh-CN\commands\projects.md
+agent\docs\ecc-zh-CN\commands\pm2.md
+agent\docs\ecc-zh-CN\commands\plan.md
+agent\docs\ecc-zh-CN\commands\multi-plan.md
+agent\docs\ecc-zh-CN\commands\multi-frontend.md
+agent\docs\ecc-zh-CN\commands\multi-execute.md
+agent\docs\ecc-zh-CN\commands\multi-backend.md
+agent\docs\ecc-zh-CN\commands\model-route.md
+agent\docs\ecc-zh-CN\commands\loop-status.md
+agent\docs\ecc-zh-CN\commands\loop-start.md
+agent\docs\ecc-zh-CN\commands\learn.md
+agent\docs\ecc-zh-CN\commands\learn-eval.md
+agent\docs\ecc-zh-CN\commands\kotlin-test.md
+agent\docs\ecc-zh-CN\commands\kotlin-review.md
+agent\docs\ecc-zh-CN\commands\kotlin-build.md
+agent\docs\ecc-zh-CN\commands\instinct-status.md
+agent\docs\ecc-zh-CN\commands\instinct-import.md
+agent\docs\ecc-zh-CN\commands\instinct-export.md
+agent\docs\ecc-zh-CN\commands\harness-audit.md
+agent\docs\ecc-zh-CN\commands\gradle-build.md
+agent\docs\ecc-zh-CN\commands\go-test.md
+agent\docs\ecc-zh-CN\commands\go-review.md
+agent\docs\ecc-zh-CN\commands\go-build.md
+agent\docs\ecc-zh-CN\commands\evolve.md
+agent\docs\ecc-zh-CN\commands\eval.md
+agent\docs\ecc-zh-CN\commands\e2e.md
+agent\docs\ecc-zh-CN\commands\docs.md
+agent\docs\ecc-zh-CN\commands\cpp-test.md
+agent\docs\ecc-zh-CN\commands\cpp-review.md
+agent\docs\ecc-zh-CN\commands\cpp-build.md
+agent\docs\ecc-zh-CN\commands\context-budget.md
+agent\docs\ecc-zh-CN\commands\code-review.md
+agent\docs\ecc-zh-CN\commands\claw.md
+agent\docs\ecc-zh-CN\commands\checkpoint.md
+agent\docs\ecc-zh-CN\commands\build-fix.md
+agent\docs\ecc-zh-CN\commands\aside.md
+agent\docs\ecc-zh-CN\CODE_OF_CONDUCT.md
+agent\docs\ecc-zh-CN\CLAUDE.md
+agent\docs\ecc-zh-CN\CHANGELOG.md
+agent\docs\codex-harness-engineering\templates\trace\trace.schema.json
+agent\docs\codex-harness-engineering\templates\trace\trace.json
+agent\docs\codex-harness-engineering\templates\trace\eval-case.yaml
+docs\knowledge\decisions\DECISION-HARNESS-001.md
+docs\knowledge\catalog.md
+agent\skills\git-xianyu-analyzer\SKILL.md
+agent\docs\codex-harness-engineering\templates\testing\verify-matrix.md
+agent\docs\codex-harness-engineering\templates\testing\TRACEABILITY_MATRIX.md
+agent\docs\codex-harness-engineering\templates\testing\TEST_STRATEGY.md
+agent\docs\codex-harness-engineering\templates\testing\TEST_DATA_MATRIX.md
+agent\docs\codex-harness-engineering\templates\testing\test-report.md
+agent\docs\codex-harness-engineering\templates\testing\test-matrix.md
+agent\docs\codex-harness-engineering\templates\testing\test-data-plan.md
+agent\docs\codex-harness-engineering\templates\testing\RISK_BASED_TEST_PLAN.md
+agent\docs\codex-harness-engineering\templates\testing\REGRESSION_PLAN.md
+agent\docs\codex-harness-engineering\templates\testing\failure-triage.md
+agent\docs\codex-harness-engineering\templates\testing\failure-findings.example.json
+agent\docs\codex-harness-engineering\templates\testing\EVIDENCE_PROTOCOL.md
+agent\docs\codex-harness-engineering\templates\testing\e2e-plan.md
+agent\docs\codex-harness-engineering\templates\testing\coverage-policy.md
+agent\docs\codex-harness-engineering\templates\testing\ACCEPTANCE_EXAMPLES.md
+agent\docs\codex-harness-engineering\templates\testing\ACCEPTANCE_CRITERIA.md
+agent\skills\interaction-detail-spec\SKILL.md
+agent\skills\git-xianyu-analyzer\scripts\download_images.py
+agent\skills\business-rule-spec\SKILL.md
+agent\skills\brand-design-md\SKILL.md
+agent\skills\brand-design-md\README.md
+agent\skills\api-auto-testing\SKILL.md
+agent\skills\vue-arco\SKILL.md
+agent\skills\docx\SKILL.md
+agent\skills\allure-report\SKILL.md
+agent\skills\vitest\SKILL.md
+agent\docs\codex-harness-engineering\templates\scripts\ai-workflow\check-ai-sync-drift.ps1
+agent\skills\build-fix\SKILL.md
+agent\skills\fixing-accessibility\SKILL.md
+agent\skills\init-autopilot\SKILL.md
+agent\skills\allure-report\scripts\view-allure.ps1
+agent\skills\verify\SKILL.md
+agent\docs\codex-harness-engineering\templates\runtime\verify.ps1
+agent\docs\codex-harness-engineering\templates\runtime\task.json
+agent\docs\codex-harness-engineering\templates\runtime\task-run-profile.json
+agent\docs\codex-harness-engineering\templates\runtime\smoke-task.json
+agent\skills\fixing-metadata\SKILL.md
+agent\skills\frontend-design\SKILL.md
+agent\skills\allure-report\examples\usage.md
+agent\skills\git-workflow\SKILL.md
+agent\skills\impeccable\SKILL.md
+agent\skills\find-skill\SKILL.md
+agent\skills\verification-loop\SKILL.md
+agent\docs\codex-harness-engineering\templates\runtime\scripts\validate-queue-placeholders.ps1
+agent\docs\codex-harness-engineering\templates\runtime\scripts\validate-init-queue.ps1
+agent\docs\codex-harness-engineering\templates\runtime\project-task-template.json
+agent\docs\codex-harness-engineering\templates\runtime\progress.txt
+agent\docs\codex-harness-engineering\templates\runtime\doctor.ps1
+agent\docs\codex-harness-engineering\templates\runtime\codex-loop.ps1
+agent\docs\codex-harness-engineering\templates\runtime\AGENTS.md
+agent\docs\codex-harness-engineering\templates\README.md
+agent\skills\fixing-motion-performance\SKILL.md
+agent\skills\frontend-patterns\SKILL.md
+agent\skills\HOW_TO_USE_SKILLS.md
+agent\skills\ai-ui-prompts\SKILL.md
+agent\skills\exception-handling-spec\SKILL.md
+agent\skills\fullstack-workflow\SKILL.md
+agent\skills\frontend-first-workflow\SKILL.md
+agent\skills\harness-surface-sync\SKILL.md
+agent\skills\ai-config-git-sync\SKILL.md
+agent\skills\example-skill\SKILL.md
+agent\skills\ai-config-git-sync\references\command-recipes.md
+agent\docs\codex-harness-engineering\templates\prompts\worker-role\test-runner.md
+agent\docs\codex-harness-engineering\templates\prompts\worker-role\harness-writer.md
+agent\docs\codex-harness-engineering\templates\prompts\worker-role\frontend-worker.md
+agent\docs\codex-harness-engineering\templates\prompts\worker-role\docs-worker.md
+agent\docs\codex-harness-engineering\templates\prompts\worker-role\backend-worker.md
+agent\docs\codex-harness-engineering\templates\prompts\visual-evaluator.md
+agent\docs\codex-harness-engineering\templates\prompts\review-stage2-quality.md
+agent\docs\codex-harness-engineering\templates\prompts\review-stage1-spec.md
+agent\docs\codex-harness-engineering\templates\prompts\review-one-task.md
+agent\docs\codex-harness-engineering\templates\prompts\repair-one-finding.md
+agent\docs\codex-harness-engineering\templates\prompts\implement-one-task.md
+agent\docs\codex-harness-engineering\templates\prompts\harness-audit.md
+agent\docs\codex-harness-engineering\templates\prompts\failure-triage.md
+agent\docs\codex-harness-engineering\templates\prompts\controller-loop.md
+agent\skills\example-skill\scripts\helper.py
+agent\skills\impeccable\reference\ux-writing.md
+agent\skills\impeccable\reference\typography.md
+agent\skills\impeccable\reference\typeset.md
+agent\skills\impeccable\reference\teach.md
+agent\skills\impeccable\reference\spatial-design.md
+agent\skills\impeccable\reference\shape.md
+agent\skills\impeccable\reference\responsive-design.md
+agent\skills\impeccable\reference\quieter.md
+agent\skills\impeccable\reference\product.md
+agent\skills\impeccable\reference\polish.md
+agent\skills\impeccable\reference\personas.md
+agent\skills\impeccable\reference\overdrive.md
+agent\skills\impeccable\reference\optimize.md
+agent\skills\impeccable\reference\onboard.md
+agent\skills\impeccable\reference\motion-design.md
+agent\skills\impeccable\reference\live.md
+agent\skills\impeccable\reference\layout.md
+agent\skills\impeccable\reference\interaction-design.md
+agent\skills\impeccable\reference\heuristics-scoring.md
+agent\skills\impeccable\reference\harden.md
+agent\skills\impeccable\reference\extract.md
+agent\skills\impeccable\reference\document.md
+agent\skills\impeccable\reference\distill.md
+agent\skills\impeccable\reference\delight.md
+agent\skills\impeccable\reference\critique.md
+agent\skills\impeccable\reference\craft.md
+agent\skills\impeccable\reference\colorize.md
+agent\skills\impeccable\reference\color-and-contrast.md
+agent\skills\impeccable\reference\cognitive-load.md
+agent\skills\impeccable\reference\clarify.md
+agent\skills\impeccable\reference\brand.md
+agent\skills\impeccable\reference\bolder.md
+agent\skills\impeccable\reference\audit.md
+agent\skills\impeccable\reference\animate.md
+agent\skills\impeccable\reference\adapt.md
+agent\skills\impeccable\agents\openai.yaml
+agent\skills\academic-mermaid-diagrams\SKILL.md
+agent\skills\harness-surface-sync\references\stale-patterns.md
+agent\skills\harness-surface-sync\references\current-repo-sync-matrix.md
+agent\skills\requirements-design-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\product\state-matrix.yaml
+agent\docs\codex-harness-engineering\templates\product\requirement-interface-matrix.md
+agent\docs\codex-harness-engineering\templates\product\prd-lite.md
+agent\docs\codex-harness-engineering\templates\product\page-inventory.md
+agent\docs\codex-harness-engineering\templates\product\difficulty-research.md
+agent\docs\codex-harness-engineering\templates\product\acceptance-criteria.md
+agent\skills\impeccable\scripts\pin.mjs
+agent\skills\impeccable\scripts\modern-screenshot.umd.js
+agent\skills\impeccable\scripts\load-context.mjs
+agent\skills\impeccable\scripts\live.mjs
+agent\skills\impeccable\scripts\live-wrap.mjs
+agent\skills\impeccable\scripts\live-server.mjs
+agent\skills\impeccable\scripts\live-poll.mjs
+agent\skills\impeccable\scripts\live-inject.mjs
+agent\skills\impeccable\scripts\live-browser.js
+agent\skills\impeccable\scripts\live-accept.mjs
+agent\skills\impeccable\scripts\is-generated.mjs
+agent\skills\impeccable\scripts\detect-csp.mjs
+agent\skills\impeccable\scripts\design-parser.mjs
+agent\skills\impeccable\scripts\command-metadata.json
+agent\skills\impeccable\scripts\cleanup-deprecated.mjs
+agent\skills\example-skill\resources\config.json
+agent\skills\example-skill\README.md
+agent\skills\speckit-specify\SKILL.md
+agent\skills\glue-coding-workflow\SKILL.md
+agent\skills\refactoring\SKILL.md
+agent\skills\example-skill\examples\usage.md
+agent\scripts\ai-workflow\sync-targets.example.json
+agent\scripts\ai-workflow\sync-ai-config-to-targets.ps1
+agent\scripts\ai-workflow\check-ai-sync-drift.ps1
+agent\skills\tdd\SKILL.md
+agent\skills\speckit-plan\SKILL.md
+agent\skills\eval-harness\SKILL.md
+agent\skills\api-integration\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.verify.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.taskstoissues.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.tasks.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.specify.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.plan.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.implement.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.e2e-testing.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.constitution.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.clarify.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.checklist.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\speckit.analyze.md
+agent\docs\codex-harness-engineering\templates\package-assets\workflows\README.md
+agent\skills\performance\SKILL.md
+agent\skills\speckit-implement\SKILL.md
+agent\skills\refactor-cleaner\SKILL.md
+agent\skills\update-docs\SKILL.md
+agent\skills\taste-skill\SKILL.md
+agent\skills\api-design\SKILL.md
+agent\skills\eval\SKILL.md
+agent\skills\speckit-e2e-tasks\SKILL.md
+agent\skills\pdf\SKILL.md
+plans\features\export-platform.dev-plan.md
+agent\skills\update-codemaps\SKILL.md
+agent\skills\refactor-clean\SKILL.md
+agent\skills\sync-project-root-docs\SKILL.md
+agent\skills\api-contract-template\SKILL.md
+agent\skills\error-handling\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\rules\testing.md
+agent\docs\codex-harness-engineering\templates\package-assets\rules\patterns.md
+agent\docs\codex-harness-engineering\templates\package-assets\rules\constitution.md
+agent\docs\codex-harness-engineering\templates\package-assets\rules\coding-style.md
+agent\docs\codex-harness-engineering\templates\package-assets\rules\agents.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\xlsx\SKILL.md
+agent\skills\speckit-constitution\SKILL.md
+agent\skills\page-spec-template\SKILL.md
+agent\skills\ui-ux-pro-max\SKILL.md
+agent\skills\sync-project-root-docs\scripts\collect-root-doc-facts.ps1
+agent\skills\architect\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\webapp-testing\SKILL.md
+agent\skills\qa-mock-cleaner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\root\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\root\PACKAGE.md
+agent\docs\codex-harness-engineering\templates\package-assets\root\install-agent.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\root\install-agent-here.ps1
+agent\skills\mobile-e2e-test-case\SKILL.md
+agent\skills\sync-project-root-docs\references\github-samples.md
+agent\skills\ui-ux-pro-max\scripts\search.py
+agent\skills\sync-project-root-docs\references\current-repo-notes.md
+agent\skills\ui-ux-pro-max\scripts\design_system.py
+agent\skills\ui-ux-pro-max\scripts\core.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\vue-arco\SKILL.md
+agent\skills\speckit-clarify\SKILL.md
+agent\skills\auto-commit\SKILL.md
+agent\skills\orchestrate\SKILL.md
+agent\skills\strategic-compact\suggest-compact.sh
+agent\skills\strategic-compact\SKILL.md
+agent\skills\ui-ux-pro-max\data\web-interface.csv
+agent\skills\ui-ux-pro-max\data\ux-guidelines.csv
+agent\skills\ui-ux-pro-max\data\ui-reasoning.csv
+agent\skills\ui-ux-pro-max\data\typography.csv
+agent\skills\ui-ux-pro-max\data\styles.csv
+agent\docs\codex-harness-engineering\templates\package-assets\docs\harness\speckit-requirements-gate.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\harness\architecture-constraints.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\vitest\SKILL.md
+agent\skills\speckit-checklist\SKILL.md
+agent\skills\mcp-builder\SKILL.md
+agent\skills\qa-e2e-runner\SKILL.md
+agent\skills\ui-ux-pro-max\data\stacks\vue.csv
+agent\skills\ui-ux-pro-max\data\stacks\swiftui.csv
+agent\skills\ui-ux-pro-max\data\stacks\svelte.csv
+agent\skills\ui-ux-pro-max\data\stacks\shadcn.csv
+agent\skills\ui-ux-pro-max\data\stacks\react.csv
+agent\skills\ui-ux-pro-max\data\stacks\react-native.csv
+agent\skills\ui-ux-pro-max\data\stacks\nuxtjs.csv
+agent\skills\ui-ux-pro-max\data\stacks\nuxt-ui.csv
+agent\skills\ui-ux-pro-max\data\stacks\nextjs.csv
+agent\skills\ui-ux-pro-max\data\stacks\jetpack-compose.csv
+agent\skills\ui-ux-pro-max\data\stacks\html-tailwind.csv
+agent\skills\ui-ux-pro-max\data\stacks\flutter.csv
+agent\skills\ui-ux-pro-max\data\stacks\astro.csv
+agent\skills\ui-ux-pro-max\data\react-performance.csv
+agent\skills\ui-ux-pro-max\data\products.csv
+agent\skills\ui-ux-pro-max\data\landing.csv
+agent\skills\ui-ux-pro-max\data\icons.csv
+agent\skills\ui-ux-pro-max\data\colors.csv
+agent\skills\ui-ux-pro-max\data\charts.csv
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\TROUBLESHOOTING.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\the-security-guide.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\the-openclaw-guide.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\SPONSORS.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\SPONSORING.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\SECURITY.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\verify\SKILL.md
+agent\skills\openspec-proposal\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\plugins\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\verification-loop\SKILL.md
+agent\skills\qa-e2e-planner\SKILL.md
+agent\skills\log-analysis-optimization\SKILL.md
+agent\skills\midscene-log-analysis\SKILL.md
+agent\skills\speckit-analyze\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\hooks\README.md
+agent\skills\state-management\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\update-docs\SKILL.md
+agent\skills\typescript\SKILL.md
+agent\docs\codex-harness-engineering\superpowers-codex-solo-builder-playbook.md
+agent\docs\codex-harness-engineering\START-HERE.md
+agent\docs\codex-harness-engineering\spec-to-ui-to-code-workflow.md
+agent\docs\codex-harness-engineering\README.md
+agent\docs\codex-harness-engineering\mode-matrix.md
+agent\docs\codex-harness-engineering\implementation-guide.md
+agent\docs\codex-harness-engineering\implementation-flow.md
+agent\docs\codex-harness-engineering\harness-quality-model.md
+agent\docs\codex-harness-engineering\harness-improvement-plan.md
+agent\docs\codex-harness-engineering\harness-analysis-and-practice.md
+agent\docs\codex-harness-engineering\global-rules-and-bootstrap.md
+agent\skills\openspec-archive\SKILL.md
+agent\skills\midscene-fix-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\update-codemaps\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\user-CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\saas-nextjs-CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\rust-api-CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\go-microservice-CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\django-api-CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\examples\CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\CONTRIBUTING.md
+agent\skills\openspec-architecture-review\SKILL.md
+agent\skills\speckit-verify\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\SKILL.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\verify.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\contexts\review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\contexts\research.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\contexts\dev.md
+agent\skills\speckit-taskstoissues\SKILL.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\traces\DEMO-TICKET-FILTER-001-20260422-120000.json
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\task.json
+agent\skills\mock-strategy\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\scripts\search.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\scripts\design_system.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\scripts\core.py
+agent\skills\midscene-framework\SKILL.md
+agent\skills\spec-review\SKILL.md
+agent\skills\property-testing\SKILL.md
+agent\skills\openspec-apply\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\verify.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\update-docs.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\update-codemaps.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\test-coverage.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\tdd.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\skill-health.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\skill-create.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\setup-pm.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\rust-test.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\rust-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\rust-build.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\rules-distill.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\resume-session.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\refactor-clean.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\quality-gate.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\python-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\prune.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\prompt-optimize.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\promote.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\projects.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\pm2.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\plan.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\multi-plan.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\multi-frontend.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\multi-execute.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\multi-backend.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\model-route.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\loop-status.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\loop-start.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\learn.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\learn-eval.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\kotlin-test.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\kotlin-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\kotlin-build.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\instinct-status.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\instinct-import.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\instinct-export.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\harness-audit.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\gradle-build.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\go-test.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\go-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\go-build.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\evolve.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\eval.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\e2e.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\docs.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\cpp-test.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\cpp-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\cpp-build.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\context-budget.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\code-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\claw.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\checkpoint.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\build-fix.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\commands\aside.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\CODE_OF_CONDUCT.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\CLAUDE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\CHANGELOG.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\AGENTS.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\stories\TicketFilterBar.stories.tsx
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\README.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\progress.txt
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\web-interface.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\ux-guidelines.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\ui-reasoning.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\typography.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\styles.csv
+agent\skills\project-planning\SKILL.md
+agent\skills\spec-based-review\SKILL.md
+agent\skills\skills-index.md
+agent\skills\speckit-tasks\SKILL.md
+agent\skills\prompts-library\SKILL.md
+agent\skills\project-context-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\typescript-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\tdd-guide.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\security-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\rust-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\rust-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\refactor-cleaner.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\pytorch-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\python-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\planner.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\loop-operator.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\kotlin-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\java-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\java-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\harness-optimizer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\go-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\go-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\e2e-runner.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\docs-lookup.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\doc-updater.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\database-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\cpp-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\cpp-build-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\code-reviewer.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\chief-of-staff.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\build-error-resolver.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\ecc-zh-CN\agents\architect.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\vue.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\swiftui.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\svelte.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\shadcn.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\react.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\react-native.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\nuxtjs.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\nuxt-ui.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\nextjs.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\jetpack-compose.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\html-tailwind.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\flutter.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\stacks\astro.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\react-performance.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\products.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\landing.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\icons.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\colors.csv
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ui-ux-pro-max\data\charts.csv
+agent\skills\project-guidelines-example\SKILL.md
+agent\skills\project-setup\SKILL.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\plans\features\ticket-filter.dev-plan.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\superpowers-codex-solo-builder-playbook.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\START-HERE.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\spec-to-ui-to-code-workflow.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\project-agents-template.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\mode-matrix.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\implementation-guide.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\implementation-flow.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\global-rules-and-bootstrap.md
+agent\skills\skill-generator\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\typescript\SKILL.md
+agent\skills\security\SKILL.md
+agent\skills\tdd-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\SKILL.md
+agent\skills\prd-writer-skill\SKILL.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\ui\TicketFilterBar.tsx
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\verify.ps1
+agent\skills\tdd-guide\SKILL.md
+agent\skills\test-coverage\SKILL.md
+agent\docs\codex-harness-engineering\codex-global-rules-example.md
+agent\docs\codex-harness-engineering\best-practices.md
+agent\skills\prd-writer-skill\references\quality-checklist.md
+agent\skills\prd-writer-skill\references\prototype-guide.md
+agent\skills\prd-writer-skill\references\prompts.md
+agent\skills\prd-writer-skill\references\prd-template.md
+agent\skills\prd-writer-skill\references\feature-list-template.md
+agent\skills\prd-writer-skill\references\cloudflare-deploy.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\thesis-analysis-template.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\test-result-templates.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\template-qingdao-city-university.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\photographer-booking-paper.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\final-checklist.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\citation-templates.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\thesis-writing\references\ai-integrity-and-originality.md
+agent\skills\security-reviewer\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\traces\DEMO-TICKET-FILTER-001-20260422-120000.json
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\task.json
+agent\skills\skill-creator\SKILL.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\http-client.ts
+agent\docs\architecture\constraints.md
+agent\codex-loop.ps1
+agent\bootstrap-codex-harness.ps1
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\contracts\orval.config.ts
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\contracts\openapi.yaml
+agent\docs\codex-harness-engineering\templates\package-assets\skills\test-coverage\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\stories\TicketFilterBar.stories.tsx
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\progress.txt
+agent\skills\security-review\SKILL.md
+agent\ai-sync\ai-kit-manifest.json
+agent\AGENTS.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\generated\ticket-api.ts
+agent\docs\codex-harness-engineering\templates\hooks\hooks.json
+agent\docs\codex-harness-engineering\templates\hooks\hook-stop-verify.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\skills\tdd-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\context\repo-map.md
+agent\docs\codex-harness-engineering\templates\context\feature-pack.md
+agent\docs\codex-harness-engineering\templates\context\dev-plan.md
+agent\docs\codex-harness-engineering\templates\context\architecture-brief.md
+agent\docs\codex-harness-engineering\templates\ci\github-action-codex-task.yml
+agent\docs\codex-harness-engineering\templates\ci\github-action-codex-review.yml
+agent\docs\codex-harness-engineering\templates\bootstrap-codex-harness.ps1
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\generated\model\Ticket.ts
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\codex-global-rules-example.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\best-practices.md
+agent\docs\codex-harness-engineering\templates\governance\sandbox-policy.md
+agent\docs\codex-harness-engineering\templates\governance\risk-levels.yaml
+agent\docs\codex-harness-engineering\templates\governance\retry-budget.yaml
+agent\docs\codex-harness-engineering\templates\governance\feedback-evolution-loop.md
+agent\docs\codex-harness-engineering\templates\governance\branch-protection-checklist.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\tdd-guide\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\plans\features\ticket-filter.dev-plan.md
+agent\docs\codex-harness-engineering\templates\config\mcp-config.toml
+agent\docs\codex-harness-engineering\templates\config\global-config.toml
+agent\docs\codex-harness-engineering\templates\config\global-AGENTS.md
+agent\docs\codex-harness-engineering\templates\config\env.example
+agent\docs\codex-harness-engineering\templates\config\env-check.ps1
+agent\docs\codex-harness-engineering\templates\config\codex-readme.md
+agent\docs\codex-harness-engineering\templates\config\codex-config.toml
+agent\docs\codex-harness-engineering\templates\config\codex-agent-roles.md
+agent\docs\codex-harness-engineering\templates\design\visual-parity-review.md
+agent\docs\codex-harness-engineering\templates\design\ui-image-review.md
+agent\docs\codex-harness-engineering\templates\design\screen-states.md
+agent\docs\codex-harness-engineering\templates\design\image-to-frontend-spec.md
+agent\docs\codex-harness-engineering\templates\design\design-tokens.json
+agent\docs\codex-harness-engineering\templates\design\design-brief.md
+agent\docs\codex-harness-engineering\templates\design\component-map.md
+agent\docs\codex-harness-engineering\templates\knowledge\knowledge-catalog.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\tdd\SKILL.md
+agent\docs\codex-harness-engineering\templates\docs\trace-format.md
+agent\docs\codex-harness-engineering\templates\docs\team-knowledge-sync.md
+agent\docs\codex-harness-engineering\templates\docs\task-session-strategy.md
+agent\docs\codex-harness-engineering\templates\docs\spec-to-ui-to-code-workflow.md
+agent\docs\codex-harness-engineering\templates\docs\rule-governance.md
+agent\docs\codex-harness-engineering\templates\docs\regression-rules.md
+agent\docs\codex-harness-engineering\templates\docs\prompt-knowledge-integration.md
+agent\docs\codex-harness-engineering\templates\docs\project-agents-template.md
+agent\docs\codex-harness-engineering\templates\docs\new-project-usage.md
+agent\docs\codex-harness-engineering\templates\docs\new-project-checklist.md
+agent\docs\codex-harness-engineering\templates\docs\knowledge-lint.md
+agent\docs\codex-harness-engineering\templates\docs\knowledge-import.md
+agent\docs\codex-harness-engineering\templates\docs\knowledge-architecture.md
+agent\docs\codex-harness-engineering\templates\docs\harness-architecture.md
+agent\docs\codex-harness-engineering\templates\docs\demo-readme.md
+agent\docs\codex-harness-engineering\templates\docs\architecture-constraints.md
+agent\docs\codex-harness-engineering\templates\knowledge\catalog.md
+agent\docs\codex-harness-engineering\templates\design\assets\README.md
+agent\docs\codex-harness-engineering\templates\design\ai-image-brief.md
+agent\docs\codex-harness-engineering\templates\knowledge\guidelines\GUIDELINE-RULES-001.md
+agent\docs\codex-harness-engineering\templates\config\agents\visual-reviewer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\test-runner.toml
+agent\docs\codex-harness-engineering\templates\config\agents\test-planner.toml
+agent\docs\codex-harness-engineering\templates\config\agents\stage2-reviewer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\stage1-reviewer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\security-reviewer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\reviewer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\readonly-research.toml
+agent\docs\codex-harness-engineering\templates\config\agents\planner.toml
+agent\docs\codex-harness-engineering\templates\config\agents\harness-writer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\frontend-worker.toml
+agent\docs\codex-harness-engineering\templates\config\agents\failure-triage.toml
+agent\docs\codex-harness-engineering\templates\config\agents\explorer.toml
+agent\docs\codex-harness-engineering\templates\config\agents\docs-worker.toml
+agent\docs\codex-harness-engineering\templates\config\agents\docs-researcher.toml
+agent\docs\codex-harness-engineering\templates\config\agents\backend-worker.toml
+agent\docs\codex-harness-engineering\templates\config\agents\architect.toml
+agent\docs\codex-harness-engineering\templates\package-assets\skills\taste-skill\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\ui\TicketFilterBar.tsx
+agent\docs\codex-harness-engineering\templates\contracts\README.md
+agent\docs\codex-harness-engineering\templates\contracts\prism-usage.md
+agent\docs\codex-harness-engineering\templates\contracts\orval.config.ts
+agent\docs\codex-harness-engineering\templates\contracts\openapi.yaml
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\contracts\orval.config.ts
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\contracts\openapi.yaml
+agent\docs\codex-harness-engineering\templates\package-assets\skills\sync-project-root-docs\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\http-client.ts
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\state-matrix.yaml
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\requirement-interface-matrix.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\prd-lite.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\page-inventory.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\difficulty-research.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\ui-image-review.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\screen-states.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\image-to-frontend-spec.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\design-brief.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\component-map.md
+agent\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\ai-image-brief.md
+agent\skills\skill-creator\scripts\quick_validate.py
+agent\skills\skill-creator\scripts\package_skill.py
+agent\skills\skill-creator\scripts\init_skill.py
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\ui-image-review.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\screen-states.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\image-to-frontend-spec.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\design-brief.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\component-map.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\design\ai-image-brief.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\sync-project-root-docs\scripts\collect-root-doc-facts.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\state-matrix.yaml
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\requirement-interface-matrix.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\prd-lite.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\page-inventory.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\docs\product\difficulty-research.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\generated\ticket-api.ts
+agent\skills\pptx\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\database\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\docs\codex-harness-engineering\examples\ticket-filter-demo\packages\api-client\generated\model\Ticket.ts
+agent\docs\codex-harness-engineering\templates\package-assets\skills\sync-project-root-docs\references\github-samples.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\sync-project-root-docs\references\current-repo-notes.md
+agent\docs\codex-harness-engineering\templates\knowledge\decisions\DECISION-HARNESS-001.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\browser-e2e-testing\SKILL.md
+agent\skills\pptx\scripts\thumbnail.py
+agent\skills\pptx\scripts\replace.py
+agent\skills\pptx\scripts\rearrange.py
+agent\skills\pptx\scripts\inventory.py
+agent\skills\pptx\scripts\html2pptx.js
+agent\skills\pptx\ooxml.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\qa-e2e-planner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\fixing-motion-performance\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\langgraph\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\strategic-compact\suggest-compact.sh
+agent\docs\codex-harness-engineering\templates\package-assets\skills\strategic-compact\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\property-testing\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\data-flow-spec\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\orchestrate\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\fixing-metadata\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\midscene-log-analysis\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\state-management\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\brand-design-md\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\brand-design-md\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\knowledge-base\SKILL.md
+agent\skills\pptx\ooxml\scripts\validation\__init__.py
+agent\skills\pptx\ooxml\scripts\validation\redlining.py
+agent\skills\pptx\ooxml\scripts\validation\pptx.py
+agent\skills\pptx\ooxml\scripts\validation\docx.py
+agent\skills\pptx\ooxml\scripts\validation\base.py
+agent\skills\pptx\ooxml\scripts\validate.py
+agent\skills\pptx\ooxml\scripts\unpack.py
+agent\skills\pptx\ooxml\scripts\pack.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prompts-library\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\core-rules\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\openspec-proposal\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\fixing-accessibility\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-verify\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\midscene-framework\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\project-setup\SKILL.md
+agent\skills\pptx\ooxml\schemas\microsoft\wml-symex-2015.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-sdtdatahash-2020.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-cid-2016.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-cex-2018.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-2018.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-2012.xsd
+agent\skills\pptx\ooxml\schemas\microsoft\wml-2010.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\find-skill\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\interaction-detail-spec\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\better-icons\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\continuous-learning\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\continuous-learning\evaluate-session.sh
+agent\docs\codex-harness-engineering\templates\package-assets\skills\continuous-learning\config.json
+agent\docs\codex-harness-engineering\templates\package-assets\skills\openspec-archive\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-taskstoissues\SKILL.md
+agent\skills\pptx\ooxml\schemas\mce\mc.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\project-planning\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\midscene-fix-review\SKILL.md
+agent\skills\backend-patterns\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\exception-handling-spec\SKILL.md
+agent\skills\thesis-writing\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\consistency-checklist\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\init-autopilot\SKILL.md
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\xml.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\wml.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-wordprocessingDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-spreadsheetDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-presentationDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-officeDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-main.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\sml.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-relationshipReference.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-math.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesVariantTypes.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesExtended.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesCustom.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-customXmlSchemaProperties.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-customXmlDataProperties.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-commonSimpleTypes.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-bibliography.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-additionalCharacteristics.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\pml.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-wordprocessingDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-spreadsheetDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-picture.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-main.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-lockedCanvas.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-diagram.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-chartDrawing.xsd
+agent\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-chart.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-tasks\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\mcp-builder\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\openspec-architecture-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\baseline-ui\SKILL.md
+agent\skills\e2e\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\project-guidelines-example\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\coding-standards\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\example-skill\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\backend-patterns\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-specify\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\openspec-apply\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\log-analysis-optimization\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\code-reviewer\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\example-skill\scripts\helper.py
+agent\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-relationships.xsd
+agent\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-digSig.xsd
+agent\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-coreProperties.xsd
+agent\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-contentTypes.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\auto-commit\SKILL.md
+agent\skills\pptx\html2pptx.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-plan\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\mock-strategy\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\pin.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\modern-screenshot.umd.js
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\load-context.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-wrap.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-server.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-poll.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-inject.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-browser.js
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\live-accept.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\is-generated.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\detect-csp.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\design-parser.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\command-metadata.json
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\scripts\cleanup-deprecated.mjs
+agent\docs\codex-harness-engineering\templates\package-assets\skills\learn\SKILL.md
+agent\skills\planner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\code-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\ux-writing.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\typography.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\typeset.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\teach.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\spatial-design.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\shape.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\responsive-design.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\quieter.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\product.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\polish.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\personas.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\overdrive.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\optimize.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\onboard.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\motion-design.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\live.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\layout.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\interaction-design.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\heuristics-scoring.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\harden.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\extract.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\document.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\distill.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\delight.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\critique.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\craft.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\colorize.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\color-and-contrast.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\cognitive-load.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\clarify.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\brand.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\bolder.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\audit.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\animate.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\reference\adapt.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\example-skill\resources\config.json
+agent\docs\codex-harness-engineering\templates\package-assets\skills\example-skill\README.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\project-context-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\git-xianyu-analyzer\SKILL.md
+agent\skills\plan\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-implement\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\impeccable\agents\openai.yaml
+agent\docs\codex-harness-engineering\templates\package-assets\skills\HOW_TO_USE_SKILLS.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\clickhouse-io\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-e2e-tasks\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\harness-surface-sync\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\example-skill\examples\usage.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ai-config-git-sync\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\claude-openrouter-clash-debug\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\architect\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\harness-surface-sync\references\stale-patterns.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\harness-surface-sync\references\current-repo-sync-matrix.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-constitution\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\quality-checklist.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\prototype-guide.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\prompts.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\prd-template.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\feature-list-template.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\prd-writer-skill\references\cloudflare-deploy.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\plan\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\glue-coding-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ai-config-git-sync\references\command-recipes.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\claude-openrouter-clash-debug\scripts\ensure-openrouter-rule.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\skills\claude-openrouter-clash-debug\scripts\diagnose-openrouter-route.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-clarify\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\glue-coding\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\git-xianyu-analyzer\scripts\download_images.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\performance\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\academic-mermaid-diagrams\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-checklist\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\claude-openrouter-clash-debug\references\windows-openrouter-clash-playbook.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\mobile-e2e-test-case\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\html2pptx.md
+agent\skills\thesis-writing\references\thesis-analysis-template.md
+agent\skills\thesis-writing\references\test-result-templates.md
+agent\skills\thesis-writing\references\template-qingdao-city-university.md
+agent\skills\thesis-writing\references\photographer-booking-paper.md
+agent\skills\thesis-writing\references\final-checklist.md
+agent\skills\thesis-writing\references\citation-templates.md
+agent\skills\thesis-writing\references\ai-integrity-and-originality.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\github-research\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\scripts\thumbnail.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\scripts\replace.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\scripts\rearrange.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\scripts\inventory.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\scripts\html2pptx.js
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\eval-harness\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\git-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\speckit-analyze\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\api-integration\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\cicd\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pdf\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\planner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\page-spec-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\scripts\ai-workflow\sync-targets.example.json
+agent\docs\codex-harness-engineering\templates\package-assets\scripts\ai-workflow\sync-ai-config-to-targets.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\scripts\ai-workflow\check-ai-sync-drift.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\skills\security\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\spec-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\fullstack-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\eval\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\api-design\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\refactor-clean\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\refactoring\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\api-contract-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\spec-based-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skills-index.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\checkpoint\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\qa-e2e-runner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\qa-mock-cleaner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\error-handling\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\frontend-patterns\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\requirements-design-template\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\refactor-cleaner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\ai-ui-prompts\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\build-fix\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skill-generator\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skill-creator\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\e2e-runner\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\frontend-first-workflow\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\celery-tasks\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\doc-updater\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\build-error-resolver\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\business-rule-spec\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\deep-interview\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\security-reviewer\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\api-auto-testing\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\allure-report\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\e2e\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skill-creator\scripts\init_skill.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skill-creator\scripts\package_skill.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\skill-creator\scripts\quick_validate.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\django-drf\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\docx\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\security-review\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\docker\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\allure-report\scripts\view-allure.ps1
+agent\docs\codex-harness-engineering\templates\package-assets\skills\allure-report\examples\usage.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\frontend-design\SKILL.md
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\unpack.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\pack.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validate.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-symex-2015.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\xml.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-sdtdatahash-2020.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-cid-2016.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\wml.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-cex-2018.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-wordprocessingDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-2018.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-spreadsheetDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-2012.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-presentationDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\microsoft\wml-2010.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-officeDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\vml-main.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\sml.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-relationshipReference.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-math.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesVariantTypes.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesExtended.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-documentPropertiesCustom.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-customXmlSchemaProperties.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-customXmlDataProperties.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-commonSimpleTypes.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-bibliography.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\shared-additionalCharacteristics.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\pml.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-main.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-wordprocessingDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-lockedCanvas.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-spreadsheetDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-diagram.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-picture.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-chartDrawing.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ISO-IEC29500-4_2016\dml-chart.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\mce\mc.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validation\__init__.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validation\redlining.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validation\pptx.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validation\docx.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\scripts\validation\base.py
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-relationships.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-digSig.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-coreProperties.xsd
+agent\docs\codex-harness-engineering\templates\package-assets\skills\pptx\ooxml\schemas\ecma\fouth-edition\opc-contentTypes.xsd
+
+codex
+已看到这是一个有未提交实现产物的审查场景，我会把 `progress.txt`、trace 和 `task.json passes` 当作外层 driver 状态，不作为 Stage 1 失败项。接下来重点核对：任务本身是否带架构约束、生产入口/handler/DB/worker 证据是否存在、`arch:check` 是否覆盖禁止实现。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "SERVICE-SCAFFOLD-001|FR-001|FR-005|FR-011|FR-013|architecture_constraints|forbidden_implementations|test_command" task.json docs/architecture/constraints.md plans/features/export-platform.dev-plan.md docs/testing/verify-matrix.md docs/testing/TRACEABILITY_MATRIX.md docs/testing/ACCEPTANCE_CRITERIA.md docs/product/prd-lite.md docs/product/acceptance-criteria.md docs/product/requirement-interface-matrix.md docs/product/difficulty-research.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Recurse src,scripts,tests,migrations | Select-Object FullName,Length' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content docs/architecture/constraints.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 791ms:
+docs/product/requirement-interface-matrix.md:9:| FR-001 | 创建导出任务 | `POST /api/export/tasks` | PENDING | AC-001 |
+docs/product/requirement-interface-matrix.md:13:| FR-005 | 调度和并发控制 | Scheduler + DB lock | PENDING / EXECUTING | AC-005 |
+docs/product/requirement-interface-matrix.md:19:| FR-011 | 过期清理 | cleanup job | EXPIRED | AC-011 |
+docs/product/requirement-interface-matrix.md:21:| FR-013 | 幂等、执行尝试、锁租约和配置快照 | create API + Scheduler + task snapshot | default / conflict / processing / error | AC-013 / AC-014 / AC-015 / AC-016 |
+docs/product/requirement-interface-matrix.md:23:| FR-008/FR-010/FR-013 | 查询执行上下文与追踪 | query executor + task event log | default / error | AC-019 / AC-020 |
+docs/product/requirement-interface-matrix.md:24:| FR-003/FR-006/FR-011 | 文件临时对象、发布和校验 | file service / OSS | default / error / expired | AC-021 / AC-E026 |
+docs/product/requirement-interface-matrix.md:34:- `FR-013` 要求创建幂等、执行尝试、锁租约和配置快照形成同一条审计链路；配置变化不得改变已创建任务的执行口径。
+docs/product/requirement-interface-matrix.md:48:| FR-013 | `clientRequestId`、`idempotencyScope`、`requestDigest`、`configSnapshotDigest`、`attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt` | 用于证明幂等、防重复执行、配置快照和锁租约行为 |
+docs/product/requirement-interface-matrix.md:49:| FR-006/FR-013 | `cursorField`、`lastCursor`、`processedCount`、`filePartNo`、`batchSize`、`batchRowCount`、`retryCount`、`backoffMs` | 用于证明游标分页、锁接管、批次执行和查询重试证据 |
+docs/product/requirement-interface-matrix.md:51:| FR-008/FR-010/FR-013 | `taskId`、`attemptNo`、`requestId`、`queryTemplateVersion`、`datasourceCode`、`batchCheckpoint` | 用于证明查询执行上下文和审计串联 |
+docs/product/requirement-interface-matrix.md:52:| FR-003/FR-011 | `tempStorageKey`、`publishedStorageKey`、`checksum`、`checksumVerifiedAt`、`publishedAt`、`deliveryReadyAt` | 用于证明临时对象、发布对象、校验和下载准备状态可追踪 |
+docs/testing/ACCEPTANCE_CRITERIA.md:13:| AC-001 | FR-001 | 创建任务 1 秒内返回全局唯一 `taskId` 且状态为 `PENDING` | TM-001 / AE-001 | 创建请求、响应、任务记录、审计 |
+docs/testing/ACCEPTANCE_CRITERIA.md:17:| AC-005 | FR-005 | 多实例调度不超过子系统并发上限 | TM-005 / AE-005 | 抢锁日志、并发计数、审计 |
+docs/testing/ACCEPTANCE_CRITERIA.md:23:| AC-011 | FR-011 | 过期文件先失效再清理，失败可重试 | TM-011 / AE-011 | 失效标记、清理记录、失败重试记录 |
+docs/testing/ACCEPTANCE_CRITERIA.md:25:| AC-013 | FR-013 | 任务、执行尝试、锁租约和配置快照按 `taskId` 串联 | TM-013 / AE-013 | 快照摘要、锁字段、批次检查点 |
+docs/testing/ACCEPTANCE_CRITERIA.md:26:| AC-014 | FR-013 | 幂等命中返回原 `taskId`，参数冲突返回 `IDEMPOTENCY_CONFLICT` | TM-013 / AE-014 | 幂等范围、参数摘要、冲突响应 |
+docs/testing/ACCEPTANCE_CRITERIA.md:27:| AC-015 | FR-013 / FR-005 | 抢锁记录 `attemptNo`、`lockOwner`、`lockExpireAt` 并按批次续租 | TM-005 / TM-013 / AE-015 | 锁租约、续租、接管日志 |
+docs/testing/ACCEPTANCE_CRITERIA.md:28:| AC-016 | FR-013 / FR-007 | 注册配置变更只影响新任务，已创建任务沿用快照 | TM-007 / TM-013 / AE-016 | 新旧任务快照对比 |
+docs/testing/ACCEPTANCE_CRITERIA.md:31:| AC-019 | FR-008 / FR-010 / FR-013 | 查询执行上下文、模板版本、数据源和检查点可追溯 | TM-008 / TM-010 / TM-013 / AE-019 | 查询日志、审计、批次检查点 |
+docs/testing/ACCEPTANCE_CRITERIA.md:32:| AC-020 | FR-006 / FR-010 / FR-013 | 执行事件覆盖六个关键阶段 | TM-006 / TM-010 / AE-020 | 阶段事件序列 |
+docs/testing/ACCEPTANCE_CRITERIA.md:33:| AC-021 | FR-003 / FR-006 / FR-011 | 临时对象校验后发布，失败不生成下载地址 | TM-003 / TM-006 / TM-011 / AE-021 | 临时对象、发布对象、校验记录 |
+docs/testing/ACCEPTANCE_CRITERIA.md:40:| AC-E002 | FR-001 | 未注册任务创建失败且不落无效任务 | TM-001 |
+docs/testing/ACCEPTANCE_CRITERIA.md:42:| AC-E004 | FR-005 / FR-006 | 查询短暂失败后按批次重试并完成 | TM-005 / TM-006 |
+docs/testing/ACCEPTANCE_CRITERIA.md:45:| AC-E007 | FR-003 / FR-011 | 文件过期返回 410 或等价失效结果 | TM-003 / TM-011 |
+docs/testing/ACCEPTANCE_CRITERIA.md:46:| AC-E008 | FR-005 | 多实例重复抢锁只有一个成功执行 | TM-005 |
+docs/testing/ACCEPTANCE_CRITERIA.md:47:| AC-E009 | FR-001 | `queryParams` 超过 32KB 返回 400 | TM-001 |
+docs/testing/ACCEPTANCE_CRITERIA.md:53:| AC-E015 | FR-012 / FR-013 | 非法重试不派发执行，FAILED 同时仅一个活跃尝试 | TM-012 / TM-013 |
+docs/testing/ACCEPTANCE_CRITERIA.md:56:| AC-E018 | FR-001 / FR-013 | 幂等键同范围不同摘要返回 `IDEMPOTENCY_CONFLICT` | TM-001 / TM-013 |
+docs/testing/ACCEPTANCE_CRITERIA.md:57:| AC-E019 | FR-005 / FR-013 | 锁过期后接管延续当前 `attemptNo` 并从检查点继续 | TM-005 / TM-013 |
+docs/testing/ACCEPTANCE_CRITERIA.md:60:| AC-E024 | FR-008 / FR-013 | 模板或字段映射与快照冲突，不得静默放宽 | TM-008 / TM-013 |
+docs/testing/TRACEABILITY_MATRIX.md:9:| FR-001 | 仅允许已注册且启用的 `taskCode` 创建任务；创建任务前必须通过操作权限校验；支持 `clientRequestId` 幂等并返回 `taskId` | 无前端页面；后端创建接口 | PENDING | `POST /api/export/tasks` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `docs/product/prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | P0 创建主路径、幂等和注册校验错误容易漂移 |
+docs/testing/TRACEABILITY_MATRIX.md:13:| FR-005 | 同一子系统的执行数不超过配置值；调度采用 MySQL 轮询 + DB 抢锁；锁时间判断以数据库时间为准 | Scheduler / worker | PENDING / EXECUTING | Scheduler + DB lock 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 多实例重复执行和租约漂移风险高 |
+docs/testing/TRACEABILITY_MATRIX.md:19:| FR-011 | 过期文件先标记为不可下载，再清理对象存储文件；清理失败必须保留可重试记录 | cleanup job | EXPIRED | cleanup job 契约 | contract / scheduler / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-011`、`state-matrix.yaml` | 清理顺序错误会导致误删或继续可下载 |
+docs/testing/TRACEABILITY_MATRIX.md:21:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照必须形成同一条审计链路；锁租约默认 5 分钟，接管延续当前 `attemptNo`，FAILED 重试才递增 `attemptNo` | create API + Scheduler + task snapshot | default / conflict / processing / error | create API、Scheduler、snapshot 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 幂等冲突、锁接管和快照沿用是最容易漏证据的区域 |
+docs/testing/verify-matrix.md:12:| 产品真相源 | FR-001 - FR-014 | available | `docs/product/` |
+docs/testing/verify-matrix.md:13:| 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
+docs/testing/verify-matrix.md:14:| 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
+docs/testing/verify-matrix.md:15:| STACK-ADR-001 设计 / 计划基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design / planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+docs/testing/verify-matrix.md:16:| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
+docs/testing/verify-matrix.md:17:| 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / scaffold | `src/server.ts`、`src/routes/route-manifest.ts`、`tests/server.test.mjs` |
+docs/testing/verify-matrix.md:18:| MySQL schema / migration | FR-001 - FR-014 | available / scaffold | `migrations/001_initial_export_platform_schema.sql`、`npm run arch:check` |
+docs/testing/verify-matrix.md:19:| 生产 repository | FR-001 - FR-014 | blocked-by-next-task | 待实现 DB repository 任务 |
+docs/testing/verify-matrix.md:20:| scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / entry-only | `src/workers/scheduler-worker.ts`；DB 抢锁实现待 worker 任务 |
+docs/testing/verify-matrix.md:22:| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | available / cleanup-entry-only | `src/jobs/cleanup-job.ts`；file service 实现待后续任务 |
+docs/testing/verify-matrix.md:23:| API / DB / worker 集成测试 | FR-001 - FR-014 | blocked-by-next-task | 待实现 API / DB / worker 联调任务 |
+docs/testing/verify-matrix.md:24:| 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+docs/testing/verify-matrix.md:44:| FR-001 | contract / API / DB | blocked-by-next-task | `contracts/openapi.yaml`、待创建 API/DB 测试 |
+docs/testing/verify-matrix.md:48:| FR-005 | DB / worker | blocked-by-next-task | 待创建 worker 与 DB lease 测试 |
+docs/testing/verify-matrix.md:54:| FR-011 | file / cleanup job | blocked-by-next-task | 待创建 cleanup job 测试 |
+docs/testing/verify-matrix.md:56:| FR-013 | API / DB / worker | blocked-by-next-task | 待创建幂等、配置快照、锁租约测试 |
+docs/testing/verify-matrix.md:76:- 每个实现任务必须从 `docs/architecture/constraints.md` 复制 `architecture_constraints` 和 `forbidden_implementations`。
+docs/architecture/constraints.md:3:本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+docs/architecture/constraints.md:60:- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+docs/architecture/constraints.md:64:- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+docs/architecture/constraints.md:65:- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+plans/features/export-platform.dev-plan.md:19:| P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | CONTRACT-001 已落 `contracts/openapi.yaml`；FR-001/002/003/004/007/008/009/010/012/013 先验收 |
+plans/features/export-platform.dev-plan.md:21:| P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等；创建成功响应必须回传 `idempotencyScope` | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
+plans/features/export-platform.dev-plan.md:22:| P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
+plans/features/export-platform.dev-plan.md:23:| P6 | 实现 file-service 与 cleanup-job | 临时对象、发布、过期清理、下载保护 | P2/P3 | FR-003、FR-011 |
+plans/features/export-platform.dev-plan.md:44:| T1 契约总入口 | P1 | CONTRACT-001 已复核并扩展 `contracts/README.md`，落地 `contracts/openapi.yaml`，先定住 FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 的接口、状态和错误码；创建成功响应必须显式返回 `idempotencyScope` |
+plans/features/export-platform.dev-plan.md:77:| DB 抢锁与租约 | `lockOwner + lockExpireAt + leaseRenewedAt`，时间以数据库时间为准，默认租约 5 分钟 | `contracts/scheduler/`、`tests/worker/`、`src/scheduler/` | FR-005 / FR-013 的抢锁、续租、接管测试 |
+plans/features/export-platform.dev-plan.md:101:- 任务 A：已由 CONTRACT-001 复核 `contracts/README.md` 并落 `contracts/openapi.yaml`，先固定 FR-001/002/003/004/007/008/009/010/012/013 的接口、状态、错误码和注册配置契约，包含 FR-002 的查询进度/详情路径，以及创建成功响应的 `idempotencyScope` 证据字段。
+plans/features/export-platform.dev-plan.md:110:- 先验收 FR-001、FR-002、FR-013，确认任务创建、查询进度/详情、幂等、配置快照和锁租约。
+plans/features/export-platform.dev-plan.md:112:- 再验收 FR-006、FR-003、FR-011，确认分片、文件发布和过期清理。
+docs/product/prd-lite.md:75:| FR-001 | 创建导出任务并立即返回 `taskId` | P0 |
+docs/product/prd-lite.md:79:| FR-005 | 按子系统限制并发并调度执行 | P0 |
+docs/product/prd-lite.md:85:| FR-011 | 文件过期清理 | P1 |
+docs/product/prd-lite.md:87:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照 | P0 |
+task.json:117:                                              "FR-001",
+task.json:131:                                    "确认后续 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证生产形态的 test_command"
+task.json:133:                      "test_command":  "git diff --check -- task.json docs/architecture/constraints.md docs/testing/verify-matrix.md",
+task.json:171:                                              "FR-001",
+task.json:172:                                              "FR-005",
+task.json:173:                                              "FR-013",
+task.json:189:                      "test_command":  "git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json",
+task.json:225:                                              "FR-001",
+task.json:234:                                              "FR-013"
+task.json:249:                      "test_command":  "git diff --check -- contracts docs/testing/verify-matrix.md",
+task.json:257:                      "id":  "SERVICE-SCAFFOLD-001",
+task.json:273:                      "architecture_constraints":  [
+task.json:279:                      "forbidden_implementations":  [
+task.json:317:                                              "FR-001",
+task.json:318:                                              "FR-005",
+task.json:319:                                              "FR-011",
+task.json:320:                                              "FR-013"
+task.json:357:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
+task.json:378:                                           "SERVICE-SCAFFOLD-001"
+task.json:381:                      "architecture_constraints":  [
+task.json:386:                      "forbidden_implementations":  [
+task.json:405:                                              "FR-001",
+task.json:406:                                              "FR-005",
+task.json:409:                                              "FR-013"
+task.json:426:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:428:                                         "schema 能覆盖 FR-001/005/007/010/013 的持久化证据",
+task.json:450:                      "architecture_constraints":  [
+task.json:455:                      "forbidden_implementations":  [
+task.json:477:                                              "FR-001",
+task.json:484:                                              "FR-013"
+task.json:503:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:contract\u0027,\u0027npm run test:api\u0027,\u0027git diff --check\u0027)",
+task.json:505:                                         "FR-001/002/004/007/009/010/012/013 有 HTTP 层证据",
+task.json:527:                      "architecture_constraints":  [
+task.json:532:                      "forbidden_implementations":  [
+task.json:552:                                              "FR-005",
+task.json:555:                                              "FR-013"
+task.json:571:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:574:                                         "DB lease 行为覆盖 FR-005/012/013",
+task.json:612:                                              "FR-011",
+task.json:625:                                    "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+task.json:628:                      "test_command":  "git diff --check -- task.json plans docs/testing/verify-matrix.md",
+task.json:664:                                              "FR-001",
+task.json:668:                                              "FR-005",
+task.json:674:                                              "FR-011",
+task.json:676:                                              "FR-013",
+task.json:691:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1",
+task.json:693:                                         "fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明",
+docs/product/acceptance-criteria.md:9:| AC-001 | FR-001 | 认证通过且 `taskCode` 已注册启用时，调用创建任务接口可在 1 秒内返回全局唯一 `taskId`，任务状态为 `PENDING`。 | P0 |
+docs/product/acceptance-criteria.md:13:| AC-005 | FR-005 | 多实例调度时，同一子系统的执行数不超过配置值。 | P0 |
+docs/product/acceptance-criteria.md:19:| AC-011 | FR-011 | 过期文件先被标记为不可下载，再清理对象存储文件；下载返回失效结果，清理失败保留可重试记录。 | P1 |
+docs/product/acceptance-criteria.md:21:| AC-013 | FR-013 | 创建任务、执行尝试、DB 锁租约和配置快照证据可通过同一 `taskId` 串联，并能区分幂等命中、锁续租、锁接管和快照沿用场景。 | P0 |
+docs/product/acceptance-criteria.md:22:| AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+docs/product/acceptance-criteria.md:23:| AC-015 | FR-013/FR-005 | worker 抢锁成功后记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和配置快照；锁租约默认 5 分钟并按批次续租，过期锁只能由一个实例重新抢占。 | P0 |
+docs/product/acceptance-criteria.md:24:| AC-016 | FR-013/FR-007 | 注册配置变更只影响新创建任务；已创建任务和失败重试沿用原任务配置快照，审计可追溯到快照版本或摘要。 | P0 |
+docs/product/acceptance-criteria.md:27:| AC-019 | FR-008/FR-010/FR-013 | 查询执行请求包含任务快照、执行尝试上下文、查询模板版本、数据源编码和批次检查点，平台可在任务日志、审计日志和失败证据中串联。 | P0 |
+docs/product/acceptance-criteria.md:28:| AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+docs/product/acceptance-criteria.md:29:| AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+
+ succeeded in 809ms:
+
+[32;1mFullName[0m
+[32;1m--------                                                                                     [0m
+E:\2026\alpha-project\longgang-codex-driver\src\audit-log                                    
+E:\2026\alpha-project\longgang-codex-driver\src\cleanup-job                                  
+E:\2026\alpha-project\longgang-codex-driver\src\config                                       
+E:\2026\alpha-project\longgang-codex-driver\src\db                                           
+E:\2026\alpha-project\longgang-codex-driver\src\file-service                                 
+E:\2026\alpha-project\longgang-codex-driver\src\http                                         
+E:\2026\alpha-project\longgang-codex-driver\src\jobs                                         
+E:\2026\alpha-project\longgang-codex-driver\src\query-executor                               
+E:\2026\alpha-project\longgang-codex-driver\src\registry-config                              
+E:\2026\alpha-project\longgang-codex-driver\src\repositories                                 
+E:\2026\alpha-project\longgang-codex-driver\src\routes                                       
+E:\2026\alpha-project\longgang-codex-driver\src\scheduler                                    
+E:\2026\alpha-project\longgang-codex-driver\src\task-api                                     
+E:\2026\alpha-project\longgang-codex-driver\src\workers                                      
+E:\2026\alpha-project\longgang-codex-driver\src\server.ts                                    
+E:\2026\alpha-project\longgang-codex-driver\src\audit-log\README.md                          
+E:\2026\alpha-project\longgang-codex-driver\src\cleanup-job\README.md                        
+E:\2026\alpha-project\longgang-codex-driver\src\config\env.ts                                
+E:\2026\alpha-project\longgang-codex-driver\src\config\index.ts                              
+E:\2026\alpha-project\longgang-codex-driver\src\db\index.ts                                  
+E:\2026\alpha-project\longgang-codex-driver\src\db\kysely.ts                                 
+E:\2026\alpha-project\longgang-codex-driver\src\db\README.md                                 
+E:\2026\alpha-project\longgang-codex-driver\src\db\schema.ts                                 
+E:\2026\alpha-project\longgang-codex-driver\src\file-service\README.md                       
+E:\2026\alpha-project\longgang-codex-driver\src\http\types.ts                                
+E:\2026\alpha-project\longgang-codex-driver\src\jobs\cleanup-job.ts                          
+E:\2026\alpha-project\longgang-codex-driver\src\query-executor\README.md                     
+E:\2026\alpha-project\longgang-codex-driver\src\registry-config\README.md                    
+E:\2026\alpha-project\longgang-codex-driver\src\repositories\README.md                       
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export                                
+E:\2026\alpha-project\longgang-codex-driver\src\routes\health.ts                             
+E:\2026\alpha-project\longgang-codex-driver\src\routes\http.ts                               
+E:\2026\alpha-project\longgang-codex-driver\src\routes\register-routes.ts                    
+E:\2026\alpha-project\longgang-codex-driver\src\routes\registry.ts                           
+E:\2026\alpha-project\longgang-codex-driver\src\routes\route-manifest.ts                     
+E:\2026\alpha-project\longgang-codex-driver\src\routes\scaffold-handler.ts                   
+E:\2026\alpha-project\longgang-codex-driver\src\routes\types.ts                              
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries                     
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks                          
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\create-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\create-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\disable-export-regi…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\disable-export-regi…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\enable-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\enable-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\get-export-registry…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\get-export-registry…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\list-export-registr…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\list-export-registr…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\update-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\registries\update-export-regis…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\cancel-export-task.handl…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\cancel-export-task.route…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\create-export-task.handl…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\create-export-task.route…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\download-export-task.han…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\download-export-task.rou…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\get-export-task.handler.…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\get-export-task.route.ts 
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\list-export-tasks.handle…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\list-export-tasks.route.…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\retry-export-task.handle…
+E:\2026\alpha-project\longgang-codex-driver\src\routes\export\tasks\retry-export-task.route.…
+E:\2026\alpha-project\longgang-codex-driver\src\scheduler\README.md                          
+E:\2026\alpha-project\longgang-codex-driver\src\task-api\README.md                           
+E:\2026\alpha-project\longgang-codex-driver\src\workers\scheduler-worker.ts                  
+E:\2026\alpha-project\longgang-codex-driver\scripts\ai-workflow                              
+E:\2026\alpha-project\longgang-codex-driver\scripts\harness                                  
+E:\2026\alpha-project\longgang-codex-driver\scripts\arch-check.ts                            
+E:\2026\alpha-project\longgang-codex-driver\scripts\planned-test.mjs                         
+E:\2026\alpha-project\longgang-codex-driver\scripts\ai-workflow\check-ai-sync-drift.ps1      
+E:\2026\alpha-project\longgang-codex-driver\scripts\harness\hook-stop-verify.ps1             
+E:\2026\alpha-project\longgang-codex-driver\tests\api                                        
+E:\2026\alpha-project\longgang-codex-driver\tests\contract                                   
+E:\2026\alpha-project\longgang-codex-driver\tests\db                                         
+E:\2026\alpha-project\longgang-codex-driver\tests\file                                       
+E:\2026\alpha-project\longgang-codex-driver\tests\query                                      
+E:\2026\alpha-project\longgang-codex-driver\tests\sample                                     
+E:\2026\alpha-project\longgang-codex-driver\tests\worker                                     
+E:\2026\alpha-project\longgang-codex-driver\tests\arch-check.test.mjs                        
+E:\2026\alpha-project\longgang-codex-driver\tests\server.test.mjs                            
+E:\2026\alpha-project\longgang-codex-driver\tests\api\README.md                              
+E:\2026\alpha-project\longgang-codex-driver\tests\contract\openapi-route-mapping.contract.te…
+E:\2026\alpha-project\longgang-codex-driver\tests\db\README.md                               
+E:\2026\alpha-project\longgang-codex-driver\tests\file\README.md                             
+E:\2026\alpha-project\longgang-codex-driver\tests\query\README.md                            
+E:\2026\alpha-project\longgang-codex-driver\tests\sample\README.md                           
+E:\2026\alpha-project\longgang-codex-driver\tests\worker\README.md                           
+E:\2026\alpha-project\longgang-codex-driver\migrations\001_initial_export_platform_schema.sql
+E:\2026\alpha-project\longgang-codex-driver\migrations\001_initial_export_platform.ts        
+
+
+ succeeded in 809ms:
+# Architecture Constraints Packet：统一导出平台
+
+本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+
+## 1. System Shape
+
+- 交付形态：`independent_microservice`。
+- 运行方式：`http_service` + `worker` + `scheduled_job`。
+- 部署单位：独立服务进程；后续实现必须提供生产启动入口和部署入口。
+- 生产入口最低要求：HTTP server entry、scheduler worker entry、cleanup job entry、配置加载入口。
+- 当前状态：仓库保留产品、契约、架构和测试文档；不保留任何已完成的业务实现、测试证据或旧运行 trace。
+
+## 2. API Boundary
+
+- 外部入口：HTTP，契约来源为 `contracts/openapi.yaml`。
+- 子系统接入：仅通过 HTTP/Feign 调用统一导出平台，不加载业务 JAR，不直接写平台表。
+- Public operation 完成条件：每个公开 operation 必须能追踪到 route/handler、service、repository 或外部 adapter、测试和证据路径。
+- 禁止状态：只有 service class、领域函数或单元测试时，不得声明 API 需求完成。
+
+## 3. Data Boundary
+
+- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+- 数据访问：平台只允许访问注册配置声明的只读数据源或数据中台，禁止执行调用方传入的原始 SQL。
+- 数据一致性：幂等键、配置快照、任务状态机、DB 锁租约和审计写入必须有可验证约束。
+
+## 4. Async And Worker Boundary
+
+- 调度方式：MySQL 轮询 + DB 抢锁。
+- 锁模型：`lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。
+- 默认租约：5 分钟，worker 只能在批次边界续租。
+- 接管规则：租约过期后的实例接管延续当前 `attemptNo`，从最近持久化批次检查点继续。
+- 重试规则：只有 FAILED 重试递增 `attemptNo`；PENDING/EXECUTING 重试必须拒绝。
+
+## 5. Test Double Policy
+
+- `InMemory*` 允许范围：unit tests only。
+- Mock 允许范围：外部依赖不可用时可作为临时单测替身，但不能作为验收证据。
+- 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
+- 若真实 MySQL、对象存储或第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。
+
+## 6. Forbidden Implementations
+
+- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+- 禁止只有 `src/*/service.ts` 而没有 HTTP route/handler、server entry 和 API 集成测试。
+- 禁止只有调度 class 而没有 worker entry、DB 锁 schema、repository 原子抢锁和租约测试。
+- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+- 禁止把采购订单样板写成平台特例接口；样板必须复用标准 registry、query、file、audit 链路。
+
+## 7. Architecture Fitness Checks
+
+后续脚手架任务必须创建 `arch:check` 或等价命令。最低检查项：
+
+- 生产 HTTP server entry 存在。
+- scheduler worker entry 和 cleanup job entry 存在。
+- `contracts/openapi.yaml` 的公开 operation 有 route/handler 和测试映射。
+- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+
+## 8. Definition Of Done
+
+- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+- Stage 1 Review 先审查架构形态，再审查业务规格。
+- 完成声明能说明 production path、test double 和 BLOCKED 依赖边界。
+
+ succeeded in 854ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "kysely": "^0.27.4",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node scripts/planned-test.mjs api",
+    "test:db": "node scripts/planned-test.mjs db",
+    "test:worker": "node scripts/planned-test.mjs worker",
+    "test:query": "node scripts/planned-test.mjs query",
+    "test:file": "node scripts/planned-test.mjs file",
+    "test:sample": "node scripts/planned-test.mjs sample"
+  }
+}
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content scripts/arch-check.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content task.json; $start=256; $end=360; for($i=$start; $i -le $end; $i++){ if($i -le $lines.Length){ '"'{0}:{1}' -f "'$i,$lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content tests/server.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content tests/arch-check.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content tests/contract/openapi-route-mapping.contract.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 808ms:
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+function parseOpenApiOperationIds() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  return [...openapi.matchAll(/operationId:\s*([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+}
+
+function parseRouteManifestOperationIds() {
+  const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  return [...manifest.matchAll(/operationId:\s*"([A-Za-z0-9_]+)"/g)].map((match) => match[1]);
+}
+
+test("OpenAPI operationIds are represented by route manifest entries", () => {
+  assert.deepEqual(
+    new Set(parseRouteManifestOperationIds()),
+    new Set(parseOpenApiOperationIds())
+  );
+});
+
+ succeeded in 866ms:
+256:                  {
+257:                      "id":  "SERVICE-SCAFFOLD-001",
+258:                      "description":  "从零创建独立微服务脚手架、生产入口和架构检查",
+259:                      "task_kind":  "feature_impl",
+260:                      "phase":  "service-scaffold",
+261:                      "gate_profile":  "spec_required",
+262:                      "required_truth_sources":  [
+263:                                                     "product",
+264:                                                     "architecture",
+265:                                                     "contract",
+266:                                                     "testing"
+267:                                                 ],
+268:                      "priority":  20,
+269:                      "dependencies":  [
+270:                                           "CONTRACT-REVIEW-001"
+271:                                       ],
+272:                      "passes":  false,
+273:                      "architecture_constraints":  [
+274:                                                       "delivery_shape=independent_microservice",
+275:                                                       "runtime=http_service+worker+scheduled_job",
+276:                                                       "production entry 必须包含 HTTP server、scheduler worker、cleanup job 或其明确占位",
+277:                                                       "feature_impl 必须提供 arch:check 或等价架构检查"
+278:                                                   ],
+279:                      "forbidden_implementations":  [
+280:                                                        "禁止只有 service class 而没有 server entry 和 route/handler",
+281:                                                        "禁止生产入口引用 InMemory repository、mock 或 fixture",
+282:                                                        "禁止只运行 git diff --check 声明实现完成"
+283:                                                    ],
+284:                      "context_files":  [
+285:                                            "docs/architecture/constraints.md",
+286:                                            "contracts/openapi.yaml",
+287:                                            "plans/features/export-platform.dev-plan.md",
+288:                                            "docs/testing/verify-matrix.md"
+289:                                        ],
+290:                      "owned_paths":  [
+291:                                          ".gitignore",
+292:                                          "package.json",
+293:                                          "package-lock.json",
+294:                                          "tsconfig.json",
+295:                                          "src/server.ts",
+296:                                          "src/config/",
+297:                                          "src/http/",
+298:                                          "src/health/",
+299:                                          "src/routes/",
+300:                                          "src/workers/",
+301:                                          "src/jobs/",
+302:                                          "src/scheduler/",
+303:                                          "src/cleanup-job/",
+304:                                          "src/task-api/",
+305:                                          "src/registry-config/",
+306:                                          "src/query-executor/",
+307:                                          "src/file-service/",
+308:                                          "src/audit-log/",
+309:                                          "src/db/",
+310:                                          "src/repositories/",
+311:                                          "migrations/",
+312:                                          "scripts/",
+313:                                          "tests/",
+314:                                          "docs/testing/verify-matrix.md"
+315:                                      ],
+316:                      "requirement_ids":  [
+317:                                              "FR-001",
+318:                                              "FR-005",
+319:                                              "FR-011",
+320:                                              "FR-013"
+321:                                          ],
+322:                      "produces_artifacts":  [
+323:                                                 ".gitignore",
+324:                                                 "package.json",
+325:                                                 "package-lock.json",
+326:                                                 "src/server.ts",
+327:                                                 "src/config/",
+328:                                                 "src/http/",
+329:                                                 "src/routes/",
+330:                                                 "src/workers/",
+331:                                                 "src/jobs/",
+332:                                                 "src/scheduler/",
+333:                                                 "src/cleanup-job/",
+334:                                                 "src/task-api/",
+335:                                                 "src/registry-config/",
+336:                                                 "src/query-executor/",
+337:                                                 "src/file-service/",
+338:                                                 "src/audit-log/",
+339:                                                 "src/db/",
+340:                                                 "src/repositories/",
+341:                                                 "migrations/",
+342:                                                 "scripts/",
+343:                                                 "tests/",
+344:                                                 "docs/testing/verify-matrix.md"
+345:                                             ],
+346:                      "execution":  {
+347:                                        "mode":  "single",
+348:                                        "git":  {
+349:                                                    "require_clean_workspace":  false
+350:                                                }
+351:                                    },
+352:                      "steps":  [
+353:                                    "创建独立微服务工程脚手架、HTTP server entry、配置加载、health route、worker/job entry 和测试基础设施",
+354:                                    "创建 arch:check，检查 server/worker/job entry、OpenAPI operation 映射和生产入口禁用 InMemory",
+355:                                    "更新 verify-matrix，标记脚手架验证命令和后续 DB/API/worker blocked 项"
+356:                                ],
+357:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
+358:                      "acceptance":  [
+359:                                         "服务可作为独立微服务启动或被测试启动",
+360:                                         "arch:check 能阻止无生产入口或 InMemory 生产引用",
+
+ succeeded in 854ms:
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { loadConfig } from "../src/config/env.ts";
+import { startServer } from "../src/server.ts";
+const packageJson = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+);
+const verifyMatrix = readFileSync(
+  new URL("../docs/testing/verify-matrix.md", import.meta.url),
+  "utf8"
+);
+
+async function waitForHealth(port, timeoutMs = 15000) {
+  const startedAt = Date.now();
+  let lastError;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`);
+      if (response.ok) {
+        return response.json();
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw lastError ?? new Error("health endpoint did not become ready");
+}
+
+test("脚手架声明的服务入口脚本存在", () => {
+  const scripts = packageJson.scripts ?? {};
+
+  assert.equal(scripts.start, "tsx src/server.ts");
+  assert.equal(scripts["worker:scheduler"], "tsx src/workers/scheduler-worker.ts");
+  assert.equal(scripts["job:cleanup"], "tsx src/jobs/cleanup-job.ts");
+});
+
+test("npm test 仅覆盖当前脚手架可验证的测试文件", () => {
+  assert.equal(
+    packageJson.scripts?.test,
+    "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs"
+  );
+  assert.match(
+    packageJson.scripts?.test ?? "",
+    /^node --import tsx --test tests\/\*\.test\.mjs tests\/contract\/\*\.test\.mjs$/
+  );
+});
+
+test("验证矩阵明确包含当前脚手架验证命令", () => {
+  assert.match(verifyMatrix, /npm run arch:check/);
+  assert.match(verifyMatrix, /npm test/);
+  assert.match(verifyMatrix, /git diff --check/);
+});
+
+test("HTTP 服务可独立启动并暴露 health", async (t) => {
+  const port = 40251;
+  const server = await startServer({
+    ...loadConfig(),
+    port,
+    host: "127.0.0.1"
+  });
+
+  t.after(async () => {
+    await server.close();
+  });
+
+  const health = await waitForHealth(port);
+
+  assert.equal(health.status, "ok");
+  assert.equal(health.service, "export-platform");
+  assert.equal(health.deliveryShape, "independent_microservice");
+  assert.equal(health.entries.http, true);
+  assert.equal(health.entries.worker, true);
+  assert.equal(health.entries.cleanupJob, true);
+});
+
+test("公开脚手架 API 返回受控 501 响应", async (t) => {
+  const port = 40252;
+  const server = await startServer({
+    ...loadConfig(),
+    port,
+    host: "127.0.0.1"
+  });
+
+  t.after(async () => {
+    await server.close();
+  });
+
+  const taskResponse = await fetch(`http://127.0.0.1:${port}/api/export/tasks`, {
+    method: "POST"
+  });
+  const taskBody = await taskResponse.json();
+
+  assert.equal(taskResponse.status, 501);
+  assert.equal(taskBody.code, "INTERNAL_ERROR");
+  assert.equal(taskBody.data.operationId, "createExportTask");
+
+  const registryResponse = await fetch(`http://127.0.0.1:${port}/api/export/registries`, {
+    method: "POST"
+  });
+  const registryBody = await registryResponse.json();
+
+  assert.equal(registryResponse.status, 501);
+  assert.equal(registryBody.code, "INTERNAL_ERROR");
+  assert.equal(registryBody.data.operationId, "createExportRegistry");
+});
+
+ succeeded in 856ms:
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { loadConfig } from "../src/config/env.ts";
+import { createDatabase } from "../src/db/index.ts";
+import { createMysqlPoolOptions } from "../src/db/kysely.ts";
+import * as archCheck from "../scripts/arch-check.ts";
+import {
+  checkFilesForForbiddenProductionReferences,
+  checkNoForbiddenProductionReferences,
+  getExpectedDatabaseTableNames,
+  getProductionScanRoots
+} from "../scripts/arch-check.ts";
+
+const packageJson = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+);
+const verifyMatrix = readFileSync(
+  new URL("../docs/testing/verify-matrix.md", import.meta.url),
+  "utf8"
+);
+const schemaSource = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+const tsMigrationSource = readFileSync(
+  new URL("../migrations/001_initial_export_platform.ts", import.meta.url),
+  "utf8"
+);
+const sqlMigrationSource = readFileSync(
+  new URL("../migrations/001_initial_export_platform_schema.sql", import.meta.url),
+  "utf8"
+);
+
+function collectMatches(source, regex) {
+  return [...source.matchAll(regex)].map((match) => match[1]).sort();
+}
+
+function getDatabaseInterfaceBody(source) {
+  const match = source.match(/export interface ExportPlatformDatabase \{\n([\s\S]*?)\n\}/);
+  assert.ok(match, "ExportPlatformDatabase interface must exist");
+  return match[1];
+}
+
+function collectSchemaColumns(source) {
+  const tables = new Map();
+  const interfacePattern = /export interface ([A-Za-z0-9]+Table) \{\n([\s\S]*?)\n\}/g;
+  const databaseBody = getDatabaseInterfaceBody(source);
+  const typeByTable = new Map(
+    [...databaseBody.matchAll(/^\s{2}([a-z0-9_]+):\s+([A-Za-z0-9]+Table);/gm)].map(
+      (match) => [match[2], match[1]]
+    )
+  );
+
+  for (const match of source.matchAll(interfacePattern)) {
+    const tableName = typeByTable.get(match[1]);
+    if (!tableName) {
+      continue;
+    }
+    tables.set(
+      tableName,
+      collectMatches(match[2], /^\s{2}([a-z0-9_]+):\s+/gm)
+    );
+  }
+
+  return Object.fromEntries([...tables.entries()].sort());
+}
+
+function collectTsMigrationColumns(source) {
+  const tables = new Map();
+  const tablePattern = /\.createTable\("([a-z0-9_]+)"\)([\s\S]*?)(?=\.execute\(\);)/g;
+
+  for (const match of source.matchAll(tablePattern)) {
+    tables.set(
+      match[1],
+      collectMatches(match[2], /\.addColumn\("([a-z0-9_]+)"/g)
+    );
+  }
+
+  return Object.fromEntries([...tables.entries()].sort());
+}
+
+function collectSqlMigrationColumns(source) {
+  const tables = new Map();
+  const tablePattern = /^CREATE TABLE ([a-z0-9_]+) \(\n([\s\S]*?)\n\);/gm;
+
+  for (const match of source.matchAll(tablePattern)) {
+    const columns = match[2]
+      .split(/\r?\n/)
+      .map((line) => line.trim().replace(/,$/, ""))
+      .filter((line) => /^[a-z0-9_]+\s+/i.test(line))
+      .filter((line) => !/^(PRIMARY|UNIQUE|KEY|CONSTRAINT)\b/i.test(line))
+      .map((line) => line.split(/\s+/)[0])
+      .sort();
+    tables.set(match[1], columns);
+  }
+
+  return Object.fromEntries([...tables.entries()].sort());
+}
+
+test("arch:check is declared as the scaffold gate", () => {
+  assert.equal(packageJson.scripts?.["arch:check"], "tsx scripts/arch-check.ts");
+});
+
+test("verify matrix marks downstream DB/API/worker work as blocked or planned", () => {
+  assert.match(verifyMatrix, /\|\s*FR-001\s*\|\s*contract \/ API \/ DB\s*\|\s*blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*blocked-by-next-task\s*\|/);
+  assert.match(verifyMatrix, /\|\s*STACK-ADR-001\s*\|\s*design \/ planned \/ arch-check\s*\|\s*planned\s*\|/);
+});
+
+test("createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象", async () => {
+  const originalEnv = {
+    ...process.env
+  };
+
+  delete process.env.EXPORT_PLATFORM_DATABASE_URL;
+
+  const database = createDatabase();
+
+  assert.equal(typeof database.destroy, "function");
+  await database.destroy();
+
+  process.env = originalEnv;
+});
+
+test("MySQL pool options 使用拆分环境变量并允许 database URL 优先", () => {
+  const splitConfig = loadConfig({
+    EXPORT_PLATFORM_MYSQL_HOST: "mysql.internal",
+    EXPORT_PLATFORM_MYSQL_PORT: "3307",
+    EXPORT_PLATFORM_MYSQL_DATABASE: "exports",
+    EXPORT_PLATFORM_MYSQL_USER: "export_user",
+    EXPORT_PLATFORM_MYSQL_PASSWORD: "secret",
+    EXPORT_PLATFORM_MYSQL_SSL: "true"
+  });
+
+  assert.deepEqual(createMysqlPoolOptions(splitConfig), {
+    host: "mysql.internal",
+    port: 3307,
+    database: "exports",
+    user: "export_user",
+    password: "secret",
+    ssl: {}
+  });
+
+  const urlConfig = loadConfig({
+    EXPORT_PLATFORM_DATABASE_URL: "mysql://url_user:url_pass@db.example:3308/url_db?ssl=false",
+    EXPORT_PLATFORM_MYSQL_HOST: "ignored"
+  });
+
+  assert.deepEqual(createMysqlPoolOptions(urlConfig), {
+    host: "db.example",
+    port: 3308,
+    database: "url_db",
+    user: "url_user",
+    password: "url_pass",
+    ssl: undefined
+  });
+});
+
+test("DB schema、TS migration、SQL migration 的表名集合一致", () => {
+  const expectedTables = getExpectedDatabaseTableNames().sort();
+  const schemaTables = collectMatches(
+    getDatabaseInterfaceBody(schemaSource),
+    /^\s{2}([a-z0-9_]+):\s+[A-Za-z0-9_]+;/gm
+  );
+  const tsMigrationTables = collectMatches(
+    tsMigrationSource,
+    /\.createTable\("([a-z0-9_]+)"\)/g
+  );
+  const sqlMigrationTables = collectMatches(
+    sqlMigrationSource,
+    /^CREATE TABLE ([a-z0-9_]+) \(/gm
+  );
+
+  assert.deepEqual(schemaTables, expectedTables);
+  assert.deepEqual(tsMigrationTables, expectedTables);
+  assert.deepEqual(sqlMigrationTables, expectedTables);
+});
+
+test("DB schema、TS migration、SQL migration 的列集合一致", () => {
+  assert.deepEqual(collectTsMigrationColumns(tsMigrationSource), collectSchemaColumns(schemaSource));
+  assert.deepEqual(collectSqlMigrationColumns(sqlMigrationSource), collectSchemaColumns(schemaSource));
+});
+
+test("arch:check 拒绝 SQL migration 的表尾逗号", () => {
+  assert.equal(typeof archCheck.checkSqlMigrationSyntaxGuards, "function");
+  assert.throws(
+    () =>
+      archCheck.checkSqlMigrationSyntaxGuards(
+        "CREATE TABLE export_registries (\n  task_code VARCHAR(128),\n);"
+      ),
+    /SQL migration contains a dangling comma before table close/
+  );
+  assert.doesNotThrow(() => archCheck.checkSqlMigrationSyntaxGuards(sqlMigrationSource));
+});
+
+test("arch:check 的生产替身扫描覆盖 API 和 DB 生产路径", () => {
+  assert.deepEqual(
+    new Set(getProductionScanRoots()),
+    new Set([
+      "src/server.ts",
+      "src/routes/",
+      "src/task-api/",
+      "src/registry-config/",
+      "src/scheduler/",
+      "src/workers/",
+      "src/query-executor/",
+      "src/file-service/",
+      "src/cleanup-job/",
+      "src/jobs/",
+      "src/audit-log/",
+      "src/repositories/",
+      "src/db/"
+    ])
+  );
+});
+
+test("生产路径出现测试替身术语时 arch check 会失败", () => {
+  assert.throws(
+    () =>
+      checkFilesForForbiddenProductionReferences(["src/routes/forbidden.ts"], () => {
+        return "export class InMemoryRepository {}";
+      }),
+    /src\/routes\/forbidden.ts references forbidden test double terminology/
+  );
+});
+
+ succeeded in 898ms:
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { OPENAPI_OPERATION_ROUTES } from "../src/routes/route-manifest.ts";
+
+type OpenApiOperation = {
+  operationId: string;
+  method: string;
+  path: string;
+};
+
+const root = process.cwd();
+const requiredFiles = [
+  "src/server.ts",
+  "src/config/env.ts",
+  "src/workers/scheduler-worker.ts",
+  "src/jobs/cleanup-job.ts",
+  "src/routes/register-routes.ts",
+  "src/routes/route-manifest.ts",
+  "migrations/001_initial_export_platform_schema.sql"
+];
+
+const requiredScripts = [
+  "start",
+  "worker:scheduler",
+  "job:cleanup",
+  "arch:check",
+  "typecheck",
+  "test",
+  "test:contract",
+  "test:api",
+  "test:db",
+  "test:worker",
+  "test:query",
+  "test:file",
+  "test:sample"
+];
+
+const requiredMigrationMarkers = [
+  "export_tasks",
+  "export_task_idempotency",
+  "export_registries",
+  "export_registry_versions",
+  "export_task_leases",
+  "export_task_checkpoints",
+  "export_task_files",
+  "export_audit_logs"
+];
+
+const forbiddenProductionPattern = /\b(InMemory\w*|mock\w*|fixture\w*)\b/i;
+const productionScanRoots = [
+  "src/server.ts",
+  "src/routes/",
+  "src/task-api/",
+  "src/registry-config/",
+  "src/scheduler/",
+  "src/workers/",
+  "src/query-executor/",
+  "src/file-service/",
+  "src/cleanup-job/",
+  "src/jobs/",
+  "src/audit-log/",
+  "src/repositories/",
+  "src/db/"
+];
+
+function fail(message: string): never {
+  throw new Error(`Architecture check failed: ${message}`);
+}
+
+function read(relativePath: string): string {
+  return readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function requireFile(relativePath: string): void {
+  if (!existsSync(path.join(root, relativePath))) {
+    fail(`missing required file ${relativePath}`);
+  }
+}
+
+function collectTypeScriptFiles(relativePath: string): string[] {
+  const absolutePath = path.join(root, relativePath);
+  if (!existsSync(absolutePath)) {
+    return [];
+  }
+
+  const stat = statSync(absolutePath);
+  if (stat.isFile()) {
+    return relativePath.endsWith(".ts") ? [relativePath] : [];
+  }
+
+  const files: string[] = [];
+  for (const entry of readdirSync(absolutePath)) {
+    files.push(...collectTypeScriptFiles(path.join(relativePath, entry)));
+  }
+  return files;
+}
+
+function parseOpenApiOperations(openapiText: string): OpenApiOperation[] {
+  const operations: OpenApiOperation[] = [];
+  let currentPath = "";
+  let currentMethod = "";
+
+  for (const line of openapiText.split(/\r?\n/)) {
+    const pathMatch = line.match(/^  (\/[^:]+):\s*$/);
+    if (pathMatch) {
+      currentPath = pathMatch[1];
+      currentMethod = "";
+      continue;
+    }
+
+    const methodMatch = line.match(/^    (get|post|put|delete|patch):\s*$/);
+    if (methodMatch) {
+      currentMethod = methodMatch[1].toUpperCase();
+      continue;
+    }
+
+    const operationMatch = line.match(/^\s+operationId:\s*([A-Za-z0-9_]+)\s*$/);
+    if (operationMatch && currentPath && currentMethod) {
+      operations.push({
+        operationId: operationMatch[1],
+        method: currentMethod,
+        path: `/api${currentPath}`
+      });
+    }
+  }
+
+  return operations;
+}
+
+function checkPackageScripts(): void {
+  const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+  for (const script of requiredScripts) {
+    if (!packageJson.scripts?.[script]) {
+      fail(`package.json missing script ${script}`);
+    }
+  }
+}
+
+function checkRequiredFiles(): void {
+  for (const relativePath of requiredFiles) {
+    requireFile(relativePath);
+  }
+}
+
+function checkNoForbiddenProductionReferences(): void {
+  const productionFiles = productionScanRoots.flatMap((scanRoot) =>
+    collectTypeScriptFiles(scanRoot)
+  );
+
+  checkFilesForForbiddenProductionReferences(productionFiles, read);
+}
+
+function checkFilesForForbiddenProductionReferences(
+  relativePaths: string[],
+  readFile: (relativePath: string) => string
+): void {
+  for (const relativePath of relativePaths) {
+    const content = readFile(relativePath);
+    if (forbiddenProductionPattern.test(content)) {
+      fail(`${relativePath} references forbidden test double terminology`);
+    }
+  }
+}
+
+function checkOpenApiRouteMapping(): void {
+  const operations = parseOpenApiOperations(read("contracts/openapi.yaml"));
+  if (operations.length === 0) {
+    fail("contracts/openapi.yaml exposes no operationId entries");
+  }
+
+  const routesByOperation = new Map(
+    OPENAPI_OPERATION_ROUTES.map((route) => [route.operationId, route])
+  );
+
+  for (const operation of operations) {
+    const route = routesByOperation.get(operation.operationId);
+    if (!route) {
+      fail(`missing route mapping for operationId ${operation.operationId}`);
+    }
+    if (route.method !== operation.method || route.path !== operation.path) {
+      fail(
+        `${operation.operationId} route mismatch: expected ${operation.method} ${operation.path}, got ${route.method} ${route.path}`
+      );
+    }
+    requireFile(route.handlerPath);
+    if (route.tests.length === 0) {
+      fail(`${operation.operationId} has no test mapping`);
+    }
+    for (const testPath of route.tests) {
+      requireFile(testPath);
+    }
+  }
+}
+
+function checkMigrationCoverage(): void {
+  const migration = read("migrations/001_initial_export_platform_schema.sql").toLowerCase();
+  for (const marker of requiredMigrationMarkers) {
+    if (!migration.includes(marker)) {
+      fail(`migration missing marker ${marker}`);
+    }
+  }
+}
+
+function checkSqlMigrationSyntaxGuards(migrationSql: string): void {
+  if (/,\s*\);/m.test(migrationSql)) {
+    fail("SQL migration contains a dangling comma before table close");
+  }
+}
+
+function checkSqlMigrationSyntax(): void {
+  checkSqlMigrationSyntaxGuards(read("migrations/001_initial_export_platform_schema.sql"));
+}
+
+function getExpectedDatabaseTableNames(): string[] {
+  return [...requiredMigrationMarkers];
+}
+
+function getProductionScanRoots(): string[] {
+  return [...productionScanRoots];
+}
+
+function main(): void {
+  checkRequiredFiles();
+  checkPackageScripts();
+  checkOpenApiRouteMapping();
+  checkNoForbiddenProductionReferences();
+  checkMigrationCoverage();
+  checkSqlMigrationSyntax();
+
+  console.log("Architecture check passed.");
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}
+
+export {
+  checkMigrationCoverage,
+  checkFilesForForbiddenProductionReferences,
+  checkNoForbiddenProductionReferences,
+  checkOpenApiRouteMapping,
+  checkPackageScripts,
+  checkRequiredFiles,
+  checkSqlMigrationSyntaxGuards,
+  getExpectedDatabaseTableNames,
+  getProductionScanRoots,
+  parseOpenApiOperations
+};
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/server.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/routes/register-routes.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/routes/route-manifest.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/routes/scaffold-handler.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/jobs/cleanup-job.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/workers/scheduler-worker.ts' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 770ms:
+import type { RouteHandler } from "../http/types.ts";
+import { sendJson } from "../http/types.ts";
+
+export function createScaffoldHandler(operationId: string): RouteHandler {
+  return (_context, response) => {
+    sendScaffoldResponse(operationId, response);
+  };
+}
+
+export function sendScaffoldResponse(operationId: string, response: Parameters<RouteHandler>[1]): void {
+  sendJson(response, 501, {
+    code: "INTERNAL_ERROR",
+    message: "operation scaffolded; production implementation pending",
+    data: {
+      operationId
+    }
+  });
+}
+
+ succeeded in 808ms:
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { sendJson } from "../http/types.ts";
+import { OPENAPI_OPERATION_ROUTES, type OperationRoute } from "./route-manifest.ts";
+
+type RouteMatch = {
+  route: OperationRoute;
+  params: Record<string, string>;
+};
+
+function matchPath(pattern: string, actualPath: string): Record<string, string> | undefined {
+  const patternSegments = pattern.split("/").filter(Boolean);
+  const actualSegments = actualPath.split("/").filter(Boolean);
+
+  if (patternSegments.length !== actualSegments.length) {
+    return undefined;
+  }
+
+  const params: Record<string, string> = {};
+  for (let index = 0; index < patternSegments.length; index += 1) {
+    const patternSegment = patternSegments[index];
+    const actualSegment = actualSegments[index];
+    const paramMatch = patternSegment.match(/^\{([^}]+)\}$/);
+
+    if (paramMatch) {
+      params[paramMatch[1]] = decodeURIComponent(actualSegment);
+      continue;
+    }
+
+    if (patternSegment !== actualSegment) {
+      return undefined;
+    }
+  }
+
+  return params;
+}
+
+function findRoute(method: string, pathname: string): RouteMatch | undefined {
+  for (const route of OPENAPI_OPERATION_ROUTES) {
+    if (route.method !== method) {
+      continue;
+    }
+
+    const params = matchPath(route.path, pathname);
+    if (params) {
+      return { route, params };
+    }
+  }
+
+  return undefined;
+}
+
+export async function handleApiRoute(
+  method: string,
+  pathname: string,
+  response: FastifyReply
+): Promise<boolean> {
+  const routeMatch = findRoute(method, pathname);
+
+  if (!routeMatch) {
+    return false;
+  }
+
+  routeMatch.route.handler({ params: routeMatch.params }, response);
+  return true;
+}
+
+export function sendNotFound(response: FastifyReply): void {
+  sendJson(response, 404, {
+    code: "TASK_NOT_FOUND",
+    message: "route not found",
+    data: null
+  });
+}
+
+export function registerRoutes(app: FastifyInstance): void {
+  for (const route of OPENAPI_OPERATION_ROUTES) {
+    const fastifyPath = route.path.replace(/\{([^}]+)\}/g, ":$1");
+    app.route({
+      method: route.method,
+      url: fastifyPath,
+      handler: async (request, response) => {
+        route.handler({ params: request.params as Record<string, string> }, response);
+      }
+    });
+  }
+}
+
+ succeeded in 828ms:
+import { handler as createExportRegistry } from "./export/registries/create-export-registry.handler.ts";
+import { handler as disableExportRegistry } from "./export/registries/disable-export-registry.handler.ts";
+import { handler as enableExportRegistry } from "./export/registries/enable-export-registry.handler.ts";
+import { handler as getExportRegistry } from "./export/registries/get-export-registry.handler.ts";
+import { handler as listExportRegistries } from "./export/registries/list-export-registries.handler.ts";
+import { handler as updateExportRegistry } from "./export/registries/update-export-registry.handler.ts";
+import { handler as cancelExportTask } from "./export/tasks/cancel-export-task.handler.ts";
+import { handler as createExportTask } from "./export/tasks/create-export-task.handler.ts";
+import { handler as downloadExportTask } from "./export/tasks/download-export-task.handler.ts";
+import { handler as getExportTask } from "./export/tasks/get-export-task.handler.ts";
+import { handler as listExportTasks } from "./export/tasks/list-export-tasks.handler.ts";
+import { handler as retryExportTask } from "./export/tasks/retry-export-task.handler.ts";
+import type { RouteHandler } from "./types.ts";
+
+export type OperationRoute = {
+  operationId: string;
+  method: "GET" | "POST" | "PUT";
+  path: string;
+  handlerPath: string;
+  handler: RouteHandler;
+  tests: string[];
+};
+
+const scaffoldContractTest = "tests/contract/openapi-route-mapping.contract.test.mjs";
+
+export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
+  {
+    operationId: "createExportTask",
+    method: "POST",
+    path: "/api/export/tasks",
+    handlerPath: "src/routes/export/tasks/create-export-task.handler.ts",
+    handler: createExportTask,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "listExportTasks",
+    method: "GET",
+    path: "/api/export/tasks",
+    handlerPath: "src/routes/export/tasks/list-export-tasks.handler.ts",
+    handler: listExportTasks,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "getExportTask",
+    method: "GET",
+    path: "/api/export/tasks/{taskId}",
+    handlerPath: "src/routes/export/tasks/get-export-task.handler.ts",
+    handler: getExportTask,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "downloadExportTask",
+    method: "GET",
+    path: "/api/export/tasks/{taskId}/download",
+    handlerPath: "src/routes/export/tasks/download-export-task.handler.ts",
+    handler: downloadExportTask,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "cancelExportTask",
+    method: "POST",
+    path: "/api/export/tasks/{taskId}/cancel",
+    handlerPath: "src/routes/export/tasks/cancel-export-task.handler.ts",
+    handler: cancelExportTask,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "retryExportTask",
+    method: "POST",
+    path: "/api/export/tasks/{taskId}/retry",
+    handlerPath: "src/routes/export/tasks/retry-export-task.handler.ts",
+    handler: retryExportTask,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "createExportRegistry",
+    method: "POST",
+    path: "/api/export/registries",
+    handlerPath: "src/routes/export/registries/create-export-registry.handler.ts",
+    handler: createExportRegistry,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "listExportRegistries",
+    method: "GET",
+    path: "/api/export/registries",
+    handlerPath: "src/routes/export/registries/list-export-registries.handler.ts",
+    handler: listExportRegistries,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "getExportRegistry",
+    method: "GET",
+    path: "/api/export/registries/{taskCode}",
+    handlerPath: "src/routes/export/registries/get-export-registry.handler.ts",
+    handler: getExportRegistry,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "updateExportRegistry",
+    method: "PUT",
+    path: "/api/export/registries/{taskCode}",
+    handlerPath: "src/routes/export/registries/update-export-registry.handler.ts",
+    handler: updateExportRegistry,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "enableExportRegistry",
+    method: "POST",
+    path: "/api/export/registries/{taskCode}/enable",
+    handlerPath: "src/routes/export/registries/enable-export-registry.handler.ts",
+    handler: enableExportRegistry,
+    tests: [scaffoldContractTest]
+  },
+  {
+    operationId: "disableExportRegistry",
+    method: "POST",
+    path: "/api/export/registries/{taskCode}/disable",
+    handlerPath: "src/routes/export/registries/disable-export-registry.handler.ts",
+    handler: disableExportRegistry,
+    tests: [scaffoldContractTest]
+  }
+];
+
+ succeeded in 828ms:
+import { fileURLToPath } from "node:url";
+import { loadConfig } from "../config/env.ts";
+
+export type CleanupJobRuntime = {
+  pollIntervalMs: number;
+  cleanupOrder: "mark-expired-before-object-delete";
+};
+
+export function createCleanupJobRuntime(): CleanupJobRuntime {
+  const config = loadConfig();
+  return {
+    pollIntervalMs: config.cleanupPollIntervalMs,
+    cleanupOrder: "mark-expired-before-object-delete"
+  };
+}
+
+export function startCleanupJob(): NodeJS.Timeout {
+  const runtime = createCleanupJobRuntime();
+  console.log(
+    JSON.stringify({
+      event: "export-platform.cleanup.started",
+      pollIntervalMs: runtime.pollIntervalMs,
+      cleanupOrder: runtime.cleanupOrder
+    })
+  );
+  return setInterval(() => undefined, runtime.pollIntervalMs);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startCleanupJob();
+}
+
+ succeeded in 837ms:
+import { fileURLToPath } from "node:url";
+import { loadConfig } from "../config/env.ts";
+
+export type SchedulerWorkerRuntime = {
+  pollIntervalMs: number;
+  leaseModel: "lockOwner+lockExpireAt+leaseRenewedAt";
+};
+
+export function createSchedulerWorkerRuntime(): SchedulerWorkerRuntime {
+  const config = loadConfig();
+  return {
+    pollIntervalMs: config.schedulerPollIntervalMs,
+    leaseModel: "lockOwner+lockExpireAt+leaseRenewedAt"
+  };
+}
+
+export function startSchedulerWorker(): NodeJS.Timeout {
+  const runtime = createSchedulerWorkerRuntime();
+  console.log(
+    JSON.stringify({
+      event: "export-platform.scheduler.started",
+      pollIntervalMs: runtime.pollIntervalMs,
+      leaseModel: runtime.leaseModel
+    })
+  );
+  return setInterval(() => undefined, runtime.pollIntervalMs);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startSchedulerWorker();
+}
+
+ succeeded in 850ms:
+import Fastify, { type FastifyInstance } from "fastify";
+import { fileURLToPath } from "node:url";
+import { loadConfig, type ExportPlatformConfig } from "./config/env.ts";
+import { registerRoutes } from "./routes/register-routes.ts";
+
+export function createExportPlatformServer(
+  config: ExportPlatformConfig = loadConfig()
+): FastifyInstance {
+  const app = Fastify({
+    logger: false
+  });
+
+  app.get("/health", async () => ({
+    status: "ok",
+    service: config.serviceName,
+    deliveryShape: config.deliveryShape,
+    entries: {
+      http: true,
+      worker: true,
+      cleanupJob: true
+    }
+  }));
+
+  registerRoutes(app);
+
+  app.setNotFoundHandler(async (_request, response) => {
+    response.code(404).send({
+      code: "TASK_NOT_FOUND",
+      message: "route not found",
+      data: null
+    });
+  });
+
+  return app;
+}
+
+export async function startServer(
+  config: ExportPlatformConfig = loadConfig()
+): Promise<FastifyInstance> {
+  const server = createExportPlatformServer(config);
+  await server.listen({ port: config.port, host: config.host });
+  console.log(
+    JSON.stringify({
+      event: "export-platform.http.started",
+      host: config.host,
+      port: config.port
+    })
+  );
+  return server;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/routes/export/tasks/create-export-task.handler.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/routes/export/tasks/list-export-tasks.handler.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/db/schema.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/db/index.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content src/db/kysely.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content migrations/001_initial_export_platform_schema.sql' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 736ms:
+import { createScaffoldHandler } from "../../scaffold-handler.ts";
+
+export const handler = createScaffoldHandler("createExportTask");
+
+ succeeded in 815ms:
+import { createScaffoldHandler } from "../../scaffold-handler.ts";
+
+export const handler = createScaffoldHandler("listExportTasks");
+
+ succeeded in 744ms:
+import { Kysely, MysqlDialect } from "kysely";
+import mysql from "mysql2/promise";
+import { loadConfig, type ExportPlatformConfig } from "../config/index.ts";
+import type { ExportPlatformDatabase } from "./schema.ts";
+
+export type MysqlPoolOptions = {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl?: {};
+};
+
+export function createMysqlPoolOptions(config: ExportPlatformConfig): MysqlPoolOptions {
+  return {
+    host: config.mysql.host,
+    port: config.mysql.port,
+    database: config.mysql.database,
+    user: config.mysql.user,
+    password: config.mysql.password,
+    ssl: config.mysql.ssl ? {} : undefined
+  };
+}
+
+export function createDatabase(): Kysely<ExportPlatformDatabase> {
+  const config = loadConfig();
+
+  return new Kysely<ExportPlatformDatabase>({
+    dialect: new MysqlDialect({
+      pool: mysql.createPool(createMysqlPoolOptions(config))
+    })
+  });
+}
+
+ succeeded in 746ms:
+export interface ExportTasksTable {
+  task_id: string;
+  task_code: string;
+  subsystem_code: string;
+  status: string;
+  client_request_id: string | null;
+  idempotency_scope: string | null;
+  request_digest: string;
+  config_snapshot_digest: string;
+  attempt_no: number;
+  lock_owner: string | null;
+  lock_expire_at: Date | null;
+  lease_renewed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ExportRegistriesTable {
+  task_code: string;
+  subsystem_code: string;
+  display_name: string;
+  enabled: number;
+  concurrency_limit: number;
+  file_retention_days: number;
+  task_history_retention_days: number;
+  single_file_max_rows: number;
+  export_max_rows: number;
+  datasource_code: string;
+  config_snapshot_digest: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ExportTaskIdempotencyTable {
+  idempotency_scope: string;
+  task_id: string;
+  request_digest: string;
+  created_at: Date;
+}
+
+export interface ExportRegistryVersionsTable {
+  task_code: string;
+  config_snapshot_digest: string;
+  parameter_schema_digest: string;
+  field_mapping_digest: string;
+  masking_policy_digest: string;
+  created_at: Date;
+}
+
+export interface ExportTaskLeasesTable {
+  task_id: string;
+  attempt_no: number;
+  lock_owner: string;
+  lock_expire_at: Date;
+  lease_renewed_at: Date;
+  database_time: Date;
+  takeover_rule: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ExportTaskCheckpointsTable {
+  task_id: string;
+  attempt_no: number;
+  last_cursor: string | null;
+  processed_count: number;
+  file_part_no: number | null;
+  retry_count: number;
+  batch_size: number | null;
+  batch_row_count: number | null;
+  backoff_ms: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ExportTaskFilesTable {
+  task_id: string;
+  attempt_no: number;
+  file_name: string;
+  content_type: string;
+  file_size: number;
+  checksum: string;
+  checksum_algorithm: string;
+  temp_storage_key: string | null;
+  published_storage_key: string | null;
+  expires_at: Date;
+  published_at: Date | null;
+  delivery_ready_at: Date | null;
+  checksum_verified_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ExportAuditLogsTable {
+  audit_id: string;
+  task_id: string | null;
+  attempt_no: number | null;
+  task_code: string | null;
+  subsystem_code: string | null;
+  operator_id: string;
+  action: string;
+  result: string;
+  error_code: string;
+  request_id: string;
+  occurred_at: Date;
+  created_at: Date;
+}
+
+export interface ExportPlatformDatabase {
+  export_tasks: ExportTasksTable;
+  export_task_idempotency: ExportTaskIdempotencyTable;
+  export_registries: ExportRegistriesTable;
+  export_registry_versions: ExportRegistryVersionsTable;
+  export_task_leases: ExportTaskLeasesTable;
+  export_task_checkpoints: ExportTaskCheckpointsTable;
+  export_task_files: ExportTaskFilesTable;
+  export_audit_logs: ExportAuditLogsTable;
+}
+
+ succeeded in 749ms:
+CREATE TABLE export_tasks (
+  task_id VARCHAR(64) PRIMARY KEY,
+  task_code VARCHAR(128) NOT NULL,
+  subsystem_code VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  client_request_id VARCHAR(128),
+  idempotency_scope VARCHAR(512),
+  request_digest VARCHAR(255) NOT NULL,
+  config_snapshot_digest VARCHAR(255) NOT NULL,
+  attempt_no INT NOT NULL DEFAULT 0,
+  lock_owner VARCHAR(255),
+  lock_expire_at DATETIME(3),
+  lease_renewed_at DATETIME(3),
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL
+);
+
+CREATE TABLE export_task_idempotency (
+  idempotency_scope VARCHAR(512) PRIMARY KEY,
+  task_id VARCHAR(64) NOT NULL,
+  request_digest VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL
+);
+
+CREATE TABLE export_registries (
+  task_code VARCHAR(128) PRIMARY KEY,
+  subsystem_code VARCHAR(128) NOT NULL,
+  display_name VARCHAR(255) NOT NULL,
+  enabled BOOLEAN NOT NULL,
+  concurrency_limit INT NOT NULL,
+  file_retention_days INT NOT NULL,
+  task_history_retention_days INT NOT NULL,
+  single_file_max_rows INT NOT NULL,
+  export_max_rows INT NOT NULL,
+  datasource_code VARCHAR(128) NOT NULL,
+  config_snapshot_digest VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL
+);
+
+CREATE TABLE export_registry_versions (
+  task_code VARCHAR(128) NOT NULL,
+  config_snapshot_digest VARCHAR(255) NOT NULL,
+  parameter_schema_digest VARCHAR(255) NOT NULL,
+  field_mapping_digest VARCHAR(255) NOT NULL,
+  masking_policy_digest VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL,
+  UNIQUE KEY uq_export_registry_versions_snapshot (task_code, config_snapshot_digest)
+);
+
+CREATE TABLE export_task_leases (
+  task_id VARCHAR(64) NOT NULL,
+  attempt_no INT NOT NULL,
+  lock_owner VARCHAR(255) NOT NULL,
+  lock_expire_at DATETIME(3) NOT NULL,
+  lease_renewed_at DATETIME(3) NOT NULL,
+  database_time DATETIME(3) NOT NULL,
+  takeover_rule VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (task_id, attempt_no)
+);
+
+CREATE TABLE export_task_checkpoints (
+  task_id VARCHAR(64) NOT NULL,
+  attempt_no INT NOT NULL,
+  last_cursor VARCHAR(255),
+  processed_count BIGINT NOT NULL,
+  file_part_no INT,
+  retry_count INT NOT NULL DEFAULT 0,
+  batch_size INT,
+  batch_row_count INT,
+  backoff_ms INT,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (task_id, attempt_no)
+);
+
+CREATE TABLE export_task_files (
+  task_id VARCHAR(64) NOT NULL,
+  attempt_no INT NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  content_type VARCHAR(255) NOT NULL,
+  file_size BIGINT NOT NULL,
+  checksum VARCHAR(255) NOT NULL,
+  checksum_algorithm VARCHAR(32) NOT NULL,
+  temp_storage_key VARCHAR(512),
+  published_storage_key VARCHAR(512),
+  expires_at DATETIME(3) NOT NULL,
+  published_at DATETIME(3),
+  delivery_ready_at DATETIME(3),
+  checksum_verified_at DATETIME(3),
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (task_id, attempt_no)
+);
+
+CREATE TABLE export_audit_logs (
+  audit_id VARCHAR(64) PRIMARY KEY,
+  task_id VARCHAR(64),
+  attempt_no INT,
+  task_code VARCHAR(128),
+  subsystem_code VARCHAR(128),
+  operator_id VARCHAR(128) NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  result VARCHAR(32) NOT NULL,
+  error_code VARCHAR(64) NOT NULL,
+  request_id VARCHAR(128) NOT NULL,
+  occurred_at DATETIME(3) NOT NULL,
+  created_at DATETIME(3) NOT NULL
+);
+
+ succeeded in 815ms:
+export { createDatabase } from "./kysely.ts";
+export type { ExportPlatformDatabase } from "./schema.ts";
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content task.json; $start=358; $end=375; for($i=$start; $i -le $end; $i++){ if($i -le $lines.Length){ '"'{0}:{1}' -f "'$i,$lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 718ms:
+358:                      "acceptance":  [
+359:                                         "服务可作为独立微服务启动或被测试启动",
+360:                                         "arch:check 能阻止无生产入口或 InMemory 生产引用",
+361:                                         "后续 DB、API、worker 任务有明确目录和验证入口"
+362:                                     ]
+363:                  },
+364:                  {
+365:                      "id":  "DB-SCHEMA-001",
+366:                      "description":  "创建 MySQL schema、migration 和生产 repository 边界",
+367:                      "task_kind":  "feature_impl",
+368:                      "phase":  "database",
+369:                      "gate_profile":  "spec_required",
+370:                      "required_truth_sources":  [
+371:                                                     "product",
+372:                                                     "architecture",
+373:                                                     "contract",
+374:                                                     "testing"
+375:                                                 ],
+
+codex
+实现面上已经看到生产入口、route manifest、worker/job 入口、MySQL schema 和架构检查脚本。现在跑任务声明的验证命令，确认这些证据不是仅文档层面的声明。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2884ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run arch:check' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 1619ms:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm test' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2165ms:
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (0.9386ms)
+✔ verify matrix marks downstream DB/API/worker work as blocked or planned (0.4418ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (2.2272ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (0.9559ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.5707ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.7068ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (0.7351ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.2394ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.3334ms)
+✔ OpenAPI operationIds are represented by route manifest entries (2.4127ms)
+✔ 脚手架声明的服务入口脚本存在 (1.1907ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.3983ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.1449ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (90.246ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开脚手架 API 返回受控 501 响应 (19.7858ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 977.7002
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 838ms:
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'task.json', LF will be replaced by CRLF the next time Git touches it
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+
+验证已执行并通过：
+
+- `npm run typecheck`
+- `npm run arch:check`
+- `npm test`
+- `git diff --check`
+
+审查结论：`SERVICE-SCAFFOLD-001` 已具备独立微服务脚手架所需的 HTTP server entry、scheduler worker entry、cleanup job entry、OpenAPI route/handler 映射、MySQL schema/migration、架构检查和后续 DB/API/worker 验证入口；未发现 Stage 1 阻塞项。
+tokens used
+69,171

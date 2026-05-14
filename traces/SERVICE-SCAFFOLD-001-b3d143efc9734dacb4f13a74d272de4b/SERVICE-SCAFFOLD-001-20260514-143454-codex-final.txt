@@ -1,0 +1,56 @@
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+
+## Summary
+- 已完成独立微服务脚手架验证：Fastify HTTP 入口、配置加载、health route、scheduler worker entry、cleanup job entry、目录边界、migration 骨架和测试基础设施均存在。
+- `arch:check` 已覆盖 server/worker/job entry、OpenAPI operation 映射、生产入口禁用 `InMemory/mock/fixture`、migration 覆盖和后续测试脚本声明。
+- `docs/testing/verify-matrix.md` 已声明当前脚手架验证命令，并把 DB/API/worker 后续任务标为 `blocked-by-next-task`。
+
+## Files Changed
+- `.gitignore`: Node/构建/环境文件忽略规则
+- `package.json`, `package-lock.json`: 微服务依赖、启动脚本、测试脚本
+- `src/`: server、config、http、routes、worker/job、各生产模块目录
+- `migrations/`: 初始 MySQL schema 骨架
+- `scripts/arch-check.ts`: 架构门禁
+- `tests/`: 脚手架与 OpenAPI route mapping 测试
+- `docs/testing/verify-matrix.md`: 验证矩阵更新
+
+## Validation
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `npm test`: PASS - 7 tests passed
+- `git diff --check`: PASS
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('npm run arch:check','npm test','git diff --check') }"`: PASS - `Verification passed.`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @(...)`: FAIL - PowerShell `-File` 未正确传入数组，误把 `npm test` 绑定为 `ProjectRoot`
+
+## Evidence
+- `src/server.ts`: HTTP 服务可独立启动并暴露 `/health`
+- `src/routes/route-manifest.ts`: OpenAPI operation 到 handler/test 的映射
+- `scripts/arch-check.ts`: 架构检查入口
+- `migrations/001_initial_export_platform_schema.sql`: task、registry、lease/checkpoint、file metadata、audit log schema 骨架
+- `tests/server.test.mjs`: 启动与 health 验证
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: OpenAPI operation 映射验证
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `src/server.ts` + worker/job entries
+- `http_service + worker + scheduled_job`: PASS - package scripts 与入口文件存在
+- `OpenAPI public operation mapping`: PASS - `arch:check` 和 contract test 覆盖
+- `生产入口禁用 InMemory/mock/fixture`: PASS - `arch:check` 与 `rg` 检查通过
+- `DB/API/worker 真实实现不得伪完成`: PASS - verify matrix 标为后续 blocked
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-HARNESS-VERIFY-ARRAY`: pitfall - `verify.ps1 -File` 外层传数组字面量会参数绑定失败 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 commit：本轮 Driver 模板明确禁止 `git add/git commit`，且工作区还有 `task.json`、`traces/` runtime 改动。
+- 指定的 `-File ... -Commands @(...)` 调用形式在当前 PowerShell 链路下失败；已用等价 `-Command "& { ... }"` 形式完成验证。

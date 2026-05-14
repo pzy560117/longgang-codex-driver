@@ -1,0 +1,66 @@
+SUCCESS: The process with PID 15992 (child process of PID 21788) has been terminated.
+SUCCESS: The process with PID 21788 (child process of PID 25036) has been terminated.
+SUCCESS: The process with PID 25036 (child process of PID 25000) has been terminated.
+SUCCESS: The process with PID 25000 (child process of PID 16088) has been terminated.
+SUCCESS: The process with PID 16088 (child process of PID 23684) has been terminated.
+SUCCESS: The process with PID 5272 (child process of PID 5672) has been terminated.
+SUCCESS: The process with PID 5672 (child process of PID 21900) has been terminated.
+SUCCESS: The process with PID 21900 (child process of PID 24320) has been terminated.
+SUCCESS: The process with PID 24320 (child process of PID 23684) has been terminated.
+SUCCESS: The process with PID 4936 (child process of PID 23592) has been terminated.
+SUCCESS: The process with PID 23592 (child process of PID 32276) has been terminated.
+SUCCESS: The process with PID 32276 (child process of PID 17952) has been terminated.
+SUCCESS: The process with PID 17952 (child process of PID 23684) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+
+## Summary
+- 已完成并验证独立微服务脚手架：HTTP server、配置加载、health route、OpenAPI route manifest、worker/job entry、DB/migration scaffold、测试基础设施。
+- `arch:check` 已覆盖生产入口存在性、OpenAPI operation 映射、生产路径禁用 `InMemory/mock/fixture`、migration 覆盖和后续测试脚本入口。
+- 未执行 commit：本任务模板明确禁止 `git add` / `git commit` / `git push`，高于入口 AGENTS 的自动提交偏好。
+
+## Files Changed
+- `.gitignore`、`package.json`、`package-lock.json`、`tsconfig.json`: Node/TypeScript 微服务工程配置。
+- `src/server.ts`、`src/config/`、`src/routes/`: HTTP 服务入口、配置和路由映射。
+- `src/workers/`、`src/jobs/`、`src/scheduler/`、`src/cleanup-job/`: worker/job 入口与后续实现目录。
+- `src/db/`、`src/repositories/`、`migrations/`: DB 边界、schema/migration scaffold。
+- `scripts/arch-check.ts`、`tests/`: 架构检查和脚手架测试。
+- `docs/testing/verify-matrix.md`: 标记脚手架验证命令及后续 DB/API/worker blocked 项。
+
+## Validation
+- `npm run typecheck; ...; git diff --check`: PASS
+- `npm run arch:check`: PASS，输出 `Architecture check passed.`
+- `npm test`: PASS，15 个测试全部通过
+- `git diff --check`: PASS，仅有 LF/CRLF warning，不是 whitespace error
+
+## Evidence
+- `src/server.ts`: 证明 HTTP 服务可独立启动并暴露 `/health`。
+- `src/routes/route-manifest.ts`: 证明 OpenAPI operationId 已映射到 route/handler/test。
+- `migrations/001_initial_export_platform_schema.sql`: 证明 task、registry、lease/checkpoint、file metadata、audit log 表已 scaffold。
+- `scripts/arch-check.ts`: 证明架构门禁可阻止缺入口、缺映射、生产路径测试替身引用。
+- `tests/server.test.mjs`、`tests/contract/openapi-route-mapping.contract.test.mjs`、`tests/arch-check.test.mjs`: 证明脚手架行为和检查规则被测试覆盖。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `src/server.ts`、`package.json` start script。
+- `http_service + worker + scheduled_job`: PASS - `start`、`worker:scheduler`、`job:cleanup` scripts。
+- `OpenAPI route/handler traceability`: PASS - `route-manifest.ts` + contract test。
+- `production entry 禁用 InMemory/mock/fixture`: PASS - `arch:check` 扫描生产路径。
+- `MySQL/schema scaffold`: PASS - migration 覆盖核心表；真实 repository 行为仍是后续任务。
+
+## Knowledge References
+- `NOT_APPLICABLE`: 未引用具体 `docs/knowledge/*` 条目；知识库当前 cold start。
+
+## Knowledge Outputs
+- `suggested`: guideline - 微服务脚手架 arch:check 最小门禁 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 真实 API、DB repository、worker lease、query executor、file service 仍按 verify matrix 标记为后续任务，不应把当前 scaffold 当作生产业务完成证据。
+- 工作区已有 `task.json`、`progress.txt`、`traces/` 改动；本轮未回滚也未提交。

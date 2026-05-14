@@ -269,7 +269,7 @@
                       "dependencies":  [
                                            "CONTRACT-REVIEW-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "runtime=http_service+worker+scheduled_job",
@@ -288,15 +288,27 @@
                                             "docs/testing/verify-matrix.md"
                                         ],
                       "owned_paths":  [
+                                          ".gitignore",
                                           "package.json",
                                           "package-lock.json",
                                           "tsconfig.json",
                                           "src/server.ts",
                                           "src/config/",
+                                          "src/http/",
                                           "src/health/",
                                           "src/routes/",
                                           "src/workers/",
                                           "src/jobs/",
+                                          "src/scheduler/",
+                                          "src/cleanup-job/",
+                                          "src/task-api/",
+                                          "src/registry-config/",
+                                          "src/query-executor/",
+                                          "src/file-service/",
+                                          "src/audit-log/",
+                                          "src/db/",
+                                          "src/repositories/",
+                                          "migrations/",
                                           "scripts/",
                                           "tests/",
                                           "docs/testing/verify-matrix.md"
@@ -308,23 +320,41 @@
                                               "FR-013"
                                           ],
                       "produces_artifacts":  [
+                                                 ".gitignore",
                                                  "package.json",
+                                                 "package-lock.json",
                                                  "src/server.ts",
+                                                 "src/config/",
+                                                 "src/http/",
+                                                 "src/routes/",
                                                  "src/workers/",
                                                  "src/jobs/",
+                                                 "src/scheduler/",
+                                                 "src/cleanup-job/",
+                                                 "src/task-api/",
+                                                 "src/registry-config/",
+                                                 "src/query-executor/",
+                                                 "src/file-service/",
+                                                 "src/audit-log/",
+                                                 "src/db/",
+                                                 "src/repositories/",
+                                                 "migrations/",
                                                  "scripts/",
                                                  "tests/",
                                                  "docs/testing/verify-matrix.md"
                                              ],
                       "execution":  {
-                                        "mode":  "single"
+                                        "mode":  "single",
+                                        "git":  {
+                                                    "require_clean_workspace":  false
+                                                }
                                     },
                       "steps":  [
                                     "创建独立微服务工程脚手架、HTTP server entry、配置加载、health route、worker/job entry 和测试基础设施",
                                     "创建 arch:check，检查 server/worker/job entry、OpenAPI operation 映射和生产入口禁用 InMemory",
                                     "更新 verify-matrix，标记脚手架验证命令和后续 DB/API/worker blocked 项"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm test\u0027,\u0027git diff --check\u0027)",
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
                       "acceptance":  [
                                          "服务可作为独立微服务启动或被测试启动",
                                          "arch:check 能阻止无生产入口或 InMemory 生产引用",

@@ -1,0 +1,52 @@
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+
+## Summary
+- 已验证独立微服务脚手架：HTTP server、health route、OpenAPI route manifest、scheduler worker entry、cleanup job entry、配置加载、DB/migration scaffold 和测试基础设施。
+- 已确认 `arch:check` 覆盖生产入口、OpenAPI operation 映射、migration 覆盖、生产路径禁用 `InMemory*` / mock / fixture。
+- 本轮未执行 `git add` / `git commit`，遵守 Driver Context 强制边界。
+
+## Files Changed
+- `.gitignore`: Node/构建产物忽略规则
+- `package.json`, `package-lock.json`, `tsconfig.json`: TypeScript/Fastify 服务脚手架与验证脚本
+- `src/`: HTTP、routes、config、worker/job、db、各生产目录占位入口
+- `migrations/`: 初始导出平台 schema scaffold
+- `scripts/arch-check.ts`: 架构检查
+- `tests/`: server、arch-check、contract route mapping、DB scaffold 测试
+- `docs/testing/verify-matrix.md`: 脚手架验证入口与后续 blocked 项
+
+## Validation
+- `npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`: PASS - typecheck 通过，arch check passed，Node test 15/15 passed，diff check 退出码 0
+
+## Evidence
+- `src/server.ts`: 服务可测试启动并暴露 `/health`
+- `src/routes/route-manifest.ts`: OpenAPI operation 到 route/handler/test 的脚手架映射
+- `scripts/arch-check.ts`: 架构门禁实现
+- `tests/server.test.mjs`: 独立服务启动和 501 scaffold API 验证
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: OpenAPI route mapping 验证
+- `migrations/001_initial_export_platform_schema.sql`: 初始 MySQL schema scaffold
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `src/server.ts` + package scripts
+- `http_service + worker + scheduled_job`: PASS - `start` / `worker:scheduler` / `job:cleanup`
+- `OpenAPI public operation mapping`: PASS - `arch:check` 和 contract test 覆盖
+- `production entry forbids InMemory/mock/fixture`: PASS - `arch:check` 扫描通过
+- `DB/API/worker production behavior`: NOT_APPLICABLE - 本任务为 scaffold，后续实现项在 verify matrix 标为 blocked-by-next-task
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- API、DB repository、worker 抢锁、query executor、file service 仍是后续任务，不应把当前 scaffold 当成业务生产完成。
+- 工作区存在 `task.json`、`progress.txt`、`traces/` runtime 改动；本轮按边界未修改或提交这些文件。

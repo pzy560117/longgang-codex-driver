@@ -1,0 +1,65 @@
+SUCCESS: The process with PID 30664 (child process of PID 15584) has been terminated.
+SUCCESS: The process with PID 15584 (child process of PID 20824) has been terminated.
+SUCCESS: The process with PID 20824 (child process of PID 30000) has been terminated.
+SUCCESS: The process with PID 30000 (child process of PID 27244) has been terminated.
+SUCCESS: The process with PID 27244 (child process of PID 9740) has been terminated.
+SUCCESS: The process with PID 25960 (child process of PID 29180) has been terminated.
+SUCCESS: The process with PID 29180 (child process of PID 37628) has been terminated.
+SUCCESS: The process with PID 37628 (child process of PID 6948) has been terminated.
+SUCCESS: The process with PID 6948 (child process of PID 9740) has been terminated.
+SUCCESS: The process with PID 41508 (child process of PID 16596) has been terminated.
+SUCCESS: The process with PID 16596 (child process of PID 35440) has been terminated.
+SUCCESS: The process with PID 35440 (child process of PID 31168) has been terminated.
+SUCCESS: The process with PID 31168 (child process of PID 9740) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+
+## Summary
+- 已完成独立微服务脚手架核验：HTTP server、配置加载、health route、scheduler worker、cleanup job、DB migration、OpenAPI route manifest、测试入口与 `arch:check`。
+- `arch:check` 覆盖生产入口、OpenAPI operation 映射、生产路径禁用 `InMemory/mock/fixture`、migration marker 和后续测试脚本入口。
+- 未执行 commit：本轮 Driver Prompt 明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- `.gitignore`, `package.json`, `package-lock.json`: Node/Fastify/tsx 脚手架与脚本入口
+- `src/`: server、config、routes、worker/job、DB 与各业务模块目录占位
+- `migrations/`: 初始 export platform schema
+- `scripts/arch-check.ts`, `scripts/planned-test.mjs`: 架构检查与后续 blocked 测试入口
+- `tests/`: 脚手架、架构检查、OpenAPI 映射测试
+- `docs/testing/verify-matrix.md`: 当前脚手架证据与后续 DB/API/worker blocked 项
+
+## Validation
+- `npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`: PASS - `Architecture check passed`，`11/11` tests pass，`git diff --check` exit 0
+
+## Evidence
+- `scripts/arch-check.ts`: 证明架构门禁可执行
+- `tests/arch-check.test.mjs`: 证明替身扫描、migration/schema 一致性和 blocked 状态被测试覆盖
+- `tests/server.test.mjs`: 证明 HTTP 服务可独立启动并返回 `/health`
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI operationId 已进入 route manifest
+- `docs/testing/verify-matrix.md`: 证明脚手架验证命令和后续 blocked 项已声明
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `src/server.ts` + `package.json:start`
+- `http_service + worker + scheduled_job`: PASS - `src/server.ts`, `src/workers/scheduler-worker.ts`, `src/jobs/cleanup-job.ts`
+- `OpenAPI operation mapping`: PASS - `src/routes/route-manifest.ts` + contract test + `arch:check`
+- `production entry forbids InMemory/mock/fixture`: PASS - `arch:check` scans production roots
+- `MySQL schema/migration scaffold`: PASS - `migrations/001_initial_export_platform_schema.sql`
+- `real DB/API/worker business path`: NOT_APPLICABLE for scaffold task / blocked-by-next-task
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: final knowledge reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: arch:check/verify-matrix boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 后续 API、DB repository、worker lock/lease、query executor、file service 和 cleanup 真实业务链路仍是 `blocked-by-next-task`。
+- 当前测试不连接真实 MySQL；只验证脚手架、migration/schema 声明和生产入口边界。

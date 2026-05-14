@@ -1,0 +1,41 @@
+SUCCESS: The process with PID 3100 (child process of PID 28440) has been terminated.
+SUCCESS: The process with PID 28440 (child process of PID 38200) has been terminated.
+SUCCESS: The process with PID 38200 (child process of PID 10840) has been terminated.
+SUCCESS: The process with PID 10840 (child process of PID 39840) has been terminated.
+SUCCESS: The process with PID 12440 (child process of PID 24920) has been terminated.
+SUCCESS: The process with PID 26248 (child process of PID 35396) has been terminated.
+SUCCESS: The process with PID 35396 (child process of PID 39840) has been terminated.
+SUCCESS: The process with PID 28528 (child process of PID 41248) has been terminated.
+SUCCESS: The process with PID 41248 (child process of PID 27748) has been terminated.
+SUCCESS: The process with PID 27748 (child process of PID 37384) has been terminated.
+SUCCESS: The process with PID 37384 (child process of PID 8336) has been terminated.
+SUCCESS: The process with PID 8336 (child process of PID 39840) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | HIGH | artifact_gap | backend | `src/db/schema.ts`、`migrations/001_initial_export_platform.ts` 与 `migrations/001_initial_export_platform_schema.sql` 的列定义明显不一致。例如 schema/TS migration 有 `client_request_id`、`display_name`、`datasource_code`、`database_time`、`takeover_rule`、`content_type`、`checksum_algorithm` 等字段，但 SQL migration 缺失；SQL migration 另有 `created_by`、`request_id`、`updated_by`、`started_at`、`finished_at`、`downloadable` 等未出现在 TS schema 中。当前 `tests/arch-check.test.mjs` 只比较表名集合，无法发现该问题。 | 统一 migration 真相源；要么让 SQL migration、TS migration、Kysely schema 三者列、空值、主键/唯一约束一致，要么删除/降级非真相源副本。补强 `arch:check` 或测试，至少比较关键表的列集合和核心约束。 | `npm run arch:check; npm test; git diff --check` |
+| SERVICE-SCAFFOLD-001-S2-F002 | MEDIUM | architecture_test_gap | test | `scripts/arch-check.ts` 只校验 `route.handler` 文件存在和 `route.tests` 非空；`src/routes/register-routes.ts` 实际注册 Fastify route 时没有导入 `src/routes/export/**/**/*.handler.ts`，而是统一调用 `sendScaffoldResponse`。因此 manifest 中声明的 handler 文件可能损坏或与入口脱节，测试仍会通过。 | 让 route manifest 的 handler 引用成为实际注册路径，或在 arch-check/contract test 中动态 import 每个 handler 并验证 operationId、method、path 与 Fastify 注册一致。 | `npm run arch:check; npm test` |
+| SERVICE-SCAFFOLD-001-S2-F003 | MEDIUM | type_safety | backend | `package.json` 没有 `typescript` 依赖、`tsconfig.json` 或 `type-check` 脚本；指定测试通过依赖 `tsx` 执行路径。额外执行 `npx tsc --noEmit ...` 返回 “This is not the tsc command you are looking for”，说明没有可用 TypeScript 编译门禁。 | 添加 `typescript`、`tsconfig.json` 和 `npm run typecheck`，并把它纳入脚手架验证命令或 arch-check。 | `npm run typecheck; npm run arch:check; npm test` |
+
+## Verification
+
+- 已检查命令:
+  - `npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`
+  - `npx tsc --noEmit --allowImportingTsExtensions --module NodeNext --moduleResolution NodeNext --target ES2022 --types node src/server.ts scripts/arch-check.ts migrations/001_initial_export_platform.ts`
+- 结果摘要:
+  - 指定测试命令退出码为 0，11 个测试全部通过。
+  - `git diff --check` 仅输出 CRLF warning，无空白错误。
+  - TypeScript 编译检查未形成有效证据，因为项目未安装 `typescript`。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | backend | backend-worker | 2 | true |
+| SERVICE-SCAFFOLD-001-S2-F002 | test | backend-worker | 1 | false |
+| SERVICE-SCAFFOLD-001-S2-F003 | backend | backend-worker | 1 | false |

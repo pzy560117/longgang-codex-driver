@@ -1,0 +1,69 @@
+SUCCESS: The process with PID 29116 (child process of PID 32156) has been terminated.
+SUCCESS: The process with PID 32156 (child process of PID 22472) has been terminated.
+SUCCESS: The process with PID 22472 (child process of PID 33400) has been terminated.
+SUCCESS: The process with PID 33400 (child process of PID 11736) has been terminated.
+SUCCESS: The process with PID 31536 (child process of PID 15932) has been terminated.
+SUCCESS: The process with PID 15932 (child process of PID 30248) has been terminated.
+SUCCESS: The process with PID 30248 (child process of PID 38588) has been terminated.
+SUCCESS: The process with PID 38588 (child process of PID 11736) has been terminated.
+SUCCESS: The process with PID 28484 (child process of PID 1772) has been terminated.
+SUCCESS: The process with PID 1772 (child process of PID 6472) has been terminated.
+SUCCESS: The process with PID 6472 (child process of PID 28624) has been terminated.
+SUCCESS: The process with PID 28624 (child process of PID 27932) has been terminated.
+SUCCESS: The process with PID 27932 (child process of PID 11736) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-005
+- FR-011
+- FR-013
+
+## Summary
+- 已落独立 Node/Fastify 微服务脚手架：HTTP server、配置加载、health route、scheduler worker、cleanup job。
+- 已落 `arch:check`：校验生产入口、OpenAPI operation 路由映射、禁用生产入口替身引用、migration 覆盖和测试脚本完整性。
+- 已更新 `verify-matrix`，把后续 DB/API/worker/query/file 实现明确标为 `blocked-by-next-task`。
+
+## Files Changed
+- `.gitignore`: 忽略 `node_modules/`
+- `package.json` / `package-lock.json`: 服务依赖、启动脚本、测试脚本、`arch:check`
+- `src/`: server/config/http/routes/workers/jobs/db/module scaffold
+- `migrations/`: 初始 MySQL schema 与 Kysely migration scaffold
+- `scripts/arch-check.ts`: 架构检查入口
+- `tests/`: server、arch-check、OpenAPI route mapping 测试
+- `docs/testing/verify-matrix.md`: 脚手架验证入口与后续阻塞项
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('npm run arch:check','npm test','git diff --check') }"`: PASS - 9 tests passed, architecture check passed, diff whitespace check passed
+
+## Evidence
+- `src/server.ts`: HTTP 服务可独立启动并暴露 `/health`
+- `src/workers/scheduler-worker.ts`: scheduler worker 生产入口
+- `src/jobs/cleanup-job.ts`: cleanup job 生产入口
+- `scripts/arch-check.ts`: 架构门禁
+- `tests/server.test.mjs`: 服务启动与 health 验证
+- `tests/arch-check.test.mjs`: 脚手架门禁、migration/schema 对齐验证
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: OpenAPI operation 映射验证
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `src/server.ts`、worker、job entry 已存在
+- `http_service + worker + scheduled_job`: PASS - `start`、`worker:scheduler`、`job:cleanup` 已声明
+- `OpenAPI operation route mapping`: PASS - `npm run arch:check` 与 contract test 覆盖
+- `production entry 禁用 InMemory/mock/fixture`: PASS - `arch:check` 覆盖生产入口扫描
+- `MySQL schema/migration scaffold`: PASS - `migrations/` 与 `src/db/schema.ts` 覆盖核心表
+- `后续真实 DB/API/worker 证据`: NOT_APPLICABLE - 本任务仅脚手架，已在矩阵标记后续阻塞
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 输出知识引用/产出 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: `arch:check` 门禁与矩阵更新 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-SERVICE-SCAFFOLD-001`: guideline - 微服务脚手架应先落生产入口和 arch:check 再推进业务实现 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 真实 API、DB repository、worker 抢锁、query executor、file service 仍是后续任务。
+- 工作区还有 `task.json`、`progress.txt`、`traces/` runtime 脏状态；本任务按边界未修改也未提交。
+- 按 Driver 强制边界未执行 `git add` / `git commit`。

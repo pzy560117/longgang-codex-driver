@@ -1,0 +1,30 @@
+SUCCESS: The process with PID 16708 (child process of PID 8264) has been terminated.
+SUCCESS: The process with PID 8264 (child process of PID 22196) has been terminated.
+SUCCESS: The process with PID 22196 (child process of PID 25924) has been terminated.
+SUCCESS: The process with PID 25924 (child process of PID 34236) has been terminated.
+SUCCESS: The process with PID 20488 (child process of PID 7716) has been terminated.
+SUCCESS: The process with PID 7716 (child process of PID 41396) has been terminated.
+SUCCESS: The process with PID 41396 (child process of PID 41332) has been terminated.
+SUCCESS: The process with PID 41332 (child process of PID 34236) has been terminated.
+SUCCESS: The process with PID 8340 (child process of PID 18580) has been terminated.
+SUCCESS: The process with PID 18580 (child process of PID 42440) has been terminated.
+SUCCESS: The process with PID 42440 (child process of PID 32496) has been terminated.
+SUCCESS: The process with PID 32496 (child process of PID 24792) has been terminated.
+SUCCESS: The process with PID 24792 (child process of PID 34236) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S1-F001 | HIGH | architecture_gap | controller | [task.json](E:/2026/alpha-project/longgang-codex-driver/task.json:357) 的 `test_command` 直接执行失败：`verify.ps1` 将 `npm test` 误绑定为 `ProjectRoot`。 | 将 `test_command` 改为可执行的 PowerShell 包装形式，例如 `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('npm run arch:check','npm test','git diff --check') }"`。 | 重新执行修正后的完整 `test_command`。 |
+| SERVICE-SCAFFOLD-001-S1-F002 | MEDIUM | architecture_gap | backend | [src/db/kysely.ts](E:/2026/alpha-project/longgang-codex-driver/src/db/kysely.ts:12) 使用 `config.mysql.*`，但 [src/config/env.ts](E:/2026/alpha-project/longgang-codex-driver/src/config/env.ts:6) 只暴露 `databaseUrl`；`createDatabase()` 当前会运行时报错。另有 SQL migration 与 TS schema 表名不一致：`export_task_attempts` / `export_task_batch_checkpoints` vs `export_task_leases` / `export_task_checkpoints`。 | 统一 DB 配置模型与 migration/schema 命名，并让 `arch:check` 或 DB smoke check 覆盖 `createDatabase()` 配置边界和 migration/schema 一致性。 | `npm run arch:check`; `node --import tsx -e "import { createDatabase } from './src/db/index.ts'; createDatabase(); console.log('db ok')"` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S1-F001 | controller | harness-writer | 1 | yes |
+| SERVICE-SCAFFOLD-001-S1-F002 | backend | backend-worker | 1 | no |

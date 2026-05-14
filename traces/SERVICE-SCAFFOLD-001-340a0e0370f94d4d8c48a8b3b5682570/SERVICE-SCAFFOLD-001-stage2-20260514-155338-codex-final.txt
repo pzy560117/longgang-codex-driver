@@ -1,0 +1,29 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | HIGH | test_gap | backend | `src/db/kysely.ts:6-20` 调用 `loadConfig()` 后只使用 `databaseUrl`，未使用 `config.mysql`；但 `src/config/env.ts:88-94` 已定义 `EXPORT_PLATFORM_MYSQL_*` 配置。`tests/arch-check.test.mjs:107-117` 只验证能构造/销毁 Kysely 对象，没有验证 env 配置会进入 mysql pool。 | 修改 `createDatabase`，在无 `EXPORT_PLATFORM_DATABASE_URL` 时使用 `loadConfig().mysql` 的 host/port/database/user/password/ssl；建议抽出可测试的 pool options builder，并补充测试覆盖 `EXPORT_PLATFORM_MYSQL_HOST/PORT/DATABASE/USER/PASSWORD/SSL` 以及 database URL 优先级。 | `npm run typecheck; npm run arch:check; npm test; git diff --check` |
+| SERVICE-SCAFFOLD-001-S2-F002 | MEDIUM | maintainability | backend | `src/routes/scaffold-handler.ts:4-7` 的 scaffold handler 直接抛错；`src/routes/scaffold-handler.ts:10-18` 已有 `sendScaffoldResponse` 但未使用。实测 `POST /api/export/tasks` 返回 Fastify 默认 500：`{"statusCode":500,"error":"Internal Server Error",...}`。`tests/server.test.mjs:59-79` 只测 health，未覆盖公开 scaffold route 的可控失败响应。 | 将 scaffold handler 改为返回受控 501 JSON envelope，或明确删除未使用的 `sendScaffoldResponse` 并补测试锁定当前预期；至少覆盖一个 task route 和一个 registry route 的 scaffold 响应。 | `npm test; npm run arch:check` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `npm run typecheck; npm run arch:check; npm test; git diff --check`
+  - 额外探针：Fastify inject `POST /api/export/tasks`
+- 结果摘要:
+  - 主验证命令退出码 `0`，13 个测试全部通过。
+  - `git diff --check` 仅输出 LF/CRLF warning，无 whitespace error。
+  - 额外探针确认 scaffold API route 当前返回默认 500，而不是受控 scaffold 响应。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | backend | backend-worker | 1 | yes |
+| SERVICE-SCAFFOLD-001-S2-F002 | backend | backend-worker | 1 | no |

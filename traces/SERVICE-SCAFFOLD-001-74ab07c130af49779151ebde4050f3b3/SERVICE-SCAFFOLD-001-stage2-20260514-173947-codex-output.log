@@ -1,0 +1,42 @@
+SUCCESS: The process with PID 9416 (child process of PID 8608) has been terminated.
+SUCCESS: The process with PID 8608 (child process of PID 4972) has been terminated.
+SUCCESS: The process with PID 4972 (child process of PID 8300) has been terminated.
+SUCCESS: The process with PID 8300 (child process of PID 7176) has been terminated.
+SUCCESS: The process with PID 7252 (child process of PID 10612) has been terminated.
+SUCCESS: The process with PID 10612 (child process of PID 21772) has been terminated.
+SUCCESS: The process with PID 21772 (child process of PID 7052) has been terminated.
+SUCCESS: The process with PID 7052 (child process of PID 14232) has been terminated.
+SUCCESS: The process with PID 14232 (child process of PID 7176) has been terminated.
+SUCCESS: The process with PID 22308 (child process of PID 3000) has been terminated.
+SUCCESS: The process with PID 3000 (child process of PID 12896) has been terminated.
+SUCCESS: The process with PID 12896 (child process of PID 22080) has been terminated.
+SUCCESS: The process with PID 22080 (child process of PID 7176) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | LOW | maintainability | backend | `src/server.ts:24` 实际注册 `registerRoutes`；`src/routes/register-routes.ts:75` 使用 `OPENAPI_OPERATION_ROUTES`；但 `src/routes/registry.ts:16` 另有一套未接入的 `routes`，并通过 `src/routes/http.ts:70` 生成另一种 501 响应。 | 后续 repair/cleanup 可收敛为单一 route 真相源：删除未接入的 `registry.ts` / `*.route.ts`，或让 server/arch-check/test 统一使用它，避免 route manifest 和 route registry 漂移。 | `npm run typecheck; npm run arch:check; npm test; git diff --check` |
+
+## Verification
+
+- 已检查命令:
+  - `npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`
+  - `rg` 抽查敏感信息、跳过测试、生产替身扫描范围和 route 注册路径。
+- 结果摘要:
+  - TypeScript strict typecheck 通过。
+  - `arch:check` 通过，且生产替身扫描已覆盖 API/DB/worker 等生产路径。
+  - `npm test` 15/15 通过，无 skipped/todo/fail。
+  - `git diff --check` 退出码 0；仅有 LF/CRLF 工作区提示。
+  - 未发现硬编码密钥；测试里的 `"secret"` / `"url_pass"` 是配置解析用例数据。
+  - `knowledge_outputs`: 建议后续 `ARCHIVE-*` 归档“架构检查必须扫描完整生产路径，并用负向测试证明禁止替身规则有效；route 真相源应避免并行登记”。
+  - `knowledge_references`: 本次未依赖 `docs/knowledge/` 条目。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S2-F001 | backend | backend-worker | 1 | no |

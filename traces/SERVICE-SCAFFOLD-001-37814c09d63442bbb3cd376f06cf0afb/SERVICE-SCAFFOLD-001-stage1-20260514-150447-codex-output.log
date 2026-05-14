@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 37396 (child process of PID 10488) has been terminated.
+SUCCESS: The process with PID 10488 (child process of PID 12916) has been terminated.
+SUCCESS: The process with PID 12916 (child process of PID 34268) has been terminated.
+SUCCESS: The process with PID 34268 (child process of PID 23584) has been terminated.
+SUCCESS: The process with PID 23584 (child process of PID 23188) has been terminated.
+SUCCESS: The process with PID 35268 (child process of PID 17932) has been terminated.
+SUCCESS: The process with PID 17932 (child process of PID 36984) has been terminated.
+SUCCESS: The process with PID 36984 (child process of PID 31964) has been terminated.
+SUCCESS: The process with PID 31964 (child process of PID 23188) has been terminated.
+SUCCESS: The process with PID 29240 (child process of PID 17220) has been terminated.
+SUCCESS: The process with PID 17220 (child process of PID 3132) has been terminated.
+SUCCESS: The process with PID 3132 (child process of PID 25960) has been terminated.
+SUCCESS: The process with PID 25960 (child process of PID 23188) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S1-F001 | HIGH | architecture_gap | backend | `task.json:358-361` 要求 `arch:check` 能阻止 `InMemory` 生产引用；但 `scripts/arch-check.ts:112-124` 只扫描 `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 三个入口文件，`src/routes/register-routes.ts:76-85` 注册的运行时 API 路径、route handler、repository/db 生产路径不在禁用扫描范围内。 | 扩展 `checkNoForbiddenProductionReferences()`：至少扫描 `src/routes/`、`src/task-api/`、`src/registry-config/`、`src/scheduler/`、`src/query-executor/`、`src/file-service/`、`src/cleanup-job/`、`src/audit-log/`、`src/repositories/`、`src/db/` 中会进入生产运行路径的 `.ts` 文件，并保留测试目录豁免；增加一个负向测试，证明在生产路径放入 `InMemory*` / `mock*` / `fixture*` 会使 `npm run arch:check` 失败。 | `npm run arch:check`; `npm test`; `git diff --check` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SERVICE-SCAFFOLD-001-S1-F001 | backend | backend-worker | 1 | yes |

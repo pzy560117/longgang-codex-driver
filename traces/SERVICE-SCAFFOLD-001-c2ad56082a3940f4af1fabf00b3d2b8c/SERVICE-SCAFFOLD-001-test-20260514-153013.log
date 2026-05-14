@@ -1,0 +1,31 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (1.5344ms)
+✔ verify matrix marks downstream DB/API/worker work as blocked or planned (0.6007ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (3.5584ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (1.7957ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.5199ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.9686ms)
+✔ OpenAPI operationIds are represented by route manifest entries (2.5594ms)
+✔ 脚手架声明的服务入口脚本存在 (1.152ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.3324ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.2485ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (92.9343ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 970.3437
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'task.json', LF will be replaced by CRLF the next time Git touches it
