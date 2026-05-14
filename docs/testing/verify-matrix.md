@@ -12,6 +12,7 @@
 | 产品真相源 | FR-001 - FR-014 | available | `docs/product/` |
 | 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
 | 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
+| STACK-ADR-001 设计 / 计划基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design / planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
 | OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / needs re-review | `contracts/openapi.yaml` |
 | 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | not-started | 待创建 |
 | MySQL schema / migration | FR-001 - FR-014 | not-started | 待创建 |
@@ -28,7 +29,7 @@
 | --- | --- | --- |
 | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
 | 契约复核 | `contracts/openapi.yaml` lint 或等价命令 | 契约可解析，公开 operation 与需求矩阵一致 |
-| 脚手架架构检查 | `npm run arch:check` 或等价命令 | server / worker / migration / forbidden implementation 检查通过 |
+| 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | API 集成测试 | 待脚手架任务创建 | 公开 route/handler 与 OpenAPI operation 对齐 |
 | DB 集成测试 | 待 DB schema 任务创建 | migration、repository、事务/锁行为可验证 |
 | worker 集成测试 | 待 scheduler 任务创建 | DB polling、抢锁、续租、接管、取消和重试边界可验证 |
@@ -52,9 +53,11 @@
 | FR-012 | API / worker / state-machine | not-started | 待创建取消/重试测试 |
 | FR-013 | API / DB / worker | not-started | 待创建幂等、配置快照、锁租约测试 |
 | FR-014 | sample / pressure / end-to-end | not-started | 待创建采购订单样板与压测证据 |
+| STACK-ADR-001 | design / planned / arch-check | planned | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`npm run arch:check` |
 
 ## 最终规则
 
 - `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。
 - 每个实现任务必须从 `docs/architecture/constraints.md` 复制 `architecture_constraints` 和 `forbidden_implementations`。
 - 没有真实依赖时必须记录 `BLOCKED - 需要人工介入`，不得用测试替身绕过。
+- `STACK-ADR-001` 当前仍是 design / planned 基线；后续 `feature_impl` 不得只靠文档和 `git diff --check` 通过，必须先具备 `npm run arch:check` 所需的入口、路由映射和 migration 证据。

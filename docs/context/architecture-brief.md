@@ -220,3 +220,93 @@
 所有关键动作必须写入审计日志：`CREATE`、`DISPATCH`、`EXECUTE_START`、`EXECUTE_SUCCESS`、`EXECUTE_FAILED`、`CANCEL_REQUEST`、`CANCEL_DONE`、`RETRY_REQUEST`、`DOWNLOAD`、`EXPIRE_MARK`、`CLEANUP_FAILED`。审计字段至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。
 
 执行阶段事件固定为 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。事件必须能通过 `taskId`、`attemptNo`、`requestId`、`queryTemplateVersion`、`datasourceCode` 和 `batchCheckpoint` 串联，作为 FR-010、FR-013 和 FR-014 的证据骨架。
+
+## 14. STACK-ADR-001 技术栈与架构检查
+
+本节是 `STACK-ADR-001` 的落盘约束，用于后续脚手架、实现和验证任务统一对齐。当前阶段只定义独立微服务技术栈、目录边界和架构检查入口，不创建业务实现。
+
+### 14.1 技术栈决策
+
+- 运行时: Node.js 20+
+- 语言: TypeScript
+- HTTP 框架: Fastify
+- MySQL 客户端: Kysely + `mysql2`
+- Migration 工具: Kysely Migrator 或等价 TypeScript migration runner
+- 测试运行器: Vitest
+- 真实 MySQL 集成测试: `testcontainers` 或显式 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- 公共 API truth source: `contracts/openapi.yaml`
+
+### 14.2 生产入口
+
+- `src/server.ts`: HTTP server entry
+- `src/workers/scheduler-worker.ts`: scheduler worker entry
+- `src/jobs/cleanup-job.ts`: cleanup job entry
+- `src/config/`: 配置加载入口
+
+### 14.3 目标目录结构
+
+`STACK-ADR-001` 的目标目录必须显式包含以下路径，后续实现和测试任务应按这些路径拆分 owned paths：
+
+- `src/routes/`
+- `src/task-api/`
+- `src/registry-config/`
+- `src/scheduler/`
+- `src/query-executor/`
+- `src/file-service/`
+- `src/cleanup-job/`
+- `src/audit-log/`
+- `src/repositories/`
+- `src/db/`
+- `migrations/`
+- `scripts/arch-check.ts`
+- `tests/contract/`
+- `tests/api/`
+- `tests/db/`
+- `tests/worker/`
+- `tests/query/`
+- `tests/file/`
+- `tests/sample/`
+
+后续实现任务不得把 owned paths 继续笼统写成仅 `src/` 或仅 `tests/`。`STACK-ADR-001` 的计划任务应在下一轮由 `harness-writer` 或 `planner` 拆分到这些具体模块路径。
+
+### 14.4 架构检查命令
+
+- 标准命令: `npm run arch:check`
+- 目标脚本: `scripts/arch-check.ts`
+
+最低检查项必须覆盖：
+
+1. `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在。
+2. `contracts/openapi.yaml` 的公开 operation 可以映射到 `src/routes/` 下的 route/handler 与测试清单。
+3. 生产入口不得引用 `InMemory*`、mock、fixture。
+4. `migrations/` 必须覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+5. `package.json` scripts 必须包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample`。
+
+### 14.5 部署入口约束
+
+- Dockerfile 或等价镜像入口由后续脚手架任务创建。
+- 镜像入口必须支持通过命令或环境变量选择 `http`、`worker`、`cleanup` 三类启动模式。
+
+### 14.6 后续 owned_paths 约束
+
+`STACK-ADR-001` 后续实现任务应拆成具体模块路径，不应只写笼统目录名。建议拆分方向如下：
+
+- API 相关：`src/routes/`、`src/task-api/`
+- 注册配置相关：`src/registry-config/`
+- 调度相关：`src/scheduler/`、`src/workers/`
+- 查询相关：`src/query-executor/`
+- 文件相关：`src/file-service/`、`src/jobs/`
+- 审计相关：`src/audit-log/`
+- 数据访问相关：`src/repositories/`、`src/db/`
+- 测试相关：`tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`
+
+当前 `task.json` 中的 `SERVICE-SCAFFOLD-001` 仍含笼统 `tests/` 边界；由于本轮强制边界不修改 `task.json`，下一次由 `harness-writer` 或 `planner` 处理计划时，应把它拆成 `tests/contract/`、`tests/api/`、`tests/worker/` 等具体路径，再进入后续实现任务。
+
+### 14.7 Knowledge References
+
+- `DECISION-HARNESS-001` / Harness 从执行闭环扩展为知识闭环 / `docs/knowledge/decisions/DECISION-HARNESS-001.md` / used_in: 为 `STACK-ADR-001` 保留知识引用入口，便于后续归档架构决策
+- `GUIDELINE-RULES-001` / 规则必须短入口、深文档、可验证 / `docs/knowledge/guidelines/GUIDELINE-RULES-001.md` / used_in: 将技术栈、入口和检查命令留在可验证的架构 brief 中
+
+### 14.8 Knowledge Outputs
+
+- none
