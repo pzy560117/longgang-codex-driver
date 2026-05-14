@@ -1,8 +1,0 @@
-﻿At line:1 char:56
-+ powershell -NoProfile -ExecutionPolicy Bypass -Command & { .\verify.p ...
-+                                                        ~
-The ampersand (&) character is not allowed. The & operator is reserved for future use; wrap a
-n ampersand in double quotation marks ("&") to pass it as part of a string.
-    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
-    + FullyQualifiedErrorId : AmpersandNotAllowed
- 
