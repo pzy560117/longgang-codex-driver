@@ -26,7 +26,7 @@
     "test:contract": "node --test tests/contract/*.test.mjs",
     "test:api": "node --import tsx --test tests/api/*.test.mjs",
     "test:db": "node --import tsx --test tests/db/*.test.mjs",
-    "test:worker": "node scripts/planned-test.mjs worker",
+    "test:worker": "node --import tsx --test tests/worker/*.test.mjs",
     "test:query": "node scripts/planned-test.mjs query",
     "test:file": "node scripts/planned-test.mjs file",
     "test:sample": "node scripts/planned-test.mjs sample"

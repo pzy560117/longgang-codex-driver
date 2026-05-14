@@ -213,3 +213,35 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+## [2026-05-14 21:13] - Task: SCHEDULER-WORKER-001 实现 DB polling 调度 worker、抢锁、续租、接管和取消/重试边界
+
+### 完成的工作：
+- Codex 已完成实现，但 Stage 1 审查未通过。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: FAIL - 审查未通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-14 21:24] - Task: SCHEDULER-WORKER-001 实现 DB polling 调度 worker、抢锁、续租、接管和取消/重试边界
+
+### 完成的工作：
+- 手动恢复 driver Stage 1 失败后的 scheduler worker 实现，补齐 DB polling、真实 worker entry、批次 checkpoint/event、审计、批次边界取消、FAILED 重试和 attemptNo 递增。
+- 修复 Stage 1 finding S1-F001：同一 `subsystem_code` 下不同 `taskCode` 的并发抢锁改为锁定 subsystem registry 范围并用锁定读统计 active task，补跨 taskCode 并发测试。
+- 修复 Stage 1 finding S1-F002：为 `export_task_leases` 增加 `previous_lock_owner`，过期接管时保留原 owner 证据，补接管证据断言。
+- 修复 worker 测试真实 MySQL 隔离，避免持久测试库历史 PENDING 任务污染当前 worker 验证。
+
+### 测试结果：
+- `npm run typecheck`、`npm test`、`npm run arch:check`、`npm run test:worker`、`npm run test:db`、`git diff --check` 全部通过。
+- `npm run test:worker` 与 `npm run test:db` 使用真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL=mysql://root:export_platform_test_password@127.0.0.1:33306/export_platform_test`。
+
+### 审查结果：
+- Stage 1: PASS - 已修复前次 Stage 1 findings S1-F001/S1-F002。
+- Stage 2: PASS - 主测试、类型检查、架构检查、worker/db 集成测试均通过，未发现新的阻塞回归。
+
+### 备注：
+- 可继续运行 driver 处理下一个任务。

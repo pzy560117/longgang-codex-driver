@@ -63,6 +63,7 @@ export interface ExportTaskLeasesTable {
   task_id: string;
   attempt_no: number;
   lock_owner: string;
+  previous_lock_owner: string | null;
   lock_expire_at: Date;
   lease_renewed_at: Date;
   database_time: Date;

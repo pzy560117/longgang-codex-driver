@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config/env.ts";
+import { createDatabase } from "../db/index.ts";
+import { createSchedulerWorker } from "../scheduler/worker.ts";
 
 export type SchedulerWorkerRuntime = {
   pollIntervalMs: number;
@@ -16,6 +18,15 @@ export function createSchedulerWorkerRuntime(): SchedulerWorkerRuntime {
 
 export function startSchedulerWorker(): NodeJS.Timeout {
   const runtime = createSchedulerWorkerRuntime();
+  const db = createDatabase();
+  const worker = createSchedulerWorker({
+    db,
+    workerId: process.env.EXPORT_PLATFORM_WORKER_ID ?? `scheduler-${process.pid}`,
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1
+  });
+  let polling = false;
+
   console.log(
     JSON.stringify({
       event: "export-platform.scheduler.started",
@@ -23,7 +34,33 @@ export function startSchedulerWorker(): NodeJS.Timeout {
       leaseModel: runtime.leaseModel
     })
   );
-  return setInterval(() => undefined, runtime.pollIntervalMs);
+  return setInterval(() => {
+    if (polling) {
+      return;
+    }
+    polling = true;
+    worker
+      .pollAndProcessOnce()
+      .then((result) => {
+        console.log(
+          JSON.stringify({
+            event: "export-platform.scheduler.poll",
+            ...result
+          })
+        );
+      })
+      .catch((error: unknown) => {
+        console.error(
+          JSON.stringify({
+            event: "export-platform.scheduler.error",
+            error: error instanceof Error ? error.message : String(error)
+          })
+        );
+      })
+      .finally(() => {
+        polling = false;
+      });
+  }, runtime.pollIntervalMs);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -122,8 +122,8 @@ test("arch:check is declared as the scaffold gate", () => {
 
 test("verify matrix marks API and DB repository boundaries as available while downstream worker work remains blocked", () => {
   assert.match(verifyMatrix, /\|\s*FR-001\s*\|\s*contract \/ API \/ DB\s*\|\s*HTTP handler-service-repository wired \/ requires-real-mysql\s*\|/);
-  assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*DB lease repository available \/ worker blocked-by-next-task\s*\|/);
-  assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*API audit writes wired \/ worker audit pending\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-005\s*\|\s*DB \/ worker\s*\|\s*DB lease repository and worker polling available \/ requires-real-mysql\s*\|/);
+  assert.match(verifyMatrix, /\|\s*FR-010\s*\|\s*audit \/ API \/ worker\s*\|\s*API and worker audit writes wired \/ requires-real-mysql\s*\|/);
   assert.match(verifyMatrix, /\|\s*STACK-ADR-001\s*\|\s*design \/ planned \/ arch-check\s*\|\s*available \/ DB repository boundary added\s*\|/);
 });
 

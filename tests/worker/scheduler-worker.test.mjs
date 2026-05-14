@@ -1,0 +1,404 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import mysql from "mysql2";
+import { Kysely, MysqlDialect, sql } from "kysely";
+import { runMigrations } from "../../src/db/migrator.ts";
+import {
+  createExportAuditRepository,
+  createExportRegistryRepository,
+  createExportTaskRepository,
+  getDatabaseTime
+} from "../../src/repositories/index.ts";
+import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
+
+function getTestDatabaseUrl() {
+  const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
+
+  if (!databaseUrl) {
+    throw new Error(
+      "BLOCKED - 需要人工介入: tests/worker requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+    );
+  }
+
+  return databaseUrl;
+}
+
+test("worker tests require an explicit test database URL", () => {
+  const originalTestDatabaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
+  const originalDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
+
+  delete process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
+  process.env.EXPORT_PLATFORM_DATABASE_URL =
+    "mysql://root:password@127.0.0.1:3306/production_like_database";
+
+  try {
+    assert.throws(
+      () => getTestDatabaseUrl(),
+      /EXPORT_PLATFORM_TEST_DATABASE_URL/
+    );
+  } finally {
+    if (originalTestDatabaseUrl === undefined) {
+      delete process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
+    } else {
+      process.env.EXPORT_PLATFORM_TEST_DATABASE_URL = originalTestDatabaseUrl;
+    }
+
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.EXPORT_PLATFORM_DATABASE_URL;
+    } else {
+      process.env.EXPORT_PLATFORM_DATABASE_URL = originalDatabaseUrl;
+    }
+  }
+});
+
+async function createTestDatabase(t) {
+  const pool = mysql.createPool(getTestDatabaseUrl());
+  const db = new Kysely({
+    dialect: new MysqlDialect({ pool })
+  });
+
+  t.after(async () => {
+    await db.destroy();
+  });
+
+  await runMigrations(db);
+  await db.deleteFrom("export_task_events").execute();
+  await db.deleteFrom("export_task_checkpoints").execute();
+  await db.deleteFrom("export_task_files").execute();
+  await db.deleteFrom("export_task_leases").execute();
+  await db.deleteFrom("export_audit_logs").execute();
+  await db.deleteFrom("export_task_idempotency").execute();
+  await db.deleteFrom("export_tasks").execute();
+  await db.deleteFrom("export_registry_versions").execute();
+  await db.deleteFrom("export_registries").execute();
+  return db;
+}
+
+async function seedRegistry(db, overrides = {}) {
+  const now = await getDatabaseTime(db);
+  const runId = overrides.runId ?? `${Date.now()}-${process.pid}-${Math.random()}`;
+  const taskCode = overrides.taskCode ?? `purchase-order-export-${runId}`;
+  const subsystemCode = overrides.subsystemCode ?? `purchase-${runId}`;
+
+  await createExportRegistryRepository(db).upsertRegistry({
+    taskCode,
+    subsystemCode,
+    displayName: "Purchase Order Export",
+    enabled: true,
+    concurrencyLimit: overrides.concurrencyLimit ?? 1,
+    fileRetentionDays: 7,
+    taskHistoryRetentionDays: 30,
+    singleFileMaxRows: 20000,
+    exportMaxRows: 100000,
+    datasourceCode: "purchase-ro",
+    supportedFormats: JSON.stringify(["XLSX"]),
+    parameterSchema: JSON.stringify({ type: "object" }),
+    queryTemplate: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+    fieldMappings: JSON.stringify([{ source: "order_no", target: "Order No" }]),
+    maskingPolicy: JSON.stringify({ fields: [] }),
+    dataScopeTemplate: "tenant_id = :tenantId",
+    cursorField: "order_id",
+    orderBy: "order_id ASC",
+    batchSize: 500,
+    configSnapshotDigest: "sha256:config-v1",
+    parameterSchemaDigest: "sha256:params-v1",
+    fieldMappingDigest: "sha256:fields-v1",
+    maskingPolicyDigest: "sha256:masking-v1",
+    now
+  });
+
+  return { taskCode, subsystemCode, runId };
+}
+
+async function seedTask(db, input) {
+  const now = await getDatabaseTime(db);
+  return createExportTaskRepository(db).createPendingTask({
+    taskId: input.taskId,
+    taskCode: input.taskCode,
+    subsystemCode: input.subsystemCode ?? "purchase",
+    tenantId: "tenant-001",
+    createdBy: "u001",
+    fileFormat: "XLSX",
+    clientRequestId: null,
+    idempotencyScope: null,
+    requestDigest: `sha256:${input.taskId}`,
+    configSnapshotDigest: "sha256:config-v1",
+    now
+  });
+}
+
+function batchResult(lastCursor, processedCount) {
+  return {
+    checkpoint: {
+      lastCursor,
+      processedCount,
+      filePartNo: 1,
+      retryCount: 0,
+      batchSize: 500,
+      batchRowCount: processedCount,
+      backoffMs: 0
+    },
+    outcome: "continue"
+  };
+}
+
+test("multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskA = `exp-worker-${runId}-a`;
+  const taskB = `exp-worker-${runId}-b`;
+
+  await seedTask(db, { taskId: taskA, taskCode, subsystemCode });
+  await seedTask(db, { taskId: taskB, taskCode, subsystemCode });
+
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-100", 100)
+  });
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-200", 200)
+  });
+
+  const [resultA, resultB] = await Promise.all([
+    workerA.pollAndProcessOnce(),
+    workerB.pollAndProcessOnce()
+  ]);
+
+  assert.equal(resultA.dispatched + resultB.dispatched, 1);
+
+  const tasks = await createExportTaskRepository(db).listTasks({
+    taskCode,
+    limit: 10
+  });
+  assert.equal(tasks.filter((task) => task.status === "EXECUTING").length, 1);
+  assert.equal(tasks.filter((task) => task.status === "PENDING").length, 1);
+
+  const executing = tasks.find((task) => task.status === "EXECUTING");
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(
+    executing.taskId
+  );
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", executing.taskId)
+    .where("attempt_no", "=", executing.attemptNo)
+    .executeTakeFirst();
+
+  assert.deepEqual(
+    audits.map((audit) => audit.action),
+    ["DISPATCH", "EXECUTE_START"]
+  );
+  assert.equal(audits.every((audit) => audit.requestId === "scheduler:worker-a" || audit.requestId === "scheduler:worker-b"), true);
+  assert.ok([100, 200].includes(Number(checkpoint.processed_count)));
+});
+
+test("subsystem concurrency limit is enforced across different task codes", async (t) => {
+  const db = await createTestDatabase(t);
+  const runId = `${Date.now()}-${process.pid}-${Math.random()}`;
+  const subsystemCode = `purchase-shared-${runId}`;
+  const firstTaskCode = `purchase-order-export-a-${runId}`;
+  const secondTaskCode = `purchase-order-export-b-${runId}`;
+
+  await seedRegistry(db, {
+    runId,
+    taskCode: firstTaskCode,
+    subsystemCode,
+    concurrencyLimit: 1
+  });
+  await seedRegistry(db, {
+    runId,
+    taskCode: secondTaskCode,
+    subsystemCode,
+    concurrencyLimit: 1
+  });
+  await seedTask(db, {
+    taskId: `exp-worker-${runId}-cross-a`,
+    taskCode: firstTaskCode,
+    subsystemCode
+  });
+  await seedTask(db, {
+    taskId: `exp-worker-${runId}-cross-b`,
+    taskCode: secondTaskCode,
+    subsystemCode
+  });
+
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-cross-a", 100)
+  });
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-cross-b", 200)
+  });
+
+  const [resultA, resultB] = await Promise.all([
+    workerA.pollAndProcessOnce(),
+    workerB.pollAndProcessOnce()
+  ]);
+  const tasks = await createExportTaskRepository(db).listTasks({
+    subsystemCode,
+    limit: 10
+  });
+
+  assert.equal(resultA.dispatched + resultB.dispatched, 1);
+  assert.equal(tasks.filter((task) => task.status === "EXECUTING").length, 1);
+  assert.equal(tasks.filter((task) => task.status === "PENDING").length, 1);
+});
+
+test("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${runId}-takeover`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const workerA = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 1,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-100", 100)
+  });
+
+  await workerA.pollAndProcessOnce();
+  await db
+    .updateTable("export_tasks")
+    .set({
+      lock_expire_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .execute();
+
+  let resumedCheckpoint;
+  const workerB = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async ({ checkpoint }) => {
+      resumedCheckpoint = checkpoint;
+      return batchResult("order-200", 200);
+    }
+  });
+
+  const result = await workerB.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const leaseEvidence = await db
+    .selectFrom("export_task_leases")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+
+  assert.equal(result.dispatched, 1);
+  assert.equal(task.attemptNo, 0);
+  assert.equal(task.lockOwner, "worker-b");
+  assert.equal(leaseEvidence.previous_lock_owner, "worker-a");
+  assert.equal(resumedCheckpoint.lastCursor, "order-100");
+});
+
+test("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${runId}-cancel`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async ({ task, lease }) => {
+      const now = await getDatabaseTime(db);
+      await createExportAuditRepository(db).appendAuditLog({
+        auditId: `audit-cancel-${runId}`,
+        taskId: task.taskId,
+        attemptNo: lease.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode,
+        operatorId: task.createdBy,
+        action: "CANCEL_REQUEST",
+        result: "ACCEPTED",
+        errorCode: "SUCCESS",
+        requestId: "req-cancel-001",
+        occurredAt: now,
+        now
+      });
+      return batchResult("order-100", 100);
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(result.canceled, 1);
+  assert.equal(task.status, "CANCELED");
+  assert.equal(task.lockOwner, null);
+  assert.deepEqual(
+    [...audits.map((audit) => audit.action)].sort(),
+    ["CANCEL_DONE", "CANCEL_REQUEST", "DISPATCH", "EXECUTE_START"]
+  );
+});
+
+test("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${runId}-retry`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  const repository = createExportTaskRepository(db);
+
+  assert.equal(await repository.retryFailedTask({ taskId, now: await getDatabaseTime(db) }), undefined);
+
+  const failingWorker = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => {
+      throw new Error("query failed");
+    }
+  });
+
+  const failedResult = await failingWorker.pollAndProcessOnce();
+  const failed = await repository.findTaskById(taskId);
+  assert.equal(failedResult.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.equal(failed.attemptNo, 0);
+
+  const retried = await repository.retryFailedTask({
+    taskId,
+    now: await getDatabaseTime(db)
+  });
+
+  assert.equal(retried.status, "PENDING");
+  assert.equal(retried.attemptNo, 1);
+
+  const retryWorker = createSchedulerWorker({
+    db,
+    workerId: "worker-b",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-retry", 50)
+  });
+
+  const retryResult = await retryWorker.pollAndProcessOnce();
+  const executing = await repository.findTaskById(taskId);
+
+  assert.equal(retryResult.dispatched, 1);
+  assert.equal(executing.status, "EXECUTING");
+  assert.equal(executing.attemptNo, 1);
+  assert.equal(executing.lockOwner, "worker-b");
+});

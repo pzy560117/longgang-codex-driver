@@ -523,7 +523,7 @@
                       "dependencies":  [
                                            "TASK-API-HTTP-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "调度方式为 MySQL 轮询 + DB 抢锁",
                                                        "锁时间以数据库时间为准",

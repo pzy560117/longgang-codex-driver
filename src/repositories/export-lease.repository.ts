@@ -18,6 +18,7 @@ export type ExportTaskLeaseRecord = {
   taskId: string;
   attemptNo: number;
   lockOwner: string;
+  previousLockOwner: string | null;
   lockExpireAt: Date;
   leaseRenewedAt: Date;
   databaseTime: Date;
@@ -28,6 +29,7 @@ function toLeaseRecord(row: {
   task_id: string;
   attempt_no: number;
   lock_owner: string;
+  previous_lock_owner: string | null;
   lock_expire_at: Date;
   lease_renewed_at: Date;
   database_time: Date;
@@ -37,6 +39,7 @@ function toLeaseRecord(row: {
     taskId: row.task_id,
     attemptNo: row.attempt_no,
     lockOwner: row.lock_owner,
+    previousLockOwner: row.previous_lock_owner,
     lockExpireAt: row.lock_expire_at,
     leaseRenewedAt: row.lease_renewed_at,
     databaseTime: row.database_time,
@@ -53,7 +56,7 @@ export function createLeaseRepository(db: Kysely<ExportPlatformDatabase>) {
         const databaseTime = await getTransactionDatabaseTime(trx);
         const task = await trx
           .selectFrom("export_tasks")
-          .select(["attempt_no", "status", "lock_expire_at"])
+          .select(["attempt_no", "status", "lock_owner", "lock_expire_at"])
           .where("task_id", "=", input.taskId)
           .where((eb) =>
             eb.or([
@@ -92,6 +95,7 @@ export function createLeaseRepository(db: Kysely<ExportPlatformDatabase>) {
             task_id: input.taskId,
             attempt_no: task.attempt_no,
             lock_owner: input.lockOwner,
+            previous_lock_owner: task.lock_owner,
             lock_expire_at: lockExpireAt,
             lease_renewed_at: databaseTime,
             database_time: databaseTime,
@@ -101,6 +105,7 @@ export function createLeaseRepository(db: Kysely<ExportPlatformDatabase>) {
           })
           .onDuplicateKeyUpdate({
             lock_owner: input.lockOwner,
+            previous_lock_owner: task.lock_owner,
             lock_expire_at: lockExpireAt,
             lease_renewed_at: databaseTime,
             database_time: databaseTime,
