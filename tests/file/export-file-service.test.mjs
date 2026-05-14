@@ -14,6 +14,7 @@ import {
   createExportFileService,
   createObjectStorageFromEnv
 } from "../../src/file-service/index.ts";
+import { createCleanupJob } from "../../src/cleanup-job/index.ts";
 import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
 
 function getTestDatabaseUrl() {
@@ -172,10 +173,12 @@ function createRecordingStorage(options = {}) {
   const objects = new Map();
   const writes = [];
   const publishes = [];
+  const deletes = [];
 
   return {
     writes,
     publishes,
+    deletes,
     async putObject(input) {
       writes.push(input);
       objects.set(input.storageKey, Buffer.from(input.body));
@@ -194,6 +197,13 @@ function createRecordingStorage(options = {}) {
         throw new Error(`missing temp object ${input.tempStorageKey}`);
       }
       objects.set(input.publishedStorageKey, Buffer.from(object));
+    },
+    async deleteObject(storageKey) {
+      deletes.push(storageKey);
+      if (options.deleteError) {
+        throw options.deleteError;
+      }
+      objects.delete(storageKey);
     },
     async createDownloadUrl(storageKey) {
       return `signed://download/${storageKey}`;
@@ -307,4 +317,172 @@ test("scheduler publishes file metadata before marking a completed batch as COMP
   assert.equal(metadata.publishedStorageKey.includes(task.taskId), true);
   assert.equal(storage.publishes.length, 1);
   assert.equal(registry.taskCode, task.taskCode);
+});
+
+test("cleanup job invalidates expired metadata before deleting object and download is guarded", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createRecordingStorage();
+  const fileService = createExportFileService({ db, storage });
+  const published = await fileService.publishRows({
+    task,
+    registry,
+    attemptNo: 0,
+    requestId: "req-cleanup-publish",
+    rows: [{ "Order No": "PO-001" }]
+  });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId: task.taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId: task.taskId,
+    attemptNo: 0,
+    fileName: published.fileName,
+    contentType: published.contentType,
+    fileSize: published.fileSize,
+    checksum: published.checksum,
+    checksumAlgorithm: published.checksumAlgorithm,
+    tempStorageKey: `tmp/${task.taskId}`,
+    publishedStorageKey: published.storageKey,
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const cleanupJob = createCleanupJob({
+    db,
+    storage,
+    workerId: "cleanup-test"
+  });
+
+  await cleanupJob.pollOnce();
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata.deliveryReadyAt, null);
+  assert.equal(metadata.publishedAt, null);
+  assert.equal(metadata.checksumVerifiedAt, null);
+  assert.equal(metadata.publishedStorageKey, null);
+  assert.equal(metadata.tempStorageKey, null);
+  assert.deepEqual(storage.deletes, [published.storageKey, `tmp/${task.taskId}`]);
+});
+
+test("cleanup job deletes only published object when temp storage key is null", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createRecordingStorage();
+  const fileService = createExportFileService({ db, storage });
+  const published = await fileService.publishRows({
+    task,
+    registry,
+    attemptNo: 0,
+    requestId: "req-cleanup-publish-no-temp",
+    rows: [{ "Order No": "PO-001" }]
+  });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId: task.taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId: task.taskId,
+    attemptNo: 0,
+    fileName: published.fileName,
+    contentType: published.contentType,
+    fileSize: published.fileSize,
+    checksum: published.checksum,
+    checksumAlgorithm: published.checksumAlgorithm,
+    tempStorageKey: null,
+    publishedStorageKey: published.storageKey,
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const cleanupJob = createCleanupJob({
+    db,
+    storage,
+    workerId: "cleanup-test"
+  });
+
+  await cleanupJob.pollOnce();
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata.publishedStorageKey, null);
+  assert.equal(metadata.tempStorageKey, null);
+  assert.deepEqual(storage.deletes, [published.storageKey]);
+});
+
+test("cleanup job keeps retry evidence when object delete fails and leaves download invalidated", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createRecordingStorage({
+    deleteError: new Error("object storage delete failed")
+  });
+  const fileService = createExportFileService({ db, storage });
+  const published = await fileService.publishRows({
+    task,
+    registry,
+    attemptNo: 0,
+    requestId: "req-cleanup-retry-publish",
+    rows: [{ "Order No": "PO-001" }]
+  });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId: task.taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId: task.taskId,
+    attemptNo: 0,
+    fileName: published.fileName,
+    contentType: published.contentType,
+    fileSize: published.fileSize,
+    checksum: published.checksum,
+    checksumAlgorithm: published.checksumAlgorithm,
+    tempStorageKey: `tmp/${task.taskId}`,
+    publishedStorageKey: published.storageKey,
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const cleanupJob = createCleanupJob({
+    db,
+    storage,
+    workerId: "cleanup-test"
+  });
+
+  await cleanupJob.pollOnce();
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata.deliveryReadyAt, null);
+  assert.equal(metadata.publishedAt, null);
+  assert.equal(metadata.checksumVerifiedAt, null);
+  assert.equal(metadata.publishedStorageKey, published.storageKey);
+  assert.equal(metadata.tempStorageKey, `tmp/${task.taskId}`);
+  assert.deepEqual(storage.deletes, [published.storageKey]);
+
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(task.taskId);
+  assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_RETRY"));
+  assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
 });

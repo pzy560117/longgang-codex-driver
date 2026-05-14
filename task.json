@@ -787,7 +787,7 @@
                       "dependencies":  [
                                            "FILE-SERVICE-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "cleanup 必须作为 scheduled job entry 运行",
                                                        "过期文件必须先失效元信息，再删除对象，并记录失败重试证据",

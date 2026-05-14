@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config/env.ts";
+import { createDatabase } from "../db/index.ts";
+import { createCleanupJob } from "../cleanup-job/index.ts";
 
 export type CleanupJobRuntime = {
   pollIntervalMs: number;
@@ -16,6 +18,13 @@ export function createCleanupJobRuntime(): CleanupJobRuntime {
 
 export function startCleanupJob(): NodeJS.Timeout {
   const runtime = createCleanupJobRuntime();
+  const db = createDatabase();
+  const job = createCleanupJob({
+    db,
+    workerId: process.env.EXPORT_PLATFORM_CLEANUP_WORKER_ID ?? `cleanup-${process.pid}`
+  });
+  let polling = false;
+
   console.log(
     JSON.stringify({
       event: "export-platform.cleanup.started",
@@ -23,7 +32,38 @@ export function startCleanupJob(): NodeJS.Timeout {
       cleanupOrder: runtime.cleanupOrder
     })
   );
-  return setInterval(() => undefined, runtime.pollIntervalMs);
+
+  const poll = () => {
+    if (polling) {
+      return;
+    }
+
+    polling = true;
+    job
+      .pollOnce()
+      .then((result) => {
+        console.log(
+          JSON.stringify({
+            event: "export-platform.cleanup.poll",
+            ...result
+          })
+        );
+      })
+      .catch((error: unknown) => {
+        console.error(
+          JSON.stringify({
+            event: "export-platform.cleanup.error",
+            error: error instanceof Error ? error.message : String(error)
+          })
+        );
+      })
+      .finally(() => {
+        polling = false;
+      });
+  };
+
+  poll();
+  return setInterval(poll, runtime.pollIntervalMs);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

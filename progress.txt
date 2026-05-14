@@ -166,6 +166,26 @@
 
 ### 备注：
 - Codex 输出包含失败或 BLOCKED，请人工查看。
+## [2026-05-15 00:16] - Task: CLEANUP-JOB-001 实现 cleanup job entry、先失效后删除和失败重试记录
+
+### 完成的工作：
+- 新增 `src/cleanup-job/index.ts`，实现 cleanup job `pollOnce()`、过期已发布文件扫描、元信息失效、对象删除、完成/重试事件和 cleanup 审计。
+- 将 `src/jobs/cleanup-job.ts` 串接真实 DB、cleanup job entry 和定时轮询，保留对象存储配置缺失时的 `BLOCKED - 需要人工介入` 行为。
+- 扩展 file repository，支持过期候选扫描、下载元信息失效和对象删除落库；补齐 file/worker 集成测试和验证矩阵。
+
+### 测试结果：
+- `npm run typecheck` 通过。
+- `npm run arch:check` 通过。
+- `npm run test:file` 使用真实 MySQL 通过，8/8。
+- `npm run test:worker` 使用真实 MySQL 通过，8/8。
+- `npm run test:db` 使用真实 MySQL 通过，3/3。
+- 任务验证命令 `.\verify.ps1 -Commands "npm run typecheck","npm run arch:check","npm run test:file","npm run test:worker","npm run test:db","git diff --check -- task.json plans docs/testing/verify-matrix.md"` 通过。
+
+### 审查结果：
+- 主控验证覆盖 cleanup job 生产入口、先失效后删除、tempStorageKey 为空、删除失败重试、task event 和 audit evidence；未使用内存 repository 或本地假路径作为生产完成证据。
+
+### 备注：
+- `CLEANUP-JOB-001` 已标记为通过；后续 ready task 为 `SAMPLE-PURCHASE-ORDER-001`。
 ## [2026-05-14 22:45] - Task: QUERY-EXECUTOR-001 实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点
 
 ### 完成的工作：
@@ -347,3 +367,17 @@
 
 ### 备注：
 - `FILE-SERVICE-001` 已标记为通过；后续 ready task 为 `CLEANUP-JOB-001`。
+## [2026-05-15 00:07] - Task: CLEANUP-JOB-001 实现 cleanup job entry、先失效后删除和失败重试记录
+
+### 完成的工作：
+- Codex 会话未完成。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 未进入 Stage 1 审查。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- Codex 输出包含失败或 BLOCKED，请人工查看。

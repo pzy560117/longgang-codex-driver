@@ -5,11 +5,14 @@ import { Kysely, MysqlDialect, sql } from "kysely";
 import { runMigrations } from "../../src/db/migrator.ts";
 import {
   createExportAuditRepository,
+  createExportFileRepository,
   createExportRegistryRepository,
+  createExportTaskEventRepository,
   createExportTaskRepository,
   getDatabaseTime
 } from "../../src/repositories/index.ts";
 import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
+import { createCleanupJob } from "../../src/cleanup-job/index.ts";
 
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
@@ -415,4 +418,112 @@ test("failed execution is retried only after FAILED and increments attemptNo bef
   assert.equal(executing.status, "EXECUTING");
   assert.equal(executing.attemptNo, 1);
   assert.equal(executing.lockOwner, "worker-b");
+});
+
+test("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = "cleanup-success-01";
+  const task = await seedTask(db, { taskId, taskCode, subsystemCode });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId,
+    attemptNo: 0,
+    fileName: "cleanup.xlsx",
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    fileSize: 1024,
+    checksum: "sha256:cleanup",
+    checksumAlgorithm: "SHA-256",
+    tempStorageKey: "exports/tmp/cleanup.xlsx",
+    publishedStorageKey: "exports/published/cleanup.xlsx",
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const deletes = [];
+  const cleanupJob = createCleanupJob({
+    db,
+    workerId: "cleanup-worker",
+    storage: {
+      async deleteObject(storageKey) {
+        deletes.push(storageKey);
+      }
+    }
+  });
+
+  const result = await cleanupJob.pollOnce();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+
+  assert.equal(result.scanned, 1);
+  assert.equal(result.deleted, 1);
+  assert.equal(result.retried, 0);
+  assert.deepEqual(deletes, ["exports/published/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
+  assert.ok(audits.some((audit) => audit.action === "CLEANUP_DELETE" && audit.result === "SUCCESS"));
+  assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
+  assert.equal(task.taskCode, taskCode);
+});
+
+test("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = "cleanup-failed-01";
+
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId,
+    attemptNo: 0,
+    fileName: "cleanup.xlsx",
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    fileSize: 1024,
+    checksum: "sha256:cleanup",
+    checksumAlgorithm: "SHA-256",
+    tempStorageKey: "exports/tmp/cleanup.xlsx",
+    publishedStorageKey: "exports/published/cleanup.xlsx",
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const cleanupJob = createCleanupJob({
+    db,
+    workerId: "cleanup-worker",
+    storage: {
+      async deleteObject() {
+        throw new Error("delete failed");
+      }
+    }
+  });
+
+  const result = await cleanupJob.pollOnce();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+  const metadata = await createExportFileRepository(db).findFileMetadata(taskId, 0);
+
+  assert.equal(result.scanned, 1);
+  assert.equal(result.deleted, 0);
+  assert.equal(result.retried, 1);
+  assert.ok(audits.some((audit) => audit.action === "CLEANUP_DELETE" && audit.result === "FAILED"));
+  assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_RETRY"));
+  assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
+  assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");
+  assert.equal(metadata.tempStorageKey, "exports/tmp/cleanup.xlsx");
 });

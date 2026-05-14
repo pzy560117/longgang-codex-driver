@@ -20,6 +20,18 @@ export type SaveFileMetadataInput = {
 
 export type FileMetadataRecord = Omit<SaveFileMetadataInput, "now">;
 
+export type ExpiredFileCleanupCandidate = {
+  taskId: string;
+  attemptNo: number;
+  taskCode: string;
+  subsystemCode: string;
+  operatorId: string;
+  fileName: string;
+  publishedStorageKey: string;
+  tempStorageKey: string | null;
+  expiresAt: Date;
+};
+
 function toFileMetadataRecord(row: {
   task_id: string;
   attempt_no: number;
@@ -103,6 +115,80 @@ export function createExportFileRepository(db: Kysely<ExportPlatformDatabase>) {
         .executeTakeFirst();
 
       return row ? toFileMetadataRecord(row) : undefined;
+    },
+
+    async listExpiredPublishedFiles(input: {
+      now: Date;
+      limit: number;
+    }): Promise<ExpiredFileCleanupCandidate[]> {
+      const rows = await db
+        .selectFrom("export_task_files as f")
+        .innerJoin("export_tasks as t", "t.task_id", "f.task_id")
+        .select([
+          "f.task_id",
+          "f.attempt_no",
+          "t.task_code",
+          "t.subsystem_code",
+          "t.created_by",
+          "f.file_name",
+          "f.published_storage_key",
+          "f.temp_storage_key",
+          "f.expires_at"
+        ])
+        .where("t.status", "=", "COMPLETED")
+        .where("f.expires_at", "<=", input.now)
+        .where("f.published_storage_key", "is not", null)
+        .orderBy("f.expires_at", "asc")
+        .orderBy("f.task_id", "asc")
+        .limit(input.limit)
+        .execute();
+
+      return rows.map((row) => ({
+        taskId: row.task_id,
+        attemptNo: row.attempt_no,
+        taskCode: row.task_code,
+        subsystemCode: row.subsystem_code,
+        operatorId: row.created_by,
+        fileName: row.file_name,
+        publishedStorageKey: String(row.published_storage_key),
+        tempStorageKey: row.temp_storage_key,
+        expiresAt: row.expires_at
+      }));
+    },
+
+    async invalidateDownloadMetadata(input: {
+      taskId: string;
+      attemptNo: number;
+      now: Date;
+    }): Promise<void> {
+      await db
+        .updateTable("export_task_files")
+        .set({
+          published_at: null,
+          delivery_ready_at: null,
+          checksum_verified_at: null,
+          updated_at: input.now
+        })
+        .where("task_id", "=", input.taskId)
+        .where("attempt_no", "=", input.attemptNo)
+        .execute();
+    },
+
+    async markObjectDeleted(input: {
+      taskId: string;
+      attemptNo: number;
+      now: Date;
+    }): Promise<void> {
+      await db
+        .updateTable("export_task_files")
+        .set({
+          temp_storage_key: null,
+          published_storage_key: null,
+          updated_at: input.now
+        })
+        .where("task_id", "=", input.taskId)
+        .where("attempt_no", "=", input.attemptNo)
+        .execute();
     }
   };
 }

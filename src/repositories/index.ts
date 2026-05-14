@@ -12,7 +12,11 @@ export type {
   CheckpointRecord,
   SaveCheckpointInput
 } from "./export-checkpoint.repository.ts";
-export type { FileMetadataRecord, SaveFileMetadataInput } from "./export-file.repository.ts";
+export type {
+  ExpiredFileCleanupCandidate,
+  FileMetadataRecord,
+  SaveFileMetadataInput
+} from "./export-file.repository.ts";
 export type {
   AcquirePendingTaskLeaseInput,
   ExportTaskLeaseRecord
