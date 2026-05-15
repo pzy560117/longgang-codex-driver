@@ -223,6 +223,8 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+
+
 ## [2026-05-14 19:50] - Task: TASK-API-HTTP-001 实现任务与注册配置 HTTP API、handler、service 和 DB repository 串联
 
 ### 完成的工作：
@@ -1079,3 +1081,21 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+
+## [2026-05-15 12:01] - Task: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+### 完成的工作：
+- 已按 runtime driver 执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1`。
+- driver 返回：全部任务已完成或没有依赖满足的任务。
+- 已核对 `task.json`：`RELEASE-001` 仍为 `passes:false`，并依赖人工外部哨兵 `REAL-RELEASE-ENV-READY`。
+
+### 测试结果：
+- 未运行 release 验证；当前任务依赖未满足。
+- 环境检查显示 `EXPORT_PLATFORM_TEST_DATABASE_URL`、live object storage endpoint / bucket / credential、`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES` 均未设置。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 当前没有依赖满足的 release 任务可进入审查。
+- Stage 2: NOT_RUN - 当前没有依赖满足的 release 任务可进入审查。
+
+### 备注：
+- BLOCKED - 需要人工介入：需先确认真实 MySQL 与 live object storage release 环境就绪，再解除 `REAL-RELEASE-ENV-READY` 哨兵并重新运行 driver。
