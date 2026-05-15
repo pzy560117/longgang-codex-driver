@@ -1145,7 +1145,7 @@
                                     },
                       "steps":  [
                                     "提供 release:local-rehearsal 命令入口，支持连接本地 MySQL 并可启动本地 object storage mock",
-                                    "运行接近 release 的 API、DB、worker、query、file 和 sample 集成命令，必要时跳过 live object-storage smoke 并保留 release 阻塞口径",
+                                    "运行接近 release 的 `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file` 和 `npm run test:sample` 集成命令，必要时跳过 live object-storage smoke 并保留 release 阻塞口径",
                                     "把 rehearsal 结果明确标记为 mock/local rehearsal evidence，不能替代 RELEASE-001 的 docker/mock release gate"
                                 ],
                       "test_command":  "npm run release:local-rehearsal",
@@ -1153,6 +1153,81 @@
                                          "FR-001 至 FR-014 均可通过本地 rehearsal 命令先压通 API、DB、worker、query、file 和 sample 链路，或明确输出 BLOCKED",
                                          "结论必须明确不是 RELEASE-001 PASS 证据，且不得替代 RELEASE-001 的 docker/mock release gate",
                                          "local rehearsal 不直接决定 RELEASE-001 状态，RELEASE-001 通过状态以后续 docker/mock release gate 验证、review 和 commit gate 为准"
+                                     ]
+                  },
+                  {
+                      "id":  "TEST-PRACTICE-MATRIX-001",
+                      "description":  "补齐测试实践到 task 的显式映射，防止 test 脚本、任务 test_command 和验证矩阵漂移",
+                      "task_kind":  "feature_impl",
+                      "phase":  "test-practice-governance",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  89.7,
+                      "dependencies":  [
+                                           "LOCAL-RELEASE-REHEARSAL-001"
+                                       ],
+                      "passes":  true,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "测试实践必须显式映射到 task id、package script、需求范围、依赖形态和 evidence 边界",
+                                                       "mock/local/docker/live evidence 必须在文档和守护测试中区分，不能互相替代",
+                                                       "新增或改名 test script 时必须同步 task.json、verify-matrix 和守护测试"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只有 package.json test script 而没有 task 归属",
+                                                        "禁止只有 task test_command 而没有测试实践矩阵",
+                                                        "禁止把 mock-local、local rehearsal、docker/mock release 或外部 live 验证混写成同一种 evidence",
+                                                        "禁止用 RELEASE-001 总门禁掩盖单项测试实践缺口"
+                                                    ],
+                      "context_files":  [
+                                            "package.json",
+                                            "task.json",
+                                            "docs/testing/verify-matrix.md",
+                                            "tests/mock-local/"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "docs/testing/verify-matrix.md",
+                                          "tests/mock-local/test-practice-matrix.test.mjs"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docs/testing/verify-matrix.md",
+                                                 "tests/mock-local/test-practice-matrix.test.mjs"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "在 verify-matrix 中建立测试实践、package script、task id、需求范围、依赖形态和 evidence 边界的映射表",
+                                    "新增守护测试，校验 package scripts、task test_command 和测试实践矩阵保持一致",
+                                    "确认 RELEASE-001 依赖测试实践矩阵任务，避免总门禁绕过单项测试实践归属"
+                                ],
+                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing/verify-matrix.md tests/mock-local/test-practice-matrix.test.mjs",
+                      "acceptance":  [
+                                         "每个关键 test script 都有明确 task id 归属和 evidence 边界",
+                                         "verify-matrix 记录 mock/local/docker/live 依赖形态，且不把本地替身冒充外部 live 证据",
+                                         "守护测试会在 test script、task test_command 或文档映射漂移时失败"
                                      ]
                   },
                   {
@@ -1172,7 +1247,8 @@
                                            "SAMPLE-PURCHASE-ORDER-001",
                                            "MOCK-FIRST-001",
                                            "MOCK-INTEGRATION-001",
-                                           "LOCAL-RELEASE-REHEARSAL-001"
+                                           "LOCAL-RELEASE-REHEARSAL-001",
+                                           "TEST-PRACTICE-MATRIX-001"
                                        ],
                       "passes":  true,
                       "local_release_environment_notes":  [
