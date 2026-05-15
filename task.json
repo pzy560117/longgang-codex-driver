@@ -989,6 +989,89 @@
                                      ]
                   },
                   {
+                      "id":  "MOCK-INTEGRATION-001",
+                      "description":  "执行 mock-first local/dev integration acceptance，覆盖 FR-001 至 FR-014 主流程、失败态与证据归档，并明确其不替代 release 或真实依赖证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "mock-first-integration",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  89,
+                      "dependencies":  [
+                                           "MOCK-FIRST-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "mock-first local/dev integration acceptance 只能产出本地联调与归档证据，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "验收必须覆盖 FR-001 至 FR-014 的本地主流程、失败态演练和证据归档口径，并保持生产入口与生产路径架构检查可执行",
+                                                       "真实依赖缺失时不得把 local/dev 结果回写为 release 通过，RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 mock-first local/dev integration acceptance 写成 RELEASE-001 PASS 证据",
+                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充真实 MySQL 或 live OSS/S3 集成证据",
+                                                        "禁止移除 REAL-RELEASE-ENV-READY 或修改 RELEASE-001.passes",
+                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/mock-first-release-plan.md",
+                                            "docs/testing/mock-first-acceptance.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "tests/mock-local/",
+                                          "docs/testing/mock-first-acceptance.md",
+                                          "docs/testing/mock-first-release-plan.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "task.json",
+                                          "package.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "tests/mock-local/",
+                                                 "docs/testing/mock-first-acceptance.md",
+                                                 "docs/testing/mock-first-release-plan.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "执行 mock-first 本地集成验收命令，覆盖 arch check、mock-local、基础单测和 scoped diff 检查，并归档 local/dev evidence",
+                                    "按 FR-001 至 FR-014 记录 local/dev 主流程、失败态演练、对象存储本地协议链路和不接真实 MySQL 或 live object storage 的边界",
+                                    "把验收范围、失败态和 release 边界同步到 mock-first-acceptance、mock-first-release-plan 和 verify-matrix，明确其不替代 RELEASE-001 或真实依赖验证"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "FR-001 至 FR-014 均有 mock-first local/dev integration acceptance 映射，覆盖主流程、失败态和证据归档口径",
+                                         "结论必须明确不是 release evidence，且不得替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据",
+                                         "RELEASE-001 仍保持 passes:false，REAL-RELEASE-ENV-READY 仍保留为 release 外部哨兵依赖"
+                                     ]
+                  },
+                  {
                       "id":  "RELEASE-001",
                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
                       "task_kind":  "release",
@@ -1004,6 +1087,7 @@
                       "dependencies":  [
                                            "SAMPLE-PURCHASE-ORDER-001",
                                            "MOCK-FIRST-001",
+                                           "MOCK-INTEGRATION-001",
                                            "REAL-RELEASE-ENV-READY"
                                        ],
                       "passes":  false,

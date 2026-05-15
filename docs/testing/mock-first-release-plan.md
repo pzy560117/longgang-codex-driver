@@ -9,6 +9,7 @@
 ## 当前结论
 
 - `MOCK-FIRST-001` 已完成，mock-first 当前阶段只保留 local/dev evidence 结论，不再继续推动 release 自动队列。
+- `MOCK-INTEGRATION-001` 是 mock-first 后续的本地联调验收任务，用于补齐 FR-001 至 FR-014 的主流程、失败态和证据归档，不产出 release evidence。
 - `RELEASE-001` 当前最新状态是 `BLOCKED`。
 - `RELEASE-001` 现被外部哨兵依赖 `REAL-RELEASE-ENV-READY` 挂起；在人工确认真实 release 依赖就绪前，它不应继续被 stop hook 或续跑逻辑视为当前可自动运行任务。
 - 已通过的基础 gate 包括 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`Redocly OpenAPI lint`。
@@ -18,6 +19,7 @@
 ## 队列边界
 
 - mock-first 是当前已完成的先行阶段；它的职责是产出 local/dev evidence，并明确哪些 release 证据仍依赖真实环境。
+- `MOCK-INTEGRATION-001` 依赖 `MOCK-FIRST-001`，是 release 前的本地验收归档任务；driver 应先执行它，再考虑 `RELEASE-001`。
 - `REAL-RELEASE-ENV-READY` 是 `RELEASE-001` 的外部哨兵依赖，表示以下条件均已由人工配置并确认：
   - 真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 已可用于 release gate。
   - live object storage 的 endpoint、bucket、credential 已配置完成。
@@ -29,12 +31,15 @@
 
 - mock-first 只用于本地开发、联调和失败态演练。
 - mock-first 可以使用本地 HTTP object storage adapter、fixture seed、受控 fake 外部数据源。
+- `MOCK-INTEGRATION-001` 只补充本地集成验收与证据归档，不补充真实环境 release gate。
 - mock-first 不得作为 `RELEASE-001` PASS 证据。
 - mock-first 不得替代 live OSS/S3 证据。
 - mock-first 不得替代真实 MySQL 证据。
 - mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
 
 ## mock-first local/dev evidence 映射
+
+`MOCK-FIRST-001` 负责建立 local/dev evidence 基线；`MOCK-INTEGRATION-001` 负责把以下 FR-001 至 FR-014 的主流程、失败态和证据归档同步到本地验收文档 `docs/testing/mock-first-acceptance.md`，并保持其不是 release evidence。
 
 | Req ID | local/dev evidence | 失败态演练 | Release 边界 |
 | --- | --- | --- | --- |
@@ -64,6 +69,7 @@
 ## 证据约束
 
 - mock-first 证据只能标记为 `local/dev evidence`。
+- `MOCK-INTEGRATION-001` 只负责本地验收归档，不能把 local/dev 结果扩写为 release gate 通过。
 - mock-first 证据只能用于说明本地链路、联调用例和失败态，不可覆盖 release gate。
 - mock-first 证据可以作为 FR-001 到 FR-014 的映射索引，但不能替代 API / DB / worker / query / file / sample 集成证据。
 - 若真实依赖缺失，仍必须保留 `BLOCKED - 需要人工介入`。
