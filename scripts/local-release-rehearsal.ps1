@@ -203,7 +203,8 @@ try {
     "npm run test:worker",
     "npm run test:query",
     "npm run test:file",
-    "npm run test:sample"
+    "npm run test:sample",
+    "git diff --check -- task.json package.json scripts tests/mock-local docs/testing progress.txt"
   )
 
   $LiveObjectStorageCommand = "npm run test:object-storage-live"

@@ -26,7 +26,7 @@ const objectStorageLiveSmoke = readFileSync(
 test("local release rehearsal is declared as mock/local evidence without releasing RELEASE-001", () => {
   const rehearsalTask = taskJson.tasks.find((task) => task.id === "LOCAL-RELEASE-REHEARSAL-001");
   assert.ok(rehearsalTask, "LOCAL-RELEASE-REHEARSAL-001 must exist");
-  assert.equal(rehearsalTask.passes, false);
+  assert.equal(rehearsalTask.passes, true);
   assert.deepEqual(rehearsalTask.dependencies, ["MOCK-INTEGRATION-001"]);
   assert.match(rehearsalTask.description, /本地 release rehearsal/u);
   assert.match(rehearsalTask.test_command, /npm run release:local-rehearsal/u);
@@ -58,6 +58,7 @@ test("local release rehearsal script documents local-only preflight and command 
   assert.match(script, /npm run test:query/u);
   assert.match(script, /npm run test:file/u);
   assert.match(script, /npm run test:sample/u);
+  assert.match(script, /git diff --check -- task\.json package\.json scripts tests\/mock-local docs\/testing progress\.txt/u);
   assert.match(script, /npm run test:object-storage-live/u);
   assert.match(script, /mock\/local rehearsal/u);
 });

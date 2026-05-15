@@ -1405,7 +1405,7 @@ function Get-ReviewVerdict {
   #>
   param([string]$Output)
 
-  $matches = [regex]::Matches($Output, '(?im)^[\t ]*(?:[-*][\t ]*)?(?:Final[\t ]+Verdict|Verdict)[\t ]*[:：][\t ]*(PASS|FAIL)\b|^[\t ]*#{1,6}[\t ]*(?:Final[\t ]+)?Verdict[\t ]*(?:\r?\n[\t ]*)+(PASS|FAIL)\b|^[\t ]*[-*][\t ]*(PASS|FAIL)\b')
+  $matches = [regex]::Matches($Output, '(?im)^[\t ]*(?:[-*][\t ]*)?(?:Final[\t ]+Verdict|Verdict)[\t ]*[:：][\t ]*(PASS|FAIL)\b|^[\t ]*#{1,6}[\t ]*(?:Final[\t ]+)?Verdict[\t ]*(?:\r?\n[\t ]*)+(PASS|FAIL)\b')
   if ($matches.Count -gt 0) {
     $lastMatch = $matches[$matches.Count - 1]
     foreach ($group in $lastMatch.Groups) {
@@ -2326,6 +2326,31 @@ function Invoke-OneTask {
   $tracePayload.files_changed = & git -C $ProjectRoot status --short
   $tracePayload.ended_at = (Get-Date).ToString("o")
   $traceFile = Save-Trace -Directory $TracePath -Trace $tracePayload
+
+  $finalOwnershipResult = Test-CommitPathOwnership -Root $ProjectRoot -Task $task -RuntimeAllowedPaths @(
+    $TaskFile,
+    $ProgressFile,
+    "$TraceDir/",
+    "traces/",
+    "artifacts/"
+  ) -NonBlockingDirtyPaths $nonBlockingDirtyPaths
+  if (-not $finalOwnershipResult.Passed) {
+    Write-ProgressEntry -Path $ProgressPath -Task $task -WorkSummary "实现、测试和审查已完成，但最终 commit ownership gate 未通过。" -TestSummary "测试命令通过。" -Notes ("unexpected paths: " + ($finalOwnershipResult.UnexpectedPaths -join ", ")) -Stage1Summary "PASS - 审查通过。" -Stage2Summary "PASS - 审查通过。"
+    Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "unexpected_paths" -Value $finalOwnershipResult.UnexpectedPaths -Force
+    $tracePayload.failed_stage = "final_commit_path_ownership"
+    $tracePayload.status = "failed"
+    Add-Member -InputObject $tracePayload -MemberType NoteProperty -Name "blocked_reason" -Value "最终 changed paths 超出 owned_paths / runtime allowlist" -Force
+    $tracePayload.files_changed = & git -C $ProjectRoot status --short
+    $tracePayload.ended_at = (Get-Date).ToString("o")
+    Save-Trace -Directory $TracePath -Trace $tracePayload | Out-Null
+    Write-Step "FAILED: 最终 commit ownership gate 未通过。"
+    Write-Output ("Unexpected paths: " + ($finalOwnershipResult.UnexpectedPaths -join ", "))
+    return [PSCustomObject]@{
+      Status = "failed"
+      TaskId = $task.id
+      ExitCode = 1
+    }
+  }
 
   $gitAddResult = Invoke-NativeCommandQuiet -Script { & git -C $ProjectRoot add --all }
   if ($gitAddResult.ExitCode -ne 0) {
