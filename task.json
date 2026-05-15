@@ -1004,7 +1004,7 @@
                       "dependencies":  [
                                            "MOCK-FIRST-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "mock-first local/dev integration acceptance 只能产出本地联调与归档证据，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",

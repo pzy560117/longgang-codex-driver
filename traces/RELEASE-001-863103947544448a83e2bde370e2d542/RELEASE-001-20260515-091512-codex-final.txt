@@ -1,0 +1,41 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 执行了 fresh release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 结论：`BLOCKED - 需要人工介入`
+- 阻塞点：`npm run test:api` 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，退出码 `1`
+- 已更新 `docs/testing/verify-matrix.md`，记录本轮 fresh evidence；未把 release 写成 passed
+
+## Files Changed
+- `docs/testing/verify-matrix.md`: 补充本轮 release 验证命令、通过到 OpenAPI lint、API gate blocked、后续 DB/worker/query/file/sample/live object storage 未执行或仍 blocked
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 基础校验通过到 Redocly lint，`npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 失败
+- `git diff --check -- docs/testing/verify-matrix.md`: PASS - 仅有 LF/CRLF warning
+
+## Evidence
+- `docs/testing/verify-matrix.md`: 记录 RELEASE-001 fresh evidence snapshot 和 blocked 归因
+- command output: `npm audit`、`arch:check`、`typecheck`、`test:contract`、`npm test`、Redocly lint 已执行通过；`test:api` blocked
+
+## Architecture Constraints
+- `真实 MySQL release evidence`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `禁止用 mock/local adapter 替代 release gate`: PASS - 本轮未用 mock-first 或旧 trace 冒充通过
+- `API/DB/worker/file/sample 证据一致`: PASS_WITH_BLOCKED - API gate 先阻塞，后续项明确未执行
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - task boundary and documentation update - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `none`: no new reusable knowledge item created or suggested
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`
+- 真实/live object storage release smoke 仍需 endpoint、bucket 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`
+- 按当前 Driver 边界，本轮未执行 `git add` / `git commit` / `git push`

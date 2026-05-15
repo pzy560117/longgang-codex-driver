@@ -37,6 +37,19 @@
 - mock-first 不得替代真实 MySQL 证据。
 - mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
 
+## MOCK-INTEGRATION-001 本地验收结果
+
+本轮状态: accepted / local-dev-only。
+
+| 验收项 | 结果 | Release 边界 |
+| --- | --- | --- |
+| `npm run arch:check` | PASS | 只证明架构检查可执行，不替代真实 MySQL、DB 抢锁或 live object storage release evidence。 |
+| `npm run test:mock-local` | PASS | 只证明 FR-001 至 FR-014 的本地主流程、失败态演练、对象存储本地协议链路和文档边界断言成立。 |
+| `npm test` | PASS | 只证明基础单测与静态文档断言通过，不替代 API / DB / worker / query / file / sample 集成测试。 |
+| scoped `git diff --check` | PASS | 只证明本任务相关文件无空白错误，不证明任何真实依赖已接通。 |
+
+`RELEASE-001` 仍保持 BLOCKED；`REAL-RELEASE-ENV-READY` 仍是外部哨兵依赖。只有人工确认真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 与 live object storage endpoint、bucket、credential、`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 均可用于 release gate 后，才允许恢复 release 验证。
+
 ## mock-first local/dev evidence 映射
 
 `MOCK-FIRST-001` 负责建立 local/dev evidence 基线；`MOCK-INTEGRATION-001` 负责把以下 FR-001 至 FR-014 的主流程、失败态和证据归档同步到本地验收文档 `docs/testing/mock-first-acceptance.md`，并保持其不是 release evidence。

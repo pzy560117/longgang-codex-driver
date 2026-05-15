@@ -1,0 +1,85 @@
+SUCCESS: The process with PID 27420 (child process of PID 13216) has been terminated.
+SUCCESS: The process with PID 13216 (child process of PID 21676) has been terminated.
+SUCCESS: The process with PID 21676 (child process of PID 15900) has been terminated.
+SUCCESS: The process with PID 15900 (child process of PID 13976) has been terminated.
+SUCCESS: The process with PID 28900 (child process of PID 27916) has been terminated.
+SUCCESS: The process with PID 27916 (child process of PID 14472) has been terminated.
+SUCCESS: The process with PID 14472 (child process of PID 14116) has been terminated.
+SUCCESS: The process with PID 14116 (child process of PID 13976) has been terminated.
+SUCCESS: The process with PID 20404 (child process of PID 23116) has been terminated.
+SUCCESS: The process with PID 23116 (child process of PID 3472) has been terminated.
+SUCCESS: The process with PID 3472 (child process of PID 28140) has been terminated.
+SUCCESS: The process with PID 28140 (child process of PID 26752) has been terminated.
+SUCCESS: The process with PID 26752 (child process of PID 13976) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: `RELEASE-001` 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+已完成的工作:
+- 已按 release gate 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 已确认前置门槛通过：audit、架构检查、typecheck、contract tests、基础测试、OpenAPI lint
+- 已确认 release 阻塞点来自 fresh run，不引用旧实现或旧 trace
+
+阻塞原因:
+- `npm run test:api` 失败，`tests/api/export-http-api.test.mjs` 要求真实 MySQL URL
+- 当前环境 `EXPORT_PLATFORM_TEST_DATABASE_URL=missing`
+- 因 API gate 停止，DB / worker / query / file / sample / live object storage / final `git diff --check` 本轮未执行
+
+需要人工操作:
+1. 提供可连接的真实 MySQL 测试库，并设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+2. 重新运行 release 验证
+3. 若需要 live object storage release evidence，还需配置对应真实对象存储环境变量
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- Release 结论: BLOCKED
+- 本轮 fresh evidence 已覆盖前置门槛，但未覆盖完整 release gate。
+- 阻塞点: `npm run test:api` 缺少真实 MySQL URL。
+
+## Files Changed
+- 无源码、文档或任务文件改动。
+- 未修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - stopped at `npm run test:api`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - found 0 vulnerabilities
+- `npm run arch:check`: PASS - Architecture check passed
+- `npm run typecheck`: PASS - `tsc --noEmit`
+- `npm run test:contract`: PASS - 3/3 passed
+- `npm test`: PASS - 17/17 passed
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - API description valid
+- `npm run test:api`: FAIL - `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL`
+
+## Evidence
+- `traces/RELEASE-001-d3b71c250e284080811858f710dad0d5/RELEASE-001-20260515-094252-codex-error.log`: fresh release run output and API gate failure stack
+- `docs/testing/verify-matrix.md`: expected release gate sequence and current BLOCKED policy
+- `docs/architecture/constraints.md`: production path requires real DB evidence, forbids mock/in-memory release substitution
+
+## Architecture Constraints
+- `independent_microservice`: PASS - arch check passed before API gate
+- `HTTP server entry / worker / cleanup job entry`: PASS - `npm run arch:check`
+- `real MySQL production boundary`: FAIL/BLOCKED - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `no mock/InMemory release substitution`: PASS - release did not substitute mock-first evidence
+- `DB/worker/file/sample fresh evidence`: BLOCKED - not reached after API gate failure
+
+## Knowledge References
+- `none`: no specific knowledge entry was used beyond catalog/architecture guidance
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release gate stops before downstream gates when real MySQL env is absent - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- FR-001 - FR-014 cannot be marked release passed until real MySQL-backed API/DB/worker/query/file/sample gates run.
+- Live object storage evidence remains unverified in this fresh run.

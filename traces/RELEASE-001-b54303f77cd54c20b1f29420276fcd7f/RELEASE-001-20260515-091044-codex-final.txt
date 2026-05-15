@@ -1,0 +1,59 @@
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行指定 release 验证命令：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 本轮 fresh evidence 结论：release 仍为 BLOCKED。
+- 阻塞点：`npm run test:api` 需要真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL`，当前未设置。
+- 后续 DB / worker / query / file / sample / live object storage gate 因 API gate 失败未执行，不能引用旧 trace 或 mock-first 证据声明 release 通过。
+
+## Files Changed
+- 无代码或文档文件改动。
+- `traces/RELEASE-001-b54303f77cd54c20b1f29420276fcd7f/`: 本轮会话已有 fresh trace/log 证据目录。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 停止于 `npm run test:api`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - `found 0 vulnerabilities`
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3 pass
+- `npm test`: PASS - 17/17 pass
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:api`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: NOT_RUN - release 脚本在 API gate 停止
+- `npm run test:worker`: NOT_RUN - release 脚本在 API gate 停止
+- `npm run test:query`: NOT_RUN - release 脚本在 API gate 停止
+- `npm run test:file`: NOT_RUN - release 脚本在 API gate 停止
+- `npm run test:sample`: NOT_RUN - release 脚本在 API gate 停止
+- `npm run test:object-storage-live`: NOT_RUN - release 脚本在 API gate 停止
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS - 独立执行无输出
+
+## Evidence
+- `traces/RELEASE-001-b54303f77cd54c20b1f29420276fcd7f/RELEASE-001-20260515-091044-codex-error.log`: 本轮 release 执行日志和失败栈。
+- `docs/testing/verify-matrix.md`: 已记录 RELEASE-001 当前 BLOCKED 口径，与本轮结果一致。
+- `tests/api/export-http-api.test.mjs`: API gate 明确要求真实 MySQL URL。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker + scheduled_job`: PASS - `npm run arch:check`
+- `OpenAPI operation route/handler/service/repository trace`: PASS - `npm run test:contract`
+- `生产路径禁止 InMemory/mock/fixture 替代 release evidence`: PASS - 本轮未用替身绕过真实依赖 gate
+- `真实 MySQL release evidence`: FAIL / BLOCKED - `EXPORT_PLATFORM_TEST_DATABASE_URL` 未设置
+- `live object storage release evidence`: BLOCKED / NOT_RUN - API gate 先失败，且 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES` 未设置
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-ENV-001`: pitfall - release gate 必须区分基础校验通过与真实依赖阻塞 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 MySQL 测试库连接：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- live object storage smoke 仍需真实配置，并显式允许写入：`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 当前 release 不能标记通过，也不能自动提交；本任务模板明确禁止 `git add` / `git commit` / `git push`。

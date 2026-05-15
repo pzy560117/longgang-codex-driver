@@ -1,0 +1,66 @@
+SUCCESS: The process with PID 27320 (child process of PID 16096) has been terminated.
+SUCCESS: The process with PID 16096 (child process of PID 29488) has been terminated.
+SUCCESS: The process with PID 29488 (child process of PID 27672) has been terminated.
+SUCCESS: The process with PID 7744 (child process of PID 25404) has been terminated.
+SUCCESS: The process with PID 27672 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 25404 (child process of PID 23700) has been terminated.
+SUCCESS: The process with PID 23700 (child process of PID 7348) has been terminated.
+SUCCESS: The process with PID 7348 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 16508 (child process of PID 26208) has been terminated.
+SUCCESS: The process with PID 26208 (child process of PID 14108) has been terminated.
+SUCCESS: The process with PID 14108 (child process of PID 23256) has been terminated.
+SUCCESS: The process with PID 23256 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 8028 (child process of PID 3016) has been terminated.
+SUCCESS: The process with PID 3016 (child process of PID 19788) has been terminated.
+SUCCESS: The process with PID 19788 (child process of PID 26556) has been terminated.
+SUCCESS: The process with PID 26556 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 20508 (child process of PID 26416) has been terminated.
+SUCCESS: The process with PID 26416 (child process of PID 7408) has been terminated.
+SUCCESS: The process with PID 7408 (child process of PID 28804) has been terminated.
+SUCCESS: The process with PID 28804 (child process of PID 28924) has been terminated.
+SUCCESS: The process with PID 28924 (child process of PID 22860) has been terminated.
+SUCCESS: The process with PID 28100 (child process of PID 8220) has been terminated.
+SUCCESS: The process with PID 8220 (child process of PID 23244) has been terminated.
+SUCCESS: The process with PID 23244 (child process of PID 10228) has been terminated.
+SUCCESS: The process with PID 10228 (child process of PID 18792) has been terminated.
+SUCCESS: The process with PID 18792 (child process of PID 22860) has been terminated.
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- `RELEASE-001` 结论：`BLOCKED - 需要人工介入`。
+- 已执行 fresh release 验证；第二轮通过前置门槛后，在 `npm run test:api` 因缺少真实 MySQL URL 阻塞。
+- 已更新 `docs/testing/verify-matrix.md`，避免把旧 trace、mock-first 或历史 adapter 证据写成 release passed。
+
+## Files Changed
+- `docs/testing/verify-matrix.md`: 更新 RELEASE-001 fresh evidence snapshot 和 release 验证描述。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 第二轮通过 `npm audit`、`arch:check`、`typecheck`、`test:contract`、`npm test`、OpenAPI lint，随后 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 退出码 1。
+- `git diff --check`: PASS - 仅有 LF/CRLF warning，无 whitespace error。
+
+## Evidence
+- `docs/testing/verify-matrix.md`: 记录本轮 RELEASE-001 fresh evidence、API gate 阻塞归因、未执行的后续 DB/worker/query/file/sample/object-storage-live gate。
+- 当前终端输出: `tests/api/export-http-api.test.mjs` 报 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 已核对 `docs/architecture/constraints.md`，release gate 仍按 HTTP + DB + worker + object storage 生产路径验证。
+- `no test double as release evidence`: PASS - 本轮没有用 mock-first、InMemory、fixture 或历史 adapter 证据替代 release gate。
+- `real MySQL required`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，API 生产路径集成测试无法继续。
+- `live object storage evidence`: NOT_RUN / BLOCKED - release-verify 在 API gate 先停止，未进入 live object storage gate。
+
+## Knowledge References
+- 无具体知识条目引用；仅按 `docs/knowledge/knowledge-catalog.md` 和 harness knowledge 协议确认 verify 阶段知识读取边界。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release gate 可能先遇到瞬时 npm registry DNS 失败，但最终结论应以重跑后的最深 fresh gate 为准 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 MySQL：设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑 release 验证。
+- API 之后的 DB、worker、query、file、sample、live object storage gate 本轮未执行。
+- 本任务 prompt 明确禁止 `git add` / `git commit` / `git push`，所以未自动提交。

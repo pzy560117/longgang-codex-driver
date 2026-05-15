@@ -11,6 +11,27 @@
 - 证据归档固定落在 `tests/mock-local/`、本文件、`docs/testing/mock-first-release-plan.md` 与 `docs/testing/verify-matrix.md`。
 - 本任务不是 release evidence，不替代真实 MySQL、live object storage、`npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file` 或 `npm run test:sample`。
 
+## MOCK-INTEGRATION-001 执行证据
+
+本轮结论: accepted / local-dev-only。
+
+| 命令 | 结果 | local/dev evidence 归档 |
+| --- | --- | --- |
+| `npm run arch:check` | PASS | 证明生产 HTTP server、scheduler worker、cleanup job、OpenAPI route 映射、migration 与禁用替身检查仍可执行；不证明真实 MySQL 或 live object storage 已接通。 |
+| `npm run test:mock-local` | PASS | 覆盖 `tests/mock-local/` 中 FR-001 至 FR-014 的本地主流程、失败态演练、本地 HTTP object storage adapter 协议链路和 release 边界断言。 |
+| `npm test` | PASS | 保持基础单测和契约文档断言通过；不替代 `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file` 或 `npm run test:sample`。 |
+| scoped `git diff --check` | PASS | 检查 `task.json`、`package.json`、`tests/mock-local`、本文件、`docs/testing/mock-first-release-plan.md` 与 `docs/testing/verify-matrix.md` 无空白错误。 |
+
+证据路径:
+
+- `tests/mock-local/mock-integration-flow.test.mjs`: FR-001 至 FR-014 本地主流程、失败态演练、审计链路和 local/dev-only 标记。
+- `tests/mock-local/object-storage-local.test.mjs`: 本地 HTTP object storage adapter 的 put/read/publish/download URL 协议链路，以及缺少对象存储环境变量时的 BLOCKED 口径。
+- `tests/mock-local/mock-integration-acceptance-docs.test.mjs`: 本文件、release 计划和验证矩阵的执行证据、release 边界与哨兵依赖断言。
+- `docs/testing/mock-first-release-plan.md`: RELEASE-001 与 REAL-RELEASE-ENV-READY 的 release 边界。
+- `docs/testing/verify-matrix.md`: MOCK-INTEGRATION-001 的 accepted / local-dev-only 归档状态。
+
+边界: 本轮结果不是 release evidence；不得替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据。`RELEASE-001` 必须继续保持 BLOCKED，直到 `REAL-RELEASE-ENV-READY` 由人工确认真实依赖已就绪。
+
 ## FR-001 至 FR-014 覆盖
 
 | Req ID | local/dev 主流程与失败态覆盖 | Release 边界 |

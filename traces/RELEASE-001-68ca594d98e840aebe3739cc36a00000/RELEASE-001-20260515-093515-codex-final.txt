@@ -1,0 +1,47 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- `RELEASE-001` 当前结论：`BLOCKED - 需要人工介入`。
+- 已执行 fresh release 验证，前置门槛通过，但 `npm run test:api` 因缺少真实 MySQL URL 阻塞。
+- 已更新 [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md)，记录 2026-05-15 fresh run 结果，不引用旧内存实现、旧测试或旧 trace。
+
+## Files Changed
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 更新 RELEASE-001 fresh evidence snapshot 与 BLOCKED 归因。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL/BLOCKED - 退出码 1，停在 `npm run test:api`。
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - found 0 vulnerabilities。
+- `npm run arch:check`: PASS - Architecture check passed。
+- `npm run typecheck`: PASS - `tsc --noEmit` 无错误输出。
+- `npm run test:contract`: PASS - 3/3 passed。
+- `npm test`: PASS - 17/17 passed。
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid。
+- `npm run test:api`: FAIL/BLOCKED - `EXPORT_PLATFORM_TEST_DATABASE_URL` 未设置。
+- `npm run test:db` / `test:worker` / `test:query` / `test:file` / `test:sample` / `test:object-storage-live`: NOT_RUN - API gate 阻塞后未继续执行。
+- `git diff --check -- docs/testing/verify-matrix.md`: PASS - 仅有 CRLF 提示。
+
+## Evidence
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 记录本轮 fresh release evidence、API gate 阻塞原因、未执行项和剩余风险。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker + scheduled_job`: BLOCKED - 静态架构门禁通过，但真实 API/DB/worker release gate 未完全执行。
+- `production MySQL boundary`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，API 集成测试无法连接真实 MySQL。
+- `no test double as release evidence`: PASS - 未用 mock-first、本地 adapter、旧 trace 或内存实现替代 release gate。
+- `fresh evidence required`: PASS/PARTIAL - 本轮命令输出已记录；FR-001 至 FR-014 仍不能声明 release 通过。
+
+## Knowledge References
+- none: 本轮只使用知识目录和 harness 规则文档做阶段判断，未引用具体知识条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-REAL-DEPENDENCY-GATE`: pitfall - release gate 缺少真实 MySQL URL 时必须保持 BLOCKED，不能用 mock-first/local evidence 替代 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重新运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- DB、worker、query、file、sample、live object storage 和最终 scoped diff 仍缺 fresh release evidence。
+- 本轮未执行提交；任务模板明确禁止 `git add`、`git commit`、`git push`。

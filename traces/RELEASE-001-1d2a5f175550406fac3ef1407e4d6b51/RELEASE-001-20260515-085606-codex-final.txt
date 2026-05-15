@@ -1,0 +1,71 @@
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+阻塞原因:
+- 缺少真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`
+- 缺少真实/live object storage endpoint 与 bucket 配置
+- release gate 已明确拒绝用 mock/local adapter 证据替代正式 release evidence
+
+需要人工操作:
+1. 配置可写入测试库的 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+2. 配置真实对象存储 smoke 所需环境变量，并按项目要求显式允许 smoke writes
+3. 解除后运行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1`
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- `scripts/release-verify.ps1` 已 fresh run，基础校验通过后在 `npm run test:api` 阻塞退出。
+- 额外补跑 DB / worker / query / file / sample / live object storage gate，均确认是环境依赖 BLOCKED。
+- 未修改 `task.json`，未提交，未把旧 trace 或 mock-first 证据当作 release pass。
+
+## Files Changed
+- 无代码或文档改动。
+- 工作区仍有未跟踪目录：`traces/RELEASE-001-1d2a5f175550406fac3ef1407e4d6b51/`
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` BLOCKED
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - 0 vulnerabilities
+- `npm run arch:check`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3
+- `npm test`: PASS - 17/17
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- `npm run test:db`: FAIL - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:query`: FAIL - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:file`: FAIL - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:sample`: FAIL - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:object-storage-live`: FAIL - missing real/live object storage config
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: API release gate requires real MySQL
+- `tests/db/export-repositories.test.mjs`: DB repository evidence requires real MySQL
+- `tests/worker/scheduler-worker.test.mjs`: worker/lease/cleanup evidence requires real MySQL
+- `scripts/object-storage-live-smoke.mjs`: live object storage release evidence requires real endpoint and bucket
+- `docs/testing/verify-matrix.md`: current matrix already records RELEASE-001 as BLOCKED, consistent with this run
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check`
+- `production HTTP/worker/job entries`: PASS - `npm run arch:check`
+- `real relational DB for release evidence`: FAIL - MySQL URL not configured
+- `no InMemory/mock/fixture as production release evidence`: PASS - no substituted evidence used
+- `live object storage release evidence`: FAIL - live config missing
+
+## Knowledge References
+- `none`: 未引用具体 `docs/knowledge/*` 条目；已读取 catalog，未发现需要作为 release 证据依据的条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release gate first-failure short-circuit can hide downstream BLOCKED gates - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- FR-001 至 FR-014 不能声明 release passed。
+- API / DB / worker / query / file / sample 仍缺真实 MySQL fresh evidence。
+- live OSS/S3 或等价真实对象存储仍缺 release smoke evidence。

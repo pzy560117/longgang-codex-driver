@@ -1,0 +1,64 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.9445ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (1.6337ms)
+✔ mock integration acceptance archives executed local/dev evidence without release promotion (0.925ms)
+✔ release task remains blocked behind the real environment sentinel (0.3203ms)
+▶ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only
+  ✔ registry and create task flow stay in local/dev evidence, not release evidence (1.3685ms)
+  ✔ progress, detail and data scope stay visible only to the right actor (0.3302ms)
+  ✔ worker lease, checkpoint, retry and cancel boundaries stay local (2.6394ms)
+  ✔ query chunking, file publish/download and cleanup invalidation stay in local/dev evidence (0.9086ms)
+  ✔ purchase order sample boundaries and blocked release env remain local/dev evidence (0.3926ms)
+✔ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only (7.1088ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (52.3234ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.5332ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1316.9831
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (0.7143ms)
+✔ verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline (0.3513ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (1.577ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (0.744ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.4157ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.3687ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (0.4574ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.1539ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.2118ms)
+✔ OpenAPI operationIds are represented by route manifest entries (1.9964ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.7205ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5854ms)
+✔ 脚手架声明的服务入口脚本存在 (0.4815ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.1577ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.0753ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (106.6128ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开 API 在缺少认证上下文时返回受控 401 响应 (11.6184ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 979.7491
+warning: in the working copy of 'docs/testing/mock-first-acceptance.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/mock-first-release-plan.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it

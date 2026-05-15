@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | architecture_gap | controller | `docs/testing/verify-matrix.md:43`, `docs/testing/verify-matrix.md:49-58`, `docs/testing/REGRESSION_PLAN.md:10`, `plans/features/export-platform.dev-plan.md:9`：当前 release gate 停在 `npm run test:api`，原因是缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`；DB / worker / query / file / sample 本轮未执行，FR-001 至 FR-014 没有完整 fresh release evidence。 | 提供可访问的真实 MySQL 测试库，设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，重新执行完整 release gate；不得用旧 trace、mock-first、本地 adapter 或历史通过记录替代本轮 release 证据。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | architecture_gap | controller | `docs/testing/verify-matrix.md:55`, `docs/testing/REGRESSION_PLAN.md:11`, `package.json` 的 `test:object-storage-live`：live object storage release evidence 仍为 BLOCKED，本轮 release 未进入该 gate，当前不能用本地 HTTP adapter 或 env-backed adapter 证据替代 live OSS/S3 release evidence。 | 配置真实/live object storage endpoint、bucket、凭证，并显式允许 smoke writes；重跑 live object storage smoke 和完整 release，证据中必须区分 live storage 与 adapter/local evidence。 | `npm run test:object-storage-live`; then `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | true |
+| RELEASE-001-S1-F002 | controller | test-runner | 1 | true |

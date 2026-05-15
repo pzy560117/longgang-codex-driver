@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | missing_requirement | controller | `docs/testing/verify-matrix.md:43-58`、`plans/features/export-platform.dev-plan.md:9`：2026-05-15 fresh release run 在 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 阻塞，DB / worker / query / file / sample / object-storage-live / final `git diff --check` 均未执行。 | 提供真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`，重新执行完整 release gate；确保 API、DB、worker、query、file、sample 覆盖 FR-001 至 FR-014，并把 fresh evidence 写回验证矩阵。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | missing_requirement | backend | `docs/testing/verify-matrix.md:55`、`scripts/object-storage-live-smoke.mjs:12-19`：live object storage 仍 BLOCKED，adapter/local HTTP 证据被明确标记为不能替代 live OSS/S3 release evidence。 | 配置真实对象存储 endpoint / bucket，显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，补跑 live smoke，并记录成功和失败态证据。 | `npm run test:object-storage-live` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | backend-worker | 1 | yes |
+| RELEASE-001-S1-F002 | backend | backend-worker | 1 | yes |

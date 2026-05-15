@@ -1,0 +1,46 @@
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 已执行并归档 `MOCK-INTEGRATION-001` mock-first local/dev integration acceptance。
+- 新增文档验收测试，锁定执行证据、release 边界、`RELEASE-001` blocked 状态和 `REAL-RELEASE-ENV-READY` 外部哨兵依赖。
+- 明确本轮不是 release evidence，不替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据。
+
+## Files Changed
+- [tests/mock-local/mock-integration-acceptance-docs.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/mock-local/mock-integration-acceptance-docs.test.mjs:1): 新增 mock integration 文档/哨兵断言。
+- [docs/testing/mock-first-acceptance.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/mock-first-acceptance.md:14): 归档本轮执行证据和边界。
+- [docs/testing/mock-first-release-plan.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/mock-first-release-plan.md:40): 同步 local-dev-only 验收结果。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:64): 将 MOCK-INTEGRATION-001 更新为 accepted / local-dev-only。
+
+## Validation
+- `npm run arch:check; ...; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md`: PASS
+- `npm run test:mock-local`: PASS, 12/12
+- `npm test`: PASS, 17/17
+- `git diff --check ...`: PASS，只有 CRLF warning，无空白错误
+
+## Evidence
+- `tests/mock-local/`: FR-001 - FR-014 本地主流程、失败态、对象存储本地协议链路与边界断言。
+- `docs/testing/mock-first-acceptance.md`: 本轮 local/dev evidence 归档。
+- `docs/testing/verify-matrix.md`: accepted / local-dev-only 状态与 release 边界。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check`
+- `mock-first 不能替代 release evidence`: PASS - 文档与新增测试断言
+- `禁止修改 RELEASE-001.passes 或移除 REAL-RELEASE-ENV-READY`: PASS - 新增测试读取 `task.json` 验证
+- `禁止生产路径引入 InMemory/mock/fixture`: PASS - 本轮只改 docs 与 tests/mock-local
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: evidence/knowledge output - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 文档边界与可测试规则 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-MOCK-FIRST-001`: guideline - mock-first 验收必须用测试锁定 local/dev-only 与 release 边界 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `RELEASE-001` 仍是 BLOCKED；真实 MySQL 与 live object storage 未验证。
+- 未执行 git commit，因为本任务 Prompt 明确禁止 `git add`、`git commit`、`git push`。

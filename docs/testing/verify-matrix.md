@@ -61,7 +61,7 @@
 
 | 验证项 | 关联需求 | 状态 | 证据 / 归因 |
 | --- | --- | --- | --- |
-| 本地集成验收归档 | FR-001 - FR-014 | queued / local-dev-only | `MOCK-INTEGRATION-001` 依赖 `MOCK-FIRST-001`，用于执行 `npm run arch:check`、`npm run test:mock-local`、`npm test` 与 scoped `git diff --check`，并把 FR-001 - FR-014 的主流程、失败态和证据归档同步到 `docs/testing/mock-first-acceptance.md`、`docs/testing/mock-first-release-plan.md` 与本矩阵；该任务不是 release evidence，不替代真实 MySQL 或 live object storage |
+| 本地集成验收归档 | FR-001 - FR-014 | accepted / local-dev-only | `MOCK-INTEGRATION-001` 已执行 `npm run arch:check`、`npm run test:mock-local`、`npm test` 与 scoped `git diff --check`，并把 FR-001 - FR-014 的主流程、失败态和证据归档同步到 `docs/testing/mock-first-acceptance.md`、`docs/testing/mock-first-release-plan.md` 与本矩阵；该任务不是 release evidence，不替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据；`RELEASE-001` 仍保持 BLOCKED，`REAL-RELEASE-ENV-READY` 仍保留为 release 外部哨兵依赖 |
 
 ## Requirement 验证入口
 

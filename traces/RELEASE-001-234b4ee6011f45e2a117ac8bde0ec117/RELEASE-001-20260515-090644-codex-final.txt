@@ -1,0 +1,73 @@
+BLOCKED - 需要人工介入
+
+当前任务: `RELEASE-001` 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+已完成的工作:
+- 已运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 基础 gate 已通过：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint
+- release 在 `npm run test:api` 停止，未继续执行 DB / worker / query / file / sample / live object storage gate
+
+阻塞原因:
+- 缺少真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- API 集成测试报错：`BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- 按当前验证矩阵，不能用 mock-first、本地 adapter、旧 trace 或旧内存实现替代 release evidence
+
+需要人工操作:
+1. 提供可连接的真实 MySQL 测试库，并设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+2. 如需完成 live object storage release gate，配置真实对象存储，并按脚本要求显式允许 smoke 写入
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## Requirement IDs
+- FR-001 至 FR-014：当前 release 结论为 BLOCKED；API gate 阻塞后，下游 DB / worker / query / file / sample / live storage 未形成本轮 fresh evidence。
+
+## Summary
+- RELEASE-001 不能标记通过。
+- 本轮没有修改仓库文件，也没有执行 commit；当前任务模板明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - stopped at `npm run test:api`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - `found 0 vulnerabilities`
+- `npm run arch:check`: PASS - `Architecture check passed`
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3 passed
+- `npm test`: PASS - 17/17 passed
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:db` / `test:worker` / `test:query` / `test:file` / `test:sample` / `test:object-storage-live`: NOT_RUN - release script stopped at API gate
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `scripts/release-verify.ps1`: release gate command order and stop-on-failure behavior.
+- `tests/api/export-http-api.test.mjs`: API gate requires `EXPORT_PLATFORM_TEST_DATABASE_URL`.
+- `docs/testing/verify-matrix.md`: release evidence rules and BLOCKED handling for missing real MySQL / live object storage.
+- `package.json`: DB / worker / query / file / sample / live storage scripts are declared release gates.
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check`
+- `API/handler/service/repository traceability`: PASS for static/contract gate - `test:contract` and OpenAPI lint passed
+- `production MySQL boundary`: FAIL / BLOCKED - missing `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `test double policy`: PASS - no substitute evidence was used as release PASS
+- `live object storage evidence`: NOT_RUN / BLOCKED - API gate stopped first; cannot claim live storage evidence
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence/knowledge output boundary - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - blocked conclusion and verification-before-claim - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- 无新增。当前 BLOCKED 模式已被 verify matrix 和现有知识覆盖。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 真实 MySQL 未接入，FR-001 至 FR-014 没有完整 release fresh evidence。
+- live object storage smoke 未执行，不能声明 FR-003 / FR-006 / FR-011 / FR-014 的真实对象存储 release 通过。
+- 工作区已有未跟踪 `traces/RELEASE-001-*` 产物；本轮未删除、未改写。
