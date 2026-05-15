@@ -44,11 +44,13 @@
 
 本任务状态: pending / mock/local rehearsal evidence。
 
+`npm run release:local-rehearsal` 默认启动本地 object storage mock；如显式设置环境变量覆盖对象存储端点，也只能用于本地 rehearsal 的受控演练。无论使用默认 mock 还是显式覆盖，任务都必须连接本地 MySQL，且结果只能归类为 mock/local rehearsal evidence。
+
 | 验收项 | 预期命令 | Release 边界 |
 | --- | --- | --- |
-| 本地 rehearsal 入口 | `npm run release:local-rehearsal` | 只证明本地 MySQL 与本地 object storage mock 下的集成链路可执行，不能解除 `REAL-RELEASE-ENV-READY`。 |
-| API / DB / worker / query / file / sample | `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample` | 可以提前暴露生产路径集成问题，但仍是 mock/local rehearsal evidence，不是 release evidence。 |
-| object storage | `-StartLocalObjectStorageMock` 启动本地 HTTP object storage；非本地 endpoint 时才运行 `npm run test:object-storage-live` | 本地 object storage mock 不是 live OSS/S3；live smoke 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。 |
+| 本地 rehearsal 入口 | `npm run release:local-rehearsal` | 默认以本地 object storage mock 进入 rehearsal；即使显式覆盖对象存储端点，也只允许在本地 rehearsal 中使用。任务必须连接本地 MySQL，且只能产出 mock/local rehearsal evidence，不能解除 `REAL-RELEASE-ENV-READY`。 |
+| API / DB / worker / query / file / sample | `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample` | 可以提前暴露生产路径集成问题，但仍是 mock/local rehearsal evidence，不是 release evidence，也不能替代 `RELEASE-001`。 |
+| object storage | 默认本地 mock；显式 env 覆盖只限 local rehearsal；`npm run test:object-storage-live` 仅用于真实 release smoke | 本地 object storage mock 不是 live OSS/S3；live smoke 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。 |
 
 若本地 MySQL 或本地 object storage mock 未准备好，`LOCAL-RELEASE-REHEARSAL-001` 必须输出 `BLOCKED - 需要人工介入`，不得把缺失环境写成通过。该任务即使通过，也只能作为 mock/local rehearsal evidence，不能推动 `RELEASE-001` 退出 `BLOCKED`。
 
@@ -97,6 +99,7 @@
 ## 证据约束
 
 - mock-first 证据只能标记为 `local/dev evidence`。
+- `LOCAL-RELEASE-REHEARSAL-001` 的结果只能标记为 `mock/local rehearsal evidence`，默认 object storage 为本地 mock，显式 env 覆盖也不改变证据边界。
 - `MOCK-INTEGRATION-001` 只负责本地验收归档，不能把 local/dev 结果扩写为 release gate 通过。
 - mock-first 证据只能用于说明本地链路、联调用例和失败态，不可覆盖 release gate。
 - mock-first 证据可以作为 FR-001 到 FR-014 的映射索引，但不能替代 API / DB / worker / query / file / sample 集成证据。

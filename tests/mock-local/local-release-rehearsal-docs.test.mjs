@@ -36,12 +36,13 @@ test("local release rehearsal is declared as mock/local evidence without releasi
 test("local release rehearsal script documents local-only preflight and command coverage", () => {
   assert.equal(
     packageJson.scripts?.["release:local-rehearsal"],
-    "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1"
+    "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock"
   );
   assert.equal(existsSync(scriptUrl), true);
 
   const script = readFileSync(scriptUrl, "utf8");
   assert.match(script, /LOCAL-RELEASE-REHEARSAL-001/u);
+  assert.match(script, /\$StartLocalObjectStorageMock = \$true/u);
   assert.match(script, /EXPORT_PLATFORM_TEST_DATABASE_URL/u);
   assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT/u);
   assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET/u);

@@ -21,6 +21,14 @@ $ObjectStorageProcess = $null
 $ObjectStorageLog = $null
 $ObjectStorageErrorLog = $null
 
+if (
+  -not $StartLocalObjectStorageMock -and
+  [string]::IsNullOrWhiteSpace($ObjectStorageEndpoint) -and
+  [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT"))
+) {
+  $StartLocalObjectStorageMock = $true
+}
+
 function Get-EffectiveValue {
   param(
     [string]$ExplicitValue,

@@ -33,6 +33,6 @@
     "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
     "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
     "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
-    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1"
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock"
   }
 }
