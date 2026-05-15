@@ -981,7 +981,7 @@
                                     "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路，但不连接真实 MySQL 或 live object storage",
                                     "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 live OSS/S3、真实 MySQL 证据"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md')",
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& .\\verify.ps1 -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md')\"",
                       "acceptance":  [
                                          "FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",
                                          "mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence",

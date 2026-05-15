@@ -39,8 +39,8 @@
 | query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
 | file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
 | sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
-| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；该结果不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
-| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate |
+| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
+| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
 
 ## RELEASE-001 fresh release evidence snapshot（2026-05-15）
 
