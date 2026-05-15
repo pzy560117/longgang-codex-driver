@@ -26,24 +26,24 @@
 
 | 回归 ID | 需求 | 必测场景 | Seed | 当前状态 |
 | --- | --- | --- | --- | --- |
-| REG-P0-001 | FR-001 / FR-013 | 创建任务、幂等命中、幂等冲突、快照沿用 | `seed-create-base-001`、`seed-idempotency-001` | 本轮未执行 / 当前 blocked |
-| REG-P0-002 | FR-002 / FR-004 / FR-010 | 任务详情、进度、历史分页、本人/管理员可见性、审计字段 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | 本轮未执行 / 当前 blocked |
-| REG-P0-003 | FR-005 / FR-012 / FR-013 | 多实例抢锁、租约续租、锁接管、取消、FAILED 重试 | `seed-lock-001`、`seed-cancel-retry-001` | 本轮未执行 / 当前 blocked |
-| REG-P0-004 | FR-007 / FR-008 | 注册配置、disabled、查询模板、字段映射、游标字段 | `seed-registry-001`、`seed-contract-001` | 本轮未执行 / 当前 blocked |
-| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | 本轮未执行 / 当前 blocked |
-| REG-P0-006 | FR-009 / FR-014 | 权限拒绝、数据范围、联系人脱敏、采购订单 10 万行边界 | `seed-auth-001`、`seed-purchase-order-001` | 本轮未执行 / 当前 blocked |
+| REG-P0-001 | FR-001 / FR-013 | 创建任务、幂等命中、幂等冲突、快照沿用 | `seed-create-base-001`、`seed-idempotency-001` | PASS / docker-mock-release |
+| REG-P0-002 | FR-002 / FR-004 / FR-010 | 任务详情、进度、历史分页、本人/管理员可见性、审计字段 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | PASS / docker-mock-release |
+| REG-P0-003 | FR-005 / FR-012 / FR-013 | 多实例抢锁、租约续租、锁接管、取消、FAILED 重试 | `seed-lock-001`、`seed-cancel-retry-001` | PASS / docker-mock-release |
+| REG-P0-004 | FR-007 / FR-008 | 注册配置、disabled、查询模板、字段映射、游标字段 | `seed-registry-001`、`seed-contract-001` | PASS / docker-mock-release |
+| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | PASS / docker-mock-release |
+| REG-P0-006 | FR-009 / FR-014 | 权限拒绝、数据范围、联系人脱敏、采购订单 10 万行边界 | `seed-auth-001`、`seed-purchase-order-001` | PASS / docker-mock-release |
 
 ## 3. P1 回归集合
 
 | 回归 ID | 需求 | 必测场景 | Seed | 当前状态 |
 | --- | --- | --- | --- | --- |
-| REG-P1-001 | FR-011 | 过期标记、410 失效、清理失败可重试 | `seed-cleanup-001` | 本轮未执行 / 当前 blocked |
-| REG-P1-002 | FR-012 | PENDING 取消、EXECUTING 批次边界取消、非法状态返回 `INVALID_TASK_STATE` | `seed-cancel-retry-001` | 本轮未执行 / 当前 blocked |
+| REG-P1-001 | FR-011 | 过期标记、410 失效、清理失败可重试 | `seed-cleanup-001` | PASS / docker-mock-release |
+| REG-P1-002 | FR-012 | PENDING 取消、EXECUTING 批次边界取消、非法状态返回 `INVALID_TASK_STATE` | `seed-cancel-retry-001` | PASS / docker-mock-release |
 
 ## 4. 发布证据
 
-- verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` 只能证明文档格式正确，不能证明当前 release 已完成。
+- verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` 已作为当前 release 证据入口；单独 `git diff --check` 只能证明文档格式正确。
 - 契约验证：CONTRACT-001 已完成，相关结果已收敛到 `contracts/` 与 `docs/testing/verify-matrix.md`。
-- 发布结论：当前 release 为 BLOCKED，release gate 现以本机 Docker MySQL + 本地 object storage mock 为受控验证边界。
+- 发布结论：当前 release 已通过 docker/mock release gate，release gate 以本机 Docker MySQL + 本地 object storage mock 为受控验证边界。
 - 当前证据路径：`progress.txt`、`traces/RELEASE-001-*`、`docs/testing/verify-matrix.md`。
-- 当前 release 仍为 BLOCKED，原因是本机受控 release gate 仍需 Docker MySQL 与本地 object storage mock 按测试命令准备完成；API、DB、worker、query、file、sample 仍不得写成已通过，必须保留待运行/将运行的验证入口。
+- 当前 release 不要求外部生产 MySQL 或 live OSS/S3；API、DB、worker、query、file、sample 的通过结论来自本机 Docker MySQL、自动 migration/seed 数据和本地 object storage mock。

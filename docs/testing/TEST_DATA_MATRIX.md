@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-- 当前 RELEASE-001 blocked：release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；以下条目保留为当前矩阵的可执行数据入口，历史 历史通过记录 仅能作为旧证据。
+- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；以下条目保留为当前矩阵的可执行数据入口，历史通过记录仅能作为旧证据。
 - live object storage smoke 仍属于外部生产/live 验证范围，不得写入本机受控 release evidence。
 - 这些条目在历史上曾被称为 fixture 计划说明；当前应按可执行数据入口理解，不表示仓库当前没有业务实现。
 

@@ -2,7 +2,7 @@
 
 文件渲染、发布、下载保护、过期清理和对象存储失败态测试目录。
 
-`npm run test:file` 必须连接 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的真实 MySQL。
+`npm run test:file` 必须连接 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的本机或 Docker MySQL。
 本目录保留两类对象存储证据：
 - 注入的“生产等价 object-storage adapter”，用于覆盖 checksum、cleanup 和失败态等 adapter 级集成场景。
 - 本地 HTTP server 驱动的 env-backed adapter，用 `EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT` + bucket 验证 `createObjectStorageFromEnv()` 的 put/read/publish/download URL 流程。

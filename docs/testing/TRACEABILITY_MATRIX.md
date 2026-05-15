@@ -26,4 +26,4 @@
 - 每条 P0/P1 需求都必须恰好出现一次，或被明确拆分。
 - 每一行都必须指向至少一个测试层级和一个证据路径。
 - API / 数据行必须包含契约或 schema 校验证据。
-- 当前 RELEASE-001 状态为 blocked：release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；历史 历史通过记录 仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。
+- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；历史通过记录仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。

@@ -4,7 +4,7 @@
 **最后更新**: 2026-05-15
 **负责人**: RELEASE-001
 
-> 本文件提供验收示例索引。当前 RELEASE-001 blocked：文档口径已调整为本机 Docker MySQL + 本地 object storage mock 的受控 release gate；本文件只收录待运行/将运行的验收示例，不声称已通过。历史自动化用例、契约文件和实现测试仅可作为旧证据。
+> 本文件提供验收示例索引。当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；外部生产 MySQL / live OSS 不属于当前完成条件。历史自动化用例、契约文件和实现测试仅可作为旧证据。
 
 ## 核心场景
 

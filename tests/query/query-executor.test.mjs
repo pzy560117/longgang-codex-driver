@@ -20,7 +20,7 @@ function getTestDatabaseUrl() {
 
   if (!databaseUrl) {
     throw new Error(
-      "BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+      "BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
     );
   }
 

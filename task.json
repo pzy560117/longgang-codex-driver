@@ -694,11 +694,11 @@
                       "steps":  [
                                     "实现 query executor 生产入口、参数 schema、模板绑定和 registry config snapshot 消费",
                                     "实现字段映射、脱敏、数据范围过滤、游标分页和批次 checkpoint 写入",
-                                    "补齐真实 MySQL query 测试、worker 串联测试和失败审计证据"
+                                    "补齐本机/Docker MySQL query 测试、worker 串联测试和失败审计证据"
                                 ],
                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
-                                         "FR-006/008/009 的 query 生产路径有真实 MySQL 证据",
+                                         "FR-006/008/009 的 query 生产路径有本机/Docker MySQL 证据",
                                          "字段映射、脱敏和数据范围不依赖测试替身",
                                          "批次 checkpoint 与 worker attemptNo 可追踪"
                                      ]
@@ -860,12 +860,12 @@
                       "architecture_constraints":  [
                                                        "采购订单样板必须复用标准 registry、query、file、audit 链路",
                                                        "样板必须覆盖 0/1/20000/20001/100000/100001 行边界、脱敏和 ZIP 证据",
-                                                       "压测证据必须记录真实依赖接入状态、成功态和失败态"
+                                                       "压测证据必须记录本机/Docker MySQL、测试数据和对象存储边界的成功态和失败态"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止新增采购订单专用外部接口绕过标准链路",
                                                         "禁止用小数据 fixture 代替 10 万行边界证据",
-                                                        "禁止对象存储或真实 MySQL 不可用时伪造通过"
+                                                        "禁止本机/Docker MySQL 或对象存储边界不可用时伪造通过"
                                                     ],
                       "context_files":  [
                                             "docs/product/prd-lite.md",
@@ -899,7 +899,7 @@
                       "steps":  [
                                     "定义采购订单 registry/query/file 样板合同并接入标准链路",
                                     "实现边界数据、脱敏、分片 ZIP 和 10 万行样板验证",
-                                    "记录真实 MySQL、对象存储、成功态和失败态证据"
+                                    "记录本机/Docker MySQL、对象存储边界、成功态和失败态证据"
                                 ],
                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
@@ -910,7 +910,7 @@
                   },
                   {
                       "id":  "MOCK-FIRST-001",
-                      "description":  "执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据",
+                      "description":  "执行 mock-first local/dev evidence 验证，明确其不能替代 docker/mock release gate",
                       "task_kind":  "feature_impl",
                       "phase":  "mock-first",
                       "gate_profile":  "spec_required",
@@ -933,7 +933,7 @@
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 mock-first local/dev evidence 写成 RELEASE-001 PASS 证据",
-                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或真实 MySQL 证据",
+                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS/S3 证据",
                                                         "禁止仅凭 mock-first local/dev evidence 修改 RELEASE-001 为 passes:true",
                                                         "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
                                                     ],
@@ -990,7 +990,7 @@
                   },
                   {
                       "id":  "MOCK-INTEGRATION-001",
-                      "description":  "执行 mock-first local/dev integration acceptance，覆盖 FR-001 至 FR-014 主流程、失败态与证据归档，并明确其不替代 release 或真实依赖证据",
+                      "description":  "执行 mock-first local/dev integration acceptance，覆盖 FR-001 至 FR-014 主流程、失败态与证据归档，并明确其不替代 docker/mock release gate",
                       "task_kind":  "feature_impl",
                       "phase":  "mock-first-integration",
                       "gate_profile":  "spec_required",
@@ -1013,7 +1013,7 @@
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 mock-first local/dev integration acceptance 写成 RELEASE-001 PASS 证据",
-                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充真实 MySQL 或 live OSS/S3 集成证据",
+                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS/S3 集成证据",
                                                         "禁止仅凭 local/dev integration acceptance 修改 RELEASE-001.passes",
                                                         "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
                                                     ],
@@ -1254,7 +1254,7 @@
                       "local_release_environment_notes":  [
                                                              "当前 release gate 使用本机 Docker MySQL；release-verify.ps1 会在 EXPORT_PLATFORM_TEST_DATABASE_URL 缺失时复用或创建 export-platform-mysql-local 容器。",
                                                              "当前 release gate 使用本地 object storage mock；release-verify.ps1 会启动 scripts/local-object-storage-server.mjs 并显式允许本地 smoke writes。",
-                                                             "该 gate 是本机受控 docker/mock release 验证，不等同于外部生产 live OSS/S3 验证。"
+                                                             "该 gate 是本机受控 docker/mock release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。"
                                                          ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",

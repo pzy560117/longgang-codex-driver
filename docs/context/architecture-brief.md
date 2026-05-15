@@ -234,7 +234,7 @@
 - Migration 工具: Kysely Migrator 或等价 TypeScript migration runner
 - 测试分层: `tests/contract/`、`tests/api/`、`tests/db/`、`tests/worker/`、`tests/query/`、`tests/file/`、`tests/sample/`
 - 测试运行器: Vitest
-- 真实 MySQL 集成测试: `testcontainers` 或显式 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- 本机/Docker MySQL 集成测试: release gate 可自举 Docker MySQL，也可显式提供 `EXPORT_PLATFORM_TEST_DATABASE_URL`
 - 公共 API truth source: `contracts/openapi.yaml`
 
 ### 14.2 生产入口
@@ -282,7 +282,7 @@
 3. 生产入口不得引用 `InMemory*`、mock、fixture。
 4. `migrations/` 必须覆盖 task、registry、lease/checkpoint、file metadata、audit log。
 5. `package.json` scripts 必须包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample`。
-6. `src/db/` 必须提供真实 MySQL 客户端和 migration 运行入口，不能把 migration 逻辑藏进测试替身。
+6. `src/db/` 必须提供 MySQL 客户端和 migration 运行入口，当前验收使用本机/Docker MySQL，不能把 migration 逻辑藏进测试替身。
 7. `tests/worker/`、`tests/db/`、`tests/query/`、`tests/file/`、`tests/sample/` 必须分别对应各自 owned paths，而不是共享笼统 `tests/`。
 
 `npm run arch:check` 是后续 `feature_impl` 的固定验证入口之一，不能被 `git diff --check`、OpenAPI lint 或单元测试替代。

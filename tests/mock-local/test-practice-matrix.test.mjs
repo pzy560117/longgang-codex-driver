@@ -18,7 +18,7 @@ const practiceMappings = [
     label: "API 集成测试",
     script: "test:api",
     tasks: ["TASK-API-HTTP-001", "LOCAL-RELEASE-REHEARSAL-001", "RELEASE-001"],
-    boundary: /不声明外部生产 MySQL/u
+    boundary: /release 只算 docker\/mock/u
   },
   {
     label: "DB 集成测试",
@@ -74,7 +74,7 @@ const practiceMappings = [
     label: "Sample 样板验证",
     script: "test:sample",
     tasks: ["SAMPLE-PURCHASE-ORDER-001", "LOCAL-RELEASE-REHEARSAL-001", "RELEASE-001"],
-    boundary: /不替代外部 live 对象存储验证/u
+    boundary: /live 对象存储不属于当前完成条件/u
   },
   {
     label: "Mock-first local/dev 验收",
@@ -139,7 +139,7 @@ test("release gate keeps docker mock evidence separate from external live valida
 
   assert.match(releaseTask.test_command, /scripts\\release-verify\.ps1/u);
   assert.match(releaseRow, /本机 Docker MySQL \+ 本地 object storage mock/u);
-  assert.match(releaseRow, /不等同于外部生产 MySQL 或外部 live OSS\/S3/u);
+  assert.match(releaseRow, /外部生产 MySQL 或 live OSS\/S3 不属于当前完成条件/u);
   assert.doesNotMatch(releaseRow, /已验证外部 live OSS\/S3/u);
 });
 

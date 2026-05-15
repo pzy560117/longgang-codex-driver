@@ -6,8 +6,8 @@
 
 ## 当前状态
 
-- 当前 RELEASE-001 blocked：release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；本轮文档只定义待运行/将运行的验收口径，不声称已通过。
-- 已有的历史 历史通过记录 仅可作为旧证据，不能作为当前验收完成依据。
+- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；外部生产 MySQL / live OSS 不属于当前完成条件。
+- 已有的历史通过记录仅可作为旧证据，当前验收完成依据以 `scripts/release-verify.ps1` 的 docker/mock release evidence 为准。
 - 本文件保留的历史基线仅用于追溯最初验收设计，不代表当前实现状态。
 
 > 本文件是 testing 层可执行验收入口，口径来源为 `docs/product/acceptance-criteria.md`。如二者冲突，以 `docs/product/acceptance-criteria.md` 为产品真相源，并在本文件标记 gap 后同步修正。
@@ -70,4 +70,4 @@
 
 - 历史基线中的原始计划口径仅代表旧版分析，不得当作当前状态。
 - Testing 层不得新增产品未确认的状态、错误码、筛选项或字段；如需新增，先回填 `docs/product/*`。
-- release 阶段每条 P0/P1 必需项必须有当前 release evidence；历史 历史通过记录 只能作为旧证据，不能替代当前 blocked 结论。本机受控 release gate 以 Docker MySQL + 本地 object storage mock 为边界，不等于外部生产/live OSS。
+- release 阶段每条 P0/P1 必需项必须有当前 release evidence；历史通过记录只能作为旧证据，不能替代当前 docker/mock release 结论。本机受控 release gate 以 Docker MySQL + 本地 object storage mock 为边界，不等于外部生产/live OSS。

@@ -3,8 +3,8 @@
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
 **任务 ID**: RELEASE-001
 **Seed 负责人**: RELEASE-001
-**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按本机 Docker MySQL 隔离执行；当前 RELEASE-001 blocked，历史 历史通过记录 仅可作为旧证据
-**Seed 命令**: 由对应测试套件创建当前回归数据；当前 RELEASE-001 blocked，release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证
+**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按本机 Docker MySQL 隔离执行；当前 RELEASE-001 已通过 docker/mock release gate，历史通过记录仅可作为旧证据
+**Seed 命令**: 由对应测试套件创建当前回归数据；release gate 使用本机 Docker MySQL + 本地 object storage mock 的受控验证
 
 ## 1. 账号与权限上下文
 

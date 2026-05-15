@@ -35,9 +35,9 @@
 ## 5. Test Double Policy
 
 - `InMemory*` 允许范围：unit tests only。
-- Mock 允许范围：外部依赖不可用时可作为临时单测替身，但不能作为验收证据。
+- Mock 允许范围：外部生产依赖不可用时可作为临时单测替身；当前验收允许本机/Docker MySQL 与本地 object storage mock，但不能使用内存 repository 冒充生产路径。
 - 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
-- 若真实 MySQL、对象存储或第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。
+- 若本机/Docker MySQL、本地 object storage mock 或任务声明的第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。外部生产 MySQL / live OSS 不属于当前 release gate 的完成条件。
 
 ## 6. Forbidden Implementations
 
