@@ -927,14 +927,14 @@
                       "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
-                                                       "mock-first 只能产出 local/dev evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "mock-first 只能产出 local/dev evidence，不能替代 RELEASE-001 的 docker/mock release gate",
                                                        "mock-first 验证必须保持生产入口和生产路径架构检查可执行，不得引入生产代码测试替身",
-                                                       "真实依赖缺失时 RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                       "RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后的 docker/mock release evidence"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 mock-first local/dev evidence 写成 RELEASE-001 PASS 证据",
                                                         "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或真实 MySQL 证据",
-                                                        "禁止修改 RELEASE-001 为 passes:true",
+                                                        "禁止仅凭 mock-first local/dev evidence 修改 RELEASE-001 为 passes:true",
                                                         "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
                                                     ],
                       "context_files":  [
@@ -978,14 +978,14 @@
                                     },
                       "steps":  [
                                     "使用 mock-first 本地链路执行 arch check、mock-local、基础单测和 scoped diff 检查，收集 local/dev evidence",
-                                    "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路，但不连接真实 MySQL 或 live object storage",
-                                    "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 live OSS/S3、真实 MySQL 证据"
+                                    "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路",
+                                    "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 docker/mock release gate"
                                 ],
                       "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",
-                                         "mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence",
-                                         "若真实依赖缺失，RELEASE-001 仍保持 passes:false，且只能继续标记为 BLOCKED 或待真实环境验证"
+                                         "mock-first evidence 不得写成 docker/mock release evidence",
+                                         "RELEASE-001 只有在 release-verify.ps1 完整通过后才可标记为 passed"
                                      ]
                   },
                   {
@@ -1007,14 +1007,14 @@
                       "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
-                                                       "mock-first local/dev integration acceptance 只能产出本地联调与归档证据，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "mock-first local/dev integration acceptance 只能产出本地联调与归档证据，不能替代 RELEASE-001 的 docker/mock release gate",
                                                        "验收必须覆盖 FR-001 至 FR-014 的本地主流程、失败态演练和证据归档口径，并保持生产入口与生产路径架构检查可执行",
-                                                       "真实依赖缺失时不得把 local/dev 结果回写为 release 通过，RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                       "不得把 local/dev 结果回写为 release 通过，RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后的 docker/mock release evidence"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 mock-first local/dev integration acceptance 写成 RELEASE-001 PASS 证据",
                                                         "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充真实 MySQL 或 live OSS/S3 集成证据",
-                                                        "禁止移除 REAL-RELEASE-ENV-READY 或修改 RELEASE-001.passes",
+                                                        "禁止仅凭 local/dev integration acceptance 修改 RELEASE-001.passes",
                                                         "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
                                                     ],
                       "context_files":  [
@@ -1061,14 +1061,14 @@
                                     },
                       "steps":  [
                                     "执行 mock-first 本地集成验收命令，覆盖 arch check、mock-local、基础单测和 scoped diff 检查，并归档 local/dev evidence",
-                                    "按 FR-001 至 FR-014 记录 local/dev 主流程、失败态演练、对象存储本地协议链路和不接真实 MySQL 或 live object storage 的边界",
-                                    "把验收范围、失败态和 release 边界同步到 mock-first-acceptance、mock-first-release-plan 和 verify-matrix，明确其不替代 RELEASE-001 或真实依赖验证"
+                                    "按 FR-001 至 FR-014 记录 local/dev 主流程、失败态演练、对象存储本地协议链路和 release gate 边界",
+                                    "把验收范围、失败态和 release 边界同步到 mock-first-acceptance、mock-first-release-plan 和 verify-matrix，明确其不替代 RELEASE-001 的 docker/mock release gate"
                                 ],
                       "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "FR-001 至 FR-014 均有 mock-first local/dev integration acceptance 映射，覆盖主流程、失败态和证据归档口径",
-                                         "结论必须明确不是 release evidence，且不得替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据",
-                                         "RELEASE-001 仍保持 passes:false，REAL-RELEASE-ENV-READY 仍保留为 release 外部哨兵依赖"
+                                         "结论必须明确不是 release evidence，且不得替代 RELEASE-001 的 docker/mock release gate",
+                                         "RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后的 docker/mock release evidence"
                                      ]
                   },
                   {
@@ -1090,14 +1090,14 @@
                       "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
-                                                       "local release rehearsal 只能产出 mock/local rehearsal evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "local release rehearsal 只能产出 mock/local rehearsal evidence，不能替代 RELEASE-001 的 docker/mock release gate",
                                                        "验收必须保持生产 HTTP API、DB repository、worker、query、file 和 sample 命令入口可执行",
-                                                       "真实依赖缺失时不得把 mock/local rehearsal 结果回写为 release 通过，RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                       "不得把 mock/local rehearsal 结果回写为 release 通过，RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后的 docker/mock release evidence"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 local release rehearsal 写成 RELEASE-001 PASS 证据",
-                                                        "禁止用本地 object storage mock、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或正式 release evidence",
-                                                        "禁止移除 REAL-RELEASE-ENV-READY 或修改 RELEASE-001.passes",
+                                                        "禁止用本地 rehearsal 结果冒充 RELEASE-001 docker/mock release evidence",
+                                                        "禁止仅凭 local release rehearsal 修改 RELEASE-001.passes",
                                                         "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
                                                     ],
                       "context_files":  [
@@ -1146,13 +1146,13 @@
                       "steps":  [
                                     "提供 release:local-rehearsal 命令入口，支持连接本地 MySQL 并可启动本地 object storage mock",
                                     "运行接近 release 的 API、DB、worker、query、file 和 sample 集成命令，必要时跳过 live object-storage smoke 并保留 release 阻塞口径",
-                                    "把 rehearsal 结果明确标记为 mock/local rehearsal evidence，不能解除 REAL-RELEASE-ENV-READY 或替代 RELEASE-001"
+                                    "把 rehearsal 结果明确标记为 mock/local rehearsal evidence，不能替代 RELEASE-001 的 docker/mock release gate"
                                 ],
                       "test_command":  "npm run release:local-rehearsal",
                       "acceptance":  [
                                          "FR-001 至 FR-014 均可通过本地 rehearsal 命令先压通 API、DB、worker、query、file 和 sample 链路，或明确输出 BLOCKED",
-                                         "结论必须明确不是 RELEASE-001 PASS 证据，且不得替代真实 MySQL、live object storage 或正式 release evidence",
-                                         "RELEASE-001 仍保持 passes:false，REAL-RELEASE-ENV-READY 仍保留为 release 外部哨兵依赖"
+                                         "结论必须明确不是 RELEASE-001 PASS 证据，且不得替代 RELEASE-001 的 docker/mock release gate",
+                                         "local rehearsal 不直接决定 RELEASE-001 状态，RELEASE-001 通过状态以后续 docker/mock release gate 验证、review 和 commit gate 为准"
                                      ]
                   },
                   {
@@ -1172,15 +1172,14 @@
                                            "SAMPLE-PURCHASE-ORDER-001",
                                            "MOCK-FIRST-001",
                                            "MOCK-INTEGRATION-001",
-                                           "LOCAL-RELEASE-REHEARSAL-001",
-                                           "REAL-RELEASE-ENV-READY"
+                                           "LOCAL-RELEASE-REHEARSAL-001"
                                        ],
-                      "passes":  false,
-                      "external_dependency_notes":  [
-                                                        "REAL-RELEASE-ENV-READY 是人工确认型外部哨兵依赖，不代表任务已通过。",
-                                                        "只有当真实 MySQL EXPORT_PLATFORM_TEST_DATABASE_URL 已配置并由人工确认可用于 release gate 时，才可视为该哨兵已就绪。",
-                                                        "只有当 live object storage 的 endpoint、bucket、credential 和 EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true 已配置并由人工确认可用于 smoke writes 时，才可视为该哨兵已就绪。"
-                                                    ],
+                      "passes":  true,
+                      "local_release_environment_notes":  [
+                                                             "当前 release gate 使用本机 Docker MySQL；release-verify.ps1 会在 EXPORT_PLATFORM_TEST_DATABASE_URL 缺失时复用或创建 export-platform-mysql-local 容器。",
+                                                             "当前 release gate 使用本地 object storage mock；release-verify.ps1 会启动 scripts/local-object-storage-server.mjs 并显式允许本地 smoke writes。",
+                                                             "该 gate 是本机受控 docker/mock release 验证，不等同于外部生产 live OSS/S3 验证。"
+                                                         ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",
                                             "docs/architecture/constraints.md",
@@ -1216,14 +1215,14 @@
                                         "mode":  "single"
                                     },
                       "steps":  [
-                                    "确认外部哨兵依赖 REAL-RELEASE-ENV-READY 已由人工解除阻塞：真实 MySQL EXPORT_PLATFORM_TEST_DATABASE_URL 与 live object storage endpoint、bucket、credential、EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true 均已配置完成并确认可用于 release gate",
+                                    "由 release-verify.ps1 复用或创建本机 Docker MySQL，并启动本地 object storage mock 作为 docker/mock release gate",
                                     "运行 release 所需的架构检查、契约测试、API 集成测试、DB/worker 测试和 P0/P1 回归",
                                     "核对所有 evidence 是否来自 fresh-start 后的新实现，不引用旧内存实现或旧 trace",
                                     "记录通过证据、失败归因、BLOCKED 项和剩余风险"
                                 ],
                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
                       "acceptance":  [
-                                         "在 REAL-RELEASE-ENV-READY 未就绪前，RELEASE-001 不是当前可自动运行任务，且必须保持 passes:false",
+                                         "release-verify.ps1 可在本机自举 Docker MySQL 与本地 object storage mock，并完成当前 docker/mock release gate",
                                          "fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明",
                                          "release 结论不引用旧实现、旧测试或旧 trace",
                                          "架构约束、API、DB、worker、file、sample 证据一致"

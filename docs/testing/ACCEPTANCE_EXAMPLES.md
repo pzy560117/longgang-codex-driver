@@ -4,7 +4,7 @@
 **最后更新**: 2026-05-15
 **负责人**: RELEASE-001
 
-> 本文件提供验收示例索引。当前 RELEASE-001 blocked：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史自动化用例、契约文件和实现测试仅可作为旧证据。
+> 本文件提供验收示例索引。当前 RELEASE-001 blocked：文档口径已调整为本机 Docker MySQL + 本地 object storage mock 的受控 release gate；本文件只收录待运行/将运行的验收示例，不声称已通过。历史自动化用例、契约文件和实现测试仅可作为旧证据。
 
 ## 核心场景
 

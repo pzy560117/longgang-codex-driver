@@ -3,8 +3,8 @@
 **功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
 **任务 ID**: RELEASE-001
 **Seed 负责人**: RELEASE-001
-**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按真实 MySQL 隔离执行；当前 RELEASE-001 blocked，历史 历史通过记录 仅可作为旧证据
-**Seed 命令**: 由对应测试套件创建当前回归数据；当前 RELEASE-001 blocked，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，live object storage smoke 也仍需真实 endpoint / bucket 与写入授权
+**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按本机 Docker MySQL 隔离执行；当前 RELEASE-001 blocked，历史 历史通过记录 仅可作为旧证据
+**Seed 命令**: 由对应测试套件创建当前回归数据；当前 RELEASE-001 blocked，release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证
 
 ## 1. 账号与权限上下文
 
@@ -44,6 +44,6 @@
 
 ## 4. 重置规则
 
-- 所有 seed 在当前测试实现中必须可重复创建、隔离和清理。
+- 所有 seed 在当前测试实现中必须可重复创建、隔离和清理，且应优先服务本机 Docker MySQL 的受控 release 验证。
 - 历史 seed 合同已转为当前回归数据入口，不得再表达为未实现测试工厂。
 - 破坏性场景必须隔离任务、文件对象和审计数据；失败后保留 `taskId`、`requestId`、`attemptNo` 供定位。

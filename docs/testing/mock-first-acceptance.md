@@ -27,10 +27,10 @@
 - `tests/mock-local/mock-integration-flow.test.mjs`: FR-001 至 FR-014 本地主流程、失败态演练、审计链路和 local/dev-only 标记。
 - `tests/mock-local/object-storage-local.test.mjs`: 本地 HTTP object storage adapter 的 put/read/publish/download URL 协议链路，以及缺少对象存储环境变量时的 BLOCKED 口径。
 - `tests/mock-local/mock-integration-acceptance-docs.test.mjs`: 本文件、release 计划和验证矩阵的执行证据、release 边界与哨兵依赖断言。
-- `docs/testing/mock-first-release-plan.md`: RELEASE-001 与 REAL-RELEASE-ENV-READY 的 release 边界。
+- `docs/testing/mock-first-release-plan.md`: RELEASE-001 与 docker/mock release gate 的边界。
 - `docs/testing/verify-matrix.md`: MOCK-INTEGRATION-001 的 accepted / local-dev-only 归档状态。
 
-边界: 本轮结果不是 release evidence；不得替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据。`RELEASE-001` 必须继续保持 BLOCKED，直到 `REAL-RELEASE-ENV-READY` 由人工确认真实依赖已就绪。
+边界: 本轮结果不是 release evidence；不得替代 docker/mock release gate。`RELEASE-001` 的通过状态只能来自 `scripts/release-verify.ps1` 完整验证。
 
 ## FR-001 至 FR-014 覆盖
 

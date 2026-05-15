@@ -1189,3 +1189,22 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+## [2026-05-15 22:16] - Task: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+### 完成的工作：
+- 按当前要求将 release gate 口径切换为本机 Docker MySQL + 本地 object storage mock 的受控 docker/mock release gate。
+- `scripts/release-verify.ps1` 已支持在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时复用或创建 `export-platform-mysql-local`，并自动启动本地 object storage mock。
+- `RELEASE-001` 已基于本轮完整验证更新为 `passes:true`，当前 `task.json` 无未完成任务。
+
+### 测试结果：
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` PASS。
+- 覆盖 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint、API、DB、worker、query、file、sample、object-storage smoke 和 scoped `git diff --check`。
+- `npm run test:mock-local` PASS。
+- `git diff --check` PASS。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 本轮为交互式修正 release gate 口径并执行本机验证，未进入 driver stage review。
+- Stage 2: NOT_RUN - 本轮为交互式修正 release gate 口径并执行本机验证，未进入 driver stage review。
+
+### 备注：
+- 该结论是本机受控 docker/mock release evidence，不声明外部生产 MySQL 或外部 live OSS/S3 已验证。

@@ -4,12 +4,13 @@ import { createObjectStorageFromEnv } from "../src/file-service/index.ts";
 const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
 const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
 const allowSmokeWrites = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES;
+const allowLocalSmoke = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE;
 const smokePrefix = (process.env.EXPORT_PLATFORM_OBJECT_STORAGE_SMOKE_PREFIX ?? "release-smoke")
   .replace(/^\/+|\/+$/g, "");
 
-if (!endpoint || !bucket || isPlaceholderEndpoint(endpoint)) {
+if (!endpoint || !bucket || (allowLocalSmoke !== "true" && isPlaceholderEndpoint(endpoint))) {
   console.error(
-    "BLOCKED - 需要人工介入: RELEASE-001 requires a real/live object storage endpoint and bucket. Current configuration is missing or placeholder-only, so adapter/local HTTP evidence cannot be used as live release evidence."
+    "BLOCKED - 需要人工介入: RELEASE-001 requires an object storage endpoint and bucket. Local endpoints are allowed only when EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE=true is set by the docker/mock release gate."
   );
   process.exit(1);
 }

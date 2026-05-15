@@ -7,8 +7,8 @@
 
 ## 状态说明
 
-- 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞；DB / worker / query / file / sample 本轮未执行，不能再写成历史通过记录。
-- live object storage smoke 仍为 BLOCKED，需真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`；当前 release 证据不能用 adapter/local HTTP 结果替代。
+- 最新 release trace 显示 release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；本轮文档不把本机彩排写成外部生产/live 通过记录。
+- live object storage smoke 仍属于外部生产/live 验证；当前 release 证据不能用 adapter/local HTTP 结果替代。
 - 下方保留的“当前状态”仅表示回归集合的执行记录，不再沿用预实现口径。
 
 ## 1. 受影响范围
@@ -44,6 +44,6 @@
 
 - verify 摘要：`powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -Commands @('git diff --check')` 只能证明文档格式正确，不能证明当前 release 已完成。
 - 契约验证：CONTRACT-001 已完成，相关结果已收敛到 `contracts/` 与 `docs/testing/verify-matrix.md`。
-- 发布结论：当前 release 为 BLOCKED，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample / live object storage 本轮未执行。
+- 发布结论：当前 release 为 BLOCKED，release gate 现以本机 Docker MySQL + 本地 object storage mock 为受控验证边界。
 - 当前证据路径：`progress.txt`、`traces/RELEASE-001-*`、`docs/testing/verify-matrix.md`。
-- 当前 release 仍为 BLOCKED，原因包括 `EXPORT_PLATFORM_TEST_DATABASE_URL` 缺失导致 API gate 停止，以及 live object storage smoke 前置条件缺失；API、DB、worker、query、file、sample 仍不得写成已通过，必须保留真实环境前置条件与验证入口。
+- 当前 release 仍为 BLOCKED，原因是本机受控 release gate 仍需 Docker MySQL 与本地 object storage mock 按测试命令准备完成；API、DB、worker、query、file、sample 仍不得写成已通过，必须保留待运行/将运行的验证入口。

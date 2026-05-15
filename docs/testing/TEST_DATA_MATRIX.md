@@ -6,8 +6,8 @@
 
 ## 当前状态
 
-- 当前 RELEASE-001 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked；以下条目保留为当前矩阵的可执行数据入口，历史 历史通过记录 仅能作为旧证据。
-- live object storage smoke 仍依赖真实 endpoint / bucket 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，未满足前不得写入线上写入证据。
+- 当前 RELEASE-001 blocked：release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；以下条目保留为当前矩阵的可执行数据入口，历史 历史通过记录 仅能作为旧证据。
+- live object storage smoke 仍属于外部生产/live 验证范围，不得写入本机受控 release evidence。
 - 这些条目在历史上曾被称为 fixture 计划说明；当前应按可执行数据入口理解，不表示仓库当前没有业务实现。
 
 | 场景 / Req ID | Data ID | 初始化方式 | 重置方式 | 边界 / 负向用例 | 负责人 |
@@ -33,4 +33,4 @@
 - 负向和权限场景不应依赖临时手工准备。
 - 破坏性场景必须定义重置或隔离策略。
 - 历史基线说明仅作追溯用途，不再表示当前仓库状态。
-- 任何 live object storage smoke 相关 fixture 必须满足真实 endpoint / bucket 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 任何 live object storage smoke 相关 fixture 仅用于外部生产/live 验证，不属于本机受控 release gate。

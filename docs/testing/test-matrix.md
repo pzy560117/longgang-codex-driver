@@ -6,8 +6,8 @@
 
 ## 当前状态
 
-- 当前 RELEASE-001 处于 blocked：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。
-- live object storage gate 仍然 BLOCKED：必须具备真实 endpoint / bucket，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后，才能补充在线 smoke 证据。
+- 当前 RELEASE-001 处于 blocked：release gate 口径已调整为本机 Docker MySQL + 本地 object storage mock 的受控验证，本文只记录待运行/将运行的矩阵，不声称已通过。
+- live object storage 仍属于外部生产/live 验证范围，不是本机受控 release gate；本文不得把本机 mock 结果写成 live OSS 证据。
 - 下表保留少量历史基线表述，仅用于说明最初的分析来源，不代表当前 release evidence。
 
 | Requirement ID | 优先级 | 页面 / 组件 | 状态 | API / 契约 | 测试层级 | 测试用例 ID | 测试数据 | 负责人 | 证据路径 | 状态 |
@@ -31,7 +31,7 @@
 
 - 每条 P0/P1 需求都必须出现在这个矩阵中。
 - 每条 P0/P1 行都必须指向一个验收示例或场景 ID。
-- 当前状态以最新 release 证据为准；当前 RELEASE-001 blocked，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史 `历史通过记录` 仅能作为旧证据。
+- 当前状态以最新 release 证据为准；当前 RELEASE-001 blocked，release gate 以本机 Docker MySQL + 本地 object storage mock 为受控验证边界，本文不得把 mock/local rehearsal 写成已通过的 release evidence。历史 `历史通过记录` 仅能作为旧证据。
 - API / 数据变更必须映射到契约和 API 集成证据。
 - 计划中的实现任务应能够从这个矩阵推导出 affected tests。
 - `TRACEABILITY_MATRIX.md`、`TEST_DATA_MATRIX.md`、`ACCEPTANCE_EXAMPLES.md` 必须形成闭环引用，避免 test-matrix 单独承担证据角色。

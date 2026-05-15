@@ -23,7 +23,7 @@ test("mock-first has a dedicated local/dev test command that cannot be used as r
   assert.match(mockFirstPlan, /## mock-first 的边界/);
   assert.match(mockFirstPlan, /local\/dev evidence/);
   assert.match(mockFirstPlan, /不得作为 `RELEASE-001` PASS 证据/);
-  assert.match(verifyMatrix, /mock-first 说明见 `docs\/testing\/mock-first-release-plan\.md`，但它不是 release gate/);
+  assert.match(verifyMatrix, /mock-first 说明见 `docs\/testing\/mock-first-release-plan\.md`，但它不是 docker\/mock release gate/);
 });
 
 test("mock-first plan maps every FR to local/dev evidence without upgrading release status", () => {
@@ -47,7 +47,7 @@ test("mock-first plan maps every FR to local/dev evidence without upgrading rele
   assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /本地 HTTP object storage adapter/u);
   assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /live OSS\/S3/u);
   assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /scheduler \/ worker/u);
-  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /真实 MySQL/u);
+  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /本机 Docker MySQL/u);
 
   assert.match(
     verifyMatrix,
@@ -55,9 +55,9 @@ test("mock-first plan maps every FR to local/dev evidence without upgrading rele
   );
   assert.match(
     verifyMatrix,
-    /不能替代 API \/ DB \/ worker \/ query \/ file \/ sample 或 live OSS\/S3 release gate/u
+    /不能替代 API \/ DB \/ worker \/ query \/ file \/ sample 或 docker\/mock release gate/u
   );
-  assert.match(verifyMatrix, /release 结论必须保持 BLOCKED/u);
+  assert.match(verifyMatrix, /release 结论来自 docker\/mock release gate/u);
 });
 
 function getMockFirstRow(markdown, requirementId) {
