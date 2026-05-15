@@ -16,6 +16,7 @@ const verifyMatrix = readFileSync(
   new URL("../../docs/testing/verify-matrix.md", import.meta.url),
   "utf8"
 );
+const gitignore = readFileSync(new URL("../../.gitignore", import.meta.url), "utf8");
 const scriptUrl = new URL("../../scripts/local-release-rehearsal.ps1", import.meta.url);
 
 test("local release rehearsal is declared as mock/local evidence without releasing RELEASE-001", () => {
@@ -55,6 +56,17 @@ test("local release rehearsal script documents local-only preflight and command 
   assert.match(script, /npm run test:sample/u);
   assert.match(script, /npm run test:object-storage-live/u);
   assert.match(script, /mock\/local rehearsal/u);
+});
+
+test("local release rehearsal can load untracked env files for local MySQL credentials", () => {
+  const script = readFileSync(scriptUrl, "utf8");
+  assert.match(script, /\[string\]\$EnvFile/u);
+  assert.match(script, /Load-EnvFile/u);
+  assert.match(script, /\.env\.local/u);
+  assert.match(script, /EXPORT_PLATFORM_TEST_DATABASE_URL/u);
+  assert.match(releasePlan, /\.env\.local/u);
+  assert.match(verifyMatrix, /\.env\.local/u);
+  assert.match(gitignore, /^\.env\*/mu);
 });
 
 test("local release rehearsal evidence is recorded separately from release evidence", () => {

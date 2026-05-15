@@ -3,6 +3,7 @@ param(
   [string]$DatabaseUrl = "",
   [string]$ObjectStorageEndpoint = "",
   [string]$ObjectStorageBucket = "",
+  [string]$EnvFile = "",
   [switch]$StartLocalObjectStorageMock,
   [string]$NodePath = "node"
 )
@@ -20,6 +21,10 @@ $LocalObjectStorageScript = Join-Path $ProjectRoot "scripts\local-object-storage
 $ObjectStorageProcess = $null
 $ObjectStorageLog = $null
 $ObjectStorageErrorLog = $null
+
+if ([string]::IsNullOrWhiteSpace($EnvFile)) {
+  $EnvFile = Join-Path $ProjectRoot ".env.local"
+}
 
 if (
   -not $StartLocalObjectStorageMock -and
@@ -40,6 +45,42 @@ function Get-EffectiveValue {
   }
 
   return [Environment]::GetEnvironmentVariable($EnvironmentName)
+}
+
+function Load-EnvFile {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path)) {
+    return
+  }
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    return
+  }
+
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    if ($trimmed -notmatch '^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
+      continue
+    }
+
+    $name = $Matches[1]
+    $value = $Matches[2].Trim()
+    if (
+      ($value.StartsWith('"') -and $value.EndsWith('"')) -or
+      ($value.StartsWith("'") -and $value.EndsWith("'"))
+    ) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+
+    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+      [Environment]::SetEnvironmentVariable($name, $value, "Process")
+    }
+  }
 }
 
 function Test-LocalEndpoint {
@@ -116,9 +157,11 @@ function Invoke-RehearsalCommand {
 }
 
 try {
+  Load-EnvFile -Path $EnvFile
+
   $DatabaseUrl = Get-EffectiveValue -ExplicitValue $DatabaseUrl -EnvironmentName "EXPORT_PLATFORM_TEST_DATABASE_URL"
   if ([string]::IsNullOrWhiteSpace($DatabaseUrl)) {
-    throw "BLOCKED - 需要人工介入: LOCAL-RELEASE-REHEARSAL-001 requires local/mock MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL. This is mock/local rehearsal evidence, not RELEASE-001 PASS evidence."
+    throw "BLOCKED - 需要人工介入: LOCAL-RELEASE-REHEARSAL-001 requires local/mock MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL. Set it in the process environment, pass -DatabaseUrl, or place it in .env.local / -EnvFile. This is mock/local rehearsal evidence, not RELEASE-001 PASS evidence."
   }
 
   if ($StartLocalObjectStorageMock) {

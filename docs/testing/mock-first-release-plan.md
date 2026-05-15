@@ -44,7 +44,7 @@
 
 本任务状态: pending / mock/local rehearsal evidence。
 
-`npm run release:local-rehearsal` 默认启动本地 object storage mock；如显式设置环境变量覆盖对象存储端点，也只能用于本地 rehearsal 的受控演练。无论使用默认 mock 还是显式覆盖，任务都必须连接本地 MySQL，且结果只能归类为 mock/local rehearsal evidence。
+`npm run release:local-rehearsal` 默认启动本地 object storage mock；如显式设置环境变量覆盖对象存储端点，也只能用于本地 rehearsal 的受控演练。无论使用默认 mock 还是显式覆盖，任务都必须连接本地 MySQL，且结果只能归类为 mock/local rehearsal evidence。MySQL URL 可以通过当前进程环境变量、`-DatabaseUrl` 参数，或本地未跟踪的 `.env.local` / `-EnvFile` 提供。
 
 | 验收项 | 预期命令 | Release 边界 |
 | --- | --- | --- |
