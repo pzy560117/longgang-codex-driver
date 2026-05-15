@@ -911,7 +911,7 @@
                   {
                       "id":  "MOCK-FIRST-001",
                       "description":  "执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据",
-                      "task_kind":  "verification",
+                      "task_kind":  "feature_impl",
                       "phase":  "mock-first",
                       "gate_profile":  "spec_required",
                       "required_truth_sources":  [
