@@ -189,7 +189,6 @@ try {
   $env:EXPORT_PLATFORM_TEST_DATABASE_URL = $DatabaseUrl
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = $ObjectStorageEndpoint
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = $ObjectStorageBucket
-  $env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES = "true"
 
   Write-Output "LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal starting."
   Write-Output "This run is mock/local rehearsal evidence only; it is not RELEASE-001 PASS evidence and cannot clear REAL-RELEASE-ENV-READY."

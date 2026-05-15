@@ -18,6 +18,10 @@ const verifyMatrix = readFileSync(
 );
 const gitignore = readFileSync(new URL("../../.gitignore", import.meta.url), "utf8");
 const scriptUrl = new URL("../../scripts/local-release-rehearsal.ps1", import.meta.url);
+const objectStorageLiveSmoke = readFileSync(
+  new URL("../../scripts/object-storage-live-smoke.mjs", import.meta.url),
+  "utf8"
+);
 
 test("local release rehearsal is declared as mock/local evidence without releasing RELEASE-001", () => {
   const rehearsalTask = taskJson.tasks.find((task) => task.id === "LOCAL-RELEASE-REHEARSAL-001");
@@ -47,7 +51,7 @@ test("local release rehearsal script documents local-only preflight and command 
   assert.match(script, /EXPORT_PLATFORM_TEST_DATABASE_URL/u);
   assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT/u);
   assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET/u);
-  assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES/u);
+  assert.match(objectStorageLiveSmoke, /EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES/u);
   assert.match(script, /npm run test:api/u);
   assert.match(script, /npm run test:db/u);
   assert.match(script, /npm run test:worker/u);
@@ -56,6 +60,17 @@ test("local release rehearsal script documents local-only preflight and command 
   assert.match(script, /npm run test:sample/u);
   assert.match(script, /npm run test:object-storage-live/u);
   assert.match(script, /mock\/local rehearsal/u);
+});
+
+test("local release rehearsal does not auto-enable live object storage smoke writes", () => {
+  const script = readFileSync(scriptUrl, "utf8");
+  assert.doesNotMatch(
+    script,
+    /\$env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES\s*=\s*"true"/u
+  );
+  assert.match(script, /Test-LocalEndpoint -Endpoint \$ObjectStorageEndpoint/u);
+  assert.match(script, /Invoke-RehearsalCommand -Command \$LiveObjectStorageCommand/u);
+  assert.match(objectStorageLiveSmoke, /allowSmokeWrites !== "true"/u);
 });
 
 test("local release rehearsal can load untracked env files for local MySQL credentials", () => {
