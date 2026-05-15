@@ -87,6 +87,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
 4. 代码、`task.json`、`progress.txt` 应尽量放在同一个提交里
 5. 不要回滚与当前任务无关的现有改动
 
+### 测试实践映射防漂移
+
+当任务涉及 `task.json`、`package.json` scripts、`tests/`、`docs/testing/verify-matrix.md`、release gate 或 mock/local/docker/live evidence 边界时，必须先检查并保持测试实践映射：
+
+1. 每个关键 test script 必须有明确 task 归属，不能只有 `package.json` 脚本或只有 release 总门禁。
+2. `task.json` 中相关任务必须写清 `test_command`、需求范围、依赖形态和 evidence 边界。
+3. `docs/testing/verify-matrix.md` 必须有“测试实践到 task 映射”或等价表，列出 test script、task id、需求范围、依赖形态和 evidence 边界。
+4. mock/local rehearsal、docker/mock release、外部 live 验证必须分开描述，不能互相替代。
+5. 如果仓库存在 `tests/mock-local/test-practice-matrix.test.mjs` 或同类守护测试，修改上述文件后必须运行覆盖它的测试命令，例如 `npm run test:mock-local`。
+6. 新增、删除或改名 test script 时，同步更新 task、verify-matrix 和守护测试；否则不得把任务标记为完成。
+
 ## 阻塞处理
 
 遇到下列情况立即停止自动续跑：

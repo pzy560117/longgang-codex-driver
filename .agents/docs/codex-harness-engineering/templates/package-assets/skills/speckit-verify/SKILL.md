@@ -50,12 +50,21 @@ You **MUST** consider the user input before proceeding (if not empty).
    - No formal requirement needed for this verification is `Blocked`.
    - `TEST-GAP` entries are either intentionally accepted by delivery mode or converted into follow-up tasks.
    - Every command about to run is concrete and executable from repo root.
+   - If the repository has `task.json`, `package.json` scripts, and `docs/testing/verify-matrix.md`, verify that critical test scripts are mapped to task ids and evidence boundaries before treating release evidence as complete. A release gate is not enough by itself when individual practices such as API / DB / worker / query / file / sample / mock-local / object-storage smoke are not mapped.
+   - If a guard test such as `tests/mock-local/test-practice-matrix.test.mjs` exists, include its owning command, usually `npm run test:mock-local`, in the verification command set when `task.json`, `package.json`, `tests/`, `docs/testing/verify-matrix.md`, release gate wording, or evidence boundaries changed.
 
 4. Build the verification command set:
    - Baseline commands from `test-manifest.json.baseline.commands`.
    - Required commands from each relevant requirement in `test-manifest.json.requirements`.
    - Affected tests inferred from `git diff --name-only`, `tasks.json`, and `verify-matrix.md`.
    - Always include `git -c core.safecrlf=false diff --check`.
+
+   For driver-first repositories with root `task.json`, also infer affected tests from:
+
+   - each changed task's `test_command`
+   - `package.json` scripts referenced by changed tasks or verify-matrix rows
+   - test practice mapping guard tests, when present
+   - release scripts that aggregate lower-level practices, without allowing the aggregate to hide unmapped test scripts
 
 5. Execute commands from repo root:
    - Record command, exit code, start/end time, and compact output.
@@ -123,6 +132,8 @@ You **MUST** consider the user input before proceeding (if not empty).
 - Missing evidence paths for completed `integration` / `production` tasks block verification.
 - Required commands failing without a documented pre-existing baseline failure block verification.
 - `TEST-GAP` cannot be silently treated as verified.
+- In driver-first repos, critical test scripts without task ownership or verify-matrix evidence boundaries block release completion.
+- mock/local rehearsal, docker/mock release, and external live validation cannot be collapsed into one evidence category.
 
 ## Next Steps
 
