@@ -883,3 +883,17 @@
 
 ### 备注：
 - 禁止标记 passes=true，请人工查看 trace。
+## [2026-05-15 08:49] - Task: MOCK-FIRST-001 执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据
+
+### 完成的工作：
+- Codex 已产生改动。
+
+### 测试结果：
+- 测试失败，退出码 1。
+
+### 审查结果：
+- Stage 1: PASS - 审查通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 禁止标记 passes=true，请人工查看 trace。
