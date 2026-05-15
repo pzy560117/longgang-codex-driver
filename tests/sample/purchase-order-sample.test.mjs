@@ -63,6 +63,17 @@ process.env.EXPORT_PLATFORM_DATABASE_URL = getTestDatabaseUrl();
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT ??= "https://oss.example.test";
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET ??= "export-platform-test";
 
+function getExpectedObjectStorageDownloadUrlPattern() {
+  const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const prefix = `${endpoint.replace(/\/+$/u, "")}/${encodeURIComponent(bucket)}/`;
+  return new RegExp(`^${escapeRegExp(prefix)}`);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 async function createTestDatabase(t) {
   const pool = mysql.createPool(getTestDatabaseUrl());
   const db = new Kysely({
@@ -475,7 +486,7 @@ serialTest("sample boundary 1 row keeps final file masked and records create/que
   assert.equal(scenario.fileMetadata?.fileName.endsWith(".xlsx"), true);
   assert.equal(download.fileName, scenario.fileMetadata.fileName);
   assert.equal(download.storageKey, scenario.fileMetadata.publishedStorageKey);
-  assert.match(download.downloadUrl, /^https:\/\/oss\.example\.test\/export-platform-test\//);
+  assert.match(download.downloadUrl, getExpectedObjectStorageDownloadUrlPattern());
   assert.ok(registryAudits.some((audit) => audit.action === "REGISTRY_CREATE"));
   assert.ok(createAudits.some((audit) => audit.action === "CREATE"));
   assert.ok(downloadAudits.some((audit) => audit.action === "DISPATCH"));
