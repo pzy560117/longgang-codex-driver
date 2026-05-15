@@ -1072,6 +1072,90 @@
                                      ]
                   },
                   {
+                      "id":  "LOCAL-RELEASE-REHEARSAL-001",
+                      "description":  "执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路",
+                      "task_kind":  "feature_impl",
+                      "phase":  "mock-local-release-rehearsal",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  89.5,
+                      "dependencies":  [
+                                           "MOCK-INTEGRATION-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "local release rehearsal 只能产出 mock/local rehearsal evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "验收必须保持生产 HTTP API、DB repository、worker、query、file 和 sample 命令入口可执行",
+                                                       "真实依赖缺失时不得把 mock/local rehearsal 结果回写为 release 通过，RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 local release rehearsal 写成 RELEASE-001 PASS 证据",
+                                                        "禁止用本地 object storage mock、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或正式 release evidence",
+                                                        "禁止移除 REAL-RELEASE-ENV-READY 或修改 RELEASE-001.passes",
+                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/mock-first-release-plan.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "scripts/local-release-rehearsal.ps1",
+                                          "scripts/local-object-storage-server.mjs",
+                                          "tests/mock-local/",
+                                          "docs/testing/mock-first-release-plan.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "task.json",
+                                          "package.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "scripts/local-release-rehearsal.ps1",
+                                                 "scripts/local-object-storage-server.mjs",
+                                                 "tests/mock-local/local-release-rehearsal-docs.test.mjs",
+                                                 "docs/testing/mock-first-release-plan.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "提供 release:local-rehearsal 命令入口，支持连接本地 MySQL 并可启动本地 object storage mock",
+                                    "运行接近 release 的 API、DB、worker、query、file 和 sample 集成命令，必要时跳过 live object-storage smoke 并保留 release 阻塞口径",
+                                    "把 rehearsal 结果明确标记为 mock/local rehearsal evidence，不能解除 REAL-RELEASE-ENV-READY 或替代 RELEASE-001"
+                                ],
+                      "test_command":  "npm run release:local-rehearsal",
+                      "acceptance":  [
+                                         "FR-001 至 FR-014 均可通过本地 rehearsal 命令先压通 API、DB、worker、query、file 和 sample 链路，或明确输出 BLOCKED",
+                                         "结论必须明确不是 RELEASE-001 PASS 证据，且不得替代真实 MySQL、live object storage 或正式 release evidence",
+                                         "RELEASE-001 仍保持 passes:false，REAL-RELEASE-ENV-READY 仍保留为 release 外部哨兵依赖"
+                                     ]
+                  },
+                  {
                       "id":  "RELEASE-001",
                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
                       "task_kind":  "release",
@@ -1088,6 +1172,7 @@
                                            "SAMPLE-PURCHASE-ORDER-001",
                                            "MOCK-FIRST-001",
                                            "MOCK-INTEGRATION-001",
+                                           "LOCAL-RELEASE-REHEARSAL-001",
                                            "REAL-RELEASE-ENV-READY"
                                        ],
                       "passes":  false,

@@ -1099,3 +1099,23 @@
 
 ### 备注：
 - BLOCKED - 需要人工介入：需先确认真实 MySQL 与 live object storage release 环境就绪，再解除 `REAL-RELEASE-ENV-READY` 哨兵并重新运行 driver。
+
+## [2026-05-15 12:31] - Task: LOCAL-RELEASE-REHEARSAL-001 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通集成链路
+
+### 完成的工作：
+- 新增 `LOCAL-RELEASE-REHEARSAL-001` 队列任务，依赖 `MOCK-INTEGRATION-001`，并让 `RELEASE-001` 继续依赖真实环境哨兵。
+- 新增 `npm run release:local-rehearsal`、`scripts/local-release-rehearsal.ps1` 和 `scripts/local-object-storage-server.mjs`。
+- 更新 mock-first release 计划与验证矩阵，明确本地彩排只能产出 mock/local rehearsal evidence，不是 `RELEASE-001 PASS` 证据。
+
+### 测试结果：
+- RED：`npm run test:mock-local -- --test-name-pattern="local release rehearsal"` 先失败，失败点为缺少本地 rehearsal task、脚本和证据声明。
+- GREEN：同一命令已通过。
+- 已运行 `npm run arch:check`、`npm run test:mock-local`、`npm test`、JSON/PowerShell/Node 语法检查和 scoped `git diff --check`。
+- 无本地 MySQL 环境时，`npm run release:local-rehearsal` 按预期输出 `BLOCKED - 需要人工介入`，未宣称通过。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 本轮为交互式新增本地 rehearsal 入口，未进入 driver stage review。
+- Stage 2: NOT_RUN - 本轮为交互式新增本地 rehearsal 入口，未进入 driver stage review。
+
+### 备注：
+- 下一步需要设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向本地 MySQL，并使用 `npm run release:local-rehearsal -- -StartLocalObjectStorageMock` 运行本地彩排；彩排通过后仍不能解除 `REAL-RELEASE-ENV-READY`。

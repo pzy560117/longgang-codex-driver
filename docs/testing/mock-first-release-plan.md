@@ -10,6 +10,7 @@
 
 - `MOCK-FIRST-001` 已完成，mock-first 当前阶段只保留 local/dev evidence 结论，不再继续推动 release 自动队列。
 - `MOCK-INTEGRATION-001` 是 mock-first 后续的本地联调验收任务，用于补齐 FR-001 至 FR-014 的主流程、失败态和证据归档，不产出 release evidence。
+- `LOCAL-RELEASE-REHEARSAL-001` 是 release 前的 mock/local rehearsal evidence 任务，用本地 MySQL 与本地 object storage mock 先压通 API / DB / worker / query / file / sample 集成命令。
 - `RELEASE-001` 当前最新状态是 `BLOCKED`。
 - `RELEASE-001` 现被外部哨兵依赖 `REAL-RELEASE-ENV-READY` 挂起；在人工确认真实 release 依赖就绪前，它不应继续被 stop hook 或续跑逻辑视为当前可自动运行任务。
 - 已通过的基础 gate 包括 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`Redocly OpenAPI lint`。
@@ -20,6 +21,8 @@
 
 - mock-first 是当前已完成的先行阶段；它的职责是产出 local/dev evidence，并明确哪些 release 证据仍依赖真实环境。
 - `MOCK-INTEGRATION-001` 依赖 `MOCK-FIRST-001`，是 release 前的本地验收归档任务；driver 应先执行它，再考虑 `RELEASE-001`。
+- `LOCAL-RELEASE-REHEARSAL-001` 依赖 `MOCK-INTEGRATION-001`，用于在不接正式 live 依赖的前提下，通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，提前暴露 API / DB / worker / query / file / sample 集成问题。
+- `LOCAL-RELEASE-REHEARSAL-001` 不能解除 `REAL-RELEASE-ENV-READY`，不能作为 `RELEASE-001 PASS` 证据，也不能替代真实 MySQL 或 live OSS/S3 release evidence。
 - `REAL-RELEASE-ENV-READY` 是 `RELEASE-001` 的外部哨兵依赖，表示以下条件均已由人工配置并确认：
   - 真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 已可用于 release gate。
   - live object storage 的 endpoint、bucket、credential 已配置完成。
@@ -36,6 +39,18 @@
 - mock-first 不得替代 live OSS/S3 证据。
 - mock-first 不得替代真实 MySQL 证据。
 - mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
+
+## LOCAL-RELEASE-REHEARSAL-001 本地彩排边界
+
+本任务状态: pending / mock/local rehearsal evidence。
+
+| 验收项 | 预期命令 | Release 边界 |
+| --- | --- | --- |
+| 本地 rehearsal 入口 | `npm run release:local-rehearsal` | 只证明本地 MySQL 与本地 object storage mock 下的集成链路可执行，不能解除 `REAL-RELEASE-ENV-READY`。 |
+| API / DB / worker / query / file / sample | `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample` | 可以提前暴露生产路径集成问题，但仍是 mock/local rehearsal evidence，不是 release evidence。 |
+| object storage | `-StartLocalObjectStorageMock` 启动本地 HTTP object storage；非本地 endpoint 时才运行 `npm run test:object-storage-live` | 本地 object storage mock 不是 live OSS/S3；live smoke 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。 |
+
+若本地 MySQL 或本地 object storage mock 未准备好，`LOCAL-RELEASE-REHEARSAL-001` 必须输出 `BLOCKED - 需要人工介入`，不得把缺失环境写成通过。该任务即使通过，也只能作为 mock/local rehearsal evidence，不能推动 `RELEASE-001` 退出 `BLOCKED`。
 
 ## MOCK-INTEGRATION-001 本地验收结果
 
