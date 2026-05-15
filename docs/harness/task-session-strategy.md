@@ -41,6 +41,7 @@
 - 每次只处理一个 `passes: false` 的任务。
 - 优先级数字越小越先执行。
 - 所有依赖任务必须已经通过。
+- 如果仍有 `passes: false` 任务，但当前没有依赖已满足的 runnable task，Stop hook 应允许停止；历史 failed trace 继续作为 release blocker evidence，而不是强制续跑依据。
 - `execution.mode` 缺省为 `single`，当前只允许 `single`。
 - 修改后必须运行当前任务的 `test_command`。
 - 测试失败时禁止提交，禁止把 `passes` 改为 `true`。

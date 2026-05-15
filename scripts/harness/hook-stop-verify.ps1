@@ -648,10 +648,10 @@ Initialize a real harness task queue before ending the session.
 
   $runnableTask = Select-RunnableTask -Tasks $tasks
   if ($null -eq $runnableTask) {
-    if ($latestTraceInfo.Exists -and (($latestTraceInfo.Readable -eq $false) -or ($latestTraceInfo.Status -ne "passed"))) {
-      Block-OnTraceEvidenceIfNeeded -Root $resolvedProjectRoot -EvidenceKey $evidenceKey -TraceInfo $latestTraceInfo
-    }
-
+    # Pending tasks can still exist when every remaining task is blocked on unmet
+    # dependencies. In that state there is no dependency-ready runnable work, so
+    # historical failed traces remain release-blocker evidence instead of a reason
+    # to force another stop-hook continuation loop.
     Exit-Allow
   }
 

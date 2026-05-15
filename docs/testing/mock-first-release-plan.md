@@ -8,10 +8,22 @@
 
 ## 当前结论
 
+- `MOCK-FIRST-001` 已完成，mock-first 当前阶段只保留 local/dev evidence 结论，不再继续推动 release 自动队列。
 - `RELEASE-001` 当前最新状态是 `BLOCKED`。
+- `RELEASE-001` 现被外部哨兵依赖 `REAL-RELEASE-ENV-READY` 挂起；在人工确认真实 release 依赖就绪前，它不应继续被 stop hook 或续跑逻辑视为当前可自动运行任务。
 - 已通过的基础 gate 包括 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`Redocly OpenAPI lint`。
 - 当前阻塞点是缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
 - live object storage 仍需要真实 endpoint、bucket、credential，以及 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+
+## 队列边界
+
+- mock-first 是当前已完成的先行阶段；它的职责是产出 local/dev evidence，并明确哪些 release 证据仍依赖真实环境。
+- `REAL-RELEASE-ENV-READY` 是 `RELEASE-001` 的外部哨兵依赖，表示以下条件均已由人工配置并确认：
+  - 真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 已可用于 release gate。
+  - live object storage 的 endpoint、bucket、credential 已配置完成。
+  - `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 已显式开启，可执行真实 smoke writes。
+- 在 `REAL-RELEASE-ENV-READY` 未满足前，driver / stop hook / continuation gate 都不应把 `RELEASE-001` 当作当前 runnable task。
+- 只有真实依赖准备完成后，才恢复 driver 执行 `RELEASE-001` 的 release gate。
 
 ## mock-first 的边界
 
@@ -43,7 +55,7 @@
 
 ## 退出条件
 
-- 补齐真实 MySQL 和 live object storage 环境。
+- 先解除外部哨兵依赖 `REAL-RELEASE-ENV-READY`，即补齐并人工确认真实 MySQL 和 live object storage 环境。
 - 不能将 mock-first 结果回写为 `RELEASE-001 PASS`，也不能把 local/dev evidence 当成 release evidence。
 - 重新执行 `npm run test:api`。
 - 再执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`，或由 driver 重新跑 release 流程。

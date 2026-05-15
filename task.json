@@ -1003,9 +1003,15 @@
                       "priority":  90,
                       "dependencies":  [
                                            "SAMPLE-PURCHASE-ORDER-001",
-                                           "MOCK-FIRST-001"
+                                           "MOCK-FIRST-001",
+                                           "REAL-RELEASE-ENV-READY"
                                        ],
                       "passes":  false,
+                      "external_dependency_notes":  [
+                                                        "REAL-RELEASE-ENV-READY 是人工确认型外部哨兵依赖，不代表任务已通过。",
+                                                        "只有当真实 MySQL EXPORT_PLATFORM_TEST_DATABASE_URL 已配置并由人工确认可用于 release gate 时，才可视为该哨兵已就绪。",
+                                                        "只有当 live object storage 的 endpoint、bucket、credential 和 EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true 已配置并由人工确认可用于 smoke writes 时，才可视为该哨兵已就绪。"
+                                                    ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",
                                             "docs/architecture/constraints.md",
@@ -1041,12 +1047,14 @@
                                         "mode":  "single"
                                     },
                       "steps":  [
+                                    "确认外部哨兵依赖 REAL-RELEASE-ENV-READY 已由人工解除阻塞：真实 MySQL EXPORT_PLATFORM_TEST_DATABASE_URL 与 live object storage endpoint、bucket、credential、EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true 均已配置完成并确认可用于 release gate",
                                     "运行 release 所需的架构检查、契约测试、API 集成测试、DB/worker 测试和 P0/P1 回归",
                                     "核对所有 evidence 是否来自 fresh-start 后的新实现，不引用旧内存实现或旧 trace",
                                     "记录通过证据、失败归因、BLOCKED 项和剩余风险"
                                 ],
                       "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
                       "acceptance":  [
+                                         "在 REAL-RELEASE-ENV-READY 未就绪前，RELEASE-001 不是当前可自动运行任务，且必须保持 passes:false",
                                          "fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明",
                                          "release 结论不引用旧实现、旧测试或旧 trace",
                                          "架构约束、API、DB、worker、file、sample 证据一致"
