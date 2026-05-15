@@ -1133,3 +1133,17 @@
 
 ### 备注：
 - Codex 输出包含失败或 BLOCKED，请人工查看。
+## [2026-05-15 12:49] - Task: LOCAL-RELEASE-REHEARSAL-001 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路
+
+### 完成的工作：
+- Codex 会话未完成。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 未进入 Stage 1 审查。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- Codex 输出包含失败或 BLOCKED，请人工查看。
