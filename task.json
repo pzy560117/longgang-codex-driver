@@ -925,6 +925,18 @@
                                            "SAMPLE-PURCHASE-ORDER-001"
                                        ],
                       "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "mock-first 只能产出 local/dev evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+                                                       "mock-first 验证必须保持生产入口和生产路径架构检查可执行，不得引入生产代码测试替身",
+                                                       "真实依赖缺失时 RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 mock-first local/dev evidence 写成 RELEASE-001 PASS 证据",
+                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或真实 MySQL 证据",
+                                                        "禁止修改 RELEASE-001 为 passes:true",
+                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+                                                    ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",
                                             "docs/architecture/constraints.md",

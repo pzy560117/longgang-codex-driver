@@ -22,6 +22,25 @@
 - mock-first 不得替代真实 MySQL 证据。
 - mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
 
+## mock-first local/dev evidence 映射
+
+| Req ID | local/dev evidence | 失败态演练 | Release 边界 |
+| --- | --- | --- | --- |
+| FR-001 | local/dev evidence: `npm run test:mock-local` 只确认创建任务契约、幂等字段和 mock-first 命令入口可被本地验证引用。 | 失败态: 未注册、禁用、权限不足和参数过长仍以 API / DB 集成测试接真实 MySQL 后确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+| FR-002 | local/dev evidence: `npm run test:mock-local` 只确认进度字段、错误字段和本地文档映射被纳入 mock-first 证据集合。 | 失败态: 不存在任务、无权查看和失败详情仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+| FR-003 | local/dev evidence: `tests/mock-local/object-storage-local.test.mjs` 使用本地 HTTP object storage adapter 覆盖 put/read/publish/download URL 协议链路。 | 失败态: 缺少对象存储 endpoint / bucket 时 `createObjectStorageFromEnv()` 明确 BLOCKED。 | 不是 release evidence；不得替代 live OSS/S3 或正式下载证据。 |
+| FR-004 | local/dev evidence: `npm run test:mock-local` 只确认历史查询筛选口径和可见性风险被纳入 mock-first 映射。 | 失败态: 普通用户越权、管理员全局查询和空分页仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+| FR-005 | local/dev evidence: `npm run arch:check` 与 mock-first 映射只确认 scheduler / worker / migration 入口存在。 | 失败态: 多实例抢锁、并发上限和数据库时间租约仍需 `npm run test:worker` 接真实 MySQL。 | 不是 release evidence；不得替代 DB 抢锁和 worker release 证据。 |
+| FR-006 | local/dev evidence: mock-first 只记录分片、ZIP、空数据和文件阶段事件的本地联调入口；本地对象存储协议链路由 `tests/mock-local/object-storage-local.test.mjs` 覆盖。 | 失败态: 渲染失败、字段校验失败和超量导出仍需 file / sample 集成测试确认。 | 不是 release evidence；不得替代真实 MySQL、文件服务或 live object storage 证据。 |
+| FR-007 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认 registry/config API 入口与契约追踪存在。 | 失败态: 重复 taskCode、禁用配置、配置同步失败和无权限操作仍需 API / DB 集成测试。 | 不是 release evidence；不得替代 registry 生产 repository 证据。 |
+| FR-008 | local/dev evidence: mock-first 只确认集中查询模板、参数 schema、字段映射和脱敏策略在本地证据集合中有入口。 | 失败态: 非法模板、未声明参数、原始 SQL、数据源不可用和字段映射错误仍需 query 集成测试。 | 不是 release evidence；不得替代真实 MySQL 或外部只读数据源证据。 |
+| FR-009 | local/dev evidence: mock-first 只确认认证上下文、权限和脱敏风险被纳入本地联调清单；下载协议可由本地对象存储 adapter 演练。 | 失败态: 权限不足、认证字段缺失、下载拒绝和脱敏失败仍需 API / query / file 集成测试。 | 不是 release evidence；不得替代真实权限、数据范围或 live storage 证据。 |
+| FR-010 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认审计日志、事件日志和 requestId 串联入口存在。 | 失败态: 审计缺字段、事件缺失、失败阶段和上一成功阶段仍需 API / worker / DB 集成测试。 | 不是 release evidence；不得替代真实审计表和任务事件证据。 |
+| FR-011 | local/dev evidence: mock-first 使用本地对象存储协议链路确认对象操作接口可演练，cleanup job 入口由 `npm run arch:check` 确认。 | 失败态: 先标记不可下载再删对象、删除失败重试和 410 失效仍需 file / worker 集成测试。 | 不是 release evidence；不得替代 cleanup job、真实 MySQL 或 live OSS/S3 证据。 |
+| FR-012 | local/dev evidence: mock-first 只确认取消 / 重试 API 入口、状态机风险和验证入口被映射。 | 失败态: PENDING 取消、FAILED 重试、EXECUTING 批次边界取消和非法状态重试仍需 API / worker 集成测试。 | 不是 release evidence；不得替代真实任务状态机和 worker 证据。 |
+| FR-013 | local/dev evidence: mock-first 只确认幂等、attemptNo、配置快照、锁租约字段和追踪入口被映射。 | 失败态: 幂等冲突、锁过期接管、续租和 FAILED 重试递增 attemptNo 仍需 DB / worker 集成测试。 | 不是 release evidence；不得替代真实 MySQL 锁租约和快照证据。 |
+| FR-014 | local/dev evidence: mock-first 只确认采购订单样板契约、查询字段、脱敏字段、边界数据和本地对象存储协议链路入口存在。 | 失败态: 0/1/20000/20001/100000/100001 行、敏感字段未脱敏和游标异常仍需 sample 集成测试。 | 不是 release evidence；不得替代真实 MySQL、sample 压测或 live OSS/S3 证据。 |
+
 ## 退出条件
 
 - 补齐真实 MySQL 和 live object storage 环境。
