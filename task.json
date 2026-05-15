@@ -909,6 +909,74 @@
                                      ]
                   },
                   {
+                      "id":  "MOCK-FIRST-001",
+                      "description":  "执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据",
+                      "task_kind":  "verification",
+                      "phase":  "mock-first",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  88,
+                      "dependencies":  [
+                                           "SAMPLE-PURCHASE-ORDER-001"
+                                       ],
+                      "passes":  false,
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/mock-first-release-plan.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "package.json",
+                                          "tests/mock-local/",
+                                          "docs/testing/mock-first-release-plan.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "task.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "tests/mock-local/",
+                                                 "docs/testing/mock-first-release-plan.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "使用 mock-first 本地链路执行 arch check、mock-local、基础单测和 scoped diff 检查，收集 local/dev evidence",
+                                    "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路，但不连接真实 MySQL 或 live object storage",
+                                    "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 live OSS/S3、真实 MySQL 证据"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md')",
+                      "acceptance":  [
+                                         "FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",
+                                         "mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence",
+                                         "若真实依赖缺失，RELEASE-001 仍保持 passes:false，且只能继续标记为 BLOCKED 或待真实环境验证"
+                                     ]
+                  },
+                  {
                       "id":  "RELEASE-001",
                       "description":  "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
                       "task_kind":  "release",
@@ -922,7 +990,8 @@
                                                  ],
                       "priority":  90,
                       "dependencies":  [
-                                           "SAMPLE-PURCHASE-ORDER-001"
+                                           "SAMPLE-PURCHASE-ORDER-001",
+                                           "MOCK-FIRST-001"
                                        ],
                       "passes":  false,
                       "context_files":  [
