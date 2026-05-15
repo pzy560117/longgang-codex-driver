@@ -1,0 +1,56 @@
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `RELEASE-001` release 验证；不能声明 release 通过。
+- 静态/基线 gate 通过：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint、scoped `git diff --check`。
+- 真实集成 gate 阻塞：当前环境没有 `EXPORT_PLATFORM_TEST_DATABASE_URL`，API/DB/worker/query/file/sample 生产路径无法完成 fresh evidence。
+- live object storage gate 阻塞：缺少真实 endpoint/bucket 和显式写入授权，adapter/local HTTP 证据不能冒充 live release evidence。
+
+## Files Changed
+- 无。未修改业务文件、测试文件、`task.json`、`progress.txt` 或 `traces/`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 在 `npm run test:api` 停止，缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:db`: FAIL / BLOCKED - 缺少真实 MySQL URL。
+- `npm run test:worker`: FAIL / BLOCKED - 缺少真实 MySQL URL。
+- `npm run test:query`: FAIL / BLOCKED - 缺少真实 MySQL URL。
+- `npm run test:file`: FAIL / BLOCKED - 缺少真实 MySQL URL。
+- `npm run test:sample`: FAIL / BLOCKED - 缺少真实 MySQL URL。
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 缺少真实/live object storage 配置。
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS。
+
+## Evidence
+- `scripts/release-verify.ps1`: release_required gate 命令清单。
+- `docs/testing/verify-matrix.md`: 当前 release 口径要求 live object storage BLOCKED 时不能写成 fully passed。
+- `tests/api/export-http-api.test.mjs`: API 集成主路径要求真实 MySQL。
+- `tests/db/export-repositories.test.mjs`: DB repository/migration evidence 要求真实 MySQL。
+- `tests/worker/scheduler-worker.test.mjs`: worker/lease/cleanup evidence 要求真实 MySQL。
+- `scripts/object-storage-live-smoke.mjs`: live object storage smoke gate 明确拒绝 placeholder-only 配置。
+
+## Architecture Constraints
+- `independent_microservice`: PARTIAL - `npm run arch:check` 通过，但 release 真实依赖未接通。
+- `api_boundary`: BLOCKED - OpenAPI/contract/static route evidence 通过，Fastify + MySQL API 主路径缺少真实 MySQL。
+- `data_boundary`: BLOCKED - MySQL repository/migration 集成证据缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `async_worker_boundary`: BLOCKED - worker DB polling、锁租约、接管、重试证据缺少真实 MySQL。
+- `file/object_storage_boundary`: BLOCKED - live object storage 未配置，不能用 adapter/local HTTP 证据替代。
+- `forbidden_implementations`: PASS - 本轮没有把 InMemory/mock/fixture/local adapter 结果声明为生产 release 通过。
+
+## Knowledge References
+- 无具体知识条目引用；已读取 `docs/knowledge/knowledge-catalog.md` 和 `docs/knowledge/catalog.md`，未发现 verify 阶段直接相关条目需要展开。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-DB-STORAGE-001`: pitfall - Release 验证在缺少真实 MySQL 和 live object storage 时必须 BLOCKED，不能复用 adapter/local 证据 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- FR-001 至 FR-014 尚未取得本轮完整 release fresh evidence。
+- 需要人工提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 需要人工提供真实 object storage endpoint/bucket，并显式设置允许 smoke 写入的配置后重跑：
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。

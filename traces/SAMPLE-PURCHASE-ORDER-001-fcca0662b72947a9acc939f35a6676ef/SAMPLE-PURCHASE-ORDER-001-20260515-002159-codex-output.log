@@ -1,0 +1,89 @@
+SUCCESS: The process with PID 26076 (child process of PID 10796) has been terminated.
+SUCCESS: The process with PID 10796 (child process of PID 27456) has been terminated.
+SUCCESS: The process with PID 27456 (child process of PID 16232) has been terminated.
+SUCCESS: The process with PID 16232 (child process of PID 22712) has been terminated.
+SUCCESS: The process with PID 22712 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 5864 (child process of PID 27704) has been terminated.
+SUCCESS: The process with PID 27704 (child process of PID 24728) has been terminated.
+SUCCESS: The process with PID 24728 (child process of PID 14056) has been terminated.
+SUCCESS: The process with PID 14056 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 28092 (child process of PID 26952) has been terminated.
+SUCCESS: The process with PID 26952 (child process of PID 22784) has been terminated.
+SUCCESS: The process with PID 22784 (child process of PID 21848) has been terminated.
+SUCCESS: The process with PID 21848 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 22640 (child process of PID 24708) has been terminated.
+SUCCESS: The process with PID 24708 (child process of PID 15512) has been terminated.
+SUCCESS: The process with PID 15512 (child process of PID 15120) has been terminated.
+SUCCESS: The process with PID 15120 (child process of PID 23356) has been terminated.
+SUCCESS: The process with PID 23356 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 23172 (child process of PID 3692) has been terminated.
+SUCCESS: The process with PID 3692 (child process of PID 6220) has been terminated.
+SUCCESS: The process with PID 6220 (child process of PID 27116) has been terminated.
+SUCCESS: The process with PID 27116 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 7308 (child process of PID 7080) has been terminated.
+SUCCESS: The process with PID 7080 (child process of PID 20980) has been terminated.
+SUCCESS: The process with PID 20980 (child process of PID 11056) has been terminated.
+SUCCESS: The process with PID 11056 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 5784 (child process of PID 23416) has been terminated.
+SUCCESS: The process with PID 23416 (child process of PID 3204) has been terminated.
+SUCCESS: The process with PID 3204 (child process of PID 24368) has been terminated.
+SUCCESS: The process with PID 24368 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 28376 (child process of PID 24868) has been terminated.
+SUCCESS: The process with PID 24868 (child process of PID 22384) has been terminated.
+SUCCESS: The process with PID 22384 (child process of PID 7192) has been terminated.
+SUCCESS: The process with PID 7192 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 5100 (child process of PID 25516) has been terminated.
+SUCCESS: The process with PID 25516 (child process of PID 25540) has been terminated.
+SUCCESS: The process with PID 25540 (child process of PID 2228) has been terminated.
+SUCCESS: The process with PID 2228 (child process of PID 20552) has been terminated.
+SUCCESS: The process with PID 20552 (child process of PID 28188) has been terminated.
+## Requirement IDs
+- FR-014
+
+## Summary
+- 实现采购订单样板合同模块，接入标准 `registry -> query -> file -> audit/event` 链路，没有新增采购订单特例 HTTP 接口。
+- 覆盖样板字段顺序、敏感字段脱敏、复合游标、`0/1/20000/20001/100000/100001` 边界和 10 万行回归证据。
+- 同步 `test:sample` 真实验证入口和 `docs/testing/verify-matrix.md`。
+
+## Files Changed
+- `src/sample-purchase-order/index.ts`: 新增采购订单样板合同。
+- `src/query-executor/index.ts`: 接入样板合同校验、参数白名单、复合游标 token、姓名/手机号脱敏。
+- `src/file-service/index.ts`: 增强表头顺序校验、0 行表头证据、ZIP/分片元数据。
+- `tests/sample/purchase-order-sample.test.mjs`: 新增 FR-014 样板回归。
+- `tests/query/query-executor.test.mjs`: 更新复合游标断言并保留旧 cursor 兼容测试。
+- `package.json`: `test:sample` 改为真实测试入口。
+- `docs/testing/verify-matrix.md`: 更新 sample 证据状态。
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run arch:check`: PASS
+- `npm run test:sample`: PASS，真实 MySQL 测试环境下 8/8 通过，含 100000 行边界
+- `verify.ps1` 聚合命令：PASS  
+  覆盖 `arch:check`、`test:sample`、`test:query`、`test:file`、`test:db`、`git diff --check -- task.json plans docs/testing/verify-matrix.md`
+
+## Evidence
+- `tests/sample/purchase-order-sample.test.mjs`: FR-014 样板、边界、脱敏、ZIP、审计事件链路证据。
+- `docs/testing/verify-matrix.md`: release 前 query/file/sample 证据入口更新。
+- `src/sample-purchase-order/index.ts`: 样板 registry/query/file 合同来源。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 未新增特例接口，复用现有服务链路。
+- `real MySQL boundary`: PASS - 聚合验证使用真实 MySQL 测试库。
+- `no InMemory/mock production path`: PASS - 生产入口未引入内存实现或 mock repository。
+- `object storage live endpoint`: NOT_RUN - 自动化使用注入式对象存储适配器验证文件链路，未配置真实对象存储端点。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: 最终证据与知识输出 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: 验证矩阵同步 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-SAMPLE-EXPORT-001`: guideline - 样板合同应复用标准 registry/query/file/audit 链路 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 真实对象存储端点未配置，生产 OSS/S3 级别的 live evidence 仍需在 release 环境补跑。
+- 按本任务模板强制边界，未执行 `git add` / `git commit`。

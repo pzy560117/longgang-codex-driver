@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | truth_source_missing | controller | `docs/testing/verify-matrix.md` 声明 API/DB/worker/query/file/sample 为 fresh-pass；`docs/testing/REGRESSION_PLAN.md` 也声明回归 fresh-pass。但最新 release trace `traces/RELEASE-001-20260515-055042.json` 状态为 `blocked`，原因是缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，`npm run test:api` 即停止，DB/worker/query/file/sample/live object storage 本轮未执行。 | 二选一：配置真实 MySQL 后重跑 release gate，并用新的 trace 更新 verify/regression 证据；或把 `verify-matrix.md` / `REGRESSION_PLAN.md` 中 API/DB/worker/query/file/sample 的 fresh-pass 改为当前 BLOCKED，禁止继续写成已通过。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner / docs-worker | 1 | Yes |

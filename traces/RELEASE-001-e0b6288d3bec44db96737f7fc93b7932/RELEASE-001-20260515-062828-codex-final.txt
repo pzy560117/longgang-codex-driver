@@ -1,0 +1,54 @@
+BLOCKED - 需要人工介入
+
+当前任务: `RELEASE-001` 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+## Requirement IDs
+- `FR-001` - `FR-014`
+
+## Summary
+- 已执行指定 release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 基础校验通过：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint。
+- release 在 `npm run test:api` 停止：缺少真实 MySQL 连接 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 未引用旧实现、旧测试或旧 trace 作为通过证据；当前结论保持 `BLOCKED`。
+- 未提交：本轮 Driver 模板明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无代码或文档文件改动。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 报 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS
+- `npm run arch:check`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS
+- `npm test`: PASS, 17/17
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- `npm run test:db` / `test:worker` / `test:query` / `test:file` / `test:sample` / `test:object-storage-live`: NOT_RUN - release script 在 API gate 失败后短路停止。
+
+## Evidence
+- `traces/RELEASE-001-e0b6288d3bec44db96737f7fc93b7932/RELEASE-001-20260515-062828-codex-error.log`: 本轮 release 命令输出、API gate blocked 归因。
+- `docs/testing/verify-matrix.md`: 已声明当前 release 必须因缺少真实 MySQL / live object storage evidence 保持 blocked。
+- `package.json`: release 后续 gate 脚本存在，但未执行到。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过。
+- `API Boundary`: BLOCKED - API 生产路径测试需要真实 MySQL，当前环境未提供 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `Data Boundary`: BLOCKED - DB/worker/query/file/sample release evidence 未能在真实 MySQL 上执行。
+- `Test Double Policy`: PASS - 未用 mock、InMemory 或旧 trace 冒充 release 通过。
+- `Forbidden Implementations`: PASS - 本轮未把旧证据或本地替身写成 fully passed。
+
+## Knowledge References
+- 无项目知识条目引用；仅读取 `docs/knowledge/knowledge-catalog.md` 与 `docs/knowledge/catalog.md` 判断本轮无需展开具体条目。
+
+## Knowledge Outputs
+- 无新增知识条目建议；当前 blocked 模式已在 `docs/testing/verify-matrix.md` 中记录。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑 release。
+- live object storage smoke 仍需要真实对象存储配置与显式写入授权，不能由本地 adapter 证据替代。
+- 当前 API gate 之后的 DB / worker / query / file / sample 回归没有 fresh release evidence。

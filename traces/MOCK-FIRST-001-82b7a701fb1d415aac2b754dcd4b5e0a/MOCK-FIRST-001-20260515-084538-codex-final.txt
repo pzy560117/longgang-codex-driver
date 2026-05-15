@@ -1,0 +1,44 @@
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 已执行 MOCK-FIRST-001 指定 mock-first local/dev evidence 验证链路。
+- 现有 `tests/mock-local/`、`docs/testing/mock-first-release-plan.md`、`docs/testing/verify-matrix.md` 已覆盖 FR-001 至 FR-014 的 local/dev evidence、失败态边界和 release 禁用边界。
+- 未修改 `task.json`、`progress.txt`、`traces/`，未执行 git add/commit/push；本轮无 tracked diff。
+
+## Files Changed
+- 无 tracked file changes。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& .\verify.ps1 -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md')"`: PASS
+  - `npm run arch:check`: PASS
+  - `npm run test:mock-local`: PASS，4/4 tests passed
+  - `npm test`: PASS，17/17 tests passed
+  - scoped `git diff --check`: PASS
+- `task.json` JSON inspection: PASS，`MOCK-FIRST-001 passes=False`，`RELEASE-001 passes=False`
+
+## Evidence
+- `tests/mock-local/mock-first-contract.test.mjs`: 验证 mock-first 命令、FR-001 - FR-014 映射、不得升级为 release evidence。
+- `tests/mock-local/object-storage-local.test.mjs`: 验证本地 HTTP object storage adapter 的 put/read/publish/download URL local/dev 链路，并验证无真实环境变量时 BLOCKED。
+- `docs/testing/mock-first-release-plan.md`: 记录 mock-first 只能作为 local/dev evidence，不能替代 RELEASE-001、真实 MySQL 或 live OSS/S3。
+- `docs/testing/verify-matrix.md`: 记录 mock-first 验证入口和 RELEASE-001 仍 BLOCKED 的 release 边界。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check` 通过。
+- `mock-first only local/dev evidence`: PASS - 测试和文档均断言不得作为 RELEASE-001 PASS 证据。
+- `no production test double introduction`: PASS - 本轮无 `src/` diff，arch check 通过。
+- `RELEASE-001 remains false/blocked`: PASS - `task.json` inspection 显示 `RELEASE-001 passes=False`。
+
+## Knowledge References
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in mock-first evidence 边界核对 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- RELEASE-001 仍需真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 和 live OSS/S3 环境证据；mock-first 结果不能推动 release pass。

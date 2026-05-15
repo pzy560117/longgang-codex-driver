@@ -1,0 +1,125 @@
+SUCCESS: The process with PID 26716 (child process of PID 27484) has been terminated.
+SUCCESS: The process with PID 27484 (child process of PID 24088) has been terminated.
+SUCCESS: The process with PID 24088 (child process of PID 8268) has been terminated.
+SUCCESS: The process with PID 8268 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 26596 (child process of PID 16216) has been terminated.
+SUCCESS: The process with PID 16216 (child process of PID 25424) has been terminated.
+SUCCESS: The process with PID 25424 (child process of PID 7428) has been terminated.
+SUCCESS: The process with PID 7428 (child process of PID 3340) has been terminated.
+SUCCESS: The process with PID 3340 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 19856 (child process of PID 5116) has been terminated.
+SUCCESS: The process with PID 5116 (child process of PID 23072) has been terminated.
+SUCCESS: The process with PID 23072 (child process of PID 15212) has been terminated.
+SUCCESS: The process with PID 15212 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 22052 (child process of PID 20248) has been terminated.
+SUCCESS: The process with PID 20248 (child process of PID 27476) has been terminated.
+SUCCESS: The process with PID 27476 (child process of PID 28356) has been terminated.
+SUCCESS: The process with PID 28356 (child process of PID 2820) has been terminated.
+SUCCESS: The process with PID 2820 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 5148 (child process of PID 27828) has been terminated.
+SUCCESS: The process with PID 27828 (child process of PID 28124) has been terminated.
+SUCCESS: The process with PID 28124 (child process of PID 8104) has been terminated.
+SUCCESS: The process with PID 8104 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 6960 (child process of PID 24392) has been terminated.
+SUCCESS: The process with PID 24392 (child process of PID 27836) has been terminated.
+SUCCESS: The process with PID 27836 (child process of PID 11620) has been terminated.
+SUCCESS: The process with PID 11620 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 24236 (child process of PID 27640) has been terminated.
+SUCCESS: The process with PID 22516 (child process of PID 7476) has been terminated.
+SUCCESS: The process with PID 18184 (child process of PID 860) has been terminated.
+SUCCESS: The process with PID 27640 (child process of PID 23604) has been terminated.
+SUCCESS: The process with PID 7476 (child process of PID 13748) has been terminated.
+SUCCESS: The process with PID 23604 (child process of PID 11648) has been terminated.
+SUCCESS: The process with PID 860 (child process of PID 26744) has been terminated.
+SUCCESS: The process with PID 13748 (child process of PID 24672) has been terminated.
+SUCCESS: The process with PID 11648 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 26744 (child process of PID 2944) has been terminated.
+SUCCESS: The process with PID 24672 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 2944 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 8336 (child process of PID 15440) has been terminated.
+SUCCESS: The process with PID 15440 (child process of PID 24568) has been terminated.
+SUCCESS: The process with PID 24568 (child process of PID 360) has been terminated.
+SUCCESS: The process with PID 360 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 22776 (child process of PID 11904) has been terminated.
+SUCCESS: The process with PID 11904 (child process of PID 14936) has been terminated.
+SUCCESS: The process with PID 14936 (child process of PID 27596) has been terminated.
+SUCCESS: The process with PID 27596 (child process of PID 22944) has been terminated.
+SUCCESS: The process with PID 22944 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 3812 (child process of PID 9420) has been terminated.
+SUCCESS: The process with PID 9420 (child process of PID 27592) has been terminated.
+SUCCESS: The process with PID 27592 (child process of PID 26808) has been terminated.
+SUCCESS: The process with PID 26808 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 18848 (child process of PID 2368) has been terminated.
+SUCCESS: The process with PID 2368 (child process of PID 5988) has been terminated.
+SUCCESS: The process with PID 5988 (child process of PID 13720) has been terminated.
+SUCCESS: The process with PID 13720 (child process of PID 7632) has been terminated.
+SUCCESS: The process with PID 7632 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 2372 (child process of PID 11044) has been terminated.
+SUCCESS: The process with PID 11044 (child process of PID 26892) has been terminated.
+SUCCESS: The process with PID 26892 (child process of PID 10224) has been terminated.
+SUCCESS: The process with PID 10224 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 26536 (child process of PID 27612) has been terminated.
+SUCCESS: The process with PID 27612 (child process of PID 9496) has been terminated.
+SUCCESS: The process with PID 9496 (child process of PID 27456) has been terminated.
+SUCCESS: The process with PID 27456 (child process of PID 26384) has been terminated.
+SUCCESS: The process with PID 26384 (child process of PID 24676) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: QUERY-EXECUTOR-001 实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点
+
+## Requirement IDs
+- FR-006
+- FR-008
+- FR-009
+- FR-014
+
+## Summary
+- 已实现 `src/query-executor/index.ts` 生产入口，接入 scheduler 默认 batch processor。
+- 已补任务执行上下文快照：`request_payload`、`auth_context_payload`，用于 worker 执行期恢复查询参数和认证/数据范围。
+- 已补 query 真实 MySQL 测试入口，`test:query` 不再是 planned 占位。
+- 阻塞点：当前环境未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，无法完成真实 MySQL 证据验证。
+
+## Files Changed
+- `src/query-executor/index.ts`: query executor、模板校验、参数绑定、字段映射、脱敏、数据范围、游标分页、事件输出
+- `src/scheduler/worker.ts`: 默认接入 query executor
+- `src/task-api/service.ts`: 创建任务时保存请求参数和认证上下文快照
+- `src/db/schema.ts`, `migrations/006_task_execution_context_snapshot.*`: 新增执行上下文字段
+- `tests/query/query-executor.test.mjs`, `tests/query/README.md`, `package.json`: query 集成测试入口
+- `tests/db/export-repositories.test.mjs`, `tests/worker/scheduler-worker.test.mjs`: 同步任务快照字段
+- `docs/testing/verify-matrix.md`: 已由子代理提交为 `8073b10`
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed
+- `npm run typecheck`: PASS
+- `git diff --check`: PASS
+- `npm run test:query`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- full `verify.ps1`: FAIL/BLOCKED - 正确执行到 `npm run test:query` 后因真实 MySQL URL 缺失停止
+
+## Evidence
+- `src/query-executor/index.ts`: query 生产路径实现
+- `migrations/006_task_execution_context_snapshot.ts`: 执行上下文持久化边界
+- `tests/query/query-executor.test.mjs`: FR-006/008/009/014 的真实 MySQL 验收测试
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 接入现有 worker/service/repository 边界
+- `production MySQL boundary`: BLOCKED - 代码走 MySQL/Kysely，但环境缺少真实 MySQL URL，未取得通过证据
+- `no InMemory/mock as production`: PASS - 未引入 InMemory/mock 生产实现
+- `checkpoint + attemptNo traceability`: PASS structurally - checkpoint 返回并由 worker 持久化；真实 DB 验证 blocked
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `suggested-query-executor-context-snapshot`: guideline - query executor 需要任务请求参数与认证上下文快照 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑完整验证。
+- 子代理违反边界执行了提交 `8073b10`；我没有回退该提交，也没有继续提交当前未验证改动。
+- 当前工作区仍有未跟踪 `traces/` 运行产物，未修改。

@@ -1,0 +1,52 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.505ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (0.6856ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (39.6066ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.4466ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 679.6796
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (0.55ms)
+✔ verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline (0.2701ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (1.311ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (0.6011ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.3265ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.257ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (0.4339ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.1511ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.1965ms)
+✔ OpenAPI operationIds are represented by route manifest entries (1.6551ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (2.031ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5987ms)
+✔ 脚手架声明的服务入口脚本存在 (0.5076ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.1626ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.0741ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (102.8125ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开 API 在缺少认证上下文时返回受控 401 响应 (12.1814ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 881.2574

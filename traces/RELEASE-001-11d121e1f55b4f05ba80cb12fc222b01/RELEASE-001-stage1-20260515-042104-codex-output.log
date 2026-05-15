@@ -1,0 +1,25 @@
+SUCCESS: The process with PID 22424 (child process of PID 28236) has been terminated.
+SUCCESS: The process with PID 7476 (child process of PID 1616) has been terminated.
+SUCCESS: The process with PID 1616 (child process of PID 26664) has been terminated.
+SUCCESS: The process with PID 26404 (child process of PID 2768) has been terminated.
+SUCCESS: The process with PID 2768 (child process of PID 19356) has been terminated.
+SUCCESS: The process with PID 19356 (child process of PID 9872) has been terminated.
+SUCCESS: The process with PID 9872 (child process of PID 26664) has been terminated.
+SUCCESS: The process with PID 27832 (child process of PID 19880) has been terminated.
+SUCCESS: The process with PID 19880 (child process of PID 23448) has been terminated.
+SUCCESS: The process with PID 23448 (child process of PID 26036) has been terminated.
+SUCCESS: The process with PID 26036 (child process of PID 16300) has been terminated.
+SUCCESS: The process with PID 16300 (child process of PID 26664) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

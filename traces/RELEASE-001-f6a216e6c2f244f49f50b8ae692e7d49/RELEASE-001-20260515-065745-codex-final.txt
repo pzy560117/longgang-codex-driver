@@ -1,0 +1,30 @@
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+已完成的工作:
+- 已核对架构约束、验证矩阵、验收示例、追溯矩阵和知识目录。
+- 已运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- 已通过基础门禁：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、Redocly OpenAPI lint。
+- release 验证在 `npm run test:api` 停止，退出码 1。
+
+阻塞原因:
+- `EXPORT_PLATFORM_TEST_DATABASE_URL` 当前缺失，API 集成测试明确抛出：`BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- 因 API gate 先失败，`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample`、`test:object-storage-live` 本轮没有 fresh evidence。
+- `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES` 当前也未设置，live object storage release evidence 仍未验证。
+
+需要人工操作:
+1. 配置真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+2. 如需通过 live 对象存储 release gate，配置真实对象存储环境并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+3. 重新运行 release 验证。
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+证据路径:
+- `traces/RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49/RELEASE-001-20260515-065745-codex-error.log`
+- `docs/testing/verify-matrix.md`
+
+未执行 git commit：本轮 Driver Context 明确禁止 `git add`、`git commit`、`git push`，且 release gate 未通过。

@@ -1,0 +1,44 @@
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `scripts/release-verify.ps1` 的 release gate。
+- `npm audit`、`arch:check`、`typecheck`、contract、scaffold test、OpenAPI lint、API、DB、worker、query、file、sample 均通过。
+- release 在 `npm run test:object-storage-live` 阻塞：缺少真实/live object storage endpoint 和 bucket，当前配置是 placeholder-only；adapter/local HTTP 证据不能作为 live release evidence。
+- 未提交：本轮 Driver Context 明确禁止 `git add`、`git commit`、`git push`。
+
+## Files Changed
+- 无 tracked 文件改动。
+- `traces/RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc/`: driver/runtime 证据目录已存在并记录本轮输出。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 失败点为 `npm run test:object-storage-live`
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `traces/RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc/RELEASE-001-20260515-051603-codex-error.log`: 记录 release gate 在 live object storage smoke 处阻塞。
+- release 命令输出证明：API 2 pass、DB 3 pass、worker 11 pass、query 8 pass、file 9 pass、sample 9 pass；live object storage 为 BLOCKED。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` passed。
+- `http_service + worker + scheduled_job`: PASS - API/worker/file/sample gates passed。
+- `真实 MySQL 生产路径`: PASS - API/DB/worker/query/file/sample 均使用 `EXPORT_PLATFORM_TEST_DATABASE_URL` 路径通过。
+- `真实/live object storage`: FAIL / BLOCKED - 缺少真实 endpoint/bucket 与写入授权。
+- `禁止用 adapter/local HTTP 冒充 live release`: PASS - release 结论保持 BLOCKED。
+
+## Knowledge References
+- 无知识条目引用；仅读取 `docs/knowledge/knowledge-catalog.md` 和 `docs/knowledge/catalog.md` 判断当前无直接 release 条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-OBJECT-STORAGE-LIVE-001`: pitfall - adapter/local HTTP object storage evidence 不可替代 live release smoke - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- release 不能声明 fully passed。
+- 需要人工配置真实对象存储 endpoint、bucket、凭证，并显式允许 smoke writes 后重跑 `.\scripts\release-verify.ps1`。

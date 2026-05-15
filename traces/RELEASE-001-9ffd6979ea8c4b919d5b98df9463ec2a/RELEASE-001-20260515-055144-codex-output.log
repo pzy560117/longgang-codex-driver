@@ -1,0 +1,56 @@
+SUCCESS: The process with PID 21936 (child process of PID 27176) has been terminated.
+SUCCESS: The process with PID 18648 (child process of PID 28812) has been terminated.
+SUCCESS: The process with PID 28812 (child process of PID 28960) has been terminated.
+SUCCESS: The process with PID 360 (child process of PID 26864) has been terminated.
+SUCCESS: The process with PID 26864 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 1060 (child process of PID 29392) has been terminated.
+SUCCESS: The process with PID 29392 (child process of PID 9868) has been terminated.
+SUCCESS: The process with PID 9868 (child process of PID 28960) has been terminated.
+SUCCESS: The process with PID 29140 (child process of PID 22584) has been terminated.
+SUCCESS: The process with PID 22584 (child process of PID 6932) has been terminated.
+SUCCESS: The process with PID 6932 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 27784 (child process of PID 28960) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014：本轮 release 结论为 `BLOCKED`。基础校验有 fresh evidence，但真实 MySQL/API 生产路径未接通，后续 DB/worker/query/file/sample/live object storage gate 未执行。
+
+## Summary
+- 已按 `RELEASE-001` 读取 truth source、架构约束、验收示例、追溯矩阵、验证矩阵和知识目录。
+- 已运行 release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- release 脚本在 `npm run test:api` 停止，原因是缺少真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 未修改源码、文档、`task.json`、`progress.txt` 或 trace；未执行 git add/commit/push。
+
+## Files Changed
+- none
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL/BLOCKED - `npm run test:api` 明确报 `tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+- env check: `EXPORT_PLATFORM_TEST_DATABASE_URL=MISSING`; object storage smoke 相关变量也缺失
+
+## Evidence
+- `traces/RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a/`: 本任务 session trace 目录
+- `docs/testing/verify-matrix.md`: release 矩阵声明 live object storage 不能用 adapter/local HTTP 证据冒充
+- `docs/architecture/constraints.md`: 真实依赖不可用时必须 BLOCKED，不得用替身冒充验收证据
+
+## Architecture Constraints
+- `independent_microservice / HTTP + worker + scheduled_job`: PASS - `npm run arch:check` passed
+- `production entry no InMemory/mock/fixture`: PASS - `npm run arch:check` passed
+- `real MySQL required for API/DB/worker evidence`: FAIL/BLOCKED - `EXPORT_PLATFORM_TEST_DATABASE_URL` missing
+- `live object storage release evidence`: BLOCKED - smoke write/object-storage env not configured
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in release knowledge protocol - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in rule/evidence boundary check - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 需要人工配置真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 如需完成 live object storage release gate，还需配置真实对象存储 endpoint/bucket/凭证，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 解除阻塞后运行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1`。

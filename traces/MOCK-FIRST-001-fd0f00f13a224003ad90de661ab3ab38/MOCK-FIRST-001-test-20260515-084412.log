@@ -1,0 +1,7 @@
+﻿Resolve-Path : Cannot find drive. A drive with the name 'npm run test' does not exist.
+At E:\2026\alpha-project\longgang-codex-driver\verify.ps1:277 char:25
++ $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (npm run test:String) [Resolve-Path], DriveNotFoundException
+    + FullyQualifiedErrorId : DriveNotFound,Microsoft.PowerShell.Commands.ResolvePathCommand
+ 

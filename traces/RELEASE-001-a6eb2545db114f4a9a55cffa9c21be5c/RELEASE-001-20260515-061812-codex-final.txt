@@ -1,0 +1,40 @@
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 基础校验通过到 API gate：`npm audit`、`arch:check`、`typecheck`、`test:contract`、`npm test`、OpenAPI lint。
+- Release 在 `npm run test:api` 阻塞：缺少真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- DB / worker / query / file / sample / live object storage 后续 gate 未执行，不能声明 release 通过。
+
+## Files Changed
+- 无代码或文档改动。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 报 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+
+## Evidence
+- `traces/RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c/RELEASE-001-20260515-061812-codex-error.log`: 本轮 fresh run 输出，包含基础 gate 通过与 API gate 阻塞归因。
+- `docs/testing/verify-matrix.md`: 已有矩阵口径与本轮结果一致，保持 `RELEASE-001` 为 BLOCKED。
+
+## Architecture Constraints
+- `independent_microservice / HTTP + worker + scheduled_job`: PASS - `npm run arch:check` 通过。
+- `真实 MySQL production evidence`: FAIL - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `禁止用 mock/InMemory 代替 release evidence`: PASS - release gate 未降级为替身证据，直接阻塞。
+
+## Knowledge References
+- 无直接引用的知识条目；仅读取了知识目录入口和 harness 知识架构规则。
+
+## Knowledge Outputs
+- 无新增建议；当前阻塞模式已在 `docs/testing/verify-matrix.md` 记录。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑 release gate。
+- 只有 API gate 解除后，才能继续取得 DB / worker / query / file / sample / live object storage 的 fresh release evidence。

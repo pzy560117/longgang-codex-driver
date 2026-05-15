@@ -696,7 +696,7 @@
                                     "实现字段映射、脱敏、数据范围过滤、游标分页和批次 checkpoint 写入",
                                     "补齐真实 MySQL query 测试、worker 串联测试和失败审计证据"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:query','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
                                          "FR-006/008/009 的 query 生产路径有真实 MySQL 证据",
                                          "字段映射、脱敏和数据范围不依赖测试替身",
@@ -764,7 +764,7 @@
                                     "把下载 API 串联到 file metadata repository 和发布状态 guard",
                                     "补齐文件发布、未发布不可下载、checksum 失败和 API 下载元信息测试"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:api','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
                                          "FR-003/006/009 的 file 生产路径有证据",
                                          "下载只暴露已发布且有权限的文件元信息",
@@ -831,7 +831,7 @@
                                     "实现先失效元信息、再删除对象、失败重试和审计记录",
                                     "补齐 cleanup 正常删除、删除失败重试和元信息 guard 测试"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:file','npm run test:worker','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
                                          "FR-011 的 cleanup job 有生产入口和持久化证据",
                                          "过期清理遵守先失效后删除",
@@ -901,7 +901,7 @@
                                     "实现边界数据、脱敏、分片 ZIP 和 10 万行样板验证",
                                     "记录真实 MySQL、对象存储、成功态和失败态证据"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @('npm run arch:check','npm run test:sample','npm run test:query','npm run test:file','npm run test:db','git diff --check -- task.json plans docs/testing/verify-matrix.md')",
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
                       "acceptance":  [
                                          "FR-014 有采购订单样板、边界数据和压测证据",
                                          "样板复用标准链路，不新增特例接口",
@@ -924,7 +924,7 @@
                       "dependencies":  [
                                            "SAMPLE-PURCHASE-ORDER-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "mock-first 只能产出 local/dev evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",

@@ -1,0 +1,55 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- Fresh evidence 覆盖 API、DB、worker、query、file、sample、契约、架构、类型检查和安全审计。
+- Release 结论：`BLOCKED - 需要人工介入`，原因是 live object storage smoke 缺少真实对象存储 endpoint/bucket，且未显式允许 smoke 写入；adapter/local HTTP 证据不能冒充 live release evidence。
+- 未修改源码、文档或 `task.json`；未执行 commit，因为 Driver Context 明确禁止 `git add/git commit/git push`。
+
+## Files Changed
+- none
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - 前置项均通过，停止于 `npm run test:object-storage-live`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - 0 vulnerabilities
+- `npm run arch:check`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3 pass
+- `npm test`: PASS - 17 pass
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- `npm run test:api`: PASS - 2 pass
+- `npm run test:db`: PASS - 3 pass
+- `npm run test:worker`: PASS - 11 pass
+- `npm run test:query`: PASS - 8 pass
+- `npm run test:file`: PASS - 9 pass
+- `npm run test:sample`: PASS - 9 pass
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 缺少真实/live object storage 配置或仍为 placeholder
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `traces/RELEASE-001-dd874607cc7249b4bbb05302dc86373a/`: 当前 task session trace 目录
+- `scripts/object-storage-live-smoke.mjs`: 证明 live gate 要求真实 endpoint/bucket，且 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`
+- `docs/testing/verify-matrix.md`: 已声明 RELEASE-001 不能写成 fully passed，live object storage gate blocked
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check`
+- `HTTP server / worker / cleanup job entry`: PASS - `npm run arch:check` 与 API/worker/file tests
+- `real MySQL production boundary`: PASS - API/DB/worker/query/file/sample suites 使用 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `no InMemory/mock/fixture as release evidence`: PASS - release 结论明确排除 adapter/local HTTP 作为 live evidence
+- `live object storage dependency`: FAIL / BLOCKED - 需要真实对象存储配置和人工允许 smoke 写入
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-OBJECT-STORAGE-001`: pitfall - live object storage gate 不得用 adapter/local HTTP 证据替代 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 需要人工配置真实对象存储：`EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT`、`EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET`，并确认可写后设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 配置完成后重新运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。

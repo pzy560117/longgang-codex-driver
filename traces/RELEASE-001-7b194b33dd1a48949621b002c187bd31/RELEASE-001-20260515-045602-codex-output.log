@@ -1,0 +1,72 @@
+SUCCESS: The process with PID 29584 (child process of PID 8604) has been terminated.
+SUCCESS: The process with PID 8604 (child process of PID 15336) has been terminated.
+SUCCESS: The process with PID 15336 (child process of PID 21948) has been terminated.
+SUCCESS: The process with PID 21948 (child process of PID 18868) has been terminated.
+SUCCESS: The process with PID 29172 (child process of PID 28280) has been terminated.
+SUCCESS: The process with PID 28280 (child process of PID 28548) has been terminated.
+SUCCESS: The process with PID 28548 (child process of PID 27064) has been terminated.
+SUCCESS: The process with PID 27064 (child process of PID 21688) has been terminated.
+SUCCESS: The process with PID 21688 (child process of PID 18868) has been terminated.
+SUCCESS: The process with PID 10532 (child process of PID 19692) has been terminated.
+SUCCESS: The process with PID 19692 (child process of PID 12112) has been terminated.
+SUCCESS: The process with PID 12112 (child process of PID 3860) has been terminated.
+SUCCESS: The process with PID 3860 (child process of PID 18868) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已运行指定命令 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- API、DB、worker、query、file、sample、contract、arch、typecheck、audit 等自动化验证均通过。
+- Release gate 在 `npm run test:object-storage-live` 阶段阻塞：缺少真实/live object storage endpoint、bucket 和显式写入授权，adapter/local HTTP 证据不能冒充 live release evidence。
+- 未修改仓库文件，未执行 git add/commit/push。
+
+## Files Changed
+- 无
+
+## Validation
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - 0 vulnerabilities
+- `npm run arch:check`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3 pass
+- `npm test`: PASS - 17 pass
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:api`: PASS - 2 pass
+- `npm run test:db`: PASS - 3 pass
+- `npm run test:worker`: PASS - 11 pass
+- `npm run test:query`: PASS - 8 pass
+- `npm run test:file`: PASS - 9 pass
+- `npm run test:sample`: PASS - 9 pass
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 需要真实对象存储配置与写入授权
+- `.\scripts\release-verify.ps1`: FAIL - stopped at live object storage gate
+
+## Evidence
+- [verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): release evidence baseline and live object storage blocked policy
+- [object-storage-live-smoke.mjs](E:/2026/alpha-project/longgang-codex-driver/scripts/object-storage-live-smoke.mjs): blocked condition and required env vars
+- [RELEASE trace dir](E:/2026/alpha-project/longgang-codex-driver/traces/RELEASE-001-7b194b33dd1a48949621b002c187bd31/): current runtime trace artifacts
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` passed
+- `API Boundary`: PASS - contract/API tests passed
+- `Data Boundary`: PASS - DB tests passed against configured MySQL test URL
+- `Async And Worker Boundary`: PASS - worker tests passed
+- `Test Double Policy`: FAIL / BLOCKED - live object storage evidence missing; local/adapter evidence is not accepted as release-complete evidence
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-OBJECT-STORAGE-001`: pitfall - live object storage release gate must not be replaced by adapter/local HTTP evidence - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- Release 不能声明 fully passed。
+- 解除阻塞需要配置真实非 placeholder 的 `EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT`、`EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET`，并设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后重跑：
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`

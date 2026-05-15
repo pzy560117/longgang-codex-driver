@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | missing_requirement | controller | [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:48)；[traces/RELEASE-001-20260515-062033.json](E:/2026/alpha-project/longgang-codex-driver/traces/RELEASE-001-20260515-062033.json:232) 显示 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 阻塞，DB / worker / query / file / sample 本轮未执行 | 提供真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`，重跑完整 release gate，取得 FR-001 至 FR-014 的 fresh API/DB/worker/query/file/sample evidence；不得沿用旧 trace | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | architecture_gap | controller | [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:54) 标记 live object storage release evidence 为 `BLOCKED`；[scripts/release-verify.ps1](E:/2026/alpha-project/longgang-codex-driver/scripts/release-verify.ps1:4) 包含 `npm run test:object-storage-live` gate，但当前缺少真实/live 对象存储写入证据 | 配置真实对象存储 smoke 所需环境变量，并显式允许 smoke writes 后重跑；若环境不可用，release 只能保持 BLOCKED，不能用 local adapter 证据替代 live evidence | `npm run test:object-storage-live`，随后重跑 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | yes |
+| RELEASE-001-S1-F002 | controller | test-runner | 1 | yes |

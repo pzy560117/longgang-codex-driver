@@ -1,0 +1,57 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已完成 `RELEASE-001` release 验证收口；本轮 fresh verification 覆盖架构、类型、契约、API、DB、worker、query、file、sample 和 diff gate。
+- 未修改源码、文档、`task.json`、`progress.txt` 或 `traces/`；也未执行 `git add/commit/push`，遵守本任务边界。
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1`: PASS - `git diff --check` 与 harness 自检通过。
+- `.\verify.ps1 -Commands @(...)`: PASS - 完整 release gate 通过。
+- `npm run arch:check`: PASS - Architecture check passed.
+- `npm run typecheck`: PASS.
+- `npm run test:contract`: PASS - 3/3 passed.
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS.
+- `npm test`: PASS - 17/17 passed.
+- `npm run test:api`: PASS - 2/2 passed.
+- `npm run test:db`: PASS - 3/3 passed.
+- `npm run test:worker`: PASS - 11/11 passed.
+- `npm run test:query`: PASS - 8/8 passed.
+- `npm run test:file`: PASS - 8/8 passed.
+- `npm run test:sample`: PASS - 9/9 passed，包含 0/1/20000/20001/100000/100001 行边界。
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations`: PASS.
+
+## Evidence
+- `docs/testing/verify-matrix.md`: FR-001 至 FR-014 的验证入口和对象存储证据口径。
+- `contracts/openapi.yaml`: OpenAPI lint 通过。
+- `tests/api/export-http-api.test.mjs`: API + MySQL 生产路径证据。
+- `tests/db/export-repositories.test.mjs`: migration / repository / lease / audit 持久化证据。
+- `tests/worker/scheduler-worker.test.mjs`: worker、DB 抢锁、租约、cleanup 证据。
+- `tests/query/`: query executor、模板绑定、数据范围、脱敏、checkpoint 证据。
+- `tests/file/export-file-service.test.mjs`: temp object、checksum、publish、download guard、cleanup 证据。
+- `tests/sample/purchase-order-sample.test.mjs`: 采购订单样板链路和 10 万行边界证据。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过。
+- `http_service+worker+scheduled_job`: PASS - server、scheduler worker、cleanup job entry 已被架构检查覆盖。
+- `real MySQL evidence required`: PASS - `EXPORT_PLATFORM_TEST_DATABASE_URL` 当前已设置，API/DB/worker/query/file/sample 均跑通。
+- `no InMemory/mock/fixture as release evidence`: PASS - `rg` 核对显示 forbidden 术语只在规则、说明和负向测试中出现，未进入生产 `src/` 路径。
+- `object storage evidence boundary`: PASS WITH LIMITATION - 当前为 production-equivalent adapter 证据，不声明 live OSS/S3 release evidence。
+
+## Knowledge References
+- `none`: 未读取或引用具体知识条目；当前 catalog 仅有 harness/rule draft 条目，与 release gate 无直接复用。
+
+## Knowledge Outputs
+- `PROCESS-RELEASE-VERIFY-001`: process - `verify.ps1 -Commands` 在 PowerShell 下应通过 `-Command "& { ... @('cmd') }"` 传数组，避免 `-File` 参数绑定误跑单条命令 - suggested - `docs/knowledge/processes/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 现有最新 `traces/RELEASE-001-20260515-031752.json` 仍是此前缺少 MySQL 时的 blocked trace；本轮按任务边界未改写 trace。需要由 driver/runtime 重新跑以生成正式通过 trace、推进 task 状态和提交。
+- live OSS/S3 未验证；当前 release 只能声明 production-equivalent object-storage adapter 级证据。

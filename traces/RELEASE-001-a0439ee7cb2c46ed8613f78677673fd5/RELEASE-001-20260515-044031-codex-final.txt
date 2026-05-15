@@ -1,0 +1,39 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- release 验证未完成：在 `npm run test:api` 阶段阻塞，原因是当前环境未设置真实 MySQL 连接 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 已通过的前置 gate：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint。
+- 未继续执行 DB / worker / query / file / sample / live object storage gate。
+
+## Files Changed
+- 无主动修改。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 报 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+
+## Evidence
+- `traces/RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5/RELEASE-001-20260515-044031-codex-error.log`: 当前 RELEASE-001 会话失败证据。
+- `docs/testing/verify-matrix.md`: 已声明真实 MySQL 不可用时必须 BLOCKED，且 live object storage 不能用 adapter 证据冒充 release 通过。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - release gate 覆盖 HTTP / worker / job / DB / file / sample 验证入口。
+- `production persistence requires MySQL`: FAIL/BLOCKED - 当前未提供 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `test double policy`: PASS - 未用 InMemory/mock/fixture 替代真实 MySQL release evidence。
+
+## Knowledge References
+- 无 - 已检查知识目录，未引用具体知识条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release gate 会先被真实 MySQL 环境阻塞，无法到达后续 live object storage gate - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- release 结论仍为 BLOCKED，不能标记 fully passed。
+- 解除阻塞后需设置真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`，重新运行 `.\scripts\release-verify.ps1`。
+- 通过 MySQL gates 后仍需继续验证 `npm run test:object-storage-live`，该项需要真实对象存储配置与显式写入授权。

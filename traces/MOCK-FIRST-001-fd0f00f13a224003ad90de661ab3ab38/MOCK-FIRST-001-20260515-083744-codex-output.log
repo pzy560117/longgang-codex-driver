@@ -1,0 +1,87 @@
+SUCCESS: The process with PID 14504 (child process of PID 24496) has been terminated.
+SUCCESS: The process with PID 24496 (child process of PID 8940) has been terminated.
+SUCCESS: The process with PID 8940 (child process of PID 24808) has been terminated.
+SUCCESS: The process with PID 24808 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 26368 (child process of PID 5076) has been terminated.
+SUCCESS: The process with PID 5076 (child process of PID 9432) has been terminated.
+SUCCESS: The process with PID 9432 (child process of PID 26756) has been terminated.
+SUCCESS: The process with PID 26756 (child process of PID 21416) has been terminated.
+SUCCESS: The process with PID 21416 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 7744 (child process of PID 13736) has been terminated.
+SUCCESS: The process with PID 13736 (child process of PID 16152) has been terminated.
+SUCCESS: The process with PID 16152 (child process of PID 5660) has been terminated.
+SUCCESS: The process with PID 5660 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 7456 (child process of PID 23056) has been terminated.
+SUCCESS: The process with PID 23056 (child process of PID 22036) has been terminated.
+SUCCESS: The process with PID 22036 (child process of PID 22796) has been terminated.
+SUCCESS: The process with PID 22796 (child process of PID 23372) has been terminated.
+SUCCESS: The process with PID 23372 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 11204 (child process of PID 28696) has been terminated.
+SUCCESS: The process with PID 28696 (child process of PID 21036) has been terminated.
+SUCCESS: The process with PID 21036 (child process of PID 13304) has been terminated.
+SUCCESS: The process with PID 13304 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 1616 (child process of PID 28524) has been terminated.
+SUCCESS: The process with PID 28524 (child process of PID 24264) has been terminated.
+SUCCESS: The process with PID 24264 (child process of PID 27888) has been terminated.
+SUCCESS: The process with PID 27888 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 10484 (child process of PID 24728) has been terminated.
+SUCCESS: The process with PID 24728 (child process of PID 16300) has been terminated.
+SUCCESS: The process with PID 16300 (child process of PID 19024) has been terminated.
+SUCCESS: The process with PID 19024 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 24132 (child process of PID 2188) has been terminated.
+SUCCESS: The process with PID 2188 (child process of PID 7772) has been terminated.
+SUCCESS: The process with PID 7772 (child process of PID 29428) has been terminated.
+SUCCESS: The process with PID 29428 (child process of PID 29456) has been terminated.
+SUCCESS: The process with PID 29456 (child process of PID 1060) has been terminated.
+SUCCESS: The process with PID 22908 (child process of PID 24416) has been terminated.
+SUCCESS: The process with PID 24416 (child process of PID 12140) has been terminated.
+SUCCESS: The process with PID 12140 (child process of PID 7396) has been terminated.
+SUCCESS: The process with PID 7396 (child process of PID 1060) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已完成 `MOCK-FIRST-001` 的 mock-first local/dev evidence 收口。
+- 强化 `FR-001` 至 `FR-014` 的 mock-first 映射、失败态演练和 release gate 边界。
+- 明确本地 HTTP object storage adapter 只能证明 local/dev 协议链路，不能替代 live OSS/S3、真实 MySQL 或 `RELEASE-001 PASS`。
+
+## Files Changed
+- [mock-first-contract.test.mjs](/E:/2026/alpha-project/longgang-codex-driver/tests/mock-local/mock-first-contract.test.mjs): 强化 mock-first 文档与验证矩阵断言。
+- [mock-first-release-plan.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/mock-first-release-plan.md): 补强 FR-001 至 FR-014 local/dev evidence、失败态和 release 边界。
+- [verify-matrix.md](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 明确 mock-first 不能替代 release gate，`RELEASE-001` 仍保持 BLOCKED。
+
+## Validation
+- `& .\verify.ps1 -ProjectRoot . -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md')`: PASS
+  - `npm run arch:check`: PASS
+  - `npm run test:mock-local`: PASS，4/4
+  - `npm test`: PASS，17/17
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/mock-local/mock-first-contract.test.mjs`: 证明 mock-first 计划必须覆盖 FR-001 至 FR-014，且不得升级为 release evidence。
+- `tests/mock-local/object-storage-local.test.mjs`: 证明本地对象存储协议链路可演练，同时缺少真实 env 时保持 BLOCKED。
+- `docs/testing/mock-first-release-plan.md`: 记录 FR 映射、失败态和 release 边界。
+- `docs/testing/verify-matrix.md`: 记录 mock-first 与 release gate 的验证边界。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check` 通过。
+- `mock-first only local/dev evidence`: PASS - 文档和测试均断言不能替代 release evidence。
+- `no production test double`: PASS - 未修改 `src/`，未引入生产替身。
+- `RELEASE-001 remains blocked without real dependencies`: PASS - 文档保持 BLOCKED 结论。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: knowledge output 判断 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: mock-first 边界写法 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-MOCK-FIRST-001`: guideline - mock-first 只能作为 local/dev evidence - action(suggested) - `docs/knowledge/guidelines/`
+- `PITFALL-OBJECT-STORAGE-001`: pitfall - 本地 object storage adapter 不能冒充 live OSS/S3 证据 - action(suggested) - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未连接真实 MySQL、live OSS/S3，因此 `RELEASE-001` 不能通过，仍应保持 BLOCKED。
+- 按 Driver Context 强制边界，本轮未修改 `task.json`、未提交 Git。

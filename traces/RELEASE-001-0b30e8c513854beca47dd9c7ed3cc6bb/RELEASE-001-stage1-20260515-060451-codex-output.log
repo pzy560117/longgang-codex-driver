@@ -1,0 +1,29 @@
+SUCCESS: The process with PID 28764 (child process of PID 19188) has been terminated.
+SUCCESS: The process with PID 3724 (child process of PID 22580) has been terminated.
+SUCCESS: The process with PID 22580 (child process of PID 14912) has been terminated.
+SUCCESS: The process with PID 21304 (child process of PID 2696) has been terminated.
+SUCCESS: The process with PID 2696 (child process of PID 16224) has been terminated.
+SUCCESS: The process with PID 16224 (child process of PID 19732) has been terminated.
+SUCCESS: The process with PID 19732 (child process of PID 28168) has been terminated.
+SUCCESS: The process with PID 28168 (child process of PID 14912) has been terminated.
+SUCCESS: The process with PID 29164 (child process of PID 18816) has been terminated.
+SUCCESS: The process with PID 18816 (child process of PID 18000) has been terminated.
+SUCCESS: The process with PID 18000 (child process of PID 28596) has been terminated.
+SUCCESS: The process with PID 28596 (child process of PID 14912) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | state_gap | controller | `traces/RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb/RELEASE-001-20260515-060208-codex-output.log:18-35`：release gate 停在 `npm run test:api`，缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`；DB / worker / query / file / sample / live object storage 均 NOT_RUN。 | 配置真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑 release gate；若要完成 live object storage 证据，还需真实对象存储配置和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | state_gap | controller | `plans/features/export-platform.dev-plan.md:9-10`、`docs/testing/test-matrix.md:9-34`、`docs/testing/ACCEPTANCE_CRITERIA.md:9-10` 仍声明 API/DB/worker/query/file/sample fresh-pass 或“仅 live object storage BLOCKED”；但 `docs/testing/verify-matrix.md:48-57` 与最新 release trace 说明 API 已 BLOCKED 且后续 gate 未执行。 | 统一 release 真相源口径：要么用真实依赖重跑并生成新 fresh-pass 证据；要么把 dev-plan、test-matrix、acceptance/risk/test-data/traceability 等文档全部改为当前 BLOCKED，不得继续写成主链路已 fresh-pass。 | `rg -n "fresh-pass|BLOCKED|EXPORT_PLATFORM_TEST_DATABASE_URL|live object" docs/testing plans/features/export-platform.dev-plan.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | Yes |
+| RELEASE-001-S1-F002 | controller | docs-worker | 1 | Yes |

@@ -1,0 +1,49 @@
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+已完成的工作:
+- 已读取 Driver Context 指定的 truth source、架构约束、验收示例、追溯矩阵和验证矩阵。
+- 已运行 release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 已确认基础项通过：`npm audit` 0 vulnerabilities、`npm run arch:check` PASS、`npm run typecheck` PASS、`npm run test:contract` 3/3 PASS、`npm test` 17/17 PASS、OpenAPI lint PASS。
+- 已运行 `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`：PASS。
+- 已确认工作区无源码/文档改动；未执行 `git add`、`git commit`、`git push`。
+
+阻塞原因:
+- `npm run test:api` 失败并明确输出：`BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- 当前环境变量检查结果：`EXPORT_PLATFORM_TEST_DATABASE_URL=False`。
+- live object storage 相关环境变量也未配置：endpoint、bucket、access key、secret、smoke write flag 均为 `False`。
+- 因 release 脚本在 API 集成测试处停止，DB/worker/query/file/sample/live object storage 后续 gate 本轮未执行，不能声明 release fully passed。
+
+需要人工操作:
+1. 配置真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+2. 如需完成 live object storage release gate，配置真实对象存储 endpoint/bucket/凭证，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+3. 重新运行 release driver。
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## Requirement IDs
+- FR-001 至 FR-014：当前 release 结论为 BLOCKED；已有基础校验 fresh evidence，但真实 MySQL/API 生产路径未接通。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL/BLOCKED - stopped at `npm run test:api` due missing `EXPORT_PLATFORM_TEST_DATABASE_URL`.
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS.
+
+## Evidence
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:54): live object storage release evidence 必须保持 BLOCKED，不能用 adapter/local HTTP 冒充。
+- [docs/architecture/constraints.md](E:/2026/alpha-project/longgang-codex-driver/docs/architecture/constraints.md:37): 真实依赖不可用时必须 BLOCKED，不得用替身冒充验收证据。
+
+## Knowledge References
+- none：只读取了 knowledge catalog/index，未引用具体知识条目作为结论依据。
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- release 仍依赖真实 MySQL 与 live object storage 环境接入。
+- 本轮未提交；当前任务模板明确禁止本会话执行 git commit。

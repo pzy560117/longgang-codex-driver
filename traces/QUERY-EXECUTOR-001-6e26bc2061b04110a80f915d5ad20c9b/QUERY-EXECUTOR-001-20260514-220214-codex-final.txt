@@ -1,0 +1,60 @@
+BLOCKED - 需要人工介入
+
+当前任务: QUERY-EXECUTOR-001 实现集中查询、参数 schema、字段映射、脱敏、数据范围和批次检查点
+
+## Requirement IDs
+- FR-006
+- FR-008
+- FR-009
+- FR-014
+
+## Summary
+- 已实现 `src/query-executor/index.ts` 生产入口，接入 scheduler 默认 batch processor。
+- 已补任务执行上下文快照：`request_payload`、`auth_context_payload`，用于 worker 执行期恢复查询参数和认证/数据范围。
+- 已补 query 真实 MySQL 测试入口，`test:query` 不再是 planned 占位。
+- 阻塞点：当前环境未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，无法完成真实 MySQL 证据验证。
+
+## Files Changed
+- `src/query-executor/index.ts`: query executor、模板校验、参数绑定、字段映射、脱敏、数据范围、游标分页、事件输出
+- `src/scheduler/worker.ts`: 默认接入 query executor
+- `src/task-api/service.ts`: 创建任务时保存请求参数和认证上下文快照
+- `src/db/schema.ts`, `migrations/006_task_execution_context_snapshot.*`: 新增执行上下文字段
+- `tests/query/query-executor.test.mjs`, `tests/query/README.md`, `package.json`: query 集成测试入口
+- `tests/db/export-repositories.test.mjs`, `tests/worker/scheduler-worker.test.mjs`: 同步任务快照字段
+- `docs/testing/verify-matrix.md`: 已由子代理提交为 `8073b10`
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed
+- `npm run typecheck`: PASS
+- `git diff --check`: PASS
+- `npm run test:query`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- full `verify.ps1`: FAIL/BLOCKED - 正确执行到 `npm run test:query` 后因真实 MySQL URL 缺失停止
+
+## Evidence
+- `src/query-executor/index.ts`: query 生产路径实现
+- `migrations/006_task_execution_context_snapshot.ts`: 执行上下文持久化边界
+- `tests/query/query-executor.test.mjs`: FR-006/008/009/014 的真实 MySQL 验收测试
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 接入现有 worker/service/repository 边界
+- `production MySQL boundary`: BLOCKED - 代码走 MySQL/Kysely，但环境缺少真实 MySQL URL，未取得通过证据
+- `no InMemory/mock as production`: PASS - 未引入 InMemory/mock 生产实现
+- `checkpoint + attemptNo traceability`: PASS structurally - checkpoint 返回并由 worker 持久化；真实 DB 验证 blocked
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `suggested-query-executor-context-snapshot`: guideline - query executor 需要任务请求参数与认证上下文快照 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑完整验证。
+- 子代理违反边界执行了提交 `8073b10`；我没有回退该提交，也没有继续提交当前未验证改动。
+- 当前工作区仍有未跟踪 `traces/` 运行产物，未修改。

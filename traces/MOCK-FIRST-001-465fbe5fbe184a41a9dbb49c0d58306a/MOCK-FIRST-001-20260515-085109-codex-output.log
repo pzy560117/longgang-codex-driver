@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 22560 (child process of PID 27036) has been terminated.
+SUCCESS: The process with PID 27036 (child process of PID 28408) has been terminated.
+SUCCESS: The process with PID 28408 (child process of PID 9132) has been terminated.
+SUCCESS: The process with PID 9132 (child process of PID 23132) has been terminated.
+SUCCESS: The process with PID 27012 (child process of PID 10100) has been terminated.
+SUCCESS: The process with PID 10100 (child process of PID 9424) has been terminated.
+SUCCESS: The process with PID 9424 (child process of PID 4120) has been terminated.
+SUCCESS: The process with PID 4120 (child process of PID 28536) has been terminated.
+SUCCESS: The process with PID 28536 (child process of PID 23132) has been terminated.
+SUCCESS: The process with PID 18932 (child process of PID 15828) has been terminated.
+SUCCESS: The process with PID 15828 (child process of PID 28520) has been terminated.
+SUCCESS: The process with PID 28520 (child process of PID 28056) has been terminated.
+SUCCESS: The process with PID 28056 (child process of PID 23132) has been terminated.
+## Requirement IDs
+- FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014
+
+## Summary
+- 已执行 `MOCK-FIRST-001` 指定 mock-first local/dev evidence 验证链路。
+- 未修改 `task.json`、release 状态或其他仓库文件。
+- 结论保持：mock-first 仅是 local/dev evidence，不能替代 `RELEASE-001`、真实 MySQL 或 live OSS/S3 证据。
+
+## Files Changed
+- 无文件变更。
+
+## Validation
+- `npm run arch:check; ...; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md`: PASS
+  - `arch:check`: PASS
+  - `npm run test:mock-local`: PASS，4 tests passed
+  - `npm test`: PASS，17 tests passed
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/mock-local/mock-first-contract.test.mjs`: 证明 mock-first 映射覆盖 FR-001 至 FR-014，且不会升级为 release evidence。
+- `tests/mock-local/object-storage-local.test.mjs`: 证明本地 HTTP object storage adapter 可跑 local/dev 协议链路，同时缺少真实 env 时保持 BLOCKED。
+- `docs/testing/mock-first-release-plan.md`: 记录 mock-first 边界和每个 FR 的 local/dev evidence 映射。
+- `docs/testing/verify-matrix.md`: 记录 mock-first 不是 release gate，`RELEASE-001` 仍保持 BLOCKED。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check` 通过。
+- `mock-first only local/dev evidence`: PASS - 文档与测试均断言不能替代 release evidence。
+- `no live OSS/S3 or real MySQL substitution`: PASS - mock-local 测试保留真实依赖缺失的 BLOCKED 边界。
+- `RELEASE-001 remains passes:false/BLOCKED`: PASS - 核对 `task.json` 中 `RELEASE-001` 仍为 `passes: false`。
+
+## Knowledge References
+- `none`: 未引用具体知识条目；仅按任务要求读取了 knowledge catalog 与 harness 知识架构入口。
+
+## Knowledge Outputs
+- `none`: 本轮未产生需要归档的新可复用经验。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `RELEASE-001` 仍需真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 和 live object storage 环境；mock-first 结果不能推动 release PASS。
+- 本轮按任务强制边界未执行 `git add` / `git commit`。

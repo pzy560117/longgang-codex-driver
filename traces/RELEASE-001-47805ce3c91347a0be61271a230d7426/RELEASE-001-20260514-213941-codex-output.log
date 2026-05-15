@@ -1,0 +1,65 @@
+SUCCESS: The process with PID 20080 (child process of PID 15196) has been terminated.
+SUCCESS: The process with PID 15196 (child process of PID 25592) has been terminated.
+SUCCESS: The process with PID 25592 (child process of PID 24872) has been terminated.
+SUCCESS: The process with PID 24872 (child process of PID 22364) has been terminated.
+SUCCESS: The process with PID 19488 (child process of PID 6452) has been terminated.
+SUCCESS: The process with PID 8336 (child process of PID 26100) has been terminated.
+SUCCESS: The process with PID 26100 (child process of PID 22364) has been terminated.
+SUCCESS: The process with PID 21316 (child process of PID 3884) has been terminated.
+SUCCESS: The process with PID 3884 (child process of PID 25668) has been terminated.
+SUCCESS: The process with PID 25668 (child process of PID 22692) has been terminated.
+SUCCESS: The process with PID 22692 (child process of PID 3272) has been terminated.
+SUCCESS: The process with PID 3272 (child process of PID 22364) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- RELEASE-001 结论：BLOCKED，不能宣称 release complete。
+- 已补充 fresh release 验证快照到 [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:41)。
+- 未引用旧内存实现或旧 trace；本轮证据来自当前命令输出。
+- 未执行 `git add/commit/push`，因为当前任务模板硬性禁止。
+
+## Files Changed
+- `docs/testing/verify-matrix.md`: 新增 RELEASE-001 fresh 验证快照、PASS/BLOCKED 归因和 release 结论。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1`: PASS - `Verification passed.`
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `npm run typecheck`: PASS - `tsc --noEmit` exit 0
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:contract`: PASS - 3/3 pass
+- `npm test`: PASS - 17/17 pass
+- `npm run test:api`: BLOCKED - 缺少真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: BLOCKED - 缺少真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: BLOCKED - 缺少真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:query`: BLOCKED - planned entry，生产路径未实现
+- `npm run test:file`: BLOCKED - planned entry，生产路径未实现
+- `npm run test:sample`: BLOCKED - planned entry，生产路径未实现
+- `git diff --check`: PASS - 仅提示 LF/CRLF 转换 warning，无 whitespace error
+
+## Evidence
+- `docs/testing/verify-matrix.md`: 记录本轮 fresh release 验证快照。
+- `traces/RELEASE-001-47805ce3c91347a0be61271a230d7426/`: runtime 已生成的本任务会话证据目录。
+
+## Architecture Constraints
+- `independent_microservice entries`: PASS - server / worker / cleanup job entry 经 `arch:check` 验证。
+- `API boundary`: PASS - OpenAPI lint、contract test、route manifest 映射通过。
+- `Data boundary`: BLOCKED - 真实 MySQL 未配置，DB/API repository 生产路径不能通过 release。
+- `Worker boundary`: BLOCKED - worker lease / takeover / retry 验证依赖真实 MySQL。
+- `Test double policy`: PASS - `arch:check` 与 `rg` 未发现生产 `src` 路径使用 `InMemory*` / mock / fixture。
+
+## Knowledge References
+- `none`: 未引用具体 `docs/knowledge/*` 条目；已读取 catalog，未发现 release verify 直接相关条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release 验证缺真实依赖时必须输出 BLOCKED 而非通过 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 缺少真实 MySQL 后，FR-001/002/004/005/007/010/012/013 的生产持久化和 worker 证据未闭环。
+- query executor、file service、purchase-order sample 仍是 planned entry，FR-003/006/008/009/011/014 不能作为 release 通过证据。
+- 当前 release 只能确认架构、契约、脚手架和静态约束；不能确认端到端交付。

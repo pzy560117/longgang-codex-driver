@@ -1,0 +1,43 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- RELEASE-001 本轮结论：BLOCKED，不能发布为 fully passed。
+- `scripts/release-verify.ps1` 已 fresh 运行，基础门禁通过到 `npm run test:api` 前后，但 API 集成测试因缺少真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL` 失败。
+- 因 release 脚本在 API gate 处停止，DB / worker / query / file / sample / live object storage 本轮未执行，不能引用旧 trace 或历史通过记录补足 release evidence。
+
+## Files Changed
+- 无源码或文档改动。
+- 新运行证据由 runtime/session 写入 `traces/RELEASE-001-3e0aed10c1934af1bde4b182881e4e84/`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 退出码 1。
+- 已通过的 fresh 子项：`npm audit` 0 vulnerabilities、`npm run arch:check`、`npm run typecheck`、`npm run test:contract` 3/3、`npm test` 17/17、Redocly OpenAPI lint valid。
+- 失败点：`tests/api/export-http-api.test.mjs` 报 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+
+## Evidence
+- `traces/RELEASE-001-3e0aed10c1934af1bde4b182881e4e84/RELEASE-001-20260515-064001-codex-error.log`: 本轮命令输出、失败栈、基础门禁通过信息。
+- `docs/testing/verify-matrix.md`: 明确 release gate 不能用旧 trace、adapter/local HTTP 证据替代真实 MySQL 和 live object storage evidence。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` fresh 通过。
+- `contracts/openapi.yaml` API boundary: PASS - Redocly lint valid，contract tests 3/3。
+- `production repository requires real MySQL`: FAIL/BLOCKED - `EXPORT_PLATFORM_TEST_DATABASE_URL` 未设置，API production path 无法验证。
+- `no InMemory/mock as production evidence`: PASS - 本轮未用替身证据冒充通过。
+- `release evidence covers API/DB/worker/file/sample`: FAIL/BLOCKED - API gate 阻塞后后续 gate 未执行。
+
+## Knowledge References
+- 无。知识目录仅有 harness/rule 冷启动条目，本轮未引用具体知识条目作为判断依据。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-REAL-DEPS-001`: pitfall - release gate 缺少真实 MySQL 时只能 BLOCKED，不能沿用旧 trace - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供可用的 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重新运行 release 命令。
+- live object storage 仍需真实配置和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 才能形成 release evidence。
+- 当前工作区已有大量未跟踪 `traces/` 运行产物；本轮未清理、未提交。

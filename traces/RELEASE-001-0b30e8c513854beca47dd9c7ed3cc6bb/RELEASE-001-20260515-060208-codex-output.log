@@ -1,0 +1,62 @@
+SUCCESS: The process with PID 24340 (child process of PID 7308) has been terminated.
+SUCCESS: The process with PID 7308 (child process of PID 22112) has been terminated.
+SUCCESS: The process with PID 22112 (child process of PID 24512) has been terminated.
+SUCCESS: The process with PID 24512 (child process of PID 26856) has been terminated.
+SUCCESS: The process with PID 3472 (child process of PID 22804) has been terminated.
+SUCCESS: The process with PID 22804 (child process of PID 29612) has been terminated.
+SUCCESS: The process with PID 29612 (child process of PID 27332) has been terminated.
+SUCCESS: The process with PID 27332 (child process of PID 26856) has been terminated.
+SUCCESS: The process with PID 3084 (child process of PID 7532) has been terminated.
+SUCCESS: The process with PID 7532 (child process of PID 27836) has been terminated.
+SUCCESS: The process with PID 27836 (child process of PID 28160) has been terminated.
+SUCCESS: The process with PID 28160 (child process of PID 27392) has been terminated.
+SUCCESS: The process with PID 27392 (child process of PID 26856) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- `RELEASE-001` 本轮结论：`BLOCKED - 需要人工介入`。
+- 已运行 release gate；基础校验通过，但 `npm run test:api` 因缺少真实 MySQL 环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL` 失败并停止。
+- DB / worker / query / file / sample / live object storage gate 本轮未执行，不能作为 fresh-pass 证据。
+- 未修改仓库文件，未执行 git add / commit / push。
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - 停在 `npm run test:api`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - 0 vulnerabilities
+- `npm run arch:check`: PASS
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3
+- `npm test`: PASS - 17/17
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS
+- `npm run test:api`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`, `test:worker`, `test:query`, `test:file`, `test:sample`, `test:object-storage-live`: NOT_RUN - release 串行 gate 已在 API 阶段停止
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- 当前会话命令输出：证明 release gate 停在 `tests/api/export-http-api.test.mjs`，错误为 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- `docs/testing/verify-matrix.md`: 已声明 API/DB/worker 等 gate 必须连接真实 MySQL，live object storage 不能用 adapter 证据替代。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过
+- `production MySQL boundary`: FAIL / BLOCKED - 未提供 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `no mock/in-memory as release evidence`: PASS - 未用旧 trace、mock 或 adapter 证据冒充 release 通过
+- `live object storage evidence`: NOT_RUN / BLOCKED - release 在 API gate 停止，未到 `test:object-storage-live`
+
+## Knowledge References
+- none - 仅读取知识目录判断当前 verify 阶段无直接适用的完整知识条目
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release gate 缺少真实 MySQL 时必须保持 BLOCKED，不能复用旧 trace - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 需要提供真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 若要完成 live object storage release evidence，还需配置真实对象存储并显式允许 smoke 写入：`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 本轮没有产生 fully passed release 结论。

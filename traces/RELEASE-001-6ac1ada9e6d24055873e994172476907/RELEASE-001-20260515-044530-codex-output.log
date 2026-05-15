@@ -1,0 +1,68 @@
+SUCCESS: The process with PID 28996 (child process of PID 7412) has been terminated.
+SUCCESS: The process with PID 7412 (child process of PID 21044) has been terminated.
+SUCCESS: The process with PID 21044 (child process of PID 11952) has been terminated.
+SUCCESS: The process with PID 11952 (child process of PID 10972) has been terminated.
+SUCCESS: The process with PID 10796 (child process of PID 28652) has been terminated.
+SUCCESS: The process with PID 10972 (child process of PID 29212) has been terminated.
+SUCCESS: The process with PID 28652 (child process of PID 22680) has been terminated.
+SUCCESS: The process with PID 22680 (child process of PID 18792) has been terminated.
+SUCCESS: The process with PID 18792 (child process of PID 29212) has been terminated.
+SUCCESS: The process with PID 27216 (child process of PID 8268) has been terminated.
+SUCCESS: The process with PID 21680 (child process of PID 29292) has been terminated.
+SUCCESS: The process with PID 29292 (child process of PID 11676) has been terminated.
+SUCCESS: The process with PID 11676 (child process of PID 10976) has been terminated.
+SUCCESS: The process with PID 10976 (child process of PID 18932) has been terminated.
+SUCCESS: The process with PID 18932 (child process of PID 29212) has been terminated.
+SUCCESS: The process with PID 19336 (child process of PID 4068) has been terminated.
+SUCCESS: The process with PID 4068 (child process of PID 29132) has been terminated.
+SUCCESS: The process with PID 29132 (child process of PID 26004) has been terminated.
+SUCCESS: The process with PID 26004 (child process of PID 29212) has been terminated.
+SUCCESS: The process with PID 24068 (child process of PID 29344) has been terminated.
+SUCCESS: The process with PID 29344 (child process of PID 22792) has been terminated.
+SUCCESS: The process with PID 22792 (child process of PID 28296) has been terminated.
+SUCCESS: The process with PID 28296 (child process of PID 29212) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已修复 release gate 中 `npm test` 的 stale 断言：`tests/arch-check.test.mjs` 现在匹配 `docs/testing/verify-matrix.md` 当前 `STACK-ADR-001` 口径。
+- 完整 release 验证重新执行后，在 `npm run test:api` 阶段阻塞：当前环境未设置真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- release 不能声明通过，后续 DB/worker/query/file/sample/live object storage gate 未执行到。
+
+## Files Changed
+- `tests/arch-check.test.mjs`: 同步 verify matrix 断言到当前 `design-baseline / implemented-by-release` 文案。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - `npm run test:api` 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm test`: PASS - 17 pass, 0 fail
+- `git diff --check -- tests/arch-check.test.mjs docs/testing/verify-matrix.md`: PASS
+- 已在 release 脚本中通过失败前步骤：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、OpenAPI lint
+
+## Evidence
+- `tests/arch-check.test.mjs`: stale matrix assertion 已更新并由 `npm test` 覆盖。
+- `scripts/release-verify.ps1`: release gate 在 API 集成测试处因真实 MySQL 缺失停止。
+- `docs/testing/verify-matrix.md`: 仍声明真实依赖不可用时必须 BLOCKED，不能用 adapter/local evidence 冒充 release evidence。
+
+## Architecture Constraints
+- `production DB boundary`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `test double policy`: PASS - 未用内存库、mock 或 fixture 替代 release 证据
+- `release evidence freshness`: FAIL / BLOCKED - API 之后的 fresh evidence 未能在本轮继续生成
+
+## Knowledge References
+- 无：本轮只读取知识目录与 catalog，未引用具体知识条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-VERIFY-001`: pitfall - release gate 可能被 stale 文档断言阻断，修复后仍需真实依赖环境 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要提供真实 MySQL 测试库环境变量后重跑 release。
+- 即使 MySQL gate 通过，live object storage smoke 仍需要真实 endpoint/bucket 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 才能解除最终 release 阻塞。

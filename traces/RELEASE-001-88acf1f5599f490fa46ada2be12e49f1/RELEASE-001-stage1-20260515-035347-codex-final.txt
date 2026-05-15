@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/prd-lite.md:27`, `docs/product/acceptance-criteria.md:11`, `contracts/openapi.yaml:437-483` 要求下载支持 `SIGNED_URL` 和 `STREAM`；但 `src/routes/export/tasks/download-export-task.handler.ts:9` 未读取 `mode`，`src/task-api/service.ts:383` 的 `downloadExportTask` 无 delivery mode 参数，`src/task-api/service.ts:476` 固定返回 `SIGNED_URL`。 | 实现 `mode=STREAM` 分支：handler 读取 query mode，service 支持 stream 返回文件流与等价元信息，补齐 API/contract 测试覆盖 `application/octet-stream`。 | `npm run test:api`; `npm run test:contract`; `npm run typecheck` |
+| RELEASE-001-S1-F002 | HIGH | forbidden_implementation | backend | `docs/architecture/constraints.md:40` 要求对象存储不可用时 BLOCKED，不得用替身冒充；`docs/testing/verify-matrix.md:52-56` 将 release 收口为 fresh-pass，但 file/sample 证据仍是 `production-equivalent adapter + env-backed local HTTP adapter`；`tests/file/export-file-service.test.mjs:178,309,403` 与 `tests/sample/purchase-order-sample.test.mjs:111,350,386` 使用本地/Map adapter。 | release_required 下接入真实或可验真的环境驱动对象存储验证；若不可达，release 应标记 BLOCKED，不能把 local-only / Map adapter 作为 FR-003/FR-006/FR-011/FR-014 完成证据。 | `npm run test:file`; `npm run test:sample`; 补充 live/env object-storage release gate |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | backend | backend-worker | 2 | yes |
+| RELEASE-001-S1-F002 | backend | backend-worker | 2 | yes |

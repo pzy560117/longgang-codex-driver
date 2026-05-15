@@ -1,0 +1,62 @@
+SUCCESS: The process with PID 16044 (child process of PID 29092) has been terminated.
+SUCCESS: The process with PID 29092 (child process of PID 4076) has been terminated.
+SUCCESS: The process with PID 4076 (child process of PID 25436) has been terminated.
+SUCCESS: The process with PID 25436 (child process of PID 26724) has been terminated.
+SUCCESS: The process with PID 26724 (child process of PID 8976) has been terminated.
+SUCCESS: The process with PID 28644 (child process of PID 27800) has been terminated.
+SUCCESS: The process with PID 27800 (child process of PID 28816) has been terminated.
+SUCCESS: The process with PID 28816 (child process of PID 24088) has been terminated.
+SUCCESS: The process with PID 24088 (child process of PID 8976) has been terminated.
+SUCCESS: The process with PID 22148 (child process of PID 23088) has been terminated.
+SUCCESS: The process with PID 23088 (child process of PID 29276) has been terminated.
+SUCCESS: The process with PID 29276 (child process of PID 14116) has been terminated.
+SUCCESS: The process with PID 14116 (child process of PID 8976) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已运行指定 release 命令：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- release gate 在 `npm run test:api` 停止：当前环境缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，测试明确输出 `BLOCKED - 需要人工介入`
+- 单独探测 `npm run test:object-storage-live`：同样 BLOCKED，缺少真实 object storage endpoint/bucket，且未设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`
+- 未修改仓库文件；按任务硬边界未执行 `git add/git commit/git push`
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - `npm audit`、`arch:check`、`typecheck`、`test:contract`、`npm test`、OpenAPI lint 已通过；停在 `npm run test:api`
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 缺少真实 live object storage 配置
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `scripts/release-verify.ps1`: release_required 命令入口
+- `tests/api/export-http-api.test.mjs`: 要求真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `scripts/object-storage-live-smoke.mjs`: 要求真实 endpoint/bucket 与 smoke 写入授权
+- 控制台输出: 本轮 fresh release gate 停止于环境阻塞，不引用旧 trace 作为通过证据
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` passed
+- `API boundary requires route/handler/service/repository evidence`: BLOCKED - API 集成测试因真实 MySQL URL 缺失未完成
+- `production repository requires real persistence`: BLOCKED - `EXPORT_PLATFORM_TEST_DATABASE_URL` 缺失
+- `live object storage evidence cannot be adapter/local HTTP evidence`: BLOCKED - live smoke 配置缺失
+
+## Knowledge References
+- 无
+
+## Knowledge Outputs
+- 无新增；当前阻塞条件已在 `docs/testing/verify-matrix.md` 和相关测试 README 中覆盖
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 MySQL：`EXPORT_PLATFORM_TEST_DATABASE_URL`
+- 需要人工提供真实对象存储配置：`EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT`、`EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET`
+- 需要显式授权 live smoke 写入：`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`
+- 解除阻塞后请重新运行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`

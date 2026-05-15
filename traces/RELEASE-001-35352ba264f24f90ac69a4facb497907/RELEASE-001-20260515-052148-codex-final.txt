@@ -1,0 +1,46 @@
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `RELEASE-001` release_required 验证。
+- API、DB、worker、query、file、sample、契约、架构和基线检查均取得 fresh evidence。
+- release 最终结论为 BLOCKED：`npm run test:object-storage-live` 缺少真实/live object storage 写入授权或有效配置，不能把 adapter/local HTTP 证据冒充 live release evidence。
+- 未修改 tracked 文件，未执行 `git add` / `git commit` / `git push`，遵守本轮 Driver 强制边界。
+
+## Files Changed
+- 无 tracked 文件变更。
+- runtime trace 证据位于 `traces/RELEASE-001-35352ba264f24f90ac69a4facb497907/`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - live object storage gate 失败；前置验证通过。
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS - 无输出，空白检查通过。
+
+## Evidence
+- [RELEASE log](E:/2026/alpha-project/longgang-codex-driver/traces/RELEASE-001-35352ba264f24f90ac69a4facb497907/RELEASE-001-20260515-052148-codex-error.log:2056): 记录本轮 release 验证命令输出。
+- 同一日志显示：contract 3 pass、`npm test` 17 pass、API 2 pass、DB 3 pass、worker 11 pass、query 8 pass、file 9 pass、sample 9 pass。
+- 同一日志 `test:object-storage-live` 处明确输出 `BLOCKED - 需要人工介入`。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker + scheduled_job`: PASS - `npm run arch:check` 通过。
+- `API Boundary`: PASS - contract lint、contract tests、API integration tests 通过。
+- `Data Boundary`: PASS - MySQL DB integration tests 通过，使用已设置的 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `Async And Worker Boundary`: PASS - worker integration tests 11 pass。
+- `Test Double Policy`: PARTIAL / BLOCKED - adapter/local HTTP object storage 证据通过，但 live object storage release evidence 缺失。
+- `Forbidden Implementations`: PASS - arch check 覆盖生产替身扫描并通过。
+
+## Knowledge References
+- none: 未引用具体 `docs/knowledge/*` 条目；仅按 catalog 判断本任务无直接命中条目。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-OBJECT-STORAGE-LIVE`: pitfall - adapter/local HTTP object storage evidence cannot satisfy live release gate - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实/live object storage endpoint、bucket、凭据，并显式允许 smoke 写入后重跑 release。
+- 当前 release 不能标记 fully passed；只能记录为 fresh evidence 部分通过，live object storage gate blocked。

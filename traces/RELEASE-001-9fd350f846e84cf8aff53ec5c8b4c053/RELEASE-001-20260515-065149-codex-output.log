@@ -1,0 +1,61 @@
+SUCCESS: The process with PID 29396 (child process of PID 20376) has been terminated.
+SUCCESS: The process with PID 3396 (child process of PID 28780) has been terminated.
+SUCCESS: The process with PID 28780 (child process of PID 21632) has been terminated.
+SUCCESS: The process with PID 26408 (child process of PID 27072) has been terminated.
+SUCCESS: The process with PID 27072 (child process of PID 28928) has been terminated.
+SUCCESS: The process with PID 28928 (child process of PID 29640) has been terminated.
+SUCCESS: The process with PID 29640 (child process of PID 21632) has been terminated.
+SUCCESS: The process with PID 23020 (child process of PID 29672) has been terminated.
+SUCCESS: The process with PID 29672 (child process of PID 4700) has been terminated.
+SUCCESS: The process with PID 4700 (child process of PID 9904) has been terminated.
+SUCCESS: The process with PID 9904 (child process of PID 11472) has been terminated.
+SUCCESS: The process with PID 11472 (child process of PID 21632) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- RELEASE-001 当前结论：BLOCKED，不能声明 release 通过。
+- fresh release 验证已执行，基础 gate 通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止。
+- 单独补跑后续 gate 后确认：DB / worker / query / file / sample 同样缺真实 MySQL；live object storage 缺真实端点、bucket 和 smoke 写入许可。
+- 未修改业务文件、测试文件或 `task.json`；未执行 commit，因为本 Driver Prompt 明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm audit`、`arch:check`、`typecheck`、`test:contract`、`npm test`、Redocly lint 已通过；停在 `npm run test:api`，缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:db`: FAIL - BLOCKED，缺少真实 MySQL URL。
+- `npm run test:worker`: FAIL - BLOCKED，缺少真实 MySQL URL。
+- `npm run test:query`: FAIL - BLOCKED，缺少真实 MySQL URL。
+- `npm run test:file`: FAIL - BLOCKED，缺少真实 MySQL URL。
+- `npm run test:sample`: FAIL - BLOCKED，缺少真实 MySQL URL。
+- `npm run test:object-storage-live`: FAIL - BLOCKED，缺少真实/live object storage endpoint 与 bucket。
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS。
+
+## Evidence
+- `traces/RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053/RELEASE-001-20260515-065149-codex-error.log`: 本轮 session 的 release 执行日志。
+- `docs/testing/verify-matrix.md`: 已记录 RELEASE-001 当前 blocked 口径，且要求不得用旧 trace 或 adapter/local HTTP 证据冒充 release 通过。
+- `scripts/release-verify.ps1`: release gate 命令清单。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker + scheduled_job`: PASS - `npm run arch:check` 通过。
+- `真实 MySQL 持久化边界`: FAIL - BLOCKED，缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`，API/DB/worker/query/file/sample 不能形成 release evidence。
+- `live object storage release evidence`: FAIL - BLOCKED，缺少真实对象存储配置与写入许可。
+- `禁止旧内存实现或旧 trace 作为证据`: PASS - 本轮结论未引用旧内存实现或旧 trace 作为通过依据。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence/trace 口径 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - release gate 与 blocked 结论表达 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - release 脚本短路后需单独补跑后续 gate 以区分未执行与同源 blocked - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑 release gate。
+- 需要配置真实对象存储 endpoint、bucket，并设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后验证 live object storage。
+- 当前 FR-001 至 FR-014 只有基础架构/契约/脚手架证据，缺完整 release 级 API、DB、worker、query、file、sample fresh evidence。

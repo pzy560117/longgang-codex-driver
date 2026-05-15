@@ -1,0 +1,30 @@
+SUCCESS: The process with PID 3204 (child process of PID 26812) has been terminated.
+SUCCESS: The process with PID 26812 (child process of PID 29644) has been terminated.
+SUCCESS: The process with PID 29644 (child process of PID 23376) has been terminated.
+SUCCESS: The process with PID 23376 (child process of PID 24944) has been terminated.
+SUCCESS: The process with PID 10116 (child process of PID 26476) has been terminated.
+SUCCESS: The process with PID 26476 (child process of PID 21684) has been terminated.
+SUCCESS: The process with PID 21684 (child process of PID 29488) has been terminated.
+SUCCESS: The process with PID 29488 (child process of PID 20900) has been terminated.
+SUCCESS: The process with PID 20900 (child process of PID 24944) has been terminated.
+SUCCESS: The process with PID 26756 (child process of PID 7080) has been terminated.
+SUCCESS: The process with PID 7080 (child process of PID 22448) has been terminated.
+SUCCESS: The process with PID 22448 (child process of PID 21680) has been terminated.
+SUCCESS: The process with PID 21680 (child process of PID 24944) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | truth_source_missing | controller | `traces/RELEASE-001-20260515-044009.json:232` 记录 release 脚本在 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 阻塞，且后续 DB / worker / query / file / sample 未取得本轮 fresh evidence；但 `docs/testing/verify-matrix.md:48-53` 将 API、DB、worker、query、file、sample 标为 `fresh-pass`。 | 将 `docs/testing/verify-matrix.md` 的 RELEASE-001 snapshot 改为与最新 trace 一致：API gate 阻塞于真实 MySQL，后续 DB/worker/query/file/sample 未运行或未取得本轮 fresh evidence；不得声明 FR-001 至 FR-014 全量 fresh-pass。配置真实 MySQL 后重新跑 release。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | state_gap | controller | `scripts/release-verify.ps1:13-19` 要求串行执行 `test:api` 到 `test:object-storage-live`；`traces/RELEASE-001-20260515-044009.json:232` 显示实际在 `test:api` 停止，且 live object storage 仍 `BLOCKED - 需要人工介入`。这未满足 RELEASE-001 验收“fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明”的一致收口，因为当前文档同时写了 blocked 和 fresh-pass。 | release 结论统一为 `BLOCKED - 需要人工介入`，明确列出未验证范围：FR-001 至 FR-014 的真实 MySQL 集成链路、FR-003/006/011/014 的 live object storage smoke。补齐环境后再生成新的 evidence snapshot。 | `npm run test:api`; `npm run test:db`; `npm run test:worker`; `npm run test:query`; `npm run test:file`; `npm run test:sample`; `npm run test:object-storage-live` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | yes |
+| RELEASE-001-S1-F002 | controller | test-runner | 1 | yes |

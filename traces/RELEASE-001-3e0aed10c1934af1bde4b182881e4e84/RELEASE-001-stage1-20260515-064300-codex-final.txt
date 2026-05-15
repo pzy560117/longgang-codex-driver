@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | architecture_gap | controller | [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:48) 记录 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` BLOCKED，DB/worker/query/file/sample 本轮未执行；[RELEASE final](E:/2026/alpha-project/longgang-codex-driver/traces/RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40/RELEASE-001-20260515-063617-codex-final.txt:16) 同样确认 release 主命令失败。 | 提供真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`，重跑 release 全链路，确保 API、DB、worker、query、file、sample 对 FR-001 至 FR-014 产生 fresh evidence；不得沿用历史 trace 或 adapter/local 证据。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | architecture_gap | controller | [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:54) 明确 live object storage release evidence 仍为 BLOCKED；[scripts/object-storage-live-smoke.mjs](E:/2026/alpha-project/longgang-codex-driver/scripts/object-storage-live-smoke.mjs:10) 在缺少真实 endpoint/bucket 或 placeholder 配置时阻塞。 | 配置真实/live object storage endpoint、bucket、凭证，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`；重跑 live smoke 和完整 release，证据中区分 live storage 与 adapter/local HTTP。 | `npm run test:object-storage-live`; then `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | true |
+| RELEASE-001-S1-F002 | controller | test-runner | 1 | true |

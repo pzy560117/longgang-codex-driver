@@ -1,0 +1,32 @@
+SUCCESS: The process with PID 26736 (child process of PID 18612) has been terminated.
+SUCCESS: The process with PID 18612 (child process of PID 25952) has been terminated.
+SUCCESS: The process with PID 25952 (child process of PID 22640) has been terminated.
+SUCCESS: The process with PID 22640 (child process of PID 5148) has been terminated.
+SUCCESS: The process with PID 20980 (child process of PID 5748) has been terminated.
+SUCCESS: The process with PID 5748 (child process of PID 16124) has been terminated.
+SUCCESS: The process with PID 16124 (child process of PID 26192) has been terminated.
+SUCCESS: The process with PID 26192 (child process of PID 27456) has been terminated.
+SUCCESS: The process with PID 27456 (child process of PID 5148) has been terminated.
+SUCCESS: The process with PID 4248 (child process of PID 14504) has been terminated.
+SUCCESS: The process with PID 14504 (child process of PID 24228) has been terminated.
+SUCCESS: The process with PID 24228 (child process of PID 26108) has been terminated.
+SUCCESS: The process with PID 26108 (child process of PID 5148) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | truth_source_missing | controller | `docs/testing/test-matrix.md` 仍标记 FR-001 至 FR-014 为 `planned` / `blocked-by-contract`；`docs/testing/REGRESSION_PLAN.md` 仍写 ANALYSIS-001、planned/blocked；`docs/testing/TEST_DATA_MATRIX.md` 仍写 planned fixture；`docs/testing/ACCEPTANCE_CRITERIA.md` 仍称当前仓库尚无业务实现代码。与 `docs/testing/verify-matrix.md` 的 RELEASE-001 fresh evidence 不一致。 | 更新 testing truth source：把每条 FR 的测试状态改为当前真实证据路径，明确 API/DB/worker/query/file/sample fresh-pass 与 live object storage BLOCKED 边界；移除“无业务代码 / 后续实现 / blocked-by-contract”旧口径。 | `rg -n "planned|blocked-by-contract|当前仓库尚无业务实现代码|无应用代码|ANALYSIS-001" docs/testing`，并重跑 `git diff --check -- docs/testing` |
+| RELEASE-001-S1-F002 | MEDIUM | truth_source_missing | controller | `plans/features/export-platform.dev-plan.md` 仍写“当前仓库已有 contracts/README.md，但无业务代码”“tests 后续创建”“运行入口后续脚手架必须创建”，与当前 `src/`、`tests/`、`migrations/` 已实现状态冲突。 | 将 DEV-PLAN 收口为 release 当前状态：保留历史计划可以，但必须新增当前实现/验证状态，避免作为 RELEASE-001 真相源时继续表达 pre-implementation 状态。 | `rg -n "无业务代码|后续创建|后续脚手架|planned / blocked-by-contract" plans/features/export-platform.dev-plan.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | docs-worker | 1 | yes |
+| RELEASE-001-S1-F002 | controller | docs-worker | 1 | no |
+
+补充复验：我只做了只读审查和轻量验证，未修改文件。已通过 `npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`git diff --check ...`；`npm run test:object-storage-live` 当前按设计输出 `BLOCKED - 需要人工介入`。

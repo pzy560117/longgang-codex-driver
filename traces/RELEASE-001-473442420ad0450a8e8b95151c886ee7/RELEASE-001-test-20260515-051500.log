@@ -1,0 +1,215 @@
+﻿Running: npm audit --audit-level=high --registry=https://registry.npmjs.org
+found 0 vulnerabilities
+Running: npm run arch:check
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+Running: npm run typecheck
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+Running: npm run test:contract
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.3358ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.7729ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4693ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.2801
+Running: npm test
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (0.5617ms)
+✔ verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline (0.2632ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (1.2837ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (0.546ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.3323ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.2171ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (0.4018ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.1301ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.1953ms)
+✔ OpenAPI operationIds are represented by route manifest entries (1.8128ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (2.0848ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.6491ms)
+✔ 脚手架声明的服务入口脚本存在 (0.8609ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.183ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.0826ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (96.9304ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开 API 在缺少认证上下文时返回受控 401 响应 (11.3316ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 910.4789
+Running: npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml
+System.Management.Automation.RemoteException
+    [33m╔[33m═══════════════════════════════════════════════════════[33m╗[39m
+    [33m║                                                       ║[39m
+    [33m║[39m  A new version of [36mRedocly CLI[39m ([32m2.30.6[39m) is available.  [33m║[39m
+    [33m║[39m  Update now: `[36mnpm i -g @redocly/cli@latest[39m`.          [33m║[39m
+    [33m║[39m  Changelog: https://redocly.com/docs/cli/changelog/   [33m║[39m
+    [33m║                                                       ║[39m
+    [33m╚[33m═══════════════════════════════════════════════════════[33m╝[39m
+System.Management.Automation.RemoteException
+No configurations were provided -- using built in [34mrecommended[39m configuration by default.
+System.Management.Automation.RemoteException
+[90mvalidating contracts\openapi.yaml...
+[39m[90mcontracts\openapi.yaml: validated in 86ms
+System.Management.Automation.RemoteException
+[39m[32mWoohoo! Your API description is valid. 🎉
+[39m
+Running: npm run test:api
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.9522ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (604.1536ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1224.1541
+Running: npm run test:db
+
+> export-platform-service@0.1.0 test:db
+> node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs
+
+✔ DB tests require an explicit test database URL (0.7118ms)
+✔ migration exposes durable evidence tables for FR-001/005/007/010/013 (50.6322ms)
+✔ repositories persist registry, task idempotency, lease, checkpoint, file and audit evidence (140.6291ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 635.5288
+Running: npm run test:worker
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8205ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (273.8208ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (259.3373ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (268.3241ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (191.7896ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (236.3365ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (218.5547ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (181.3001ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (259.8997ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (181.5488ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (161.1297ms)
+✔ worker integration tests (2234.0751ms)
+ℹ tests 11
+ℹ suites 1
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2818.9767
+Running: npm run test:query
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.7079ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (320.1629ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (174.8347ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (132.944ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (151.4205ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (81.5292ms)
+✔ query executor rejects field mappings that do not match selected columns (91.307ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (98.7528ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1503.3183
+Running: npm run test:file
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (0.7143ms)
+✔ production object storage config is required outside injected test adapters (0.1707ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (200.2148ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (197.0238ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (127.3552ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (230.042ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (260.726ms)
+✔ cleanup job deletes only published object when temp storage key is null (216.141ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (208.4596ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1943.778
+Running: npm run test:sample
+
+> export-platform-service@0.1.0 test:sample
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs
+
+▶ sample purchase-order integration tests
+  ✔ sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent (0.6909ms)
+  ✔ sample purchase-order registry contract is registered through the public registry service (238.5848ms)
+  ✔ sample boundary 0 rows completes through the public create and worker chain (410.9248ms)
+  ✔ sample boundary 1 row keeps final file masked and records create/query/file/audit/download evidence (463.3949ms)
+  ✔ sample boundary 20000 rows completes with a single-file package (7441.4373ms)
+  ✔ sample boundary 20001 rows packages ZIP evidence without losing rows (7325.6503ms)
+  ✔ sample boundary 100000 rows stays on the default batch path and publishes every row (67817.1885ms)
+  ✔ sample boundary 100001 rows must be rejected under the default export limit (42861.6509ms)
+  ✔ sample masking failure leaves the task failed and does not publish a file (326.6618ms)
+✔ sample purchase-order integration tests (126887.4255ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 127388.8734
+Running: npm run test:object-storage-live
+
+> export-platform-service@0.1.0 test:object-storage-live
+> node --import tsx scripts/object-storage-live-smoke.mjs
+
+BLOCKED - 需要人工介入: RELEASE-001 requires a real/live object storage endpoint and bucket. Current configuration is missing or placeholder-only, so adapter/local HTTP evidence cannot be used as live release evidence.
+验证失败，退出码 1: npm run test:object-storage-live
+At E:\2026\alpha-project\longgang-codex-driver\verify.ps1:25 char:7
++       throw "验证失败，退出码 $($LASTEXITCODE): $Command"
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (验证失败，退出码 1: npm...ct-storage-live:String) [], RuntimeException
+    + FullyQualifiedErrorId : 验证失败，退出码 1: npm run test:object-storage-live
+ 

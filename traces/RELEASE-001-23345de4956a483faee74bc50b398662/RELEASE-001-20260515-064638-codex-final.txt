@@ -1,0 +1,44 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- RELEASE-001 本轮结论：`BLOCKED - 需要人工介入`。
+- 已运行指定 release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`。
+- fresh evidence 显示基础校验通过，但 `npm run test:api` 因缺少真实 MySQL 连接环境变量 `EXPORT_PLATFORM_TEST_DATABASE_URL` 失败并停止。
+- 因 API gate 阻塞，DB / worker / query / file / sample / live object storage 本轮未执行，不能引用旧 trace 或历史通过记录作为当前 release 通过证据。
+
+## Files Changed
+- 无代码或文档改动。
+- `traces/`: 运行产物/既有未跟踪证据目录；符合 `task.json` 中 `runtime.git.non_blocking_dirty_paths`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL - `npm run test:api` 报错 `BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- 已通过的前置项：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`。
+- 未执行项：`npm run test:db`、`test:worker`、`test:query`、`test:file`、`test:sample`、`test:object-storage-live`、最终 scoped `git diff --check`，原因是 release 脚本在 API gate 失败后停止。
+
+## Evidence
+- `traces/RELEASE-001-23345de4956a483faee74bc50b398662/RELEASE-001-20260515-064638-codex-error.log`: 本轮 Codex 执行日志和 release gate 失败证据。
+- `docs/testing/verify-matrix.md`: 已声明 RELEASE-001 当前必须保持 BLOCKED，且不能用旧证据替代 API/DB/worker/query/file/sample/live object storage release evidence。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过，生产入口和架构检查存在。
+- `API boundary requires real handler/service/repository evidence`: BLOCKED - API 集成测试需要真实 MySQL URL，当前未提供。
+- `Data boundary uses MySQL production path`: BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `Worker/file/sample release evidence must not use test doubles`: PASS for policy / BLOCKED for evidence - 本轮未用替身冒充通过，后续证据因 API gate 停止未执行。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence / trace 边界核对 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - BLOCKED 结论与不伪造完成状态 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-001`: pitfall - Release gate 在 API 阶段缺少真实 MySQL URL 时必须停止，后续 gate 不得沿用旧证据 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 需要人工提供可访问的真实 MySQL 测试库，并设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 若要通过 live object storage release gate，还需要配置真实对象存储 smoke 环境，并显式允许写入：`EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- 解除阻塞后重新运行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1`。

@@ -1,0 +1,66 @@
+SUCCESS: The process with PID 23580 (child process of PID 164) has been terminated.
+SUCCESS: The process with PID 28972 (child process of PID 10228) has been terminated.
+SUCCESS: The process with PID 10228 (child process of PID 13220) has been terminated.
+SUCCESS: The process with PID 26512 (child process of PID 29456) has been terminated.
+SUCCESS: The process with PID 29456 (child process of PID 6568) has been terminated.
+SUCCESS: The process with PID 6568 (child process of PID 1616) has been terminated.
+SUCCESS: The process with PID 1616 (child process of PID 13220) has been terminated.
+SUCCESS: The process with PID 10772 (child process of PID 28820) has been terminated.
+SUCCESS: The process with PID 28820 (child process of PID 14076) has been terminated.
+SUCCESS: The process with PID 14076 (child process of PID 28020) has been terminated.
+SUCCESS: The process with PID 28020 (child process of PID 14056) has been terminated.
+SUCCESS: The process with PID 14056 (child process of PID 13220) has been terminated.
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `RELEASE-001` release 验证。基础 gate 通过：`npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、OpenAPI lint。
+- release 主命令在 `npm run test:api` 阶段失败：缺少真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 补跑 DB / worker / query / file / sample / live object-storage gate，均确认 BLOCKED；没有把旧 trace、旧内存实现或旧历史通过记录作为 release 通过证据。
+- 未修改文件，未执行 `git add` / `git commit`。
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED - `npm run test:api` 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:query`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:file`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:sample`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 缺少真实/live object storage endpoint 和 bucket
+- `git diff --check`: PASS
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `current-session terminal output`: fresh release run stopped at API gate with `BLOCKED - 需要人工介入`
+- `tests/api/export-http-api.test.mjs`: API gate requires real MySQL URL
+- `scripts/object-storage-live-smoke.mjs`: live object-storage smoke blocks placeholder/missing config
+- `docs/testing/verify-matrix.md`: release conclusion must remain BLOCKED until real DB and live storage evidence exist
+
+## Architecture Constraints
+- `independent_microservice`: PASS - server / worker / cleanup entries covered by `npm run arch:check`
+- `real DB production boundary`: FAIL / BLOCKED - no `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `worker DB lease evidence`: FAIL / BLOCKED - no `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `file/sample/live storage evidence`: FAIL / BLOCKED - DB missing, live object storage missing
+- `no InMemory/mock as release evidence`: PASS - no replacement evidence used
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - verification boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `RELEASE-001-BLOCKED-DB-STORAGE`: pitfall - release gate 需区分 adapter/local evidence 与真实 DB/live storage evidence - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- Release 不能通过，FR-001 至 FR-014 只能记录为 fresh BLOCKED，不能声明 fully passed。
+- 需要提供真实 MySQL `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 需要提供真实/live object storage 配置，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后重跑 release。

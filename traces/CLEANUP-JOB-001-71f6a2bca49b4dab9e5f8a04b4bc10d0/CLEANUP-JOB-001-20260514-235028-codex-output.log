@@ -1,0 +1,83 @@
+SUCCESS: The process with PID 2892 (child process of PID 28120) has been terminated.
+SUCCESS: The process with PID 21780 (child process of PID 14236) has been terminated.
+SUCCESS: The process with PID 28120 (child process of PID 20900) has been terminated.
+SUCCESS: The process with PID 20900 (child process of PID 26936) has been terminated.
+SUCCESS: The process with PID 25792 (child process of PID 23528) has been terminated.
+SUCCESS: The process with PID 26936 (child process of PID 22824) has been terminated.
+SUCCESS: The process with PID 23528 (child process of PID 1760) has been terminated.
+SUCCESS: The process with PID 22824 (child process of PID 1760) has been terminated.
+SUCCESS: The process with PID 9592 (child process of PID 1604) has been terminated.
+SUCCESS: The process with PID 21564 (child process of PID 27052) has been terminated.
+SUCCESS: The process with PID 1604 (child process of PID 18988) has been terminated.
+SUCCESS: The process with PID 27052 (child process of PID 27040) has been terminated.
+SUCCESS: The process with PID 18988 (child process of PID 27992) has been terminated.
+SUCCESS: The process with PID 27040 (child process of PID 25956) has been terminated.
+SUCCESS: The process with PID 27992 (child process of PID 1760) has been terminated.
+SUCCESS: The process with PID 25956 (child process of PID 1760) has been terminated.
+SUCCESS: The process with PID 27272 (child process of PID 28504) has been terminated.
+SUCCESS: The process with PID 28504 (child process of PID 23312) has been terminated.
+SUCCESS: The process with PID 23312 (child process of PID 20360) has been terminated.
+SUCCESS: The process with PID 20360 (child process of PID 1760) has been terminated.
+SUCCESS: The process with PID 8984 (child process of PID 19312) has been terminated.
+SUCCESS: The process with PID 19312 (child process of PID 23632) has been terminated.
+SUCCESS: The process with PID 23632 (child process of PID 12456) has been terminated.
+SUCCESS: The process with PID 12456 (child process of PID 3028) has been terminated.
+SUCCESS: The process with PID 3028 (child process of PID 1760) has been terminated.
+BLOCKED - 需要人工介入
+
+当前任务: `CLEANUP-JOB-001` 实现 cleanup job entry、先失效后删除和失败重试记录
+
+## Requirement IDs
+- FR-003
+- FR-011
+
+## Summary
+- 已实现 cleanup job 生产入口与 `pollOnce()`，扫描已发布且过期文件。
+- 清理顺序为先失效下载元信息，再删除 published/temp 对象。
+- 删除成功记录 `FILE_CLEANUP_DONE` 和成功审计；删除失败记录 `FILE_CLEANUP_RETRY` 和失败审计，并保留对象 key 供重试。
+- 未提交 git：本轮 Driver Context 明确禁止 `git add/git commit`。
+
+## Files Changed
+- `src/cleanup-job/index.ts`: cleanup job service
+- `src/jobs/cleanup-job.ts`: job entry
+- `src/repositories/export-file.repository.ts`: 过期扫描与元信息状态更新
+- `src/repositories/index.ts`: 类型导出
+- `tests/file/export-file-service.test.mjs`: cleanup 元信息 guard / 重试测试
+- `tests/worker/scheduler-worker.test.mjs`: cleanup audit / event 测试
+- `docs/testing/verify-matrix.md`: FR-003/FR-011 证据矩阵更新
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run arch:check`: PASS
+- `git diff --check -- ...`: PASS
+- `npm run test:file`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:db`: FAIL/BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `verify.ps1 ...`: FAIL/BLOCKED - 在 `npm run test:file` 处因真实 MySQL URL 缺失停止
+
+## Evidence
+- `src/cleanup-job/index.ts`: cleanup 顺序、重试事件、审计记录
+- `tests/file/export-file-service.test.mjs`: 元信息先失效、成功/失败 key 状态断言
+- `tests/worker/scheduler-worker.test.mjs`: cleanup event/audit 持久化断言
+
+## Architecture Constraints
+- `cleanup job entry`: PASS - `src/jobs/cleanup-job.ts`
+- `DB persistence boundary`: PASS static / BLOCKED runtime - repository 已接入，真实 MySQL 未提供
+- `object storage production config`: PASS static / BLOCKED runtime - env 缺失时抛 BLOCKED
+- `forbidden test doubles in production`: PASS - `npm run arch:check`
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-CLEANUP-001`: pitfall - cleanup 删除 published 成功但 temp 失败时需保留 key 并依赖对象删除幂等 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 需要提供真实 `EXPORT_PLATFORM_TEST_DATABASE_URL` 后重跑任务验证命令。
+- 真实对象存储删除链路未做环境级验证。
+- cleanup job 暂未实现独立 DB 租约，多实例并发清理仍有重复删除竞争风险；当前依赖对象删除幂等。

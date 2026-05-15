@@ -1,0 +1,21 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | architecture_gap | backend | `docs/testing/verify-matrix.md:53-55`：`test:api`、`test:db`、`test:worker` 均为 BLOCKED，缺少真实 `EXPORT_PLATFORM_TEST_DATABASE_URL`；`docs/architecture/constraints.md:39-40` 要求生产完成证据包含 API/DB/worker 验证 | 提供真实 MySQL 测试环境，配置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，补齐 API、DB repository、worker lease/takeover/retry 的 fresh 通过证据 | `npm run test:api`; `npm run test:db`; `npm run test:worker`; `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | missing_requirement | backend | `docs/testing/verify-matrix.md:56`、`:71`、`:73`：query executor 仍为 planned/BLOCKED，影响 FR-006、FR-008、FR-009、FR-014；`plans/features/export-platform.dev-plan.md:62` 定义应落地 `QUERY-EXECUTOR-001` | 实现 `QUERY-EXECUTOR-001` 的生产 query-executor 链路：参数 schema、字段映射、脱敏、数据范围、批次检查点，并用真实 MySQL/外部数据源验证 | `npm run test:query`; `npm run test:worker`; `npm run test:db` |
+| RELEASE-001-S1-F003 | HIGH | missing_requirement | backend | `docs/testing/verify-matrix.md:57`、`:68`、`:76`：file service / cleanup job 仍为 planned/BLOCKED，影响 FR-003、FR-006、FR-011、FR-014；`plans/features/export-platform.dev-plan.md:63-64` 定义应落地 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001` | 实现文件发布、checksum 校验、下载元信息、分片 ZIP、cleanup 先失效后删除和失败重试记录，并接入真实对象存储或生产等价环境 | `npm run test:file`; `npm run test:api`; `npm run test:worker`; `npm run test:db` |
+| RELEASE-001-S1-F004 | HIGH | missing_requirement | backend | `docs/testing/verify-matrix.md:58`、`:79`：采购订单样板仍为 planned/BLOCKED；`docs/product/acceptance-criteria.md:25-26` 要求 FR-014 覆盖样板注册、边界行数、脱敏、ZIP 和压测证据 | 实现 `SAMPLE-PURCHASE-ORDER-001`，复用标准 registry/query/file/audit 链路，补齐 `0/1/20000/20001/100000/100001` 行边界和脱敏压测证据 | `npm run test:sample`; `npm run test:query`; `npm run test:file`; `npm run test:db` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | backend | backend-worker | 2 | yes |
+| RELEASE-001-S1-F002 | backend | backend-worker | 2 | yes |
+| RELEASE-001-S1-F003 | backend | backend-worker | 2 | yes |
+| RELEASE-001-S1-F004 | backend | backend-worker | 2 | yes |

@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| MOCK-FIRST-001-S1-F001 | HIGH | architecture_gap | controller | [task.json](E:/2026/alpha-project/longgang-codex-driver/task.json:912) 将 `MOCK-FIRST-001` 标记为 `feature_impl`，但任务字段只有 `test_command`，缺少 `architecture_constraints` 和 `forbidden_implementations`；[constraints.md](E:/2026/alpha-project/longgang-codex-driver/docs/architecture/constraints.md:3) 明确所有 `feature_impl` 必须复制这些约束。 | 在 `MOCK-FIRST-001` 中补充可执行的 `architecture_constraints` 和 `forbidden_implementations`，重点写明 mock-first 仅为 local/dev evidence、不得替代真实 MySQL/live OSS/S3/release evidence、不得推动 `RELEASE-001` PASS。 | `git diff --check -- task.json docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| MOCK-FIRST-001-S1-F001 | controller | harness-writer | 1 | yes |

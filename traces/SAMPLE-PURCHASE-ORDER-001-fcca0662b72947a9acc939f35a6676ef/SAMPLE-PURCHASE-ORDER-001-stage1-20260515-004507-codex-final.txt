@@ -1,0 +1,23 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| SAMPLE-PURCHASE-ORDER-001-S1-F001 | HIGH | forbidden_implementation | backend | `tests/sample/purchase-order-sample.test.mjs:76`, `tests/sample/purchase-order-sample.test.mjs:210`, `tests/sample/purchase-order-sample.test.mjs:216`, `package.json:32`, `docs/testing/verify-matrix.md:23` | `test:sample` 只要求真实 MySQL，却用 `createRecordingStorage()` 的 Map 替代对象存储发布证据。补真实对象存储或生产等价环境配置门禁；对象存储不可达时必须 BLOCKED，不能用录制替身作为 FR-014 完成证据。 | `npm run test:sample`; `npm run test:file` |
+| SAMPLE-PURCHASE-ORDER-001-S1-F002 | HIGH | missing_requirement | backend | `src/query-executor/index.ts:140`, `src/query-executor/index.ts:171`, `src/scheduler/worker.ts:382`, `src/scheduler/worker.ts:430`, `src/scheduler/worker.ts:444`, `tests/sample/purchase-order-sample.test.mjs:284` | 10 万行样板测试把 `batchSize` 设为 `100000`，绕开默认批次链路；worker 在 `continue` 批次只保存 checkpoint，最终只发布最后一批 `batch.rows`。需要实现跨批次文件写入/分片累积，或证明默认批次下 10 万行不会丢批次。 | `npm run test:sample`，增加默认 batchSize 的 100000 行用例 |
+| SAMPLE-PURCHASE-ORDER-001-S1-F003 | HIGH | missing_requirement | backend | `docs/product/prd-lite.md:125`, `docs/product/acceptance-criteria.md:25`, `tests/sample/purchase-order-sample.test.mjs:103`, `tests/sample/purchase-order-sample.test.mjs:141`, `tests/sample/purchase-order-sample.test.mjs:331` | FR-014 要串联创建请求、registry、query、file、audit、download；当前样板测试直接写 repository seed registry/task，且未覆盖下载记录。补通过公开 registry/task API 创建样板任务、worker 执行、下载 API、审计日志的端到端证据。 | `npm run test:api`; `npm run test:sample` |
+| SAMPLE-PURCHASE-ORDER-001-S1-F004 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:56`, `docs/product/acceptance-criteria.md:72`, `tests/sample/purchase-order-sample.test.mjs:190`, `tests/sample/purchase-order-sample.test.mjs:191`, `tests/sample/purchase-order-sample.test.mjs:255` | 样板验收要求联系人姓名/手机号不得以原文出现在最终文件，并覆盖 `MASKING_RULE_ERROR`；当前样板 1 行测试只看事件和扩展名，没有读取最终文件内容验证脱敏，也没有样板级脱敏失败路径。补最终文件内容断言和 AC-E022 失败态。 | `npm run test:sample`; `npm run test:query` |
+
+## Verdict
+
+- FAIL
+
+只读验证结果：`npm run arch:check` 通过；`git diff --check` 通过但有 CRLF warning；`npm run test:sample` 因未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 输出 `BLOCKED - 需要人工介入`。
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| SAMPLE-PURCHASE-ORDER-001-S1-F001 | backend | backend-worker | 1 | yes |
+| SAMPLE-PURCHASE-ORDER-001-S1-F002 | backend | backend-worker | 2 | yes |
+| SAMPLE-PURCHASE-ORDER-001-S1-F003 | backend | backend-worker | 2 | yes |
+| SAMPLE-PURCHASE-ORDER-001-S1-F004 | backend | backend-worker | 1 | yes |

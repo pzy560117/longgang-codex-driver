@@ -1,0 +1,70 @@
+SUCCESS: The process with PID 22908 (child process of PID 11008) has been terminated.
+SUCCESS: The process with PID 11008 (child process of PID 2980) has been terminated.
+SUCCESS: The process with PID 2980 (child process of PID 18864) has been terminated.
+SUCCESS: The process with PID 18864 (child process of PID 5304) has been terminated.
+SUCCESS: The process with PID 5304 (child process of PID 23060) has been terminated.
+SUCCESS: The process with PID 9324 (child process of PID 28612) has been terminated.
+SUCCESS: The process with PID 28612 (child process of PID 9592) has been terminated.
+SUCCESS: The process with PID 9592 (child process of PID 18848) has been terminated.
+SUCCESS: The process with PID 18848 (child process of PID 23060) has been terminated.
+SUCCESS: The process with PID 27036 (child process of PID 19616) has been terminated.
+SUCCESS: The process with PID 19616 (child process of PID 23356) has been terminated.
+SUCCESS: The process with PID 23356 (child process of PID 8708) has been terminated.
+SUCCESS: The process with PID 8708 (child process of PID 23060) has been terminated.
+BLOCKED - 需要人工介入
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `RELEASE-001` 指定验证命令，基础验证通过。
+- release 完整回归被真实 MySQL 环境阻塞：`EXPORT_PLATFORM_TEST_DATABASE_URL` 未设置，API / DB / worker / query / file / sample 证据不能收口。
+- 未修改源码、文档、`task.json` 或 `traces/`；未执行 git add/commit/push。
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1`: PASS - `git diff --check` 与 harness 静态检查通过。
+- `npm run arch:check`: PASS - Architecture check passed.
+- `npm run typecheck`: PASS.
+- `npm run test:contract`: PASS - 3/3 passed.
+- `npm test`: PASS - 17/17 passed.
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS.
+- `npm run test:api`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:db`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:worker`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:query`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:file`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run test:sample`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts`: PASS.
+
+## Evidence
+- `contracts/openapi.yaml`: OpenAPI lint 通过，契约可解析。
+- `scripts/arch-check.ts`: 架构检查通过，生产入口与 forbidden implementation 扫描有效。
+- `tests/api/export-http-api.test.mjs`: release API 证据阻塞于真实 MySQL URL。
+- `tests/db/export-repositories.test.mjs`: DB/repository 证据阻塞于真实 MySQL URL。
+- `tests/worker/scheduler-worker.test.mjs`: worker/cleanup 证据阻塞于真实 MySQL URL。
+- `tests/query/`, `tests/file/`, `tests/sample/`: query/file/sample 回归入口存在，但当前环境阻塞。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过。
+- `http_service+worker+scheduled_job`: PASS - 架构检查覆盖 server、scheduler worker、cleanup job entry。
+- `real MySQL evidence required`: FAIL / BLOCKED - 当前未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `no InMemory/mock/fixture as release evidence`: PASS - 未用替身证据替代 blocked 项。
+
+## Knowledge References
+- `none`: 当前 cold start 知识库无 release 阶段直接可复用条目被引用。
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-REAL-MYSQL-001`: pitfall - release_required 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时应统一 BLOCKED - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- release 不能通过：FR-001 至 FR-014 的 fresh evidence 尚未覆盖真实 MySQL 集成路径。
+- 对象存储当前只能按 adapter 级口径描述，不能声明 live OSS/S3 release evidence。
+- 解除阻塞后请配置真实测试库环境变量，并运行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1`。

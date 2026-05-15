@@ -1,0 +1,70 @@
+SUCCESS: The process with PID 14672 (child process of PID 29244) has been terminated.
+SUCCESS: The process with PID 29244 (child process of PID 28852) has been terminated.
+SUCCESS: The process with PID 28852 (child process of PID 2636) has been terminated.
+SUCCESS: The process with PID 2636 (child process of PID 12132) has been terminated.
+SUCCESS: The process with PID 10260 (child process of PID 22824) has been terminated.
+SUCCESS: The process with PID 22824 (child process of PID 26840) has been terminated.
+SUCCESS: The process with PID 26840 (child process of PID 11776) has been terminated.
+SUCCESS: The process with PID 11776 (child process of PID 12132) has been terminated.
+SUCCESS: The process with PID 26672 (child process of PID 24608) has been terminated.
+SUCCESS: The process with PID 24608 (child process of PID 28128) has been terminated.
+SUCCESS: The process with PID 28128 (child process of PID 19408) has been terminated.
+SUCCESS: The process with PID 19408 (child process of PID 19472) has been terminated.
+SUCCESS: The process with PID 19472 (child process of PID 12132) has been terminated.
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 `RELEASE-001` 指定 release 验证命令。
+- 结论：release gate 未完全通过，阻塞在真实/live object storage smoke。
+- fresh evidence 已覆盖 API、DB、worker、query、file、sample、契约、架构、类型检查与安全 audit；未引用旧内存实现或旧 trace。
+- 本轮未修改 tracked 文件，未执行 `git add/commit/push`，符合单任务模板禁止提交边界。
+
+## Files Changed
+- 无 tracked 文件改动。
+- 工作区已有多批未跟踪 `traces/` 运行产物，本轮未清理、未改写。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`: FAIL / BLOCKED
+  - PASS: `npm audit` 0 vulnerabilities
+  - PASS: `npm run arch:check`
+  - PASS: `npm run typecheck`
+  - PASS: `npm run test:contract` 3/3
+  - PASS: `npm test` 17/17
+  - PASS: Redocly lint `contracts/openapi.yaml`
+  - PASS: `npm run test:api` 2/2
+  - PASS: `npm run test:db` 3/3
+  - PASS: `npm run test:worker` 11/11
+  - PASS: `npm run test:query` 8/8
+  - PASS: `npm run test:file` 9/9
+  - PASS: `npm run test:sample` 9/9
+  - FAIL/BLOCKED: `npm run test:object-storage-live`
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `docs/testing/verify-matrix.md`: 已声明 RELEASE-001 当前应为部分 fresh evidence 通过，live object storage gate blocked。
+- `scripts/object-storage-live-smoke.mjs`: 阻塞条件要求真实 endpoint、bucket，并设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- `traces/RELEASE-001-473442420ad0450a8e8b95151c886ee7/RELEASE-001-20260515-050453-codex-error.log`: 本轮 release 运行日志证据。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - HTTP/API、worker、cleanup job、DB repository 与 migration 相关验证均通过。
+- `真实 MySQL 持久化边界`: PASS - `EXPORT_PLATFORM_TEST_DATABASE_URL` 已配置，API/DB/worker/query/file/sample 测试走真实 MySQL 测试库。
+- `InMemory/mock 不得冒充生产证据`: PASS - `arch:check` 通过，file/sample 证据仅声明 adapter/local HTTP，不冒充 live OSS/S3。
+- `live object storage release evidence`: FAIL/BLOCKED - 当前 `EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT=https://oss.example.test` 属 placeholder 域名，且 live smoke 不允许写入。
+
+## Knowledge References
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - release 边界与 BLOCKED 结论核对 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - evidence/trace/knowledge 输出格式核对 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-OBJECT-STORAGE-001`: pitfall - adapter/local HTTP 对象存储证据不得冒充 live release smoke - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- release 不能声明 fully passed。需要人工提供真实对象存储 endpoint/bucket，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后重跑：
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 当前工作区存在未跟踪 `traces/` 产物；本任务模板禁止我提交或清理。

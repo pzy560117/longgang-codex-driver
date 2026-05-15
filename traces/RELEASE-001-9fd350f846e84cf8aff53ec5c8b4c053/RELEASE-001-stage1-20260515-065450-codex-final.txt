@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | HIGH | architecture_gap | controller | `docs/testing/verify-matrix.md:42`, `docs/testing/verify-matrix.md:48`, `docs/testing/verify-matrix.md:57`; `traces/RELEASE-001-23345de4956a483faee74bc50b398662/RELEASE-001-20260515-064638-codex-final.txt:15` 记录 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` BLOCKED，DB/worker/query/file/sample 本轮未执行。 | 提供可访问的真实 MySQL 测试库并设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`，重跑完整 release gate，生成 FR-001 至 FR-014 的 fresh evidence；不得沿用旧 trace 或历史通过记录。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+| RELEASE-001-S1-F002 | HIGH | architecture_gap | controller | `docs/testing/verify-matrix.md:54`; `scripts/object-storage-live-smoke.mjs:10` 和 `scripts/object-storage-live-smoke.mjs:19` 明确 live object storage 缺少真实 endpoint/bucket 或未允许 smoke writes 时必须 BLOCKED。 | 配置真实/live object storage endpoint、bucket、凭证，并显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`；证据中区分 live storage 与 adapter/local HTTP。 | `npm run test:object-storage-live`; then `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| RELEASE-001-S1-F001 | controller | test-runner | 1 | true |
+| RELEASE-001-S1-F002 | controller | test-runner | 1 | true |

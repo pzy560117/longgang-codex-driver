@@ -1,0 +1,65 @@
+BLOCKED - 需要人工介入
+
+当前任务: RELEASE-001 执行 fresh-start 微服务实现的 release 验证、回归与证据收口
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行 fresh release gate：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`
+- 结论：当前 release 仍为 `BLOCKED`，不能声明通过。
+- 阻塞原因：缺少真实 MySQL 测试连接 `EXPORT_PLATFORM_TEST_DATABASE_URL`；live object storage 配置也缺失或仍是 placeholder-only。
+- 未修改仓库文件，未更新 `task.json`，未提交 Git。
+
+## Files Changed
+- 无
+
+## Validation
+- `.\scripts\release-verify.ps1`: FAIL / BLOCKED - 基础校验通过后，在 `npm run test:api` 停止，报错要求真实 MySQL URL。
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - `0 vulnerabilities`
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3 passed
+- `npm test`: PASS - 17/17 passed
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:db`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:worker`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:query`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:file`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:sample`: FAIL / BLOCKED - 缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+- `npm run test:object-storage-live`: FAIL / BLOCKED - 缺少真实/live object storage endpoint 和 bucket
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- `docs/testing/verify-matrix.md`: 已记录 RELEASE-001 当前 blocked 口径，与本轮 fresh 验证一致。
+- 本轮命令输出: 证明 release gate 在 API 集成测试处因真实 MySQL 环境缺失停止；后续单项探测确认 DB/worker/query/file/sample/live object storage 均为环境阻塞。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run arch:check` 通过。
+- `http_service+worker+scheduled_job`: PASS - `npm run arch:check` 通过。
+- `real MySQL production boundary`: FAIL / BLOCKED - 当前未提供 `EXPORT_PLATFORM_TEST_DATABASE_URL`，不能完成 API/DB/worker/query/file/sample release evidence。
+- `live object storage evidence`: FAIL / BLOCKED - 当前配置缺失或 placeholder-only。
+- `no old InMemory/mock evidence as release proof`: PASS - 本轮结论未引用旧内存实现、旧测试或旧 trace。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - release evidence 收口 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - release gate 判断 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `PITFALL-RELEASE-ENV-001`: pitfall - release gate 真实依赖缺失时必须保持 BLOCKED，不能用 adapter/local evidence 替代 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 提供真实 MySQL URL 后，API/DB/worker/query/file/sample 仍需重新跑完整 release gate。
+- 提供 live object storage endpoint/bucket 并显式允许 smoke writes 后，仍需重新验证真实对象存储写入、读取、发布和下载链路。
+
+解除阻塞后请运行:
+```powershell
+$env:EXPORT_PLATFORM_TEST_DATABASE_URL="<real mysql test url>"
+# 配置真实对象存储环境变量，并按项目要求允许 smoke writes
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```

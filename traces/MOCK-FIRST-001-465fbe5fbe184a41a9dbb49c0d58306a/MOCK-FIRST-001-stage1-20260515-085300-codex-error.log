@@ -1,0 +1,2007 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e291f-5aa5-7820-b400-4ca870625881
+--------
+user
+# Stage 1 Review Prompt 模板
+
+你是 Stage 1 Reviewer。只审查**当前实现是否符合 Product Spec / Design Brief / 设计稿 / DEV-PLAN**，不要讨论代码风格。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- Task Kind: `<task-kind>`
+- Gate Profile: `<gate-profile>`
+- 对应 Phase: `<phase>`
+
+## 真相源
+
+- Truth source completeness: `<truth-source-state>`
+- Product Spec: `<product-spec>`
+- Design Brief: `<design-brief>`
+- Testing truth source: `<testing-truth-source>`
+- Knowledge Catalog: `docs/knowledge/knowledge-catalog.md` / `docs/knowledge/catalog.md`（如存在）
+- Architecture Constraints Packet: `docs/architecture/constraints.md`（如存在）
+- 设计稿 / Figma: `<design-source>`
+- DEV-PLAN: `<dev-plan>`
+- 状态矩阵: `<state-matrix>`
+
+## 必查项
+
+1. 先审查 Architecture Constraints Packet：交付形态、API 边界、数据持久化、worker/异步边界、测试替身策略、禁止实现和 Definition of Done 是否已明确。
+2. 如果当前任务是 `feature_impl`，是否携带 `architecture_constraints`、`forbidden_implementations` 和能验证架构形态的 `test_command`。
+3. 当前实现是否符合交付形态；例如微服务必须有 API/handler/启动入口/DB 或 worker 证据，不能只有领域 service class。
+4. 是否使用 `InMemory*`、mock、fixture、local-only adapter 或领域原型替代生产路径；除非任务明确标记 `domain-prototype`，否则这类情况必须 FAIL。
+5. Contract / OpenAPI / protobuf 等公开契约是否能追踪到 handler、service、测试和证据路径。
+6. 功能有没有漏实现。
+7. 有没有多做 Product Spec 没要求的内容。
+8. 每条 P0/P1 需求是否有 Requirement ID，并且能追溯到页面、状态、字段、操作、接口、测试和验收。
+9. 是否存在“页面有功能但需求没有”的多余实现。
+10. 高风险难点是否已在 `difficulty-research.md` 中提前研究并落实到计划。
+11. 页面状态是否完整：`default / empty / loading / error / disabled / permission / mobile`。
+12. AI 生成界面图是否已通过 `ui-image-review.md`，并已转成 `image-to-frontend-spec.md`。
+13. 前端 UI 任务是否已在真实浏览器截图，并把截图保存到 `artifacts/visual-review/`。
+14. 浏览器实拍图是否已和设计参考图通过 `visual-parity-review.md` 完成对比，且 Verdict 为 PASS。
+15. 交互是否与设计稿、Design Brief、CSS/token 和 Image To Frontend Spec 冲突。
+16. 验收示例、TRACEABILITY_MATRIX、测试矩阵和任务上下文之间是否一致。
+17. Contract 相关行为是否与当前 Spec 一致。
+18. 如果需求需要异常路径、权限路径或极端数据路径，这些路径是否已经进入测试或规格文档。
+19. 如果任务声明 `required_truth_sources` 包含 `knowledge`，或任务阶段是 `archive`，是否读取并使用了 `docs/knowledge/` 的索引与相关条目。
+20. 如果实现明显复用了项目经验，最终报告是否列出 `knowledge_references`；如果产生了可复用经验，是否列出 `knowledge_outputs` 建议。
+21. 是否把单次经验直接升级成 `AGENTS.md` 或全局规则；如有，必须有 proven evidence 或用户明确要求。
+
+如果当前任务涉及页面 UI，而缺少参考图、浏览器截图或视觉还原对比报告，Stage 1 必须输出 `FAIL`。只有在任务明确不是 UI 任务，或 `screen-states.md` / `image-to-frontend-spec.md` 明确豁免该状态时，才可以跳过视觉还原闸门。
+
+## 忽略项
+
+下面这些属于外层 driver 在 Stage 1 之后统一处理的状态收口，不要在 Stage 1 中作为失败项：
+
+- `task.json` 中的 `passes=true`
+- `progress.txt` 完成记录
+- `traces/` 目录和 trace 文件
+- 自动 `git commit`
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S1-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `architecture_gap` / `forbidden_implementation` / `missing_requirement` / `extra_scope` / `state_gap` / `visual_gap` / `contract_gap` / `truth_source_missing` / `knowledge_gap`
+- owner: `frontend` / `backend` / `contract` / `design` / `product` / `controller`
+- evidence: 文件路径、截图路径、日志路径或具体页面/状态
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令或报告路径
+
+## 输出格式
+
+```markdown
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- 只要存在 `HIGH` 问题，结论必须是 `FAIL`。
+- 如果 `gate-profile` 不是 `lightweight`，缺少 required truth source 必须视为 `HIGH`。
+- 如果 `feature_impl` 缺少架构约束，或实现与架构约束冲突，必须视为 `HIGH`。
+- 如果生产路径使用测试替身或内存实现冒充完成，必须视为 `HIGH`。
+- 不要在 Stage 1 讨论命名、格式化、测试框架选型这类代码质量问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: MOCK-FIRST-001
+- 描述: 执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据
+- Task Kind: feature_impl
+- Gate Profile: spec_required
+- Requirement IDs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- FR-014
+- 验收标准:
+- FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据
+- mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence
+- 若真实依赖缺失，RELEASE-001 仍保持 passes:false，且只能继续标记为 BLOCKED 或待真实环境验证
+
+优先真相源:
+
+### Product
+- docs\product\prd-lite.md
+- docs\product\page-inventory.md
+- docs\product\state-matrix.yaml
+- docs\product\acceptance-criteria.md
+- docs\product\requirement-interface-matrix.md
+- docs\product\difficulty-research.md
+
+### Design
+- 无
+
+### Testing
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+### DEV-PLAN
+- plans\features\export-platform.dev-plan.md
+
+### Contract
+- contracts\openapi.yaml
+
+### Task Context Files
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/mock-first-release-plan.md
+- docs/testing/verify-matrix.md
+- task.json
+
+### Truth Source Completeness
+- [OK] product: present=docs\product\prd-lite.md, docs\product\page-inventory.md, docs\product\state-matrix.yaml, docs\product\acceptance-criteria.md, docs\product\requirement-interface-matrix.md, docs\product\difficulty-research.md; missing=无
+- [OK] architecture: present=docs/architecture/constraints.md, docs/context/architecture-brief.md, docs/context/repo-map.md; missing=无
+- [OK] contract: present=contracts\openapi.yaml; missing=无
+- [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
+
+审查要求:
+- 只看功能完整性、状态覆盖、与设计和计划的一致性。
+- 不要重写代码，不要实现新功能。
+- 如果 Gate Profile 不是 lightweight，缺少 required truth source 视为阻塞性问题。
+- 如果 Gate Profile 是 lightweight，可以记录缺口，但不要把 driver 自己负责的状态文件当作失败项。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性功能/状态/设计偏差，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 1 口径只做一致性审查：先确认架构约束和任务字段，再追踪 mock-first evidence 是否覆盖 FR-001 到 FR-014 且没有冒充 release/真实依赖证据。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw docs/testing/mock-first-release-plan.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw docs/architecture/constraints.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "MOCK-FIRST-001|RELEASE-001|FR-00|FR-010|FR-011|FR-012|FR-013|FR-014|mock-first|live OSS|S3|MySQL|passes" task.json docs/product docs/testing docs/architecture contracts plans/features' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 376ms:
+# MOCK-FIRST RELEASE 计划
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**任务**: RELEASE-001
+**状态**: BLOCKED
+**最新 trace**: `traces/RELEASE-001-20260515-070412.json`
+**session**: `traces/RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344/`
+
+## 当前结论
+
+- `RELEASE-001` 当前最新状态是 `BLOCKED`。
+- 已通过的基础 gate 包括 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`Redocly OpenAPI lint`。
+- 当前阻塞点是缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- live object storage 仍需要真实 endpoint、bucket、credential，以及 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+
+## mock-first 的边界
+
+- mock-first 只用于本地开发、联调和失败态演练。
+- mock-first 可以使用本地 HTTP object storage adapter、fixture seed、受控 fake 外部数据源。
+- mock-first 不得作为 `RELEASE-001` PASS 证据。
+- mock-first 不得替代 live OSS/S3 证据。
+- mock-first 不得替代真实 MySQL 证据。
+- mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
+
+## mock-first local/dev evidence 映射
+
+| Req ID | local/dev evidence | 失败态演练 | Release 边界 |
+| --- | --- | --- | --- |
+| FR-001 | local/dev evidence: `npm run test:mock-local` 只确认创建任务契约、幂等字段、注册态映射和 mock-first 命令入口可被本地验证引用。 | 失败态: 未注册、禁用、权限不足和参数过长仍以 API / DB 集成测试接真实 MySQL 后确认。 | 不是 release evidence；不得替代 `npm run test:api`、`npm run test:db` 和真实 MySQL 证据。 |
+| FR-002 | local/dev evidence: `npm run test:mock-local` 只确认进度字段、错误字段、详情可见性口径和本地文档映射被纳入 mock-first 证据集合。 | 失败态: 不存在任务、无权查看和失败详情仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+| FR-003 | local/dev evidence: `tests/mock-local/object-storage-local.test.mjs` 使用本地 HTTP object storage adapter 覆盖 put/read/publish/download URL 协议链路，并保留临时对象到发布对象的路径描述。 | 失败态: 缺少对象存储 endpoint / bucket 时 `createObjectStorageFromEnv()` 明确 BLOCKED。 | 不是 release evidence；不得替代 live OSS/S3、真实下载证据或 release gate。 |
+| FR-004 | local/dev evidence: `npm run test:mock-local` 只确认历史查询筛选口径、权限可见性和分页边界被纳入 mock-first 映射。 | 失败态: 普通用户越权、管理员全局查询和空分页仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+| FR-005 | local/dev evidence: `npm run arch:check` 与 mock-first 映射只确认 scheduler / worker / migration 入口存在，并记录本地调度联调入口。 | 失败态: 多实例抢锁、并发上限和数据库时间租约仍需 `npm run test:worker` 接真实 MySQL。 | 不是 release evidence；不得替代 DB 抢锁和 worker release 证据。 |
+| FR-006 | local/dev evidence: mock-first 只记录分片、ZIP、空数据、阶段事件和文件发布链路的本地联调入口；本地对象存储协议链路由 `tests/mock-local/object-storage-local.test.mjs` 覆盖。 | 失败态: 渲染失败、字段校验失败和超量导出仍需 file / sample 集成测试确认。 | 不是 release evidence；不得替代真实 MySQL、文件服务或 live object storage 证据。 |
+| FR-007 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认 registry/config API 入口、启停语义和契约追踪存在。 | 失败态: 重复 taskCode、禁用配置、配置同步失败和无权限操作仍需 API / DB 集成测试。 | 不是 release evidence；不得替代 registry 生产 repository 证据。 |
+| FR-008 | local/dev evidence: mock-first 只确认集中查询模板、参数 schema、字段映射、脱敏策略和只读数据源约束在本地证据集合中有入口。 | 失败态: 非法模板、未声明参数、原始 SQL、数据源不可用和字段映射错误仍需 query 集成测试。 | 不是 release evidence；不得替代真实 MySQL 或外部只读数据源证据。 |
+| FR-009 | local/dev evidence: mock-first 只确认认证上下文、权限、数据范围和脱敏风险被纳入本地联调清单；下载协议可由本地对象存储 adapter 演练。 | 失败态: 权限不足、认证字段缺失、下载拒绝和脱敏失败仍需 API / query / file 集成测试。 | 不是 release evidence；不得替代真实权限、数据范围或 live storage 证据。 |
+| FR-010 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认审计日志、事件日志、requestId 串联和失败阶段字段入口存在。 | 失败态: 审计缺字段、事件缺失、失败阶段和上一成功阶段仍需 API / worker / DB 集成测试。 | 不是 release evidence；不得替代真实审计表和任务事件证据。 |
+| FR-011 | local/dev evidence: mock-first 使用本地对象存储协议链路确认对象操作接口可演练，cleanup job 入口由 `npm run arch:check` 确认。 | 失败态: 先标记不可下载再删对象、删除失败重试和 410 失效仍需 file / worker 集成测试。 | 不是 release evidence；不得替代 cleanup job、真实 MySQL 或 live OSS/S3 证据。 |
+| FR-012 | local/dev evidence: mock-first 只确认取消 / 重试 API 入口、状态机风险、attemptNo 语义和验证入口被映射。 | 失败态: PENDING 取消、FAILED 重试、EXECUTING 批次边界取消和非法状态重试仍需 API / worker 集成测试。 | 不是 release evidence；不得替代真实任务状态机和 worker 证据。 |
+| FR-013 | local/dev evidence: mock-first 只确认幂等、attemptNo、配置快照、锁租约字段和追踪入口被映射。 | 失败态: 幂等冲突、锁过期接管、续租和 FAILED 重试递增 attemptNo 仍需 DB / worker 集成测试。 | 不是 release evidence；不得替代真实 MySQL 锁租约和快照证据。 |
+| FR-014 | local/dev evidence: mock-first 只确认采购订单样板契约、查询字段、脱敏字段、边界数据和本地对象存储协议链路入口存在。 | 失败态: 0/1/20000/20001/100000/100001 行、敏感字段未脱敏和游标异常仍需 sample 集成测试。 | 不是 release evidence；不得替代真实 MySQL、sample 压测或 live OSS/S3 证据。 |
+
+## 退出条件
+
+- 补齐真实 MySQL 和 live object storage 环境。
+- 不能将 mock-first 结果回写为 `RELEASE-001 PASS`，也不能把 local/dev evidence 当成 release evidence。
+- 重新执行 `npm run test:api`。
+- 再执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`，或由 driver 重新跑 release 流程。
+- 只有真实环境下的 release evidence 才能推动 `RELEASE-001` 退出 `BLOCKED`。
+
+## 证据约束
+
+- mock-first 证据只能标记为 `local/dev evidence`。
+- mock-first 证据只能用于说明本地链路、联调用例和失败态，不可覆盖 release gate。
+- mock-first 证据可以作为 FR-001 到 FR-014 的映射索引，但不能替代 API / DB / worker / query / file / sample 集成证据。
+- 若真实依赖缺失，仍必须保留 `BLOCKED - 需要人工介入`。
+
+
+ succeeded in 372ms:
+task.json:101:                      "passes":  true,
+task.json:117:                                              "FR-001",
+task.json:118:                                              "FR-014"
+task.json:130:                                    "复核 Architecture Constraints Packet 是否明确 independent_microservice、HTTP API、MySQL、worker、scheduled job、test double policy 和 forbidden implementations",
+task.json:135:                                         "task.json 已成为 fresh-start 队列，不依赖旧 passes=true 状态",
+task.json:156:                      "passes":  true,
+task.json:171:                                              "FR-001",
+task.json:172:                                              "FR-005",
+task.json:173:                                              "FR-013",
+task.json:174:                                              "FR-014"
+task.json:185:                                    "选择并记录 HTTP 框架、MySQL migration 工具、DB client、测试层级、worker 启动方式和部署入口",
+task.json:212:                      "passes":  true,
+task.json:225:                                              "FR-001",
+task.json:226:                                              "FR-002",
+task.json:227:                                              "FR-003",
+task.json:228:                                              "FR-004",
+task.json:229:                                              "FR-007",
+task.json:230:                                              "FR-008",
+task.json:231:                                              "FR-009",
+task.json:232:                                              "FR-010",
+task.json:233:                                              "FR-012",
+task.json:234:                                              "FR-013"
+task.json:272:                      "passes":  true,
+task.json:317:                                              "FR-001",
+task.json:318:                                              "FR-005",
+task.json:319:                                              "FR-011",
+task.json:320:                                              "FR-013"
+task.json:366:                      "description":  "创建 MySQL schema、migration 和生产 repository 边界",
+task.json:380:                      "passes":  true,
+task.json:382:                                                       "生产路径使用 MySQL 或等价关系型数据库",
+task.json:405:                                              "FR-001",
+task.json:406:                                              "FR-005",
+task.json:407:                                              "FR-007",
+task.json:408:                                              "FR-010",
+task.json:409:                                              "FR-013"
+task.json:428:                                         "schema 能覆盖 FR-001/005/007/010/013 的持久化证据",
+task.json:449:                      "passes":  true,
+task.json:477:                                              "FR-001",
+task.json:478:                                              "FR-002",
+task.json:479:                                              "FR-004",
+task.json:480:                                              "FR-007",
+task.json:481:                                              "FR-009",
+task.json:482:                                              "FR-010",
+task.json:483:                                              "FR-012",
+task.json:484:                                              "FR-013"
+task.json:505:                                         "FR-001/002/004/007/009/010/012/013 有 HTTP 层证据",
+task.json:526:                      "passes":  true,
+task.json:528:                                                       "调度方式为 MySQL 轮询 + DB 抢锁",
+task.json:552:                                              "FR-005",
+task.json:553:                                              "FR-010",
+task.json:554:                                              "FR-012",
+task.json:555:                                              "FR-013"
+task.json:574:                                         "DB lease 行为覆盖 FR-005/012/013",
+task.json:594:                      "passes":  true,
+task.json:608:                                              "FR-003",
+task.json:609:                                              "FR-006",
+task.json:610:                                              "FR-008",
+task.json:611:                                              "FR-009",
+task.json:612:                                              "FR-011",
+task.json:613:                                              "FR-014"
+task.json:653:                      "passes":  true,
+task.json:657:                                                       "批次游标和进度必须写入 MySQL，不得只保存在进程内存"
+task.json:681:                                              "FR-006",
+task.json:682:                                              "FR-008",
+task.json:683:                                              "FR-009",
+task.json:684:                                              "FR-014"
+task.json:697:                                    "补齐真实 MySQL query 测试、worker 串联测试和失败审计证据"
+task.json:701:                                         "FR-006/008/009 的 query 生产路径有真实 MySQL 证据",
+task.json:722:                      "passes":  true,
+task.json:749:                                              "FR-003",
+task.json:750:                                              "FR-006",
+task.json:751:                                              "FR-009",
+task.json:752:                                              "FR-014"
+task.json:769:                                         "FR-003/006/009 的 file 生产路径有证据",
+task.json:790:                      "passes":  true,
+task.json:794:                                                       "cleanup 状态必须持久化到 MySQL 并可与 file metadata 和 audit 串联"
+task.json:817:                                              "FR-003",
+task.json:818:                                              "FR-011"
+task.json:836:                                         "FR-011 的 cleanup job 有生产入口和持久化证据",
+task.json:859:                      "passes":  true,
+task.json:868:                                                        "禁止对象存储或真实 MySQL 不可用时伪造通过"
+task.json:888:                                              "FR-014"
+task.json:902:                                    "记录真实 MySQL、对象存储、成功态和失败态证据"
+task.json:906:                                         "FR-014 有采购订单样板、边界数据和压测证据",
+task.json:912:                      "id":  "MOCK-FIRST-001",
+task.json:913:                      "description":  "执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据",
+task.json:915:                      "phase":  "mock-first",
+task.json:927:                      "passes":  false,
+task.json:930:                                                       "mock-first 只能产出 local/dev evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+task.json:931:                                                       "mock-first 验证必须保持生产入口和生产路径架构检查可执行，不得引入生产代码测试替身",
+task.json:932:                                                       "真实依赖缺失时 RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+task.json:935:                                                        "禁止把 mock-first local/dev evidence 写成 RELEASE-001 PASS 证据",
+task.json:936:                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或真实 MySQL 证据",
+task.json:937:                                                        "禁止修改 RELEASE-001 为 passes:true",
+task.json:944:                                            "docs/testing/mock-first-release-plan.md",
+task.json:951:                                          "docs/testing/mock-first-release-plan.md",
+task.json:956:                                              "FR-001",
+task.json:957:                                              "FR-002",
+task.json:958:                                              "FR-003",
+task.json:959:                                              "FR-004",
+task.json:960:                                              "FR-005",
+task.json:961:                                              "FR-006",
+task.json:962:                                              "FR-007",
+task.json:963:                                              "FR-008",
+task.json:964:                                              "FR-009",
+task.json:965:                                              "FR-010",
+task.json:966:                                              "FR-011",
+task.json:967:                                              "FR-012",
+task.json:968:                                              "FR-013",
+task.json:969:                                              "FR-014"
+task.json:973:                                                 "docs/testing/mock-first-release-plan.md",
+task.json:980:                                    "使用 mock-first 本地链路执行 arch check、mock-local、基础单测和 scoped diff 检查，收集 local/dev evidence",
+task.json:981:                                    "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路，但不连接真实 MySQL 或 live object storage",
+task.json:982:                                    "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 live OSS/S3、真实 MySQL 证据"
+task.json:984:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
+task.json:986:                                         "FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",
+task.json:987:                                         "mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence",
+task.json:988:                                         "若真实依赖缺失，RELEASE-001 仍保持 passes:false，且只能继续标记为 BLOCKED 或待真实环境验证"
+task.json:992:                      "id":  "RELEASE-001",
+task.json:1006:                                           "MOCK-FIRST-001"
+task.json:1008:                      "passes":  false,
+task.json:1021:                                              "FR-001",
+task.json:1022:                                              "FR-002",
+task.json:1023:                                              "FR-003",
+task.json:1024:                                              "FR-004",
+task.json:1025:                                              "FR-005",
+task.json:1026:                                              "FR-006",
+task.json:1027:                                              "FR-007",
+task.json:1028:                                              "FR-008",
+task.json:1029:                                              "FR-009",
+task.json:1030:                                              "FR-010",
+task.json:1031:                                              "FR-011",
+task.json:1032:                                              "FR-012",
+task.json:1033:                                              "FR-013",
+task.json:1034:                                              "FR-014"
+task.json:1050:                                         "fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明",
+plans/features\export-platform.dev-plan.md:9:- RELEASE-001 当前状态为 BLOCKED：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍然 blocked。
+plans/features\export-platform.dev-plan.md:16:- 当前仓库的实现与验证已覆盖 RELEASE-001 主链路；`contracts/README.md` 作为契约入口已存在，配套契约和测试结果已纳入当前验证闭环。
+plans/features\export-platform.dev-plan.md:25:| P2 | 补齐契约骨架 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | P1 | CONTRACT-001 已落 `contracts/openapi.yaml`；FR-001/002/003/004/007/008/009/010/012/013 先验收 |
+plans/features\export-platform.dev-plan.md:27:| P4 | 实现 task-api 与 registry-config | 创建、查询、历史、下载、进度/详情、注册、启停、幂等；创建成功响应必须回传 `idempotencyScope` | P2/P3 | FR-001、FR-002、FR-004、FR-007、FR-013 |
+plans/features\export-platform.dev-plan.md:28:| P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
+plans/features\export-platform.dev-plan.md:29:| P6 | 实现 file-service | 临时对象、发布校验、下载元信息、分片打包 | P2/P3/P5 | FR-003、FR-006、FR-009 |
+plans/features\export-platform.dev-plan.md:30:| P7 | 实现 cleanup-job | 过期失效、对象删除、失败重试记录 | P2/P3/P6 | FR-003、FR-011 |
+plans/features\export-platform.dev-plan.md:31:| P8 | 实现采购订单样板 | 样板合同、边界数据、10 万行压测证据 | P2/P3/P5/P6/P7 | FR-014 |
+plans/features\export-platform.dev-plan.md:39:| 契约 | `contracts/README.md`、`contracts/openapi.yaml`、`contracts/api/`、`contracts/scheduler/`、`contracts/query/`、`contracts/file/`、`contracts/audit/`、`contracts/sample/` | `contracts/README.md` 已存在；当前契约与验证口径已纳入 RELEASE-001 状态 |
+plans/features\export-platform.dev-plan.md:50:| T1 契约总入口 | P1 | CONTRACT-001 已复核并扩展 `contracts/README.md`，落地 `contracts/openapi.yaml`，先定住 FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 的接口、状态和错误码；创建成功响应必须显式返回 `idempotencyScope` |
+plans/features\export-platform.dev-plan.md:58:| T9 task-api / registry-config | T2、T4、T6 | 依赖创建、查询进度/详情、历史、下载、注册和配置快照契约；覆盖 FR-002 的查询入口 |
+plans/features\export-platform.dev-plan.md:83:9. 真实 MySQL、对象存储或采购订单样板外部依赖不可达时输出 `BLOCKED - 需要人工介入`，不得用替身补齐 release 证据
+plans/features\export-platform.dev-plan.md:90:| DB 客户端与迁移 | Kysely + `mysql2`，迁移由 Kysely Migrator 或等价 TypeScript runner 承担 | `src/db/`、`migrations/`、`tests/db/` | 真实 MySQL 客户端、schema 和 migration 可验证 |
+plans/features\export-platform.dev-plan.md:92:| DB 抢锁与租约 | `lockOwner + lockExpireAt + leaseRenewedAt`，时间以数据库时间为准，默认租约 5 分钟 | `contracts/scheduler/`、`tests/worker/`、`src/scheduler/` | FR-005 / FR-013 的抢锁、续租、接管测试 |
+plans/features\export-platform.dev-plan.md:98:| 审计链路 | 动作审计 + 阶段事件必须能按 `taskId/attemptNo/requestId` 串联 | `contracts/audit/`、`tests/api/`、`tests/worker/`、`src/audit-log/` | FR-010 与所有失败态证据 |
+plans/features\export-platform.dev-plan.md:123:- 先验收 FR-001、FR-002、FR-013，确认任务创建、查询进度/详情、幂等、配置快照和锁租约。
+plans/features\export-platform.dev-plan.md:124:- 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
+plans/features\export-platform.dev-plan.md:125:- 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
+plans/features\export-platform.dev-plan.md:126:- 再验收 FR-012，确认取消和重试状态机。
+plans/features\export-platform.dev-plan.md:127:- 最后验收 `SAMPLE-PURCHASE-ORDER-001`，确认 FR-014 可作为主样板和压测证据，且真实依赖不可用时明确 BLOCKED。
+docs/architecture\constraints.md:22:- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+docs/architecture\constraints.md:29:- 调度方式：MySQL 轮询 + DB 抢锁。
+docs/architecture\constraints.md:40:- 若真实 MySQL、对象存储或第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。
+docs/architecture\constraints.md:59:- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+contracts\README.md:28:| `contracts/api/` | 创建、查询详情、查询历史、下载、取消、重试、注册启停接口 | FR-001, FR-002, FR-004, FR-007, FR-012, FR-013 |
+contracts\README.md:29:| `contracts/scheduler/` | DB 抢锁、租约、续租、接管、并发控制、批次检查点 | FR-005, FR-013 |
+contracts\README.md:30:| `contracts/query/` | 参数 schema、查询模板、字段映射、脱敏策略、数据范围、游标分页 | FR-006, FR-008, FR-009, FR-014 |
+contracts\README.md:31:| `contracts/file/` | 临时对象、发布对象、checksum、下载元信息、清理前置标记 | FR-003, FR-006, FR-011 |
+contracts\README.md:32:| `contracts/audit/` | 创建、调度、执行、下载、取消、重试、清理审计事件 | FR-010, FR-013 |
+contracts\README.md:33:| `contracts/sample/` | 采购订单样板查询条件、字段顺序、脱敏和压测证据 | FR-014 |
+contracts\README.md:67:`contracts/openapi.yaml` 是当前统一导出平台的对外 API 和错误码锚点，覆盖 `FR-001`、`FR-002`、`FR-003`、`FR-004`、`FR-007`、`FR-008`、`FR-009`、`FR-010`、`FR-012`、`FR-013`。
+contracts\README.md:71:| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、成功响应 `idempotencyScope`、`requestDigest`、`configSnapshotDigest` |
+contracts\README.md:72:| `/api/export/tasks` | `GET` | FR-004 / FR-009 / FR-010 | 正式筛选维度、普通用户仅本人、管理员按权限全局查询 |
+contracts\README.md:73:| `/api/export/tasks/{taskId}` | `GET` | FR-002 / FR-010 | 详情、进度、失败错误码、批次检查点和文件元信息 |
+contracts\README.md:74:| `/api/export/tasks/{taskId}/download` | `GET` | FR-003 / FR-009 / FR-010 | 签名 URL、stream 元信息、文件校验、过期与权限失败 |
+contracts\README.md:75:| `/api/export/tasks/{taskId}/cancel` | `POST` | FR-012 / FR-010 | PENDING 取消、EXECUTING 批次边界取消；不暴露内部取消状态 |
+contracts\README.md:76:| `/api/export/tasks/{taskId}/retry` | `POST` | FR-012 / FR-013 / FR-010 | 仅 FAILED 可重试，沿用 `taskId` 和配置快照，递增 `attemptNo` |
+contracts\README.md:77:| `/api/export/registries` | `POST` / `GET` | FR-007 / FR-008 / FR-009 | 注册创建、查询、并发、保留期、阈值、格式、查询模板和字段映射 |
+contracts\README.md:78:| `/api/export/registries/{taskCode}` | `GET` / `PUT` | FR-007 / FR-008 / FR-013 | 配置详情、更新与新任务快照口径 |
+contracts\README.md:79:| `/api/export/registries/{taskCode}/enable` | `POST` | FR-007 | 启用注册配置 |
+contracts\README.md:80:| `/api/export/registries/{taskCode}/disable` | `POST` | FR-007 | 禁用注册配置，创建阶段返回 `TASK_DISABLED` |
+contracts\README.md:132:| `createExportTask` | `POST /api/export/tasks` | FR-001 / FR-009 / FR-013 | `src/routes/export/tasks/create-export-task.handler.ts` | DB: task、idempotency、registry、audit；worker: 消费已提交 `PENDING`；audit: `CREATE` | contract / api / db |
+contracts\README.md:133:| `listExportTasks` | `GET /api/export/tasks` | FR-004 / FR-009 / FR-010 | `src/routes/export/tasks/list-export-tasks.handler.ts` | DB: task、file、audit；audit: `QUERY_HISTORY`；file: 只返回已发布文件元信息 | contract / api |
+contracts\README.md:134:| `getExportTask` | `GET /api/export/tasks/{taskId}` | FR-002 / FR-010 / FR-013 | `src/routes/export/tasks/get-export-task.handler.ts` | DB: task、event、attempt、file；worker: checkpoint / lease 证据；audit: `DETAIL_VIEW` | contract / api |
+contracts\README.md:135:| `downloadExportTask` | `GET /api/export/tasks/{taskId}/download` | FR-003 / FR-009 / FR-010 | `src/routes/export/tasks/download-export-task.handler.ts` | DB: task、file、audit；file: published object、checksum、expiry、delivery mode；audit: `DOWNLOAD` | contract / file |
+contracts\README.md:136:| `cancelExportTask` | `POST /api/export/tasks/{taskId}/cancel` | FR-012 / FR-010 | `src/routes/export/tasks/cancel-export-task.handler.ts` | DB: task、event、audit；worker: EXECUTING 批次边界收口；audit: cancel request/done | contract / worker |
+contracts\README.md:137:| `retryExportTask` | `POST /api/export/tasks/{taskId}/retry` | FR-012 / FR-013 / FR-010 | `src/routes/export/tasks/retry-export-task.handler.ts` | DB: task、attempt、event、audit；worker: 仅 FAILED 入队新尝试；audit: retry request | contract / db |
+contracts\README.md:138:| `createExportRegistry` | `POST /api/export/registries` | FR-007 / FR-008 / FR-009 | `src/routes/export/registries/create-export-registry.handler.ts` | DB: registry、registry version、audit；query: schema/template/mapping/masking snapshot；audit: `REGISTRY_CREATE` | contract / api |
+contracts\README.md:139:| `listExportRegistries` | `GET /api/export/registries` | FR-007 / FR-008 / FR-009 | `src/routes/export/registries/list-export-registries.handler.ts` | DB: registry、registry version；audit: `REGISTRY_QUERY` | contract |
+contracts\README.md:140:| `getExportRegistry` | `GET /api/export/registries/{taskCode}` | FR-007 / FR-008 / FR-013 | `src/routes/export/registries/get-export-registry.handler.ts` | DB: registry、registry version；snapshot digest 必须可追溯；audit: `REGISTRY_DETAIL` | contract |
+contracts\README.md:141:| `updateExportRegistry` | `PUT /api/export/registries/{taskCode}` | FR-007 / FR-008 / FR-013 | `src/routes/export/registries/update-export-registry.handler.ts` | DB: registry、registry version、audit；worker/query: 更新只影响新任务，旧任务继续使用快照；audit: `REGISTRY_UPDATE` | contract / db |
+contracts\README.md:142:| `enableExportRegistry` | `POST /api/export/registries/{taskCode}/enable` | FR-007 | `src/routes/export/registries/enable-export-registry.handler.ts` | DB: registry、audit；audit: `REGISTRY_ENABLE` | contract |
+contracts\README.md:143:| `disableExportRegistry` | `POST /api/export/registries/{taskCode}/disable` | FR-007 | `src/routes/export/registries/disable-export-registry.handler.ts` | DB: registry、audit；后续创建必须返回 `TASK_DISABLED`；audit: `REGISTRY_DISABLE` | contract |
+contracts\openapi.yaml:35:      requirements: [FR-001, FR-009, FR-013]
+contracts\openapi.yaml:50:      requirements: [FR-004, FR-009, FR-010]
+contracts\openapi.yaml:65:      requirements: [FR-002, FR-010, FR-013]
+contracts\openapi.yaml:80:      requirements: [FR-003, FR-009, FR-010]
+contracts\openapi.yaml:95:      requirements: [FR-012, FR-010]
+contracts\openapi.yaml:110:      requirements: [FR-012, FR-013, FR-010]
+contracts\openapi.yaml:125:      requirements: [FR-007, FR-008, FR-009]
+contracts\openapi.yaml:140:      requirements: [FR-007, FR-008, FR-009]
+contracts\openapi.yaml:155:      requirements: [FR-007, FR-008, FR-013]
+contracts\openapi.yaml:170:      requirements: [FR-007, FR-008, FR-013]
+contracts\openapi.yaml:185:      requirements: [FR-007]
+contracts\openapi.yaml:200:      requirements: [FR-007]
+docs/testing\ACCEPTANCE_EXAMPLES.md:5:**负责人**: RELEASE-001
+docs/testing\ACCEPTANCE_EXAMPLES.md:7:> 本文件提供验收示例索引。当前 RELEASE-001 blocked：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史自动化用例、契约文件和实现测试仅可作为旧证据。
+docs/testing\ACCEPTANCE_EXAMPLES.md:13:- 关联需求: FR-001
+docs/testing\ACCEPTANCE_EXAMPLES.md:20:- 关联需求: FR-002
+docs/testing\ACCEPTANCE_EXAMPLES.md:27:- 关联需求: FR-003
+docs/testing\ACCEPTANCE_EXAMPLES.md:34:- 关联需求: FR-004
+docs/testing\ACCEPTANCE_EXAMPLES.md:41:- 关联需求: FR-005
+docs/testing\ACCEPTANCE_EXAMPLES.md:48:- 关联需求: FR-006
+docs/testing\ACCEPTANCE_EXAMPLES.md:55:- 关联需求: FR-007
+docs/testing\ACCEPTANCE_EXAMPLES.md:62:- 关联需求: FR-008
+docs/testing\ACCEPTANCE_EXAMPLES.md:69:- 关联需求: FR-009
+docs/testing\ACCEPTANCE_EXAMPLES.md:76:- 关联需求: FR-010
+docs/testing\ACCEPTANCE_EXAMPLES.md:83:- 关联需求: FR-011
+docs/testing\ACCEPTANCE_EXAMPLES.md:90:- 关联需求: FR-012
+docs/testing\ACCEPTANCE_EXAMPLES.md:97:- 关联需求: FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:104:- 关联需求: FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:111:- 关联需求: FR-005 / FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:118:- 关联需求: FR-007 / FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:125:- 关联需求: FR-014
+docs/testing\ACCEPTANCE_EXAMPLES.md:132:- 关联需求: FR-014
+docs/testing\ACCEPTANCE_EXAMPLES.md:139:- 关联需求: FR-008 / FR-010 / FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:146:- 关联需求: FR-006 / FR-010 / FR-013
+docs/testing\ACCEPTANCE_EXAMPLES.md:153:- 关联需求: FR-003 / FR-006 / FR-011
+docs/testing\mock-first-release-plan.md:4:**任务**: RELEASE-001
+docs/testing\mock-first-release-plan.md:6:**最新 trace**: `traces/RELEASE-001-20260515-070412.json`
+docs/testing\mock-first-release-plan.md:7:**session**: `traces/RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344/`
+docs/testing\mock-first-release-plan.md:11:- `RELEASE-001` 当前最新状态是 `BLOCKED`。
+docs/testing\mock-first-release-plan.md:16:## mock-first 的边界
+docs/testing\mock-first-release-plan.md:18:- mock-first 只用于本地开发、联调和失败态演练。
+docs/testing\mock-first-release-plan.md:19:- mock-first 可以使用本地 HTTP object storage adapter、fixture seed、受控 fake 外部数据源。
+docs/testing\mock-first-release-plan.md:20:- mock-first 不得作为 `RELEASE-001` PASS 证据。
+docs/testing\mock-first-release-plan.md:21:- mock-first 不得替代 live OSS/S3 证据。
+docs/testing\mock-first-release-plan.md:22:- mock-first 不得替代真实 MySQL 证据。
+docs/testing\mock-first-release-plan.md:23:- mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
+docs/testing\mock-first-release-plan.md:25:## mock-first local/dev evidence 映射
+docs/testing\mock-first-release-plan.md:29:| FR-001 | local/dev evidence: `npm run test:mock-local` 只确认创建任务契约、幂等字段、注册态映射和 mock-first 命令入口可被本地验证引用。 | 失败态: 未注册、禁用、权限不足和参数过长仍以 API / DB 集成测试接真实 MySQL 后确认。 | 不是 release evidence；不得替代 `npm run test:api`、`npm run test:db` 和真实 MySQL 证据。 |
+docs/testing\mock-first-release-plan.md:30:| FR-002 | local/dev evidence: `npm run test:mock-local` 只确认进度字段、错误字段、详情可见性口径和本地文档映射被纳入 mock-first 证据集合。 | 失败态: 不存在任务、无权查看和失败详情仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+docs/testing\mock-first-release-plan.md:31:| FR-003 | local/dev evidence: `tests/mock-local/object-storage-local.test.mjs` 使用本地 HTTP object storage adapter 覆盖 put/read/publish/download URL 协议链路，并保留临时对象到发布对象的路径描述。 | 失败态: 缺少对象存储 endpoint / bucket 时 `createObjectStorageFromEnv()` 明确 BLOCKED。 | 不是 release evidence；不得替代 live OSS/S3、真实下载证据或 release gate。 |
+docs/testing\mock-first-release-plan.md:32:| FR-004 | local/dev evidence: `npm run test:mock-local` 只确认历史查询筛选口径、权限可见性和分页边界被纳入 mock-first 映射。 | 失败态: 普通用户越权、管理员全局查询和空分页仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+docs/testing\mock-first-release-plan.md:33:| FR-005 | local/dev evidence: `npm run arch:check` 与 mock-first 映射只确认 scheduler / worker / migration 入口存在，并记录本地调度联调入口。 | 失败态: 多实例抢锁、并发上限和数据库时间租约仍需 `npm run test:worker` 接真实 MySQL。 | 不是 release evidence；不得替代 DB 抢锁和 worker release 证据。 |
+docs/testing\mock-first-release-plan.md:34:| FR-006 | local/dev evidence: mock-first 只记录分片、ZIP、空数据、阶段事件和文件发布链路的本地联调入口；本地对象存储协议链路由 `tests/mock-local/object-storage-local.test.mjs` 覆盖。 | 失败态: 渲染失败、字段校验失败和超量导出仍需 file / sample 集成测试确认。 | 不是 release evidence；不得替代真实 MySQL、文件服务或 live object storage 证据。 |
+docs/testing\mock-first-release-plan.md:35:| FR-007 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认 registry/config API 入口、启停语义和契约追踪存在。 | 失败态: 重复 taskCode、禁用配置、配置同步失败和无权限操作仍需 API / DB 集成测试。 | 不是 release evidence；不得替代 registry 生产 repository 证据。 |
+docs/testing\mock-first-release-plan.md:36:| FR-008 | local/dev evidence: mock-first 只确认集中查询模板、参数 schema、字段映射、脱敏策略和只读数据源约束在本地证据集合中有入口。 | 失败态: 非法模板、未声明参数、原始 SQL、数据源不可用和字段映射错误仍需 query 集成测试。 | 不是 release evidence；不得替代真实 MySQL 或外部只读数据源证据。 |
+docs/testing\mock-first-release-plan.md:37:| FR-009 | local/dev evidence: mock-first 只确认认证上下文、权限、数据范围和脱敏风险被纳入本地联调清单；下载协议可由本地对象存储 adapter 演练。 | 失败态: 权限不足、认证字段缺失、下载拒绝和脱敏失败仍需 API / query / file 集成测试。 | 不是 release evidence；不得替代真实权限、数据范围或 live storage 证据。 |
+docs/testing\mock-first-release-plan.md:38:| FR-010 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认审计日志、事件日志、requestId 串联和失败阶段字段入口存在。 | 失败态: 审计缺字段、事件缺失、失败阶段和上一成功阶段仍需 API / worker / DB 集成测试。 | 不是 release evidence；不得替代真实审计表和任务事件证据。 |
+docs/testing\mock-first-release-plan.md:39:| FR-011 | local/dev evidence: mock-first 使用本地对象存储协议链路确认对象操作接口可演练，cleanup job 入口由 `npm run arch:check` 确认。 | 失败态: 先标记不可下载再删对象、删除失败重试和 410 失效仍需 file / worker 集成测试。 | 不是 release evidence；不得替代 cleanup job、真实 MySQL 或 live OSS/S3 证据。 |
+docs/testing\mock-first-release-plan.md:40:| FR-012 | local/dev evidence: mock-first 只确认取消 / 重试 API 入口、状态机风险、attemptNo 语义和验证入口被映射。 | 失败态: PENDING 取消、FAILED 重试、EXECUTING 批次边界取消和非法状态重试仍需 API / worker 集成测试。 | 不是 release evidence；不得替代真实任务状态机和 worker 证据。 |
+docs/testing\mock-first-release-plan.md:41:| FR-013 | local/dev evidence: mock-first 只确认幂等、attemptNo、配置快照、锁租约字段和追踪入口被映射。 | 失败态: 幂等冲突、锁过期接管、续租和 FAILED 重试递增 attemptNo 仍需 DB / worker 集成测试。 | 不是 release evidence；不得替代真实 MySQL 锁租约和快照证据。 |
+docs/testing\mock-first-release-plan.md:42:| FR-014 | local/dev evidence: mock-first 只确认采购订单样板契约、查询字段、脱敏字段、边界数据和本地对象存储协议链路入口存在。 | 失败态: 0/1/20000/20001/100000/100001 行、敏感字段未脱敏和游标异常仍需 sample 集成测试。 | 不是 release evidence；不得替代真实 MySQL、sample 压测或 live OSS/S3 证据。 |
+docs/testing\mock-first-release-plan.md:46:- 补齐真实 MySQL 和 live object storage 环境。
+docs/testing\mock-first-release-plan.md:47:- 不能将 mock-first 结果回写为 `RELEASE-001 PASS`，也不能把 local/dev evidence 当成 release evidence。
+docs/testing\mock-first-release-plan.md:50:- 只有真实环境下的 release evidence 才能推动 `RELEASE-001` 退出 `BLOCKED`。
+docs/testing\mock-first-release-plan.md:54:- mock-first 证据只能标记为 `local/dev evidence`。
+docs/testing\mock-first-release-plan.md:55:- mock-first 证据只能用于说明本地链路、联调用例和失败态，不可覆盖 release gate。
+docs/testing\mock-first-release-plan.md:56:- mock-first 证据可以作为 FR-001 到 FR-014 的映射索引，但不能替代 API / DB / worker / query / file / sample 集成证据。
+docs/testing\ACCEPTANCE_CRITERIA.md:5:**负责人**: RELEASE-001
+docs/testing\ACCEPTANCE_CRITERIA.md:9:- 当前 RELEASE-001 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 仍 blocked。
+docs/testing\ACCEPTANCE_CRITERIA.md:19:| AC-001 | FR-001 | 创建任务 1 秒内返回全局唯一 `taskId` 且状态为 `PENDING` | TM-001 / AE-001 | 创建请求、响应、任务记录、审计 |
+docs/testing\ACCEPTANCE_CRITERIA.md:20:| AC-002 | FR-002 | 查询状态、总数、已处理数、进度和错误信息 | TM-002 / AE-002 | 详情响应、进度快照、失败字段 |
+docs/testing\ACCEPTANCE_CRITERIA.md:21:| AC-003 | FR-003 | 下载签名 URL 或 stream，携带文件元信息和 `attemptNo` | TM-003 / AE-003 | 文件记录、下载响应、校验值 |
+docs/testing\ACCEPTANCE_CRITERIA.md:22:| AC-004 | FR-004 | 历史查询正式筛选维度和可见性过滤 | TM-004 / AE-004 | 分页响应、普通用户/管理员对比 |
+docs/testing\ACCEPTANCE_CRITERIA.md:23:| AC-005 | FR-005 | 多实例调度不超过子系统并发上限 | TM-005 / AE-005 | 抢锁日志、并发计数、审计 |
+docs/testing\ACCEPTANCE_CRITERIA.md:24:| AC-006 | FR-006 | 超阈值自动分片 ZIP，空数据仅表头 | TM-006 / AE-006 | 分片清单、ZIP 清单、空文件表头 |
+docs/testing\ACCEPTANCE_CRITERIA.md:25:| AC-007 | FR-007 | 注册创建、更新、查询、启停和配置同步 | TM-007 / AE-007 | registry 快照、启停响应、配置摘要 |
+docs/testing\ACCEPTANCE_CRITERIA.md:26:| AC-008 | FR-008 | 集中查询模板、数据源、字段映射和脱敏契约可执行 | TM-008 / AE-008 | 模板版本、schema 摘要、字段校验 |
+docs/testing\ACCEPTANCE_CRITERIA.md:27:| AC-009 | FR-009 | 无权限创建或下载返回 403 并记录审计 | TM-009 / AE-009 | 403 响应、审计日志、无泄露证明 |
+docs/testing\ACCEPTANCE_CRITERIA.md:28:| AC-010 | FR-010 | 创建、执行、失败、下载、取消、重试均可审计 | TM-010 / AE-010 | 审计日志、任务事件、requestId 串联 |
+docs/testing\ACCEPTANCE_CRITERIA.md:29:| AC-011 | FR-011 | 过期文件先失效再清理，失败可重试 | TM-011 / AE-011 | 失效标记、清理记录、失败重试记录 |
+docs/testing\ACCEPTANCE_CRITERIA.md:30:| AC-012 | FR-012 | PENDING 可取消，FAILED 可重试，非法状态返回错误 | TM-012 / AE-012 | 状态机记录、attemptNo、审计 |
+docs/testing\ACCEPTANCE_CRITERIA.md:31:| AC-013 | FR-013 | 任务、执行尝试、锁租约和配置快照按 `taskId` 串联 | TM-013 / AE-013 | 快照摘要、锁字段、批次检查点 |
+docs/testing\ACCEPTANCE_CRITERIA.md:32:| AC-014 | FR-013 | 幂等命中返回原 `taskId`，参数冲突返回 `IDEMPOTENCY_CONFLICT` | TM-013 / AE-014 | 幂等范围、参数摘要、冲突响应 |
+docs/testing\ACCEPTANCE_CRITERIA.md:33:| AC-015 | FR-013 / FR-005 | 抢锁记录 `attemptNo`、`lockOwner`、`lockExpireAt` 并按批次续租 | TM-005 / TM-013 / AE-015 | 锁租约、续租、接管日志 |
+docs/testing\ACCEPTANCE_CRITERIA.md:34:| AC-016 | FR-013 / FR-007 | 注册配置变更只影响新任务，已创建任务沿用快照 | TM-007 / TM-013 / AE-016 | 新旧任务快照对比 |
+docs/testing\ACCEPTANCE_CRITERIA.md:35:| AC-017 | FR-014 | 采购订单样板注册启用且查询条件、字段、脱敏、游标完整 | TM-014 / AE-017 | 样板 registry、查询模板、字段定义 |
+docs/testing\ACCEPTANCE_CRITERIA.md:36:| AC-018 | FR-014 | 采购订单样板覆盖 `0/1/20000/20001/100000/100001` 行边界 | TM-014 / AE-018 | 边界数据、压测记录、超量处置 |
+docs/testing\ACCEPTANCE_CRITERIA.md:37:| AC-019 | FR-008 / FR-010 / FR-013 | 查询执行上下文、模板版本、数据源和检查点可追溯 | TM-008 / TM-010 / TM-013 / AE-019 | 查询日志、审计、批次检查点 |
+docs/testing\ACCEPTANCE_CRITERIA.md:38:| AC-020 | FR-006 / FR-010 / FR-013 | 执行事件覆盖六个关键阶段 | TM-006 / TM-010 / AE-020 | 阶段事件序列 |
+docs/testing\ACCEPTANCE_CRITERIA.md:39:| AC-021 | FR-003 / FR-006 / FR-011 | 临时对象校验后发布，失败不生成下载地址 | TM-003 / TM-006 / TM-011 / AE-021 | 临时对象、发布对象、校验记录 |
+docs/testing\ACCEPTANCE_CRITERIA.md:45:| AC-E001 | FR-006 / FR-014 | 空数据生成仅表头文件并完成 | TM-006 / TM-014 |
+docs/testing\ACCEPTANCE_CRITERIA.md:46:| AC-E002 | FR-001 | 未注册任务创建失败且不落无效任务 | TM-001 |
+docs/testing\ACCEPTANCE_CRITERIA.md:47:| AC-E003 | FR-007 | 禁用任务返回 `TASK_DISABLED` | TM-007 |
+docs/testing\ACCEPTANCE_CRITERIA.md:48:| AC-E004 | FR-005 / FR-006 | 查询短暂失败后按批次重试并完成 | TM-005 / TM-006 |
+docs/testing\ACCEPTANCE_CRITERIA.md:49:| AC-E005 | FR-003 / FR-006 | OSS 上传失败收口为 `FILE_VERIFY_ERROR` | TM-003 / TM-006 |
+docs/testing\ACCEPTANCE_CRITERIA.md:50:| AC-E006 | FR-009 | 权限不足返回 403 且不泄露详情 | TM-009 |
+docs/testing\ACCEPTANCE_CRITERIA.md:51:| AC-E007 | FR-003 / FR-011 | 文件过期返回 410 或等价失效结果 | TM-003 / TM-011 |
+docs/testing\ACCEPTANCE_CRITERIA.md:52:| AC-E008 | FR-005 | 多实例重复抢锁只有一个成功执行 | TM-005 |
+docs/testing\ACCEPTANCE_CRITERIA.md:53:| AC-E009 | FR-001 | `queryParams` 超过 32KB 返回 400 | TM-001 |
+docs/testing\ACCEPTANCE_CRITERIA.md:54:| AC-E010 / AC-E021 | FR-006 / FR-014 | 超过默认最大导出量拒绝或进入更严格控制流 | TM-006 / TM-014 |
+docs/testing\ACCEPTANCE_CRITERIA.md:55:| AC-E011 | FR-008 | 查询模板非法收口 `QUERY_TEMPLATE_INVALID` | TM-008 |
+docs/testing\ACCEPTANCE_CRITERIA.md:56:| AC-E012 | FR-008 | 数据源不可用收口 `DATASOURCE_UNAVAILABLE` | TM-008 |
+docs/testing\ACCEPTANCE_CRITERIA.md:57:| AC-E013 / AC-E020 | FR-006 / FR-008 | 查询失败或批次重试耗尽收口 `QUERY_EXECUTION_ERROR` | TM-006 / TM-008 |
+docs/testing\ACCEPTANCE_CRITERIA.md:58:| AC-E014 / AC-E025 | FR-008 | 字段映射或批次字段校验失败收口 `FIELD_MAPPING_INVALID` | TM-008 |
+docs/testing\ACCEPTANCE_CRITERIA.md:59:| AC-E015 | FR-012 / FR-013 | 非法重试不派发执行，FAILED 同时仅一个活跃尝试 | TM-012 / TM-013 |
+docs/testing\ACCEPTANCE_CRITERIA.md:60:| AC-E016 | FR-009 | 认证上下文缺字段返回权限或参数错误并记录 requestId | TM-009 |
+docs/testing\ACCEPTANCE_CRITERIA.md:61:| AC-E017 / AC-E026 | FR-003 / FR-006 | 文件校验不匹配或发布失败，不生成下载地址 | TM-003 / TM-006 |
+docs/testing\ACCEPTANCE_CRITERIA.md:62:| AC-E018 | FR-001 / FR-013 | 幂等键同范围不同摘要返回 `IDEMPOTENCY_CONFLICT` | TM-001 / TM-013 |
+docs/testing\ACCEPTANCE_CRITERIA.md:63:| AC-E019 | FR-005 / FR-013 | 锁过期后接管延续当前 `attemptNo` 并从检查点继续 | TM-005 / TM-013 |
+docs/testing\ACCEPTANCE_CRITERIA.md:64:| AC-E022 | FR-009 / FR-014 | 采购订单敏感字段未脱敏收口 `MASKING_RULE_ERROR` | TM-009 / TM-014 |
+docs/testing\ACCEPTANCE_CRITERIA.md:65:| AC-E023 | FR-008 / FR-014 | 游标缺失、重复或非递增收口 `QUERY_EXECUTION_ERROR` | TM-008 / TM-014 |
+docs/testing\ACCEPTANCE_CRITERIA.md:66:| AC-E024 | FR-008 / FR-013 | 模板或字段映射与快照冲突，不得静默放宽 | TM-008 / TM-013 |
+docs/testing\ACCEPTANCE_CRITERIA.md:67:| AC-E027 | FR-006 | XLSX/ZIP 渲染失败收口 `EXPORT_RENDER_ERROR` | TM-006 |
+docs/testing\EVIDENCE_PROTOCOL.md:4:**任务 ID**: RELEASE-001
+docs/testing\EVIDENCE_PROTOCOL.md:6:**负责人**: RELEASE-001
+docs/testing\EVIDENCE_PROTOCOL.md:12:| 产品真相源对齐 | FR-001 - FR-014 | 引用 `docs/product/*`，不得把聊天补充或旧模板当作需求来源。 | `docs/product/prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` |
+docs/testing\EVIDENCE_PROTOCOL.md:13:| 追溯矩阵 | FR-001 - FR-014 | 每个 FR 至少有验收、测试层级、seed 和后续验证入口。 | `docs/testing/TRACEABILITY_MATRIX.md` |
+docs/testing\EVIDENCE_PROTOCOL.md:14:| 测试数据 | FR-001 - FR-014 | 每个 FR 对齐一个 seed 或可执行数据入口，并声明重置策略。 | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/test-data-plan.md` |
+docs/testing\EVIDENCE_PROTOCOL.md:15:| 风险与回归 | FR-001 - FR-014 | 高风险项、P0/P1 回归集合和 live object storage BLOCKED 项必须可定位；mock-first 证据只能作为 local/dev 边界说明，不能覆盖 release evidence。 | `docs/testing/RISK_BASED_TEST_PLAN.md`、`docs/testing/REGRESSION_PLAN.md`、`docs/testing/mock-first-release-plan.md` |
+docs/testing\EVIDENCE_PROTOCOL.md:16:| 验证命令 | FR-001 - FR-014 | RELEASE-001 执行当前 release gate，不伪造未接入的 live object storage 证据。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+docs/testing\EVIDENCE_PROTOCOL.md:17:| 执行记录 | FR-001 - FR-014 | 记录 driver 实现、Stage 1、测试、Stage 2 的日志和结论。 | `progress.txt`、`traces/RELEASE-001-*` |
+docs/testing\EVIDENCE_PROTOCOL.md:24:- mock-first 相关证据只能标记为 `local/dev evidence`；本地 HTTP object storage adapter、fixture seed、fake 外部数据源都不能覆盖真实 MySQL 或 live object storage release evidence。
+docs/testing\EVIDENCE_PROTOCOL.md:34:| `taskId` | 串联创建、执行、下载、取消、重试和审计。 | FR-001 / FR-010 / FR-013 |
+docs/testing\EVIDENCE_PROTOCOL.md:35:| `requestId` | 串联 API 调用、权限失败和审计。 | FR-009 / FR-010 |
+docs/testing\EVIDENCE_PROTOCOL.md:36:| `attemptNo` | 区分锁接管、失败重试和文件发布。 | FR-005 / FR-012 / FR-013 |
+docs/testing\EVIDENCE_PROTOCOL.md:37:| `configSnapshot` | 证明已创建任务和 FAILED 重试沿用原配置。 | FR-007 / FR-013 |
+docs/testing\EVIDENCE_PROTOCOL.md:38:| `lockOwner` / `lockExpireAt` / `leaseRenewedAt` | 证明 DB 锁租约和续租行为。 | FR-005 / FR-013 |
+docs/testing\EVIDENCE_PROTOCOL.md:39:| `batchCheckpoint` | 证明查询批次、重试和取消边界。 | FR-006 / FR-008 / FR-012 |
+docs/testing\EVIDENCE_PROTOCOL.md:40:| `storageKey` / `checksum` / `checksumAlgorithm` | 证明文件校验、发布和下载保护。 | FR-003 / FR-006 / FR-011 |
+docs/testing\EVIDENCE_PROTOCOL.md:41:| `seedId` | 串联测试数据和验收场景。 | FR-001 - FR-014 |
+docs/testing\REGRESSION_PLAN.md:4:**任务 ID**: RELEASE-001
+docs/testing\REGRESSION_PLAN.md:6:**负责人**: RELEASE-001
+docs/testing\REGRESSION_PLAN.md:18:| 创建、幂等和快照 | FR-001 / FR-013 | 新增统一任务入口、幂等键、参数摘要和配置快照。 | `docs/testing/test-matrix.md` TM-001 / TM-013 |
+docs/testing\REGRESSION_PLAN.md:19:| 状态、历史和审计 | FR-002 / FR-004 / FR-010 | 任务状态、进度、历史可见性和审计字段成为对外契约。 | `docs/testing/TRACEABILITY_MATRIX.md` |
+docs/testing\REGRESSION_PLAN.md:20:| 调度与取消重试 | FR-005 / FR-012 / FR-013 | DB 锁租约、批次边界取消和 FAILED 重试影响执行一致性。 | `docs/testing/verify-matrix.md` |
+docs/testing\REGRESSION_PLAN.md:21:| 查询、字段和脱敏 | FR-008 / FR-009 / FR-014 | 集中查询模板、字段映射、数据范围和敏感字段决定样板输出安全性。 | `docs/testing/TEST_DATA_MATRIX.md` |
+docs/testing\REGRESSION_PLAN.md:22:| 文件交付与清理 | FR-003 / FR-006 / FR-011 | 临时对象、校验、发布、下载和过期清理需要端到端证据。 | `docs/testing/ACCEPTANCE_EXAMPLES.md` |
+docs/testing\REGRESSION_PLAN.md:23:| 采购订单样板 | FR-014 | 一期样板必须证明平台通用链路可承接 10 万行边界。 | `plans/features/export-platform.dev-plan.md` |
+docs/testing\REGRESSION_PLAN.md:29:| REG-P0-001 | FR-001 / FR-013 | 创建任务、幂等命中、幂等冲突、快照沿用 | `seed-create-base-001`、`seed-idempotency-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:30:| REG-P0-002 | FR-002 / FR-004 / FR-010 | 任务详情、进度、历史分页、本人/管理员可见性、审计字段 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:31:| REG-P0-003 | FR-005 / FR-012 / FR-013 | 多实例抢锁、租约续租、锁接管、取消、FAILED 重试 | `seed-lock-001`、`seed-cancel-retry-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:32:| REG-P0-004 | FR-007 / FR-008 | 注册配置、disabled、查询模板、字段映射、游标字段 | `seed-registry-001`、`seed-contract-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:33:| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:34:| REG-P0-006 | FR-009 / FR-014 | 权限拒绝、数据范围、联系人脱敏、采购订单 10 万行边界 | `seed-auth-001`、`seed-purchase-order-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:40:| REG-P1-001 | FR-011 | 过期标记、410 失效、清理失败可重试 | `seed-cleanup-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:41:| REG-P1-002 | FR-012 | PENDING 取消、EXECUTING 批次边界取消、非法状态返回 `INVALID_TASK_STATE` | `seed-cancel-retry-001` | 本轮未执行 / 当前 blocked |
+docs/testing\REGRESSION_PLAN.md:48:- 当前证据路径：`progress.txt`、`traces/RELEASE-001-*`、`docs/testing/verify-matrix.md`。
+docs/product\state-matrix.yaml:51:    related_requirements: ["FR-001", "FR-009", "FR-013"]
+docs/product\state-matrix.yaml:107:    related_requirements: ["FR-002", "FR-010"]
+docs/product\state-matrix.yaml:149:    related_requirements: ["FR-003", "FR-009"]
+docs/product\state-matrix.yaml:182:    related_requirements: ["FR-004", "FR-009", "FR-010"]
+docs/product\state-matrix.yaml:209:    related_requirements: ["FR-007", "FR-008", "FR-010", "FR-013"]
+docs/product\state-matrix.yaml:236:    related_requirements: ["FR-012", "FR-010"]
+docs/product\state-matrix.yaml:264:    related_requirements: ["FR-008", "FR-009", "FR-010"]
+docs/product\state-matrix.yaml:319:    related_requirements: ["FR-005", "FR-006", "FR-010", "FR-013"]
+docs/product\state-matrix.yaml:355:    related_requirements: ["FR-011"]
+docs/product\state-matrix.yaml:379:    related_requirements: ["FR-003", "FR-011"]
+docs/product\state-matrix.yaml:419:    related_requirements: ["FR-006", "FR-008", "FR-010", "FR-013"]
+docs/product\state-matrix.yaml:439:    related_requirements: ["FR-014", "FR-001", "FR-006", "FR-008", "FR-009", "FR-010"]
+docs/testing\RISK_BASED_TEST_PLAN.md:4:**任务 ID**: RELEASE-001
+docs/testing\RISK_BASED_TEST_PLAN.md:6:**负责人**: RELEASE-001
+docs/testing\RISK_BASED_TEST_PLAN.md:12:| RISK-001 | FR-001 / FR-013 创建与幂等 | 重复请求、参数摘要冲突和快照复用会直接影响任务唯一性与审计链路。 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 命中原任务；摘要不同返回 `IDEMPOTENCY_CONFLICT`；配置快照不被新配置污染。 | `seed-create-base-001`、`seed-idempotency-001` | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/verify-matrix.md` |
+docs/testing\RISK_BASED_TEST_PLAN.md:13:| RISK-002 | FR-005 / FR-013 调度锁租约 | 多实例抢锁、租约续租、过期接管和 `attemptNo` 规则容易产生重复执行或断点丢失。 | 同一子系统并发上限、锁接管只发生在租约过期后、接管延续当前 `attemptNo`、FAILED 重试才递增尝试号。 | `seed-lock-001`、`seed-idempotency-001` | `docs/testing/test-matrix.md`、`traces/` |
+docs/testing\RISK_BASED_TEST_PLAN.md:14:| RISK-003 | FR-009 权限与脱敏 | 创建、查询、下载和样板文件涉及租户、组织范围、敏感字段和审计。 | 403 不泄露任务或文件；`orgScope` 不足被拒绝；联系人姓名/手机号不得原文出现在最终文件；脱敏失败进入 `MASKING_RULE_ERROR`。 | `seed-auth-001`、`seed-purchase-order-001` | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/ACCEPTANCE_EXAMPLES.md` |
+docs/testing\RISK_BASED_TEST_PLAN.md:15:| RISK-004 | FR-008 查询模板与字段映射 | 只读数据源、参数 schema、字段白名单、游标和批次检查点是后续实现的核心契约。 | 非法模板、未声明参数、未注册字段、原始 SQL、游标不稳定、批次字段校验失败。 | `seed-contract-001`、`seed-purchase-order-001` | `plans/features/export-platform.dev-plan.md`、`contracts/` |
+docs/testing\RISK_BASED_TEST_PLAN.md:16:| RISK-005 | FR-003 / FR-006 / FR-011 文件发布与清理 | 临时对象、校验、发布、下载和过期清理若顺序错误会暴露未校验文件或留下不可恢复对象。 | 校验通过前不返回下载地址；校验失败不发布对象；过期先标记不可下载再清理；清理失败可重试。 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | `docs/testing/verify-matrix.md`、`traces/` |
+docs/testing\RISK_BASED_TEST_PLAN.md:17:| RISK-006 | FR-006 / FR-014 采购订单压测与边界 | 0/1/20000/20001/100000/100001 行同时覆盖空文件、单文件、ZIP、默认上限和超量控制。 | 空数据仅表头；20001 行分片 ZIP；100000 行记录耗时、批大小、分片数、续租次数、文件大小和 checksum；100001 行拒绝或进入严格控制流。 | `seed-split-001`、`seed-purchase-order-001` | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/test-data-plan.md` |
+docs/testing\RISK_BASED_TEST_PLAN.md:18:| RISK-007 | FR-002 / FR-004 / FR-010 状态、历史和审计 | 对外状态、历史可见性和审计字段必须与产品真相源一致，不能暴露内部 `cancel_requested`。 | 任务详情字段完整；普通用户仅本人任务；管理员按权限查询；CREATE/DISPATCH/EXECUTE/DOWNLOAD/CANCEL/RETRY/CLEANUP 事件可串联。 | `seed-progress-001`、`seed-history-001`、`seed-audit-001` | `docs/testing/TRACEABILITY_MATRIX.md`、`progress.txt` |
+docs/testing\RISK_BASED_TEST_PLAN.md:19:| RISK-008 | FR-007 注册配置 | 注册启停、配置同步、并发上限、保留期、阈值和支持格式影响后续所有任务。 | `taskCode` 唯一；disabled 拒绝创建；配置变更只影响新任务；已创建任务和 FAILED 重试沿用原快照。 | `seed-registry-001` | `plans/features/export-platform.dev-plan.md`、`docs/context/architecture-brief.md` |
+docs/testing\RISK_BASED_TEST_PLAN.md:23:- P0 必测：FR-001、FR-002、FR-003、FR-004、FR-005、FR-006、FR-007、FR-008、FR-009、FR-010、FR-013、FR-014。
+docs/testing\RISK_BASED_TEST_PLAN.md:24:- P1 必测：FR-011、FR-012；发布前至少覆盖主路径、非法状态和负向清理证据。
+docs/testing\RISK_BASED_TEST_PLAN.md:25:- 当前 RELEASE-001 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史 历史通过记录 仅能作为旧证据，不能作为当前 release 依据。
+docs/testing\RISK_BASED_TEST_PLAN.md:29:- `docs/testing/TRACEABILITY_MATRIX.md`、`TEST_DATA_MATRIX.md`、`test-matrix.md`、`verify-matrix.md` 能追溯 FR-001 至 FR-014。
+docs/product\prd-lite.md:26:- 调度方式采用 `MySQL 轮询 + DB 抢锁`。
+docs/product\prd-lite.md:75:| FR-001 | 创建导出任务并立即返回 `taskId` | P0 |
+docs/product\prd-lite.md:76:| FR-002 | 查询任务进度和状态 | P0 |
+docs/product\prd-lite.md:77:| FR-003 | 下载导出文件，支持签名 URL 或流式下载 | P0 |
+docs/product\prd-lite.md:78:| FR-004 | 查询任务历史 | P0 |
+docs/product\prd-lite.md:79:| FR-005 | 按子系统限制并发并调度执行 | P0 |
+docs/product\prd-lite.md:80:| FR-006 | 大数据量导出自动分片并打包 | P0 |
+docs/product\prd-lite.md:81:| FR-007 | 注册导出任务并启停 | P0 |
+docs/product\prd-lite.md:82:| FR-008 | 提供集中查询模板、数据源、字段映射和脱敏策略契约 | P0 |
+docs/product\prd-lite.md:83:| FR-009 | 权限校验、字段脱敏、下载签名 | P0 |
+docs/product\prd-lite.md:84:| FR-010 | 记录任务日志、下载日志、失败原因 | P0 |
+docs/product\prd-lite.md:85:| FR-011 | 文件过期清理 | P1 |
+docs/product\prd-lite.md:86:| FR-012 | 取消和重试任务 | P1 |
+docs/product\prd-lite.md:87:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照 | P0 |
+docs/product\prd-lite.md:88:| FR-014 | 采购订单导出样板形成集中查询可执行合同 | P0 |
+docs/product\requirement-interface-matrix.md:9:| FR-001 | 创建导出任务 | `POST /api/export/tasks` | PENDING | AC-001 |
+docs/product\requirement-interface-matrix.md:10:| FR-002 | 查询任务详情/进度 | `GET /api/export/tasks/{taskId}` | PENDING / EXECUTING / COMPLETED / FAILED | AC-002 |
+docs/product\requirement-interface-matrix.md:11:| FR-003 | 下载导出文件 | `GET /api/export/tasks/{taskId}/download` | COMPLETED / EXPIRED | AC-003 |
+docs/product\requirement-interface-matrix.md:12:| FR-004 | 查询任务历史 | `GET /api/export/tasks` | default / empty / permission_denied | AC-004 |
+docs/product\requirement-interface-matrix.md:13:| FR-005 | 调度和并发控制 | Scheduler + DB lock | PENDING / EXECUTING | AC-005 |
+docs/product\requirement-interface-matrix.md:14:| FR-006 | 大数据分片导出 | Worker + file service | EXECUTING / COMPLETED | AC-006 |
+docs/product\requirement-interface-matrix.md:15:| FR-007 | 注册导出任务 / 启停 / 配置 | `POST /api/export/registries` + registry/config APIs | default / disabled / permission_denied | AC-007 |
+docs/product\requirement-interface-matrix.md:16:| FR-008 | 集中查询模板契约 | registry/config + datasource/query template | default / invalid_template / datasource_error / query_error | AC-008 |
+docs/product\requirement-interface-matrix.md:17:| FR-009 | 权限、脱敏、签名 | auth + data scope + masking + download guard | permission_denied / masking_error | AC-009 |
+docs/product\requirement-interface-matrix.md:18:| FR-010 | 审计与失败追踪 | audit log + task event log | all | AC-010 |
+docs/product\requirement-interface-matrix.md:19:| FR-011 | 过期清理 | cleanup job | EXPIRED | AC-011 |
+docs/product\requirement-interface-matrix.md:20:| FR-012 | 取消和重试 | cancel/retry API | CANCELED / PENDING / FAILED | AC-012 |
+docs/product\requirement-interface-matrix.md:21:| FR-013 | 幂等、执行尝试、锁租约和配置快照 | create API + Scheduler + task snapshot | default / conflict / processing / error | AC-013 / AC-014 / AC-015 / AC-016 |
+docs/product\requirement-interface-matrix.md:22:| FR-014 | 采购订单导出样板 | purchase-order query template + platform export flow | default / empty / long_content / error | AC-017 / AC-018 / AC-E022 / AC-E023 |
+docs/product\requirement-interface-matrix.md:23:| FR-008/FR-010/FR-013 | 查询执行上下文与追踪 | query executor + task event log | default / error | AC-019 / AC-020 |
+docs/product\requirement-interface-matrix.md:24:| FR-003/FR-006/FR-011 | 文件临时对象、发布和校验 | file service / OSS | default / error / expired | AC-021 / AC-E026 |
+docs/product\requirement-interface-matrix.md:31:- `FR-004` 历史查询的正式筛选维度为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；测试层如已先出现更细筛选项，应标记为分析阶段假设而不是既定事实。
+docs/product\requirement-interface-matrix.md:32:- `FR-008` 查询模板契约由注册配置声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式。
+docs/product\requirement-interface-matrix.md:33:- `FR-012` 取消与重试边界为：PENDING 可取消，FAILED 可重试，EXECUTING 取消按批次边界收口；PENDING/EXECUTING 重试返回非法状态错误且不得重复派发执行。
+docs/product\requirement-interface-matrix.md:34:- `FR-013` 要求创建幂等、执行尝试、锁租约和配置快照形成同一条审计链路；配置变化不得改变已创建任务的执行口径。
+docs/product\requirement-interface-matrix.md:35:- `FR-014` 是一期样板模块合同，不新增平台特例逻辑；它用于证明标准 registry、集中查询模板、调度、文件、权限、审计和下载链路能被一个业务场景完整验证。
+docs/product\requirement-interface-matrix.md:41:| FR-003 | `downloadUrl`、`expiresAt`、`fileName`、`fileSize` 或等价 stream 元信息 | 用于证明下载保护和文件元信息可追踪 |
+docs/product\requirement-interface-matrix.md:42:| FR-004 | `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` | 正式历史查询筛选维度 |
+docs/product\requirement-interface-matrix.md:43:| FR-007 | `taskCode` 唯一、`enabled`、并发上限、保留期、单文件行数阈值、最大导出量、支持格式策略 | 注册配置必须能被查询和同步 |
+docs/product\requirement-interface-matrix.md:44:| FR-008 | `datasourceCode`、`queryTemplateVersion`、`parameterSchemaDigest`、`fieldMappingDigest`、`maskingPolicyDigest`、`cursorField` | 用于证明集中查询模板、字段映射和脱敏策略可追溯 |
+docs/product\requirement-interface-matrix.md:45:| FR-009 | `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`、`dataScopeExpression` | 统一认证上下文和数据范围约束最小字段 |
+docs/product\requirement-interface-matrix.md:46:| FR-010 | `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId`、发生时间 | 审计日志最小字段 |
+docs/product\requirement-interface-matrix.md:47:| FR-012 | `attemptNo` 或等价执行尝试序号、内部取消标记、最终状态 | 用于证明重试不丢审计链路、取消不暴露内部状态 |
+docs/product\requirement-interface-matrix.md:48:| FR-013 | `clientRequestId`、`idempotencyScope`、`requestDigest`、`configSnapshotDigest`、`attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt` | 用于证明幂等、防重复执行、配置快照和锁租约行为 |
+docs/product\requirement-interface-matrix.md:49:| FR-006/FR-013 | `cursorField`、`lastCursor`、`processedCount`、`filePartNo`、`batchSize`、`batchRowCount`、`retryCount`、`backoffMs` | 用于证明游标分页、锁接管、批次执行和查询重试证据 |
+docs/product\requirement-interface-matrix.md:50:| FR-014 | `taskCode=purchase-order-export`、`subsystemCode=purchase`、`datasourceCode`、`queryTemplateVersion`、`createdAtRange`、`orderStatus`、`supplierId`、`purchaseOrgId`、`keyword`、字段定义、敏感字段脱敏策略、`cursorField=orderId` | 用于证明采购订单样板集中查询合同可执行 |
+docs/product\requirement-interface-matrix.md:51:| FR-008/FR-010/FR-013 | `taskId`、`attemptNo`、`requestId`、`queryTemplateVersion`、`datasourceCode`、`batchCheckpoint` | 用于证明查询执行上下文和审计串联 |
+docs/product\requirement-interface-matrix.md:52:| FR-003/FR-011 | `tempStorageKey`、`publishedStorageKey`、`checksum`、`checksumVerifiedAt`、`publishedAt`、`deliveryReadyAt` | 用于证明临时对象、发布对象、校验和下载准备状态可追踪 |
+docs/product\acceptance-criteria.md:9:| AC-001 | FR-001 | 认证通过且 `taskCode` 已注册启用时，调用创建任务接口可在 1 秒内返回全局唯一 `taskId`，任务状态为 `PENDING`。 | P0 |
+docs/product\acceptance-criteria.md:10:| AC-002 | FR-002 | 可查询任务状态、总数、已处理数、进度和错误信息。 | P0 |
+docs/product\acceptance-criteria.md:11:| AC-003 | FR-003 | COMPLETED 且未过期时可下载文件；签名 URL 模式返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式模式返回文件流和等价文件元信息；文件记录包含 `storageKey`、`checksum`、`checksumAlgorithm` 和 `attemptNo`。 | P0 |
+docs/product\acceptance-criteria.md:12:| AC-004 | FR-004 | 可按 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 分页查询历史任务；普通用户仅看本人任务，管理员按权限看全局。测试文档若出现更细筛选项，必须回填到产品真相源或标记为假设。 | P0 |
+docs/product\acceptance-criteria.md:13:| AC-005 | FR-005 | 多实例调度时，同一子系统的执行数不超过配置值。 | P0 |
+docs/product\acceptance-criteria.md:14:| AC-006 | FR-006 | 超过单文件阈值时自动分片并打包，空数据生成仅表头文件。 | P0 |
+docs/product\acceptance-criteria.md:15:| AC-007 | FR-007 | 导出任务注册信息可创建、更新、查询、启停和配置同步；`taskCode` 唯一，并可配置并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。 | P0 |
+docs/product\acceptance-criteria.md:16:| AC-008 | FR-008 | 注册配置声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段和支持格式后，平台无需改核心代码即可按集中查询口径执行对应导出任务；非法模板、未注册字段、未声明参数或不允许的数据源不得进入执行。 | P0 |
+docs/product\acceptance-criteria.md:17:| AC-009 | FR-009 | 无权限创建或下载时返回 403，并记录审计。 | P0 |
+docs/product\acceptance-criteria.md:18:| AC-010 | FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。 | P0 |
+docs/product\acceptance-criteria.md:19:| AC-011 | FR-011 | 过期文件先被标记为不可下载，再清理对象存储文件；下载返回失效结果，清理失败保留可重试记录。 | P1 |
+docs/product\acceptance-criteria.md:20:| AC-012 | FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 仅通过内部 `cancelRequested=true` 做批次边界收口并最终置为 `CANCELED`，不返回 `cancel_requested` 状态；非法状态返回 `INVALID_TASK_STATE`。 | P1 |
+docs/product\acceptance-criteria.md:21:| AC-013 | FR-013 | 创建任务、执行尝试、DB 锁租约和配置快照证据可通过同一 `taskId` 串联，并能区分幂等命中、锁续租、锁接管和快照沿用场景。 | P0 |
+docs/product\acceptance-criteria.md:22:| AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+docs/product\acceptance-criteria.md:23:| AC-015 | FR-013/FR-005 | worker 抢锁成功后记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和配置快照；锁租约默认 5 分钟并按批次续租，过期锁只能由一个实例重新抢占。 | P0 |
+docs/product\acceptance-criteria.md:24:| AC-016 | FR-013/FR-007 | 注册配置变更只影响新创建任务；已创建任务和失败重试沿用原任务配置快照，审计可追溯到快照版本或摘要。 | P0 |
+docs/product\acceptance-criteria.md:25:| AC-017 | FR-014 | 采购订单样板以 `purchase-order-export` / `purchase` 注册启用后，平台可按创建时间范围、订单状态、供应商、采购组织和关键词创建导出任务；注册配置包含只读数据源、参数 schema、查询模板、字段顺序、敏感字段、脱敏策略、游标字段和支持格式。 | P0 |
+docs/product\acceptance-criteria.md:26:| AC-018 | FR-014 | 采购订单样板在 `0/1/20000/20001/100000/100001` 行边界下分别验证空数据仅表头、单文件、分片 ZIP、默认 10 万行压测和超过最大导出量处置。 | P0 |
+docs/product\acceptance-criteria.md:27:| AC-019 | FR-008/FR-010/FR-013 | 查询执行请求包含任务快照、执行尝试上下文、查询模板版本、数据源编码和批次检查点，平台可在任务日志、审计日志和失败证据中串联。 | P0 |
+docs/product\acceptance-criteria.md:28:| AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+docs/product\acceptance-criteria.md:29:| AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+docs/testing\test-matrix.md:4:**会话**: RELEASE-001
+docs/testing\test-matrix.md:9:- 当前 RELEASE-001 处于 blocked：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。
+docs/testing\test-matrix.md:15:| FR-001 | P0 | 无前端页面；创建任务接口 | PENDING | `POST /api/export/tasks` | contract / api / backend / verify | TM-001 | `seed-create-base-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:16:| FR-002 | P0 | 无前端页面；任务详情/进度接口 | PENDING / EXECUTING / COMPLETED / FAILED | `GET /api/export/tasks/{taskId}` | contract / api / backend / verify | TM-002 | `seed-progress-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:17:| FR-003 | P0 | 无前端页面；下载接口与文件服务 | COMPLETED / EXPIRED | `GET /api/export/tasks/{taskId}/download` | contract / file / api / backend / verify | TM-003 | `seed-download-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:18:| FR-004 | P0 | 无前端页面；历史查询接口 | default / empty / permission_denied | `GET /api/export/tasks` | contract / api / backend / verify | TM-004 | `seed-history-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:19:| FR-005 | P0 | 无前端页面；调度器与 DB 抢锁 | PENDING / EXECUTING | Scheduler + DB lock | contract / scheduler / backend / verify | TM-005 | `seed-lock-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:20:| FR-006 | P0 | 无前端页面；worker、文件渲染与打包 | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | TM-006 | `seed-split-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:21:| FR-007 | P0 | 无前端页面；registry/config APIs | default / disabled / permission_denied | registry/config APIs | contract / backend / verify | TM-007 | `seed-registry-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:22:| FR-008 | P0 | 无前端页面；集中查询契约 | default / invalid_template / datasource_unavailable / query_execution_error / field_mapping_invalid / masking_rule_error | 集中查询契约 | contract / backend / query / verify | TM-008 | `seed-contract-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:23:| FR-009 | P0 | 无前端页面；认证、权限和脱敏 | permission_denied / masking_error | 认证上下文契约、数据范围契约 | contract / backend / api / verify | TM-009 | `seed-auth-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:24:| FR-010 | P0 | 无前端页面；审计与任务事件 | all | 审计契约、任务事件契约 | contract / backend / verify | TM-010 | `seed-audit-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:25:| FR-011 | P1 | 无前端页面；过期清理作业 | EXPIRED | cleanup job | contract / scheduler / file / verify | TM-011 | `seed-cleanup-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:26:| FR-012 | P1 | 无前端页面；取消/重试接口 | CANCELED / PENDING / FAILED / EXECUTING | `POST /api/export/tasks/{taskId}/cancel`、`POST /api/export/tasks/{taskId}/retry` | contract / api / backend / verify | TM-012 | `seed-cancel-retry-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:27:| FR-013 | P0 | 无前端页面；创建、调度和快照链路 | default / conflict / processing / error | create API + Scheduler + task snapshot | contract / scheduler / backend / verify | TM-013 | `seed-idempotency-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:28:| FR-014 | P0 | 无前端页面；采购订单样板合同 | default / empty / long_content / error | 采购订单样板契约 | contract / backend / query / file / verify | TM-014 | `seed-purchase-order-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | blocked / historical 历史通过记录 only |
+docs/testing\test-matrix.md:34:- 当前状态以最新 release 证据为准；当前 RELEASE-001 blocked，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked。历史 `历史通过记录` 仅能作为旧证据。
+docs/testing\test-data-plan.md:4:**任务 ID**: RELEASE-001
+docs/testing\test-data-plan.md:5:**Seed 负责人**: RELEASE-001
+docs/testing\test-data-plan.md:6:**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按真实 MySQL 隔离执行；当前 RELEASE-001 blocked，历史 历史通过记录 仅可作为旧证据
+docs/testing\test-data-plan.md:7:**Seed 命令**: 由对应测试套件创建当前回归数据；当前 RELEASE-001 blocked，API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，live object storage smoke 也仍需真实 endpoint / bucket 与写入授权
+docs/testing\test-data-plan.md:13:| export_user | `tenantId`、`operatorId`、`roleCodes`、`orgScope`、`requestId` | 创建本人任务、查询本人历史、下载本人完成文件 | FR-001 / FR-003 / FR-004 / FR-009 | 主流程和权限边界 |
+docs/testing\test-data-plan.md:14:| export_admin | `tenantId`、`operatorId`、`roleCodes=EXPORT_ADMIN`、`orgScope=*`、`requestId` | 全局历史查询、注册配置管理、清理审计查看 | FR-004 / FR-007 / FR-010 / FR-011 | 管理和回归集合 |
+docs/testing\test-data-plan.md:15:| export_denied | 缺少角色或 `orgScope` 不覆盖数据 | 无创建、下载或配置权限 | FR-009 / FR-014 | 403、脱敏和数据范围负向 |
+docs/testing\test-data-plan.md:21:| seed-create-base-001 | FR-001 | 任务创建 | 已注册启用 `taskCode`、合法 `queryParams`、`clientRequestId` | 清理任务和审计记录 | 未注册、禁用、权限不足 |
+docs/testing\test-data-plan.md:22:| seed-progress-001 | FR-002 | 任务详情 | PENDING、EXECUTING、COMPLETED、FAILED 任务及进度 | 回滚状态和进度 | 进度为空、错误信息缺失 |
+docs/testing\test-data-plan.md:23:| seed-download-001 | FR-003 | 文件下载 | 已发布、临时、过期、校验失败文件元信息 | 清理 OSS key 和下载记录 | 未发布对象、EXPIRED、checksum 失败 |
+docs/testing\test-data-plan.md:24:| seed-history-001 | FR-004 | 历史查询 | 多 `taskCode/status/createdBy/createdAtRange/fileFormat/subsystemCode` 任务集 | 清理历史数据 | 普通用户仅本人、空分页、权限拒绝 |
+docs/testing\test-data-plan.md:25:| seed-lock-001 | FR-005 | 调度锁 | 多实例任务、`lockOwner`、`lockExpireAt`、`leaseRenewedAt` | 清理锁和调度记录 | 重复抢锁、锁接管、数据库时间漂移 |
+docs/testing\test-data-plan.md:26:| seed-split-001 | FR-006 | 分片与打包 | 0、1、20000、20001、100000、100001 行数据集 | 清理分片文件、ZIP 清单、事件日志 | 空数据、ZIP、超量控制 |
+docs/testing\test-data-plan.md:27:| seed-registry-001 | FR-007 | 注册配置 | taskCode、并发上限、保留期、单文件阈值、最大导出量、格式策略 | 回滚配置和快照 | 重复 taskCode、disabled、同步失败 |
+docs/testing\test-data-plan.md:28:| seed-contract-001 | FR-008 | 查询契约 | datasourceCode、parameter schema、queryTemplateVersion、fieldMapping、maskingPolicy、cursorField、orderRule、batchSize | 回滚契约版本 | 非法模板、未声明参数、原始 SQL |
+docs/testing\test-data-plan.md:29:| seed-auth-001 | FR-009 | 权限上下文 | 完整上下文和缺字段样本 | 清理认证输入 | orgScope 不足、下载拒绝、脱敏失败 |
+docs/testing\test-data-plan.md:30:| seed-audit-001 | FR-010 | 审计事件 | CREATE、DISPATCH、EXECUTE、CANCEL、RETRY、DOWNLOAD、EXPIRE、CLEANUP 事件 | 清理审计表 | 事件缺失、字段缺失、顺序错误 |
+docs/testing\test-data-plan.md:31:| seed-cleanup-001 | FR-011 | 过期清理 | 过期文件、可下载文件、不可下载标记、待清理对象 | 恢复过期标记和对象引用 | 先删后标、清理失败重试、410 |
+docs/testing\test-data-plan.md:32:| seed-cancel-retry-001 | FR-012 | 取消与重试 | PENDING、EXECUTING、FAILED、CANCELED 任务和尝试记录 | 回滚状态、尝试序号、取消标记 | 非法状态重试、批次边界取消 |
+docs/testing\test-data-plan.md:33:| seed-idempotency-001 | FR-013 | 幂等和快照 | 相同/不同幂等范围与参数摘要 | 清理幂等索引、快照、锁记录 | 幂等命中、冲突、attemptNo 递增 |
+docs/testing\test-data-plan.md:34:| seed-purchase-order-001 | FR-014 | 采购订单样板 | 订单号、状态、供应商、采购组织、采购员、时间、金额、币种、联系人、`orderId` 游标 | 回滚样板数据、字段映射、脱敏结果 | 0/1/20000/20001/100000/100001 行、敏感字段、游标异常 |
+docs/testing\TEST_DATA_MATRIX.md:5:**负责人**: RELEASE-001
+docs/testing\TEST_DATA_MATRIX.md:9:- 当前 RELEASE-001 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked；以下条目保留为当前矩阵的可执行数据入口，历史 历史通过记录 仅能作为旧证据。
+docs/testing\TEST_DATA_MATRIX.md:15:| FR-001 | seed-create-base-001 | 历史基线：最初用来说明创建任务所需的最小认证上下文、`clientRequestId` 和合法 `queryParams`；当前已转为可执行回归数据入口 | 清理任务表和审计记录 | 0/1 次创建、幂等命中、未注册、禁用、权限不足 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:16:| FR-002 | seed-progress-001 | 历史基线：最初用来说明 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED` 四类任务记录；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 回滚任务状态和进度数据 | 进度为空、错误信息缺失、无权限查看 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:17:| FR-003 | seed-download-001 | 历史基线：最初用来说明已发布对象、临时对象、过期对象与文件元信息；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理 OSS key、文件引用和下载记录 | 仅完成态可下载、签名 URL 与 stream、EXPIRED、校验失败、未发布对象 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:18:| FR-004 | seed-history-001 | 历史基线：最初用来说明不同 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 的任务集；当前已用于回归 | 清理历史查询数据 | 普通用户仅本人、管理员全局、空分页、权限拒绝 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:19:| FR-005 | seed-lock-001 | 历史基线：最初用来说明同一 `subsystemCode` 的多实例调度、`lockOwner`、`lockExpireAt`、`leaseRenewedAt`；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理锁记录和调度记录 | 0/1 并发、锁接管、租约过期、数据库时间漂移 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:20:| FR-006 | seed-split-001 | 历史基线：最初用来说明 0、1、20000、20001、100000、100001 行导出数据集；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理分片文件、ZIP 清单和事件日志 | 空数据仅表头、超阈值分片打包、批次边界事件缺失 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:21:| FR-007 | seed-registry-001 | 历史基线：最初用来说明注册、更新、查询、启停、并发上限、保留期、单文件阈值、最大导出量和支持格式；当前已用于回归 | 回滚注册配置和快照 | taskCode 重复、disabled、配置同步失败、权限不足 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:22:| FR-008 | seed-contract-001 | 历史基线：最初用来说明 datasourceCode、parameter schema、queryTemplateVersion、fieldMapping、maskingPolicy、cursorField、orderRule、batchSize；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 回滚契约版本和配置摘要 | 非法模板、未声明参数、未注册字段、原始 SQL、数据源不可用 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:23:| FR-009 | seed-auth-001 | 历史基线：最初用来说明 operatorId、tenantId、roleCodes、orgScope、requestId 的最小上下文；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理认证上下文输入 | 权限不足、orgScope 不足、下载拒绝、脱敏失败 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:24:| FR-010 | seed-audit-001 | 历史基线：最初用来说明 CREATE、DISPATCH、EXECUTE_START、EXECUTE_SUCCESS、EXECUTE_FAILED、CANCEL_REQUEST、CANCEL_DONE、RETRY_REQUEST、DOWNLOAD、EXPIRE_MARK、CLEANUP_FAILED 事件样本；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理审计表 | 事件缺失、字段缺失、顺序错误、请求链路断裂 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:25:| FR-011 | seed-cleanup-001 | 历史基线：最初用来说明过期文件、可下载文件、不可下载标记和待清理对象；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 恢复过期标记和对象存储引用 | 先删后标、清理失败重试、410 失效结果 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:26:| FR-012 | seed-cancel-retry-001 | 历史基线：最初用来说明 `PENDING`、`EXECUTING`、`FAILED`、`CANCELED` 任务与执行尝试记录；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 回滚任务状态、尝试序号和取消标记 | 非法状态重试、批次边界取消、同任务单活跃尝试 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:27:| FR-013 | seed-idempotency-001 | 历史基线：最初用来说明相同/不同 `tenantId + operatorId + taskCode + clientRequestId` 组合与参数摘要；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理幂等索引、快照和锁记录 | 幂等命中、幂等冲突、锁接管、快照沿用、attemptNo 递增 | RELEASE-001 |
+docs/testing\TEST_DATA_MATRIX.md:28:| FR-014 | seed-purchase-order-001 | 历史基线：最初用来说明采购订单样板数据；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 回滚样板数据、字段映射和脱敏结果 | 0/1/20000/20001/100000/100001 行、敏感字段、游标异常、样板压测 | RELEASE-001 |
+docs/testing\TRACEABILITY_MATRIX.md:5:**负责人**: RELEASE-001
+docs/testing\TRACEABILITY_MATRIX.md:9:| FR-001 | 仅允许已注册且启用的 `taskCode` 创建任务；创建任务前必须通过操作权限校验；支持 `clientRequestId` 幂等并返回 `taskId` | 无前端页面；后端创建接口 | PENDING | `POST /api/export/tasks` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `docs/product/prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | P0 创建主路径、幂等和注册校验错误容易漂移 |
+docs/testing\TRACEABILITY_MATRIX.md:10:| FR-002 | 查询任务进度时必须返回状态、总数、已处理数、进度和错误信息；任务详情必须受认证上下文和可见性约束 | 无前端页面；后端查询接口 | PENDING / EXECUTING / COMPLETED / FAILED | `GET /api/export/tasks/{taskId}` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-002`、`AC-009`、`AC-010`、`state-matrix.yaml` | 进度口径和失败态字段易被实现偏差 |
+docs/testing\TRACEABILITY_MATRIX.md:11:| FR-003 | 下载前必须再次校验权限和文件有效期；签名 URL 与 stream 两种交付方式都要携带文件元信息；未发布对象不得下载 | 无前端页面；文件服务 / OSS / 下载接口 | COMPLETED / EXPIRED | `GET /api/export/tasks/{taskId}/download`、文件元信息契约 | contract / file / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`state-matrix.yaml` | 校验、发布边界和元信息缺失会造成误交付 |
+docs/testing\TRACEABILITY_MATRIX.md:12:| FR-004 | 历史任务正式筛选维度限定为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；普通用户仅见本人任务，管理员按权限看全局 | 无前端页面；历史查询接口 | default / empty / permission_denied | `GET /api/export/tasks` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-004`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 筛选维度和可见性最容易在联调中扩展失控 |
+docs/testing\TRACEABILITY_MATRIX.md:13:| FR-005 | 同一子系统的执行数不超过配置值；调度采用 MySQL 轮询 + DB 抢锁；锁时间判断以数据库时间为准 | Scheduler / worker | PENDING / EXECUTING | Scheduler + DB lock 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 多实例重复执行和租约漂移风险高 |
+docs/testing\TRACEABILITY_MATRIX.md:14:| FR-006 | 超过单文件阈值时自动分片并打包；空数据生成仅表头文件；执行链路必须保留关键阶段事件 | 无前端页面；worker / file service | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-006`、`AC-020`、`state-matrix.yaml` | 分片、打包和空数据分支是回归高发点 |
+docs/testing\TRACEABILITY_MATRIX.md:15:| FR-007 | 注册导出任务必须可创建、更新、查询、启停，并支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略 | registry/config APIs | default / disabled / permission_denied | registry/config APIs | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`page-inventory.md`、`requirement-interface-matrix.md` | 配置同步和启停状态最容易与任务快照冲突 |
+docs/testing\TRACEABILITY_MATRIX.md:16:| FR-008 | 注册配置必须声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式；不得执行原始 SQL | registry/config + datasource/query template | default / invalid_template / datasource_unavailable / query_execution_error / field_mapping_invalid / masking_rule_error | 集中查询契约 | contract / backend / query / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 契约漂移会直接变成越权或错误导出 |
+docs/testing\TRACEABILITY_MATRIX.md:17:| FR-009 | 平台必须消费认证上下文，执行任务可见性、操作权限、下载权限和查询数据范围约束；字段脱敏必须按注册策略执行 | auth + data scope + masking + download guard | permission_denied / masking_error | 认证上下文契约、数据范围契约 | contract / backend / api / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md` | 认证上下文字段缺失或脱敏失败会导致高风险泄露 |
+docs/testing\TRACEABILITY_MATRIX.md:18:| FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志必须包含任务、操作、结果、错误码、请求和时间信息 | audit log + task event log | all | 审计契约、任务事件契约 | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-010`、`AC-019`、`AC-020` | 没有审计链路就无法证明真实交付 |
+docs/testing\TRACEABILITY_MATRIX.md:19:| FR-011 | 过期文件先标记为不可下载，再清理对象存储文件；清理失败必须保留可重试记录 | cleanup job | EXPIRED | cleanup job 契约 | contract / scheduler / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-011`、`state-matrix.yaml` | 清理顺序错误会导致误删或继续可下载 |
+docs/testing\TRACEABILITY_MATRIX.md:20:| FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 取消按批次边界收口并最终置为 `CANCELED` | cancel / retry API | CANCELED / PENDING / FAILED / EXECUTING | `POST /api/export/tasks/{taskId}/cancel`、`POST /api/export/tasks/{taskId}/retry` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-012`、`AC-E015`、`state-matrix.yaml` | 取消和重试状态机容易被误返回内部标记 |
+docs/testing\TRACEABILITY_MATRIX.md:21:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照必须形成同一条审计链路；锁租约默认 5 分钟，接管延续当前 `attemptNo`，FAILED 重试才递增 `attemptNo` | create API + Scheduler + task snapshot | default / conflict / processing / error | create API、Scheduler、snapshot 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 幂等冲突、锁接管和快照沿用是最容易漏证据的区域 |
+docs/testing\TRACEABILITY_MATRIX.md:22:| FR-014 | 采购订单样板必须覆盖创建时间范围、订单状态、供应商、采购组织、关键词、游标分页、敏感字段、空数据、分片、权限、审计、下载和 10 万行压测证据 | purchase-order query template + platform export flow | default / empty / long_content / error | 采购订单样板契约 | contract / backend / query / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-017`、`AC-018`、`AC-E022`、`AC-E023` | 样板合同是实现前最关键的可执行证据 |
+docs/testing\TRACEABILITY_MATRIX.md:29:- 当前 RELEASE-001 状态为 blocked：API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍 blocked；历史 历史通过记录 仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。
+docs/testing\verify-matrix.md:12:| 产品真相源 | FR-001 - FR-014 | available | `docs/product/` |
+docs/testing\verify-matrix.md:13:| 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
+docs/testing\verify-matrix.md:14:| 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
+docs/testing\verify-matrix.md:15:| STACK-ADR-001 设计基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design-baseline / implemented-by-release | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+docs/testing\verify-matrix.md:16:| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
+docs/testing\verify-matrix.md:17:| 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / route-handler-service-db wired | `src/server.ts`、`src/routes/route-manifest.ts`、`src/task-api/service.ts`、`src/registry-config/service.ts`、`src/audit-log/service.ts`、`tests/api/export-http-api.test.mjs` |
+docs/testing\verify-matrix.md:18:| MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+docs/testing\verify-matrix.md:19:| 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+docs/testing\verify-matrix.md:20:| scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+docs/testing\verify-matrix.md:21:| query executor | FR-006 / FR-008 / FR-009 / FR-014 | production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入`，不得把 file/sample 口径写成已通过 |
+docs/testing\verify-matrix.md:22:| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | file-service production-path wired / cleanup job production entry + poll-once wired / requires-real-mysql；`npm run test:file` 同时覆盖生产等价 object-storage adapter 失败态与本地 HTTP server 驱动的 env-backed adapter，证明 `createObjectStorageFromEnv()` 可完成 put/read/publish/download URL 协议链路，但不宣称 live OSS/S3 release evidence；环境变量缺失时 `createObjectStorageFromEnv()` 仍必须 `BLOCKED - 需要人工介入` | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`src/scheduler/worker.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker` |
+docs/testing\verify-matrix.md:23:| purchase-order sample | FR-014 | executable sample contract / requires-real-mysql；`npm run test:sample` 通过公开 registry/task/download service + worker + production-equivalent object-storage adapter 串联样板证据，不宣称 live OSS/S3 release evidence | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample`；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`；若要声明真实对象存储已验证，必须改用环境驱动对象存储并在不可达时 BLOCKED |
+docs/testing\verify-matrix.md:24:| API / DB / worker 集成测试 | FR-001 - FR-014 | available / requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+docs/testing\verify-matrix.md:25:| 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+docs/testing\verify-matrix.md:36:| API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
+docs/testing\verify-matrix.md:37:| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+docs/testing\verify-matrix.md:38:| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+docs/testing\verify-matrix.md:39:| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+docs/testing\verify-matrix.md:40:| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
+docs/testing\verify-matrix.md:41:| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
+docs/testing\verify-matrix.md:42:| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
+docs/testing\verify-matrix.md:43:| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
+docs/testing\verify-matrix.md:45:## RELEASE-001 fresh release evidence snapshot（2026-05-15）
+docs/testing\verify-matrix.md:49:| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成历史通过记录 |
+docs/testing\verify-matrix.md:50:| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，DB 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+docs/testing\verify-matrix.md:51:| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，worker 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+docs/testing\verify-matrix.md:52:| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，query executor 验证本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+docs/testing\verify-matrix.md:53:| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
+docs/testing\verify-matrix.md:54:| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
+docs/testing\verify-matrix.md:55:| Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。该项不能用历史 adapter/local HTTP 结果替代当前 release evidence |
+docs/testing\verify-matrix.md:56:| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+docs/testing\verify-matrix.md:58:> 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史通过记录只能作为旧证据保留，不能写成当前 fully passed。mock-first 只用于本地开发、联调和失败态演练，详情见 `docs/testing/mock-first-release-plan.md`，它不能替代 release gate。
+docs/testing\verify-matrix.md:64:| FR-001 | contract / API / DB | HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing\verify-matrix.md:65:| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+docs/testing\verify-matrix.md:66:| FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+docs/testing\verify-matrix.md:67:| FR-004 | contract / API / DB | HTTP list handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+docs/testing\verify-matrix.md:68:| FR-005 | DB / worker | DB lease repository and worker polling available / requires-real-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing\verify-matrix.md:69:| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed HTTP adapter 的发布与下载 URL 流程，`npm run test:sample` 覆盖默认批次 10 万行不丢批次；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+docs/testing\verify-matrix.md:70:| FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing\verify-matrix.md:71:| FR-008 | query / DB / security | query executor production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing\verify-matrix.md:72:| FR-009 | API / query / security | API auth context consumed / query executor production-path wired + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；真实依赖不可用时记录 `BLOCKED - 需要人工介入`，adapter 级对象存储证据不得写成 live release 已验证 |
+docs/testing\verify-matrix.md:73:| FR-010 | audit / API / worker | API and worker audit writes wired / requires-real-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing\verify-matrix.md:74:| FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing\verify-matrix.md:75:| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+docs/testing\verify-matrix.md:76:| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing\verify-matrix.md:77:| FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+
+ succeeded in 386ms:
+# Architecture Constraints Packet：统一导出平台
+
+本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+
+## 1. System Shape
+
+- 交付形态：`independent_microservice`。
+- 运行方式：`http_service` + `worker` + `scheduled_job`。
+- 部署单位：独立服务进程；后续实现必须提供生产启动入口和部署入口。
+- 生产入口最低要求：HTTP server entry、scheduler worker entry、cleanup job entry、配置加载入口。
+- 当前状态：仓库保留产品、契约、架构和测试文档；不保留任何已完成的业务实现、测试证据或旧运行 trace。
+
+## 2. API Boundary
+
+- 外部入口：HTTP，契约来源为 `contracts/openapi.yaml`。
+- 子系统接入：仅通过 HTTP/Feign 调用统一导出平台，不加载业务 JAR，不直接写平台表。
+- Public operation 完成条件：每个公开 operation 必须能追踪到 route/handler、service、repository 或外部 adapter、测试和证据路径。
+- 禁止状态：只有 service class、领域函数或单元测试时，不得声明 API 需求完成。
+
+## 3. Data Boundary
+
+- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+- 数据访问：平台只允许访问注册配置声明的只读数据源或数据中台，禁止执行调用方传入的原始 SQL。
+- 数据一致性：幂等键、配置快照、任务状态机、DB 锁租约和审计写入必须有可验证约束。
+
+## 4. Async And Worker Boundary
+
+- 调度方式：MySQL 轮询 + DB 抢锁。
+- 锁模型：`lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。
+- 默认租约：5 分钟，worker 只能在批次边界续租。
+- 接管规则：租约过期后的实例接管延续当前 `attemptNo`，从最近持久化批次检查点继续。
+- 重试规则：只有 FAILED 重试递增 `attemptNo`；PENDING/EXECUTING 重试必须拒绝。
+
+## 5. Test Double Policy
+
+- `InMemory*` 允许范围：unit tests only。
+- Mock 允许范围：外部依赖不可用时可作为临时单测替身，但不能作为验收证据。
+- 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
+- 若真实 MySQL、对象存储或第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。
+
+## 6. Forbidden Implementations
+
+- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+- 禁止只有 `src/*/service.ts` 而没有 HTTP route/handler、server entry 和 API 集成测试。
+- 禁止只有调度 class 而没有 worker entry、DB 锁 schema、repository 原子抢锁和租约测试。
+- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+- 禁止把采购订单样板写成平台特例接口；样板必须复用标准 registry、query、file、audit 链路。
+
+## 7. Architecture Fitness Checks
+
+后续脚手架任务必须创建 `arch:check` 或等价命令。最低检查项：
+
+- 生产 HTTP server entry 存在。
+- scheduler worker entry 和 cleanup job entry 存在。
+- `contracts/openapi.yaml` 的公开 operation 有 route/handler 和测试映射。
+- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+
+## 8. Definition Of Done
+
+- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+- Stage 1 Review 先审查架构形态，再审查业务规格。
+- 完成声明能说明 production path、test double 和 BLOCKED 依赖边界。
+
+
+ succeeded in 480ms:
+?? traces/CLEANUP-JOB-001-20260515-000701.json
+?? traces/CLEANUP-JOB-001-71f6a2bca49b4dab9e5f8a04b4bc10d0/
+?? traces/FILE-SERVICE-001-87c91d64b6fc42c1a27cd2ff82d92bc5/
+?? traces/MOCK-FIRST-001-20260515-083637.json
+?? traces/MOCK-FIRST-001-20260515-084412.json
+?? traces/MOCK-FIRST-001-20260515-084959.json
+?? traces/MOCK-FIRST-001-28499d77116749a98163afee04f6b500/
+?? traces/MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a/
+?? traces/MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a/
+?? traces/MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38/
+?? traces/QUERY-EXECUTOR-001-20260514-223042.json
+?? traces/QUERY-EXECUTOR-001-6e26bc2061b04110a80f915d5ad20c9b/
+?? traces/RELEASE-001-0247eb6eef574d24afd19784a8075bfa/
+?? traces/RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb/
+?? traces/RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01/
+?? traces/RELEASE-001-141e9c2f04a1414fbc012eb21ad55b96/
+?? traces/RELEASE-001-16b6ee62c43545fb832e26b0d5f10513/
+?? traces/RELEASE-001-20260514-214947.json
+?? traces/RELEASE-001-20260515-031752.json
+?? traces/RELEASE-001-20260515-033353.json
+?? traces/RELEASE-001-20260515-035634.json
+?? traces/RELEASE-001-20260515-042342.json
+?? traces/RELEASE-001-20260515-043529.json
+?? traces/RELEASE-001-20260515-044009.json
+?? traces/RELEASE-001-20260515-044503.json
+?? traces/RELEASE-001-20260515-044955.json
+?? traces/RELEASE-001-20260515-045449.json
+?? traces/RELEASE-001-20260515-050354.json
+?? traces/RELEASE-001-20260515-051500.json
+?? traces/RELEASE-001-20260515-052100.json
+?? traces/RELEASE-001-20260515-052715.json
+?? traces/RELEASE-001-20260515-053237.json
+?? traces/RELEASE-001-20260515-053654.json
+?? traces/RELEASE-001-20260515-054046.json
+?? traces/RELEASE-001-20260515-054721.json
+?? traces/RELEASE-001-20260515-055042.json
+?? traces/RELEASE-001-20260515-055625.json
+?? traces/RELEASE-001-20260515-060646.json
+?? traces/RELEASE-001-20260515-061659.json
+?? traces/RELEASE-001-20260515-062033.json
+?? traces/RELEASE-001-20260515-062550.json
+?? traces/RELEASE-001-20260515-063107.json
+?? traces/RELEASE-001-20260515-063508.json
+?? traces/RELEASE-001-20260515-063850.json
+?? traces/RELEASE-001-20260515-064517.json
+?? traces/RELEASE-001-20260515-065031.json
+?? traces/RELEASE-001-20260515-065622.json
+?? traces/RELEASE-001-20260515-070016.json
+?? traces/RELEASE-001-20260515-070412.json
+?? traces/RELEASE-001-23345de4956a483faee74bc50b398662/
+?? traces/RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40/
+?? traces/RELEASE-001-35352ba264f24f90ac69a4facb497907/
+?? traces/RELEASE-001-3b40a3c122634f8d91e16537e4a8e3f6/
+?? traces/RELEASE-001-3e0aed10c1934af1bde4b182881e4e84/
+?? traces/RELEASE-001-41a1e6a0ba4542419ab7f48d716cedcd/
+?? traces/RELEASE-001-436c8edc82414725be787fcce9a5ba96/
+?? traces/RELEASE-001-473442420ad0450a8e8b95151c886ee7/
+?? traces/RELEASE-001-47805ce3c91347a0be61271a230d7426/
+?? traces/RELEASE-001-6ac1ada9e6d24055873e994172476907/
+?? traces/RELEASE-001-7b194b33dd1a48949621b002c187bd31/
+?? traces/RELEASE-001-815718d0fa69418588c4d32ab4dc4459/
+?? traces/RELEASE-001-88acf1f5599f490fa46ada2be12e49f1/
+?? traces/RELEASE-001-8c5440178e824740887de66239fe2a2a/
+?? traces/RELEASE-001-9961cef817164a1d8900d16998366f75/
+?? traces/RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc/
+?? traces/RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053/
+?? traces/RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a/
+?? traces/RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5/
+?? traces/RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c/
+?? traces/RELEASE-001-c20e3f83e14246ae99e0d52c377ca834/
+?? traces/RELEASE-001-dd874607cc7249b4bbb05302dc86373a/
+?? traces/RELEASE-001-e0b6288d3bec44db96737f7fc93b7932/
+?? traces/RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344/
+?? traces/RELEASE-001-e5d066872e814d7da4341f145533f6cc/
+?? traces/RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49/
+?? traces/RELEASE-001-fd29d092b07d462792c44947c941349f/
+?? traces/SAMPLE-PURCHASE-ORDER-001-20260515-004903.json
+?? traces/SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef/
+
+codex
+目前看架构约束包完整，`MOCK-FIRST-001` 自身也带了 architecture constraints、forbidden implementations 和可执行 test_command。接下来我会抽查 package 脚本、mock-local 测试和验证矩阵，确认 FR 覆盖与 release 边界没有写歪。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$json = Get-Content -Raw task.json | ConvertFrom-Json; $json.tasks | Where-Object { $_.id -in @('"'MOCK-FIRST-001','RELEASE-001') } | ConvertTo-Json -Depth 20" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg --files tests/mock-local tests | rg "mock-local|object-storage-local|mock"' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 369ms:
+[
+  {
+    "id": "MOCK-FIRST-001",
+    "description": "执行 mock-first local/dev evidence 验证，明确其不能替代 release 或真实依赖证据",
+    "task_kind": "feature_impl",
+    "phase": "mock-first",
+    "gate_profile": "spec_required",
+    "required_truth_sources": [
+      "product",
+      "architecture",
+      "contract",
+      "testing"
+    ],
+    "priority": 88,
+    "dependencies": [
+      "SAMPLE-PURCHASE-ORDER-001"
+    ],
+    "passes": false,
+    "architecture_constraints": [
+      "delivery_shape=independent_microservice",
+      "mock-first 只能产出 local/dev evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",
+      "mock-first 验证必须保持生产入口和生产路径架构检查可执行，不得引入生产代码测试替身",
+      "真实依赖缺失时 RELEASE-001 必须继续保持 passes:false 或 BLOCKED"
+    ],
+    "forbidden_implementations": [
+      "禁止把 mock-first local/dev evidence 写成 RELEASE-001 PASS 证据",
+      "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 live OSS/S3 或真实 MySQL 证据",
+      "禁止修改 RELEASE-001 为 passes:true",
+      "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+    ],
+    "context_files": [
+      "docs/product/acceptance-criteria.md",
+      "docs/architecture/constraints.md",
+      "contracts/openapi.yaml",
+      "docs/testing/mock-first-release-plan.md",
+      "docs/testing/verify-matrix.md",
+      "task.json"
+    ],
+    "owned_paths": [
+      "package.json",
+      "tests/mock-local/",
+      "docs/testing/mock-first-release-plan.md",
+      "docs/testing/verify-matrix.md",
+      "task.json"
+    ],
+    "requirement_ids": [
+      "FR-001",
+      "FR-002",
+      "FR-003",
+      "FR-004",
+      "FR-005",
+      "FR-006",
+      "FR-007",
+      "FR-008",
+      "FR-009",
+      "FR-010",
+      "FR-011",
+      "FR-012",
+      "FR-013",
+      "FR-014"
+    ],
+    "produces_artifacts": [
+      "tests/mock-local/",
+      "docs/testing/mock-first-release-plan.md",
+      "docs/testing/verify-matrix.md"
+    ],
+    "execution": {
+      "mode": "single"
+    },
+    "steps": [
+      "使用 mock-first 本地链路执行 arch check、mock-local、基础单测和 scoped diff 检查，收集 local/dev evidence",
+      "覆盖 FR-001 至 FR-014 在 mock-first 场景下的联调路径、失败态演练和本地对象存储协议链路，但不连接真实 MySQL 或 live object storage",
+      "把 mock-first 结果明确标记为 local/dev evidence，并记录其不能推动 RELEASE-001 PASS 或替代 live OSS/S3、真实 MySQL 证据"
+    ],
+    "test_command": "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
+    "acceptance": [
+      "FR-001 至 FR-014 均有 mock-first local/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",
+      "mock-first evidence 不得写成 live OSS/S3、真实 MySQL 或正式 release evidence",
+      "若真实依赖缺失，RELEASE-001 仍保持 passes:false，且只能继续标记为 BLOCKED 或待真实环境验证"
+    ]
+  },
+  {
+    "id": "RELEASE-001",
+    "description": "执行 fresh-start 微服务实现的 release 验证、回归与证据收口",
+    "task_kind": "release",
+    "phase": "verify",
+    "gate_profile": "release_required",
+    "required_truth_sources": [
+      "product",
+      "architecture",
+      "contract",
+      "testing"
+    ],
+    "priority": 90,
+    "dependencies": [
+      "SAMPLE-PURCHASE-ORDER-001",
+      "MOCK-FIRST-001"
+    ],
+    "passes": false,
+    "context_files": [
+      "docs/product/acceptance-criteria.md",
+      "docs/architecture/constraints.md",
+      "docs/testing/verify-matrix.md",
+      "contracts/openapi.yaml",
+      "task.json"
+    ],
+    "owned_paths": [
+      "docs/testing/",
+      "traces/"
+    ],
+    "requirement_ids": [
+      "FR-001",
+      "FR-002",
+      "FR-003",
+      "FR-004",
+      "FR-005",
+      "FR-006",
+      "FR-007",
+      "FR-008",
+      "FR-009",
+      "FR-010",
+      "FR-011",
+      "FR-012",
+      "FR-013",
+      "FR-014"
+    ],
+    "produces_artifacts": [
+      "docs/testing/verify-matrix.md",
+      "traces/"
+    ],
+    "execution": {
+      "mode": "single"
+    },
+    "steps": [
+      "运行 release 所需的架构检查、契约测试、API 集成测试、DB/worker 测试和 P0/P1 回归",
+      "核对所有 evidence 是否来自 fresh-start 后的新实现，不引用旧内存实现或旧 trace",
+      "记录通过证据、失败归因、BLOCKED 项和剩余风险"
+    ],
+    "test_command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
+    "acceptance": [
+      "fresh evidence 覆盖 FR-001 至 FR-014，或有明确 BLOCKED 说明",
+      "release 结论不引用旧实现、旧测试或旧 trace",
+      "架构约束、API、DB、worker、file、sample 证据一致"
+    ]
+  }
+]
+
+ succeeded in 362ms:
+# 验证矩阵
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**当前基线**: 2026-05-14 fresh-start
+
+> 本矩阵从无实现、无旧运行证据的状态重新开始。当前仓库只保留产品真相源、架构约束、OpenAPI 契约和计划文档；不再承认此前内存 service、Vitest 单测或旧 trace 为生产实现证据。
+
+## 当前状态
+
+| 检查项 | 关联需求 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- |
+| 产品真相源 | FR-001 - FR-014 | available | `docs/product/` |
+| 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
+| 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
+| STACK-ADR-001 设计基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design-baseline / implemented-by-release | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
+| 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / route-handler-service-db wired | `src/server.ts`、`src/routes/route-manifest.ts`、`src/task-api/service.ts`、`src/registry-config/service.ts`、`src/audit-log/service.ts`、`tests/api/export-http-api.test.mjs` |
+| MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+| 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / requires-real-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+| scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / requires-real-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+| query executor | FR-006 / FR-008 / FR-009 / FR-014 | production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入`，不得把 file/sample 口径写成已通过 |
+| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | file-service production-path wired / cleanup job production entry + poll-once wired / requires-real-mysql；`npm run test:file` 同时覆盖生产等价 object-storage adapter 失败态与本地 HTTP server 驱动的 env-backed adapter，证明 `createObjectStorageFromEnv()` 可完成 put/read/publish/download URL 协议链路，但不宣称 live OSS/S3 release evidence；环境变量缺失时 `createObjectStorageFromEnv()` 仍必须 `BLOCKED - 需要人工介入` | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`src/scheduler/worker.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker` |
+| purchase-order sample | FR-014 | executable sample contract / requires-real-mysql；`npm run test:sample` 通过公开 registry/task/download service + worker + production-equivalent object-storage adapter 串联样板证据，不宣称 live OSS/S3 release evidence | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample`；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`；若要声明真实对象存储已验证，必须改用环境驱动对象存储并在不可达时 BLOCKED |
+| API / DB / worker 集成测试 | FR-001 - FR-014 | available / requires-real-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+| 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+
+## 计划验证入口
+
+| 阶段 | 命令 / 证据 | 最低要求 |
+| --- | --- | --- |
+| 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
+| 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+| 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
+| 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
+| 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
+| API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
+| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
+| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
+| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
+| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
+
+## RELEASE-001 fresh release evidence snapshot（2026-05-15）
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成历史通过记录 |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，DB 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，worker 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，query executor 验证本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
+| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
+| Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。该项不能用历史 adapter/local HTTP 结果替代当前 release evidence |
+| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+
+> 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史通过记录只能作为旧证据保留，不能写成当前 fully passed。mock-first 只用于本地开发、联调和失败态演练，详情见 `docs/testing/mock-first-release-plan.md`，它不能替代 release gate。
+
+## Requirement 验证入口
+
+| Req ID | 后续验证类型 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- |
+| FR-001 | contract / API / DB | HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+| FR-004 | contract / API / DB | HTTP list handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-005 | DB / worker | DB lease repository and worker polling available / requires-real-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed HTTP adapter 的发布与下载 URL 流程，`npm run test:sample` 覆盖默认批次 10 万行不丢批次；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+| FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / requires-real-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-008 | query / DB / security | query executor production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+| FR-009 | API / query / security | API auth context consumed / query executor production-path wired + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；真实依赖不可用时记录 `BLOCKED - 需要人工介入`，adapter 级对象存储证据不得写成 live release 已验证 |
+| FR-010 | audit / API / worker | API and worker audit writes wired / requires-real-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / requires-real-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+| STACK-ADR-001 | design-baseline / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+
+## STACK-ADR-001 验证细则
+
+`scripts/arch-check.ts` / `npm run arch:check` 的最低检查项、适用范围和状态如下：
+
+| 项目 | 内容 |
+| --- | --- |
+| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+| 适用范围 | 后续 `feature_impl` 的固定架构门禁；适用于脚手架、实现、worker、db、file 和 sample 相关任务 |
+| 当前状态 | available / DB repository boundary added |
+| 证据路径 | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+| 备注 | `npm run arch:check` 不能被 `git diff --check`、OpenAPI lint、单测或人工检查替代 |
+
+## 最终规则
+
+- `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。
+- `feature_impl` 任务不得只以“契约存在”或“契约 lint 通过”作为完成证据；还必须满足 handler、repository / adapter、worker、file、DB 和测试的生产路径证据要求。
+- 每个实现任务必须从 `docs/architecture/constraints.md` 复制 `architecture_constraints` 和 `forbidden_implementations`。
+- 没有真实依赖时必须记录 `BLOCKED - 需要人工介入`，不得用测试替身绕过。
+- `STACK-ADR-001` 当前是 design-baseline；后续 `feature_impl` 不得只靠文档和 `git diff --check` 通过，必须先具备 `npm run arch:check` 所需的入口、路由映射和 migration 证据。
+
+
+ succeeded in 404ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs"
+  }
+}
+
+
+ succeeded in 424ms:
+tests/mock-local\object-storage-local.test.mjs
+tests/mock-local\mock-first-contract.test.mjs
+tests\mock-local\mock-first-contract.test.mjs
+tests\mock-local\object-storage-local.test.mjs
+
+codex
+验证矩阵明确把 mock-first 限定为 local/dev，并把 RELEASE-001 继续标成 BLOCKED；这和任务验收方向一致。我还需要看 mock-local 测试实际断言，避免文档写对但测试没有覆盖 FR 映射或边界措辞。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw tests/mock-local/mock-first-contract.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw tests/mock-local/object-storage-local.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "InMemory|mock|fixture|local-only|fake|RELEASE-001|PASS|BLOCKED|live OSS|live object|S3|真实 MySQL|local/dev evidence" src tests docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw scripts/arch-check.ts' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 343ms:
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import http from "node:http";
+import test from "node:test";
+import { createObjectStorageFromEnv } from "../../src/file-service/index.ts";
+
+test("local/dev object storage smoke exercises env-backed adapter without live OSS evidence", async (t) => {
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+
+  await withObjectStorageEnv(objectStorageServer, async () => {
+    const storage = createObjectStorageFromEnv();
+    const body = Buffer.from("mock-first local object storage evidence");
+    const tempStorageKey = "local-dev/tmp/purchase-orders.xlsx";
+    const publishedStorageKey = "local-dev/published/purchase-orders.xlsx";
+
+    await storage.putObject({
+      storageKey: tempStorageKey,
+      body,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    assert.deepEqual(await storage.readObject(tempStorageKey), body);
+
+    await storage.publishObject({ tempStorageKey, publishedStorageKey });
+    assert.deepEqual(await storage.readObject(publishedStorageKey), body);
+
+    const downloadUrl = await storage.createDownloadUrl(
+      publishedStorageKey,
+      new Date("2026-05-15T00:00:00.000Z")
+    );
+    const downloadResponse = await fetch(downloadUrl);
+
+    assert.equal(downloadResponse.status, 200);
+    assert.deepEqual(Buffer.from(await downloadResponse.arrayBuffer()), body);
+    assert.equal(objectStorageServer.requests.length, 5);
+    assert.deepEqual(
+      objectStorageServer.requests.map((request) => `${request.method} ${request.storageKey}`),
+      [
+        `PUT ${tempStorageKey}`,
+        `GET ${tempStorageKey}`,
+        `PUT ${publishedStorageKey}`,
+        `GET ${publishedStorageKey}`,
+        `GET ${publishedStorageKey}`
+      ]
+    );
+    assert.equal(
+      objectStorageServer.requests[2].copySource,
+      `${objectStorageServer.bucket}/${tempStorageKey}`
+    );
+  });
+});
+
+test("local/dev object storage smoke keeps live object storage preflight blocked without env", () => {
+  const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+
+  delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+
+  try {
+    assert.throws(
+      () => createObjectStorageFromEnv(),
+      /BLOCKED - 需要人工介入: object storage/
+    );
+  } finally {
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT", originalEndpoint);
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", originalBucket);
+  }
+});
+
+async function createLocalObjectStorageServer(t, options = {}) {
+  const bucket = options.bucket ?? "export-platform-local-dev";
+  const objects = new Map();
+  const requests = [];
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const requestBucket = pathSegments.shift();
+    const storageKey = decodeStorageKey(pathSegments);
+
+    if (requestBucket !== bucket || !storageKey) {
+      response.statusCode = 404;
+      response.end("not found");
+      return;
+    }
+
+    const copySource = request.headers["x-export-copy-source"];
+    requests.push({
+      method: request.method ?? "GET",
+      storageKey,
+      copySource: typeof copySource === "string" ? copySource : null
+    });
+
+    if (request.method === "PUT") {
+      if (typeof copySource === "string") {
+        const [sourceBucket, ...sourceKeySegments] = copySource.split("/");
+        const sourceStorageKey = sourceKeySegments.join("/");
+        if (sourceBucket !== bucket || !objects.has(sourceStorageKey)) {
+          response.statusCode = 404;
+          response.end("missing source object");
+          return;
+        }
+        objects.set(storageKey, Buffer.from(objects.get(sourceStorageKey)));
+        response.statusCode = 201;
+        response.end("copied");
+        return;
+      }
+
+      objects.set(storageKey, await readRequestBody(request));
+      response.statusCode = 201;
+      response.end("stored");
+      return;
+    }
+
+    if (request.method === "GET") {
+      const body = objects.get(storageKey);
+      if (!body) {
+        response.statusCode = 404;
+        response.end("missing object");
+        return;
+      }
+
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/octet-stream");
+      response.end(body);
+      return;
+    }
+
+    response.statusCode = 405;
+    response.end("method not allowed");
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  t.after(
+    () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      })
+  );
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("failed to resolve local object storage server address");
+  }
+
+  return {
+    bucket,
+    endpoint: `http://127.0.0.1:${address.port}`,
+    objects,
+    requests
+  };
+}
+
+async function readRequestBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+function decodeStorageKey(segments) {
+  return segments.map((segment) => decodeURIComponent(segment)).join("/");
+}
+
+async function withObjectStorageEnv(config, callback) {
+  const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
+
+  try {
+    return await callback();
+  } finally {
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT", originalEndpoint);
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", originalBucket);
+  }
+}
+
+function restoreEnv(name, value) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}
+
+
+ succeeded in 420ms:
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const packageJson = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+);
+const mockFirstPlan = readFileSync(
+  new URL("../../docs/testing/mock-first-release-plan.md", import.meta.url),
+  "utf8"
+);
+const verifyMatrix = readFileSync(
+  new URL("../../docs/testing/verify-matrix.md", import.meta.url),
+  "utf8"
+);
+
+test("mock-first has a dedicated local/dev test command that cannot be used as release evidence", () => {
+  assert.equal(
+    packageJson.scripts?.["test:mock-local"],
+    "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs"
+  );
+  assert.match(mockFirstPlan, /^# MOCK-FIRST RELEASE 计划/m);
+  assert.match(mockFirstPlan, /## mock-first 的边界/);
+  assert.match(mockFirstPlan, /local\/dev evidence/);
+  assert.match(mockFirstPlan, /不得作为 `RELEASE-001` PASS 证据/);
+  assert.match(verifyMatrix, /mock-first 说明见 `docs\/testing\/mock-first-release-plan\.md`，但它不是 release gate/);
+});
+
+test("mock-first plan maps every FR to local/dev evidence without upgrading release status", () => {
+  const expectedRequirements = Array.from({ length: 14 }, (_, index) => `FR-${String(index + 1).padStart(3, "0")}`);
+
+  assert.equal(countMockFirstRows(mockFirstPlan), expectedRequirements.length);
+
+  for (let index = 1; index <= 14; index += 1) {
+    const requirementId = `FR-${String(index).padStart(3, "0")}`;
+    const row = getMockFirstRow(mockFirstPlan, requirementId);
+    assert.ok(row, `${requirementId} row must exist in mock-first plan`);
+    assert.match(row, /local\/dev evidence/u, `${requirementId} must be local/dev evidence only`);
+    assert.match(row, /失败态/u, `${requirementId} must include a failure-mode boundary`);
+    assert.match(
+      row,
+      /(?:不是|不得替代) `?release evidence`?/iu,
+      `${requirementId} must not be upgraded to release evidence`
+    );
+  }
+
+  assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /本地 HTTP object storage adapter/u);
+  assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /live OSS\/S3/u);
+  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /scheduler \/ worker/u);
+  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /真实 MySQL/u);
+
+  assert.match(
+    verifyMatrix,
+    /mock-first local\/dev evidence 映射[\s\S]*FR-001 - FR-014[\s\S]*不是 RELEASE-001 PASS 证据/u
+  );
+  assert.match(
+    verifyMatrix,
+    /不能替代 API \/ DB \/ worker \/ query \/ file \/ sample 或 live OSS\/S3 release gate/u
+  );
+  assert.match(verifyMatrix, /release 结论必须保持 BLOCKED/u);
+});
+
+function getMockFirstRow(markdown, requirementId) {
+  const row = markdown
+    .split(/\r?\n/u)
+    .find((line) => line.startsWith(`| ${requirementId} |`));
+
+  return row ?? "";
+}
+
+function countMockFirstRows(markdown) {
+  return markdown
+    .split(/\r?\n/u)
+    .filter((line) => /^\| FR-\d{3} \|/u.test(line))
+    .length;
+}
+
+
+ succeeded in 351ms:
+docs/testing/mock-first-release-plan.md:4:**任务**: RELEASE-001
+docs/testing/mock-first-release-plan.md:5:**状态**: BLOCKED
+docs/testing/mock-first-release-plan.md:6:**最新 trace**: `traces/RELEASE-001-20260515-070412.json`
+docs/testing/mock-first-release-plan.md:7:**session**: `traces/RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344/`
+docs/testing/mock-first-release-plan.md:11:- `RELEASE-001` 当前最新状态是 `BLOCKED`。
+docs/testing/mock-first-release-plan.md:14:- live object storage 仍需要真实 endpoint、bucket、credential，以及 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+docs/testing/mock-first-release-plan.md:16:## mock-first 的边界
+docs/testing/mock-first-release-plan.md:18:- mock-first 只用于本地开发、联调和失败态演练。
+docs/testing/mock-first-release-plan.md:19:- mock-first 可以使用本地 HTTP object storage adapter、fixture seed、受控 fake 外部数据源。
+docs/testing/mock-first-release-plan.md:20:- mock-first 不得作为 `RELEASE-001` PASS 证据。
+docs/testing/mock-first-release-plan.md:21:- mock-first 不得替代 live OSS/S3 证据。
+docs/testing/mock-first-release-plan.md:22:- mock-first 不得替代真实 MySQL 证据。
+docs/testing/mock-first-release-plan.md:23:- mock-first 不得作为 `FR-001` 到 `FR-014` 的 release evidence。
+docs/testing/mock-first-release-plan.md:25:## mock-first local/dev evidence 映射
+docs/testing/mock-first-release-plan.md:27:| Req ID | local/dev evidence | 失败态演练 | Release 边界 |
+docs/testing/mock-first-release-plan.md:29:| FR-001 | local/dev evidence: `npm run test:mock-local` 只确认创建任务契约、幂等字段、注册态映射和 mock-first 命令入口可被本地验证引用。 | 失败态: 未注册、禁用、权限不足和参数过长仍以 API / DB 集成测试接真实 MySQL 后确认。 | 不是 release evidence；不得替代 `npm run test:api`、`npm run test:db` 和真实 MySQL 证据。 |
+docs/testing/mock-first-release-plan.md:30:| FR-002 | local/dev evidence: `npm run test:mock-local` 只确认进度字段、错误字段、详情可见性口径和本地文档映射被纳入 mock-first 证据集合。 | 失败态: 不存在任务、无权查看和失败详情仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+docs/testing/mock-first-release-plan.md:31:| FR-003 | local/dev evidence: `tests/mock-local/object-storage-local.test.mjs` 使用本地 HTTP object storage adapter 覆盖 put/read/publish/download URL 协议链路，并保留临时对象到发布对象的路径描述。 | 失败态: 缺少对象存储 endpoint / bucket 时 `createObjectStorageFromEnv()` 明确 BLOCKED。 | 不是 release evidence；不得替代 live OSS/S3、真实下载证据或 release gate。 |
+docs/testing/mock-first-release-plan.md:32:| FR-004 | local/dev evidence: `npm run test:mock-local` 只确认历史查询筛选口径、权限可见性和分页边界被纳入 mock-first 映射。 | 失败态: 普通用户越权、管理员全局查询和空分页仍需 API / DB 集成测试确认。 | 不是 release evidence；不得替代 `npm run test:api` 和真实 MySQL 证据。 |
+docs/testing/mock-first-release-plan.md:33:| FR-005 | local/dev evidence: `npm run arch:check` 与 mock-first 映射只确认 scheduler / worker / migration 入口存在，并记录本地调度联调入口。 | 失败态: 多实例抢锁、并发上限和数据库时间租约仍需 `npm run test:worker` 接真实 MySQL。 | 不是 release evidence；不得替代 DB 抢锁和 worker release 证据。 |
+docs/testing/mock-first-release-plan.md:34:| FR-006 | local/dev evidence: mock-first 只记录分片、ZIP、空数据、阶段事件和文件发布链路的本地联调入口；本地对象存储协议链路由 `tests/mock-local/object-storage-local.test.mjs` 覆盖。 | 失败态: 渲染失败、字段校验失败和超量导出仍需 file / sample 集成测试确认。 | 不是 release evidence；不得替代真实 MySQL、文件服务或 live object storage 证据。 |
+docs/testing/mock-first-release-plan.md:35:| FR-007 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认 registry/config API 入口、启停语义和契约追踪存在。 | 失败态: 重复 taskCode、禁用配置、配置同步失败和无权限操作仍需 API / DB 集成测试。 | 不是 release evidence；不得替代 registry 生产 repository 证据。 |
+docs/testing/mock-first-release-plan.md:36:| FR-008 | local/dev evidence: mock-first 只确认集中查询模板、参数 schema、字段映射、脱敏策略和只读数据源约束在本地证据集合中有入口。 | 失败态: 非法模板、未声明参数、原始 SQL、数据源不可用和字段映射错误仍需 query 集成测试。 | 不是 release evidence；不得替代真实 MySQL 或外部只读数据源证据。 |
+docs/testing/mock-first-release-plan.md:37:| FR-009 | local/dev evidence: mock-first 只确认认证上下文、权限、数据范围和脱敏风险被纳入本地联调清单；下载协议可由本地对象存储 adapter 演练。 | 失败态: 权限不足、认证字段缺失、下载拒绝和脱敏失败仍需 API / query / file 集成测试。 | 不是 release evidence；不得替代真实权限、数据范围或 live storage 证据。 |
+docs/testing/mock-first-release-plan.md:38:| FR-010 | local/dev evidence: `npm run arch:check` 和 mock-first 映射只确认审计日志、事件日志、requestId 串联和失败阶段字段入口存在。 | 失败态: 审计缺字段、事件缺失、失败阶段和上一成功阶段仍需 API / worker / DB 集成测试。 | 不是 release evidence；不得替代真实审计表和任务事件证据。 |
+docs/testing/mock-first-release-plan.md:39:| FR-011 | local/dev evidence: mock-first 使用本地对象存储协议链路确认对象操作接口可演练，cleanup job 入口由 `npm run arch:check` 确认。 | 失败态: 先标记不可下载再删对象、删除失败重试和 410 失效仍需 file / worker 集成测试。 | 不是 release evidence；不得替代 cleanup job、真实 MySQL 或 live OSS/S3 证据。 |
+docs/testing/mock-first-release-plan.md:40:| FR-012 | local/dev evidence: mock-first 只确认取消 / 重试 API 入口、状态机风险、attemptNo 语义和验证入口被映射。 | 失败态: PENDING 取消、FAILED 重试、EXECUTING 批次边界取消和非法状态重试仍需 API / worker 集成测试。 | 不是 release evidence；不得替代真实任务状态机和 worker 证据。 |
+docs/testing/mock-first-release-plan.md:41:| FR-013 | local/dev evidence: mock-first 只确认幂等、attemptNo、配置快照、锁租约字段和追踪入口被映射。 | 失败态: 幂等冲突、锁过期接管、续租和 FAILED 重试递增 attemptNo 仍需 DB / worker 集成测试。 | 不是 release evidence；不得替代真实 MySQL 锁租约和快照证据。 |
+docs/testing/mock-first-release-plan.md:42:| FR-014 | local/dev evidence: mock-first 只确认采购订单样板契约、查询字段、脱敏字段、边界数据和本地对象存储协议链路入口存在。 | 失败态: 0/1/20000/20001/100000/100001 行、敏感字段未脱敏和游标异常仍需 sample 集成测试。 | 不是 release evidence；不得替代真实 MySQL、sample 压测或 live OSS/S3 证据。 |
+docs/testing/mock-first-release-plan.md:46:- 补齐真实 MySQL 和 live object storage 环境。
+docs/testing/mock-first-release-plan.md:47:- 不能将 mock-first 结果回写为 `RELEASE-001 PASS`，也不能把 local/dev evidence 当成 release evidence。
+docs/testing/mock-first-release-plan.md:50:- 只有真实环境下的 release evidence 才能推动 `RELEASE-001` 退出 `BLOCKED`。
+docs/testing/mock-first-release-plan.md:54:- mock-first 证据只能标记为 `local/dev evidence`。
+docs/testing/mock-first-release-plan.md:55:- mock-first 证据只能用于说明本地链路、联调用例和失败态，不可覆盖 release gate。
+docs/testing/mock-first-release-plan.md:56:- mock-first 证据可以作为 FR-001 到 FR-014 的映射索引，但不能替代 API / DB / worker / query / file / sample 集成证据。
+docs/testing/mock-first-release-plan.md:57:- 若真实依赖缺失，仍必须保留 `BLOCKED - 需要人工介入`。
+docs/testing/verify-matrix.md:21:| query executor | FR-006 / FR-008 / FR-009 / FR-014 | production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入`，不得把 file/sample 口径写成已通过 |
+docs/testing/verify-matrix.md:22:| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | file-service production-path wired / cleanup job production entry + poll-once wired / requires-real-mysql；`npm run test:file` 同时覆盖生产等价 object-storage adapter 失败态与本地 HTTP server 驱动的 env-backed adapter，证明 `createObjectStorageFromEnv()` 可完成 put/read/publish/download URL 协议链路，但不宣称 live OSS/S3 release evidence；环境变量缺失时 `createObjectStorageFromEnv()` 仍必须 `BLOCKED - 需要人工介入` | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`src/scheduler/worker.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker` |
+docs/testing/verify-matrix.md:23:| purchase-order sample | FR-014 | executable sample contract / requires-real-mysql；`npm run test:sample` 通过公开 registry/task/download service + worker + production-equivalent object-storage adapter 串联样板证据，不宣称 live OSS/S3 release evidence | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample`；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`；若要声明真实对象存储已验证，必须改用环境驱动对象存储并在不可达时 BLOCKED |
+docs/testing/verify-matrix.md:36:| API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接真实 MySQL；MySQL 不可达时明确 BLOCKED |
+docs/testing/verify-matrix.md:37:| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+docs/testing/verify-matrix.md:38:| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接真实 MySQL；未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时明确 BLOCKED |
+docs/testing/verify-matrix.md:39:| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接真实 MySQL；外部数据源不可达时明确 BLOCKED |
+docs/testing/verify-matrix.md:40:| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
+docs/testing/verify-matrix.md:41:| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
+docs/testing/verify-matrix.md:42:| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
+docs/testing/verify-matrix.md:43:| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
+docs/testing/verify-matrix.md:45:## RELEASE-001 fresh release evidence snapshot（2026-05-15）
+docs/testing/verify-matrix.md:49:| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成历史通过记录 |
+docs/testing/verify-matrix.md:53:| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
+docs/testing/verify-matrix.md:54:| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
+docs/testing/verify-matrix.md:55:| Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。该项不能用历史 adapter/local HTTP 结果替代当前 release evidence |
+docs/testing/verify-matrix.md:56:| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+docs/testing/verify-matrix.md:58:> 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史通过记录只能作为旧证据保留，不能写成当前 fully passed。mock-first 只用于本地开发、联调和失败态演练，详情见 `docs/testing/mock-first-release-plan.md`，它不能替代 release gate。
+docs/testing/verify-matrix.md:66:| FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:69:| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed HTTP adapter 的发布与下载 URL 流程，`npm run test:sample` 覆盖默认批次 10 万行不丢批次；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+docs/testing/verify-matrix.md:71:| FR-008 | query / DB / security | query executor production-path wired / requires-real-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；真实 MySQL 或外部数据源不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:72:| FR-009 | API / query / security | API auth context consumed / query executor production-path wired + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；真实依赖不可用时记录 `BLOCKED - 需要人工介入`，adapter 级对象存储证据不得写成 live release 已验证 |
+docs/testing/verify-matrix.md:74:| FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:77:| FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；真实 MySQL 不可用时记录 `BLOCKED - 需要人工介入`，对象存储 adapter 证据不得冒充 live release evidence |
+docs/testing/verify-matrix.md:86:| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+docs/testing/verify-matrix.md:94:- `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。
+docs/testing/verify-matrix.md:97:- 没有真实依赖时必须记录 `BLOCKED - 需要人工介入`，不得用测试替身绕过。
+tests\arch-check.test.mjs:151:    EXPORT_PLATFORM_MYSQL_PASSWORD: "secret",
+tests\arch-check.test.mjs:241:        return "export class InMemoryRepository {}";
+src\cleanup-job\index.ts:141:      "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for cleanup."
+src\config\env.ts:93:    password: env.EXPORT_PLATFORM_MYSQL_PASSWORD ?? "",
+tests\api\export-http-api.test.mjs:22:      "BLOCKED - 需要人工介入: tests/api requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\file\export-file-service.test.mjs:31:      "BLOCKED - 需要人工介入: tests/file requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\file\export-file-service.test.mjs:76:      /BLOCKED - 需要人工介入: object storage/
+tests\worker\scheduler-worker.test.mjs:28:      "BLOCKED - 需要人工介入: tests/worker requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\file\README.md:5:`npm run test:file` 必须连接 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的真实 MySQL。
+tests\file\README.md:10:这两类证据都不能宣称 live OSS/S3 已验证；release gate 只能证明生产 adapter 的 HTTP 协议路径已打通。
+tests\file\README.md:11:若环境驱动对象存储配置缺失，`createObjectStorageFromEnv()` 仍必须明确输出 `BLOCKED - 需要人工介入`，不得用 mock 或内存对象存储冒充 release 证据。
+tests\query\README.md:3:查询执行器的真实 MySQL 集成测试目录。
+tests\query\README.md:5:`npm run test:query` 必须连接 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的真实 MySQL。
+tests\query\README.md:6:未设置时测试必须明确输出 `BLOCKED - 需要人工介入`，不得改用 mock、内存库或 planned 占位作为验收证据。
+tests\db\export-repositories.test.mjs:22:      "BLOCKED - 需要人工介入: tests/db requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\query\query-executor.test.mjs:23:      "BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\db\README.md:5:`npm run test:db` 必须连接真实 MySQL。设置 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+tests\db\README.md:6:后运行；未设置时测试会明确输出 `BLOCKED - 需要人工介入`，不得改用内存库替代。
+tests\sample\README.md:5:`npm run test:sample` 必须连接 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的真实 MySQL。
+tests\sample\README.md:6:样板文件发布在本目录内使用注入的“生产等价 object-storage adapter”完成集成验证，用于证明 registry/query/file/audit/download 链路可执行；这不是 live OSS/S3 release 证据。
+tests\sample\README.md:7:若要声明真实对象存储已验证，必须改用环境驱动的 `createObjectStorageFromEnv()` 并在依赖不可达时明确输出 `BLOCKED - 需要人工介入`。
+tests\sample\purchase-order-sample.test.mjs:44:      "BLOCKED - 需要人工介入: tests/sample requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+tests\sample\purchase-order-sample.test.mjs:386:serialTest("sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent", () => {
+tests\sample\purchase-order-sample.test.mjs:396:      /BLOCKED - 需要人工介入: object storage/
+tests\mock-local\object-storage-local.test.mjs:7:test("local/dev object storage smoke exercises env-backed adapter without live OSS evidence", async (t) => {
+tests\mock-local\object-storage-local.test.mjs:12:    const body = Buffer.from("mock-first local object storage evidence");
+tests\mock-local\object-storage-local.test.mjs:52:test("local/dev object storage smoke keeps live object storage preflight blocked without env", () => {
+tests\mock-local\object-storage-local.test.mjs:62:      /BLOCKED - 需要人工介入: object storage/
+tests\mock-local\mock-first-contract.test.mjs:8:const mockFirstPlan = readFileSync(
+tests\mock-local\mock-first-contract.test.mjs:9:  new URL("../../docs/testing/mock-first-release-plan.md", import.meta.url),
+tests\mock-local\mock-first-contract.test.mjs:17:test("mock-first has a dedicated local/dev test command that cannot be used as release evidence", () => {
+tests\mock-local\mock-first-contract.test.mjs:19:    packageJson.scripts?.["test:mock-local"],
+tests\mock-local\mock-first-contract.test.mjs:20:    "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs"
+tests\mock-local\mock-first-contract.test.mjs:22:  assert.match(mockFirstPlan, /^# MOCK-FIRST RELEASE 计划/m);
+tests\mock-local\mock-first-contract.test.mjs:23:  assert.match(mockFirstPlan, /## mock-first 的边界/);
+tests\mock-local\mock-first-contract.test.mjs:24:  assert.match(mockFirstPlan, /local\/dev evidence/);
+tests\mock-local\mock-first-contract.test.mjs:25:  assert.match(mockFirstPlan, /不得作为 `RELEASE-001` PASS 证据/);
+tests\mock-local\mock-first-contract.test.mjs:26:  assert.match(verifyMatrix, /mock-first 说明见 `docs\/testing\/mock-first-release-plan\.md`，但它不是 release gate/);
+tests\mock-local\mock-first-contract.test.mjs:29:test("mock-first plan maps every FR to local/dev evidence without upgrading release status", () => {
+tests\mock-local\mock-first-contract.test.mjs:32:  assert.equal(countMockFirstRows(mockFirstPlan), expectedRequirements.length);
+tests\mock-local\mock-first-contract.test.mjs:36:    const row = getMockFirstRow(mockFirstPlan, requirementId);
+tests\mock-local\mock-first-contract.test.mjs:37:    assert.ok(row, `${requirementId} row must exist in mock-first plan`);
+tests\mock-local\mock-first-contract.test.mjs:38:    assert.match(row, /local\/dev evidence/u, `${requirementId} must be local/dev evidence only`);
+tests\mock-local\mock-first-contract.test.mjs:47:  assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /本地 HTTP object storage adapter/u);
+tests\mock-local\mock-first-contract.test.mjs:48:  assert.match(getMockFirstRow(mockFirstPlan, "FR-003"), /live OSS\/S3/u);
+tests\mock-local\mock-first-contract.test.mjs:49:  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /scheduler \/ worker/u);
+tests\mock-local\mock-first-contract.test.mjs:50:  assert.match(getMockFirstRow(mockFirstPlan, "FR-005"), /真实 MySQL/u);
+tests\mock-local\mock-first-contract.test.mjs:54:    /mock-first local\/dev evidence 映射[\s\S]*FR-001 - FR-014[\s\S]*不是 RELEASE-001 PASS 证据/u
+tests\mock-local\mock-first-contract.test.mjs:58:    /不能替代 API \/ DB \/ worker \/ query \/ file \/ sample 或 live OSS\/S3 release gate/u
+tests\mock-local\mock-first-contract.test.mjs:60:  assert.match(verifyMatrix, /release 结论必须保持 BLOCKED/u);
+src\file-service\index.ts:72:      "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for file publishing."
+src\repositories\README.md:3:生产 repository 边界。后续实现必须接真实 MySQL 或等价关系型数据库，不得把本地替身作为生产路径。
+
+ succeeded in 387ms:
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { OPENAPI_OPERATION_ROUTES } from "../src/routes/route-manifest.ts";
+
+type OpenApiOperation = {
+  operationId: string;
+  method: string;
+  path: string;
+};
+
+const root = process.cwd();
+const requiredFiles = [
+  "src/server.ts",
+  "src/config/env.ts",
+  "src/workers/scheduler-worker.ts",
+  "src/jobs/cleanup-job.ts",
+  "src/routes/register-routes.ts",
+  "src/routes/route-manifest.ts",
+  "src/db/migrator.ts",
+  "src/repositories/index.ts",
+  "migrations/001_initial_export_platform_schema.sql"
+];
+
+const requiredScripts = [
+  "start",
+  "worker:scheduler",
+  "job:cleanup",
+  "arch:check",
+  "typecheck",
+  "test",
+  "test:contract",
+  "test:api",
+  "test:db",
+  "test:worker",
+  "test:query",
+  "test:file",
+  "test:sample"
+];
+
+const requiredMigrationMarkers = [
+  "export_tasks",
+  "export_task_idempotency",
+  "export_registries",
+  "export_registry_versions",
+  "export_task_leases",
+  "export_task_checkpoints",
+  "export_task_files",
+  "export_task_events",
+  "export_audit_logs"
+];
+
+const forbiddenProductionPattern = /\b(InMemory\w*|mock\w*|fixture\w*)\b/i;
+const productionScanRoots = [
+  "src/server.ts",
+  "src/routes/",
+  "src/task-api/",
+  "src/registry-config/",
+  "src/scheduler/",
+  "src/workers/",
+  "src/query-executor/",
+  "src/file-service/",
+  "src/cleanup-job/",
+  "src/jobs/",
+  "src/audit-log/",
+  "src/repositories/",
+  "src/db/"
+];
+
+function fail(message: string): never {
+  throw new Error(`Architecture check failed: ${message}`);
+}
+
+function read(relativePath: string): string {
+  return readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function requireFile(relativePath: string): void {
+  if (!existsSync(path.join(root, relativePath))) {
+    fail(`missing required file ${relativePath}`);
+  }
+}
+
+function collectTypeScriptFiles(relativePath: string): string[] {
+  const absolutePath = path.join(root, relativePath);
+  if (!existsSync(absolutePath)) {
+    return [];
+  }
+
+  const stat = statSync(absolutePath);
+  if (stat.isFile()) {
+    return relativePath.endsWith(".ts") ? [relativePath] : [];
+  }
+
+  const files: string[] = [];
+  for (const entry of readdirSync(absolutePath)) {
+    files.push(...collectTypeScriptFiles(path.join(relativePath, entry)));
+  }
+  return files;
+}
+
+function parseOpenApiOperations(openapiText: string): OpenApiOperation[] {
+  const operations: OpenApiOperation[] = [];
+  let currentPath = "";
+  let currentMethod = "";
+
+  for (const line of openapiText.split(/\r?\n/)) {
+    const pathMatch = line.match(/^  (\/[^:]+):\s*$/);
+    if (pathMatch) {
+      currentPath = pathMatch[1];
+      currentMethod = "";
+      continue;
+    }
+
+    const methodMatch = line.match(/^    (get|post|put|delete|patch):\s*$/);
+    if (methodMatch) {
+      currentMethod = methodMatch[1].toUpperCase();
+      continue;
+    }
+
+    const operationMatch = line.match(/^\s+operationId:\s*([A-Za-z0-9_]+)\s*$/);
+    if (operationMatch && currentPath && currentMethod) {
+      operations.push({
+        operationId: operationMatch[1],
+        method: currentMethod,
+        path: `/api${currentPath}`
+      });
+    }
+  }
+
+  return operations;
+}
+
+function checkPackageScripts(): void {
+  const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+  for (const script of requiredScripts) {
+    if (!packageJson.scripts?.[script]) {
+      fail(`package.json missing script ${script}`);
+    }
+  }
+}
+
+function checkRequiredFiles(): void {
+  for (const relativePath of requiredFiles) {
+    requireFile(relativePath);
+  }
+}
+
+function checkNoForbiddenProductionReferences(): void {
+  const productionFiles = productionScanRoots.flatMap((scanRoot) =>
+    collectTypeScriptFiles(scanRoot)
+  );
+
+  checkFilesForForbiddenProductionReferences(productionFiles, read);
+}
+
+function checkFilesForForbiddenProductionReferences(
+  relativePaths: string[],
+  readFile: (relativePath: string) => string
+): void {
+  for (const relativePath of relativePaths) {
+    const content = readFile(relativePath);
+    if (forbiddenProductionPattern.test(content)) {
+      fail(`${relativePath} references forbidden test double terminology`);
+    }
+  }
+}
+
+function checkOpenApiRouteMapping(): void {
+  const operations = parseOpenApiOperations(read("contracts/openapi.yaml"));
+  if (operations.length === 0) {
+    fail("contracts/openapi.yaml exposes no operationId entries");
+  }
+
+  const routesByOperation = new Map(
+    OPENAPI_OPERATION_ROUTES.map((route) => [route.operationId, route])
+  );
+
+  for (const operation of operations) {
+    const route = routesByOperation.get(operation.operationId);
+    if (!route) {
+      fail(`missing route mapping for operationId ${operation.operationId}`);
+    }
+    if (route.method !== operation.method || route.path !== operation.path) {
+      fail(
+        `${operation.operationId} route mismatch: expected ${operation.method} ${operation.path}, got ${route.method} ${route.path}`
+      );
+    }
+    requireFile(route.handlerPath);
+    if (route.tests.length === 0) {
+      fail(`${operation.operationId} has no test mapping`);
+    }
+    for (const testPath of route.tests) {
+      requireFile(testPath);
+    }
+  }
+}
+
+function checkMigrationCoverage(): void {
+  const migration = collectMigrationSql().toLowerCase();
+  for (const marker of requiredMigrationMarkers) {
+    if (!migration.includes(marker)) {
+      fail(`migration missing marker ${marker}`);
+    }
+  }
+}
+
+function checkSqlMigrationSyntaxGuards(migrationSql: string): void {
+  if (/,\s*\);/m.test(migrationSql)) {
+    fail("SQL migration contains a dangling comma before table close");
+  }
+}
+
+function checkSqlMigrationSyntax(): void {
+  checkSqlMigrationSyntaxGuards(collectMigrationSql());
+}
+
+function collectMigrationSql(): string {
+  const migrationDir = path.join(root, "migrations");
+  return readdirSync(migrationDir)
+    .filter((fileName) => fileName.endsWith(".sql"))
+    .sort()
+    .map((fileName) => read(path.join("migrations", fileName)))
+    .join("\n");
+}
+
+function getExpectedDatabaseTableNames(): string[] {
+  return [...requiredMigrationMarkers];
+}
+
+function getProductionScanRoots(): string[] {
+  return [...productionScanRoots];
+}
+
+function main(): void {
+  checkRequiredFiles();
+  checkPackageScripts();
+  checkOpenApiRouteMapping();
+  checkNoForbiddenProductionReferences();
+  checkMigrationCoverage();
+  checkSqlMigrationSyntax();
+
+  console.log("Architecture check passed.");
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}
+
+export {
+  checkMigrationCoverage,
+  checkFilesForForbiddenProductionReferences,
+  checkNoForbiddenProductionReferences,
+  checkOpenApiRouteMapping,
+  checkPackageScripts,
+  checkRequiredFiles,
+  checkSqlMigrationSyntaxGuards,
+  collectMigrationSql,
+  getExpectedDatabaseTableNames,
+  getProductionScanRoots,
+  parseOpenApiOperations
+};
+
+
+codex
+测试文件本身断言了 14 条 FR 都必须有 local/dev 映射、失败态边界，以及不能升级为 release evidence；对象存储测试也只跑本地 HTTP adapter，并断言缺真实配置时仍 BLOCKED。我再快速确认列出的 truth source 文件是否都存在，避免 spec_required 下遗漏真相源。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Test-Path docs/testing/EVIDENCE_PROTOCOL.md; Test-Path docs/testing/REGRESSION_PLAN.md; Test-Path docs/testing/test-data-plan.md; Test-Path docs/testing/failure-triage.md; Test-Path docs/knowledge/knowledge-catalog.md; Test-Path docs/knowledge/catalog.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "required_truth_sources|knowledge_references|knowledge_outputs|difficulty-research|MOCK-FIRST-001" docs task.json plans/features docs/knowledge' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 370ms:
+True
+True
+True
+True
+True
+True
+
+ succeeded in 384ms:
+task.json:23:                                                                          "docs/product/difficulty-research.md",
+task.json:92:                      "required_truth_sources":  [
+task.json:146:                      "required_truth_sources":  [
+task.json:202:                      "required_truth_sources":  [
+task.json:262:                      "required_truth_sources":  [
+task.json:370:                      "required_truth_sources":  [
+task.json:439:                      "required_truth_sources":  [
+task.json:516:                      "required_truth_sources":  [
+task.json:584:                      "required_truth_sources":  [
+task.json:641:                      "required_truth_sources":  [
+task.json:712:                      "required_truth_sources":  [
+task.json:780:                      "required_truth_sources":  [
+task.json:847:                      "required_truth_sources":  [
+task.json:912:                      "id":  "MOCK-FIRST-001",
+task.json:917:                      "required_truth_sources":  [
+task.json:997:                      "required_truth_sources":  [
+task.json:1006:                                           "MOCK-FIRST-001"
+docs\harness\knowledge-architecture.md:176:  "knowledge_references": [
+docs\harness\knowledge-architecture.md:186:归档任务读取 `knowledge_references` 后，可以更新 `last_referenced`、提升成熟度，或标记冲突。
+docs\harness\knowledge-import.md:77:  "required_truth_sources": ["repo_context"],
+docs\harness\architecture.md:35:- 任何复用过的项目经验都应在 trace 中留下 `knowledge_references`，避免知识只停留在对话上下文。
+docs\harness\knowledge-lint.md:78:  "required_truth_sources": ["knowledge"],
+docs\harness\prompt-knowledge-integration.md:8:- 每个输出角色都能记录 `knowledge_references` 和 `knowledge_outputs`。
+docs\harness\prompt-knowledge-integration.md:69:- `knowledge_references`
+docs\harness\prompt-knowledge-integration.md:70:- `knowledge_outputs`
+docs\harness\spec-to-ui-to-code-workflow.md:15:  -> requirement-interface-matrix + traceability-matrix + difficulty-research
+docs\harness\spec-to-ui-to-code-workflow.md:65:- [ ] `difficulty-research.md`
+docs\harness\spec-to-ui-to-code-workflow.md:138:- [ ] trace 或最终报告中的 `knowledge_references` 已被处理
+docs\product\prd-lite.md:144:- 难点研究: `docs/product/difficulty-research.md`
+docs\harness\team-knowledge-sync.md:153:  "required_truth_sources": ["knowledge"],
+docs\harness\trace-format.md:38:| `required_truth_sources` | array | 本任务必须满足的 truth source 类型 |
+docs\harness\trace-format.md:47:| `knowledge_references` | array | 当前任务读取并实际使用的知识条目 |
+docs\harness\trace-format.md:48:| `knowledge_outputs` | array | 当前任务新增、更新或建议归档的知识条目 |
+docs\testing\TRACEABILITY_MATRIX.md:13:| FR-005 | 同一子系统的执行数不超过配置值；调度采用 MySQL 轮询 + DB 抢锁；锁时间判断以数据库时间为准 | Scheduler / worker | PENDING / EXECUTING | Scheduler + DB lock 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 多实例重复执行和租约漂移风险高 |
+docs\testing\TRACEABILITY_MATRIX.md:16:| FR-008 | 注册配置必须声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式；不得执行原始 SQL | registry/config + datasource/query template | default / invalid_template / datasource_unavailable / query_execution_error / field_mapping_invalid / masking_rule_error | 集中查询契约 | contract / backend / query / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 契约漂移会直接变成越权或错误导出 |
+docs\testing\TRACEABILITY_MATRIX.md:21:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照必须形成同一条审计链路；锁租约默认 5 分钟，接管延续当前 `attemptNo`，FAILED 重试才递增 `attemptNo` | create API + Scheduler + task snapshot | default / conflict / processing / error | create API、Scheduler、snapshot 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 幂等冲突、锁接管和快照沿用是最容易漏证据的区域 |
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+
+审查结论：`MOCK-FIRST-001` 的架构约束、禁止实现、`test_command`、FR-001 至 FR-014 mock-first 映射、RELEASE-001 BLOCKED 边界均与当前 Product / Architecture / Testing truth source 一致。未发现阻塞性功能、状态、设计或架构偏差。
+tokens used
+64,540

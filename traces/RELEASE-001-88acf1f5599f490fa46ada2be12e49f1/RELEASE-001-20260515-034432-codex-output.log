@@ -1,0 +1,79 @@
+SUCCESS: The process with PID 24556 (child process of PID 24604) has been terminated.
+SUCCESS: The process with PID 24604 (child process of PID 28668) has been terminated.
+SUCCESS: The process with PID 28668 (child process of PID 22148) has been terminated.
+SUCCESS: The process with PID 22148 (child process of PID 27448) has been terminated.
+SUCCESS: The process with PID 27080 (child process of PID 23448) has been terminated.
+SUCCESS: The process with PID 23448 (child process of PID 14116) has been terminated.
+SUCCESS: The process with PID 14116 (child process of PID 24064) has been terminated.
+SUCCESS: The process with PID 24064 (child process of PID 27448) has been terminated.
+SUCCESS: The process with PID 20208 (child process of PID 19644) has been terminated.
+SUCCESS: The process with PID 19644 (child process of PID 22848) has been terminated.
+SUCCESS: The process with PID 22848 (child process of PID 24084) has been terminated.
+SUCCESS: The process with PID 24084 (child process of PID 23168) has been terminated.
+SUCCESS: The process with PID 23168 (child process of PID 27448) has been terminated.
+SUCCESS: The process with PID 5112 (child process of PID 21040) has been terminated.
+SUCCESS: The process with PID 21040 (child process of PID 26328) has been terminated.
+SUCCESS: The process with PID 26328 (child process of PID 27320) has been terminated.
+SUCCESS: The process with PID 27320 (child process of PID 9904) has been terminated.
+SUCCESS: The process with PID 9904 (child process of PID 27448) has been terminated.
+SUCCESS: The process with PID 27780 (child process of PID 14052) has been terminated.
+SUCCESS: The process with PID 14052 (child process of PID 21680) has been terminated.
+SUCCESS: The process with PID 21680 (child process of PID 20344) has been terminated.
+SUCCESS: The process with PID 20344 (child process of PID 27448) has been terminated.
+SUCCESS: The process with PID 10924 (child process of PID 360) has been terminated.
+SUCCESS: The process with PID 360 (child process of PID 3652) has been terminated.
+SUCCESS: The process with PID 3652 (child process of PID 13600) has been terminated.
+SUCCESS: The process with PID 13600 (child process of PID 27448) has been terminated.
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 已完成 `RELEASE-001` fresh release 验证。
+- 已更新 [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:42)，将 release 从 deferred 收口为 2026-05-15 fresh evidence passed。
+- release 结论只引用本轮命令输出，不引用旧内存实现、旧测试或旧 trace。
+
+## Files Changed
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:44): 新增 `RELEASE-001 fresh release evidence（2026-05-15）`，记录 API/DB/worker/query/file/sample 与契约基线验证结果。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @(...) }"`: PASS - `Verification passed.`
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`: PASS - `found 0 vulnerabilities`
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS - 3/3
+- `npm test`: PASS - 17/17
+- `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`: PASS - OpenAPI valid
+- `npm run test:api`: PASS - 2/2
+- `npm run test:db`: PASS - 3/3
+- `npm run test:worker`: PASS - 11/11
+- `npm run test:query`: PASS - 8/8
+- `npm run test:file`: PASS - 9/9
+- `npm run test:sample`: PASS - 9/9, 含 10 万行边界
+- `git diff --check -- contracts docs/testing/verify-matrix.md task.json plans src tests migrations scripts package.json package-lock.json`: PASS
+
+## Evidence
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:42): release gate fresh evidence 收口。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:52): file evidence 保持 production-equivalent adapter / env-backed local HTTP adapter 口径，不宣称 live OSS/S3。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:54): sample 覆盖 `0/1/20000/20001/100000/100001` 行边界。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `arch:check` 通过，HTTP/worker/cleanup entry 均纳入检查。
+- `real persistence boundary`: PASS - API/DB/worker/query/file/sample 测试均要求并使用 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `forbidden test doubles`: PASS - 生产入口替身扫描由 `arch:check` 覆盖；本轮未发现生产路径用 `InMemory/mock/fixture` 冒充完成。
+- `object storage boundary`: PASS_WITH_LIMITATION - 仅验证 production-equivalent adapter 与 env-backed local HTTP adapter，不声明 live OSS/S3 release evidence。
+
+## Knowledge References
+- none: 当前知识库 cold start，未读取到 release 阶段可直接引用的具体条目。
+
+## Knowledge Outputs
+- none: 本轮未沉淀新的可复用知识条目建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- live OSS/S3 未作为 release evidence 验证，文档已明确保持 adapter 证据边界。
+- 工作区仍有未跟踪 `traces/` runtime 产物；我没有删除、复用或引用它们。
+- 未执行 commit：当前任务模板明确禁止 `git add`、`git commit`、`git push`，该约束高于入口里的自动 commit 习惯规则。

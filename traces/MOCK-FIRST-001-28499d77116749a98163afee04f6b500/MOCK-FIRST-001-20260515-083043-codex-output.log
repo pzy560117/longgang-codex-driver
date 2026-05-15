@@ -1,0 +1,56 @@
+SUCCESS: The process with PID 25920 (child process of PID 26556) has been terminated.
+SUCCESS: The process with PID 26556 (child process of PID 28916) has been terminated.
+SUCCESS: The process with PID 28916 (child process of PID 12624) has been terminated.
+SUCCESS: The process with PID 12624 (child process of PID 8632) has been terminated.
+SUCCESS: The process with PID 8632 (child process of PID 25372) has been terminated.
+SUCCESS: The process with PID 24416 (child process of PID 26792) has been terminated.
+SUCCESS: The process with PID 26792 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 27784 (child process of PID 24676) has been terminated.
+SUCCESS: The process with PID 24676 (child process of PID 25372) has been terminated.
+SUCCESS: The process with PID 14224 (child process of PID 472) has been terminated.
+SUCCESS: The process with PID 472 (child process of PID 27724) has been terminated.
+SUCCESS: The process with PID 27724 (child process of PID 27068) has been terminated.
+SUCCESS: The process with PID 27068 (child process of PID 25372) has been terminated.
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 为 mock-first 增加逐 FR local/dev evidence 映射，明确只覆盖本地联调、失败态演练和本地 object storage 协议链路。
+- 增加 mock-local 契约测试，防止后续把 mock-first 写成 `RELEASE-001` PASS、真实 MySQL 或 live OSS/S3 证据。
+- `RELEASE-001` 仍保持 BLOCKED，未修改 `task.json`、`progress.txt`、`traces/`，也未执行 commit。
+
+## Files Changed
+- [docs/testing/mock-first-release-plan.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/mock-first-release-plan.md:25): 新增 FR-001 到 FR-014 mock-first local/dev evidence 映射。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:42): 新增 mock-first 验证入口，声明不是 release gate。
+- [tests/mock-local/mock-first-contract.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/mock-local/mock-first-contract.test.mjs:27): 增加逐 FR 映射与 release 边界断言。
+
+## Validation
+- `npm run test:mock-local`: PASS - 先 RED 于缺少 FR-001 映射，补文档后 4/4 pass。
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command "& { .\verify.ps1 -Commands @('npm run arch:check','npm run test:mock-local','npm test','git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md') }"`: PASS - arch check passed，mock-local 4/4 pass，npm test 17/17 pass，scoped diff check pass。
+- 原始 `-File .\verify.ps1 -Commands @(...)`: FAIL - PowerShell `-File` 未展开数组字面量，误绑定到 `ProjectRoot`；未进入验证项。
+
+## Evidence
+- `docs/testing/mock-first-release-plan.md`: 证明 FR-001 - FR-014 均映射为 local/dev evidence，且不能替代 release evidence。
+- `tests/mock-local/mock-first-contract.test.mjs`: 自动化锁定上述证据边界。
+- `docs/testing/verify-matrix.md`: 证明 mock-first 入口被纳入验证矩阵，但不推动 `RELEASE-001` PASS。
+
+## Architecture Constraints
+- `Test Double Policy`: PASS - mock-first 明确仅 local/dev，不替代真实 MySQL、live OSS/S3 或 release gate。
+- `Forbidden Implementations`: PASS - 未把 mock、fixture、本地 adapter 写成生产完成证据。
+- `Definition Of Done`: PASS - 执行了 arch check、mock-local、基础单测和 scoped diff check。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: knowledge output/reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: mock-first evidence boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-TESTING-MOCK-FIRST-001`: guideline - mock-first evidence must remain local/dev only - action(suggested) - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 真实 MySQL 与 live OSS/S3 仍缺失；`RELEASE-001` 仍只能保持 BLOCKED 或等待真实环境验证。
+- 仓库已有未跟踪 `traces/` 运行产物，本任务未触碰。
