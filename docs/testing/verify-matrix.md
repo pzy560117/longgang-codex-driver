@@ -40,20 +40,20 @@
 | file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接真实 MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证；环境变量缺失时明确 BLOCKED |
 | sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；真实 MySQL 不可达时明确 BLOCKED；live 对象存储不可达时不得把 adapter 证据写成 release 已验证 |
 | mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | FR-001 - FR-014 均可获得 mock-first local/dev evidence、联调入口和失败态演练映射；本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 live OSS/S3 release gate |
-| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 被阻塞，DB/worker/query/file/sample 本轮未执行；真实/live object storage smoke 也仍无仓内自动化证据，因此 release 结论必须保持 BLOCKED，不能写成 fully passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
+| release 验证 | `RELEASE-001 fresh evidence snapshot`（2026-05-15） | 本轮 fresh 验证运行命令为 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`；基础校验已通过到 `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`，随后 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 失败并退出码 1；DB / worker / query / file / sample / live object storage 未执行或仍 blocked，因此 release 结论必须保持 BLOCKED，不能写成 passed；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 release gate，也不能替代真实 MySQL 或 live OSS/S3 证据 |
 
 ## RELEASE-001 fresh release evidence snapshot（2026-05-15）
 
 | 验证项 | 关联需求 | 状态 | 证据 / 归因 |
 | --- | --- | --- | --- |
-| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | 最新 release trace 显示 `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时即停止，当前 API gate 未通过；该结果不能写成历史通过记录 |
-| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，DB 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
-| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，worker 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
-| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，query executor 验证本轮未执行，不能沿用历史通过记录作为当前 release evidence |
-| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
-| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 API gate 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | BLOCKED - 需要人工介入 | `npm run test:api` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时失败，退出码 1；当前 API gate 未通过，该结果不能写成历史通过记录 |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | 本轮未执行 / 当前 blocked | 由于 `npm run test:api` 先被阻塞，DB 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | 本轮未执行 / 当前 blocked | 由于 `npm run test:api` 先被阻塞，worker 集成测试本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 `npm run test:api` 先被阻塞，query executor 验证本轮未执行，不能沿用历史通过记录作为当前 release evidence |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | 本轮未执行 / 当前 blocked | 由于 `npm run test:api` 先被阻塞，file service 验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live OSS/S3 release evidence |
+| Sample 样板验证 | FR-014 | 本轮未执行 / 当前 blocked | 由于 `npm run test:api` 先被阻塞，sample 样板验证本轮未执行；历史 adapter/local HTTP 证据可保留，但不能写成当前历史通过记录或 live object storage release evidence |
 | Live object storage release evidence | FR-003 / FR-006 / FR-011 / FR-014 | BLOCKED - 需要人工介入 | `npm run test:object-storage-live` 是 release gate 的真实/live object storage smoke 入口；当前配置仍是 placeholder-only，且真实桶写入需显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，命令会明确 BLOCKED。该项不能用历史 adapter/local HTTP 结果替代当前 release evidence |
-| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | `npm audit --audit-level=high --registry=https://registry.npmjs.org`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` 及 scoped `git diff --check` 均已通过；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+| 契约 / 基线校验 | FR-001 - FR-014 | 基础校验已通过 / 已执行通过 | 本轮基础校验已执行到 `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`；该项只能证明基础校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
 
 > 结论：`RELEASE-001` 当前状态为 `BLOCKED`。最新 release trace 显示 API gate 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB、worker、query、file、sample 本轮未执行，live object storage 也仍然 blocked；历史通过记录只能作为旧证据保留，不能写成当前 fully passed。mock-first 只用于本地开发、联调和失败态演练，详情见 `docs/testing/mock-first-release-plan.md`，它不能替代 release gate。
 
