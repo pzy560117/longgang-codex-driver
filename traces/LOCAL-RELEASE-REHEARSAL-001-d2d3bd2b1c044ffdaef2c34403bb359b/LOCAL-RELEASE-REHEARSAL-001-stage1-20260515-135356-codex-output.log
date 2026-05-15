@@ -1,0 +1,24 @@
+SUCCESS: The process with PID 16340 (child process of PID 33208) has been terminated.
+SUCCESS: The process with PID 5348 (child process of PID 36100) has been terminated.
+SUCCESS: The process with PID 36100 (child process of PID 36248) has been terminated.
+SUCCESS: The process with PID 10124 (child process of PID 35348) has been terminated.
+SUCCESS: The process with PID 35348 (child process of PID 14860) has been terminated.
+SUCCESS: The process with PID 14860 (child process of PID 36320) has been terminated.
+SUCCESS: The process with PID 36320 (child process of PID 36204) has been terminated.
+SUCCESS: The process with PID 36204 (child process of PID 36248) has been terminated.
+SUCCESS: The process with PID 29404 (child process of PID 33904) has been terminated.
+SUCCESS: The process with PID 33900 (child process of PID 33468) has been terminated.
+SUCCESS: The process with PID 33468 (child process of PID 36248) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

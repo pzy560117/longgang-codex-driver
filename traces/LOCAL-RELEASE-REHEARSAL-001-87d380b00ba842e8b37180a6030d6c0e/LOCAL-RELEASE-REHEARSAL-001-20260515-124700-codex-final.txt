@@ -1,0 +1,27 @@
+BLOCKED - 需要人工介入
+
+当前任务: LOCAL-RELEASE-REHEARSAL-001 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路
+
+已完成的工作:
+- 确认 `release:local-rehearsal`、`scripts/local-release-rehearsal.ps1`、`scripts/local-object-storage-server.mjs` 和 `tests/mock-local/local-release-rehearsal-docs.test.mjs` 已存在且已纳入仓库。
+- 验证 `LOCAL-RELEASE-REHEARSAL-001` 仍是 `passes:false`，`RELEASE-001` 仍是 `passes:false`，且仍依赖 `REAL-RELEASE-ENV-READY`。
+- 运行 `node --import tsx --test --test-concurrency=1 tests\mock-local\local-release-rehearsal-docs.test.mjs`: PASS，3/3 通过。
+- 运行 scoped `git diff --check`: PASS。
+- 运行 `npm run release:local-rehearsal`: FAIL/BLOCKED，脚本在本地 MySQL 前置条件处停止。
+
+阻塞原因:
+- 当前环境缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- 输出为：`BLOCKED - 需要人工介入: LOCAL-RELEASE-REHEARSAL-001 requires local/mock MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.`
+- 因此 API / DB / worker / query / file / sample 集成链路未执行；本结果不是 `RELEASE-001 PASS` 证据，也不能解除 `REAL-RELEASE-ENV-READY`。
+
+需要人工操作:
+1. 启动可用于本地 rehearsal 的 MySQL。
+2. 设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向该本地 MySQL。
+3. 再执行本地 rehearsal；默认会启动本地 object storage mock。
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+未执行 commit：本次 Driver 模板明确禁止 `git add` / `git commit`，且任务当前处于 BLOCKED。

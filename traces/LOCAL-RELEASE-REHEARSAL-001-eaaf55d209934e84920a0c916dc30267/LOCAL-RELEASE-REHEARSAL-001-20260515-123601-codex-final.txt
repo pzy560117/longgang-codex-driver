@@ -1,0 +1,69 @@
+BLOCKED - 需要人工介入
+
+当前任务: `LOCAL-RELEASE-REHEARSAL-001` 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路
+
+已完成的工作:
+- `npm run release:local-rehearsal` 默认携带 `-StartLocalObjectStorageMock`。
+- `scripts/local-release-rehearsal.ps1` 增加无 object storage endpoint 时自动启本地 mock 的兜底。
+- 文档同步声明 rehearsal 只能是 `mock/local rehearsal evidence`，不能替代 `RELEASE-001`、真实 MySQL、live object storage 或正式 release evidence。
+- 未修改 `task.json`、`progress.txt`、`traces/`；未执行 commit，因为本任务模板明确禁止 `git add` / `git commit`。
+
+阻塞原因:
+- 当前环境缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+- `npm run release:local-rehearsal` 已执行，按预期在本地 MySQL gate 输出 `BLOCKED - 需要人工介入`，未伪造通过。
+
+需要人工操作:
+1. 设置可用的本地 MySQL URL：`EXPORT_PLATFORM_TEST_DATABASE_URL`。
+2. 重新运行 `npm run release:local-rehearsal`。
+
+解除阻塞后请运行:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 本地 rehearsal 入口已默认启动 object storage mock。
+- rehearsal 仍强制要求本地 MySQL，缺失时明确 BLOCKED。
+- release 边界已同步，`RELEASE-001` 和 `REAL-RELEASE-ENV-READY` 不被解除。
+
+## Files Changed
+- `package.json`: 更新 `release:local-rehearsal` 命令。
+- `scripts/local-release-rehearsal.ps1`: 增加默认启本地 mock 兜底。
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 固定命令与边界断言。
+- `docs/testing/mock-first-release-plan.md`: 同步 rehearsal 证据口径。
+- `docs/testing/verify-matrix.md`: 同步验证矩阵口径。
+
+## Validation
+- `npm run test:mock-local`: PASS - 15/15 passed
+- `npm test`: PASS - 17/17 passed
+- PowerShell parser check: PASS
+- `git diff --check -- package.json scripts/local-release-rehearsal.ps1 tests/mock-local/local-release-rehearsal-docs.test.mjs docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md`: PASS
+- `npm run release:local-rehearsal`: FAIL - BLOCKED，缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL`
+
+## Evidence
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 证明 rehearsal 命令和 release 边界被测试锁定。
+- `docs/testing/mock-first-release-plan.md`: 证明 mock/local evidence 不替代 release。
+- `docs/testing/verify-matrix.md`: 证明验证矩阵保留正式 release blocker。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 未改生产形态。
+- `mock/local rehearsal evidence only`: PASS - 文档和脚本输出均保留边界。
+- `forbidden_implementations`: PASS - 未引入 `InMemory*`、mock repository 或 fixture 到生产路径。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `suggested-process-local-release-rehearsal-boundary`: process - 本地 rehearsal 默认 mock 但仍不替代 release evidence - suggested - `docs/knowledge/processes/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 本机缺少本地 MySQL URL，API / DB / worker / query / file / sample 集成链路尚未压通。
+- 工作区存在未跟踪 trace 目录，我按任务边界未触碰。

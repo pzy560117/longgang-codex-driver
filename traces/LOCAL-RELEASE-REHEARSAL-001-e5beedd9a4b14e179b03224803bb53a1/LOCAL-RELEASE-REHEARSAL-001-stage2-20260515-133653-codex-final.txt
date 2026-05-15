@@ -1,0 +1,30 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| LOCAL-RELEASE-REHEARSAL-001-S2-F001 | HIGH | security | test | `scripts/local-release-rehearsal.ps1:189-214` 无条件设置 `$env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES = "true"`，随后当 endpoint 非本地时会执行 `npm run test:object-storage-live`；`scripts/object-storage-live-smoke.mjs:6-20` 原本要求该变量由人工显式开启。当前实现等于让 local rehearsal 绕过 live 写入安全闸门。`tests/mock-local/local-release-rehearsal-docs.test.mjs:37-58` 只做正则断言，未覆盖非本地 endpoint 不得自动放行 live smoke 的行为。 | 不要在 `local-release-rehearsal.ps1` 中自动设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。建议：local rehearsal 默认只使用本地 mock；如果检测到非本地 endpoint，则要求调用方已显式设置该变量，否则输出 `BLOCKED - 需要人工介入` 或跳过 live smoke。补一个行为测试，验证非本地 endpoint + 未显式 allow 时不会执行 live 写入。 | `npm run test:mock-local; npm run release:local-rehearsal` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff b237678^..HEAD -- ...`
+  - `git diff --check -- package.json scripts/local-release-rehearsal.ps1 scripts/local-object-storage-server.mjs tests/mock-local/local-release-rehearsal-docs.test.mjs docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md task.json tests/sample/purchase-order-sample.test.mjs`
+  - `npm run test:mock-local`
+  - `npm run arch:check`
+  - 已读取 `traces/LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1/LOCAL-RELEASE-REHEARSAL-001-test-20260515-133653.log`
+
+- 结果摘要:
+  - 用户提供的 rehearsal fresh evidence 与 trace 日志一致，`npm run release:local-rehearsal` 曾完整通过 API / DB / worker / query / file / sample。
+  - 本次复查的 `npm run test:mock-local` 16/16 通过，`npm run arch:check` 通过，`git diff --check` 通过。
+  - 阻塞点不在已跑通链路本身，而在 rehearsal 脚本绕过 live object storage smoke 的显式写入授权。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| LOCAL-RELEASE-REHEARSAL-001-S2-F001 | test | backend-worker | 1 | true |

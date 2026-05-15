@@ -1,0 +1,315 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: LOCAL-RELEASE-REHEARSAL-001
+- 描述: 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路
+- Requirement IDs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- FR-014
+- 测试命令: npm run release:local-rehearsal
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/mock-first-release-plan.md
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 release:local-rehearsal
+> powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\local-release-rehearsal.ps1 -StartLocalObjectStorageMock
+
+LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal starting.
+This run is mock/local rehearsal evidence only; it is not RELEASE-001 PASS evidence and cannot clear REAL-RELEASE-ENV-READY.
+Running: npm run arch:check
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+Running: npm run typecheck
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+Running: npm run test:contract
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.3187ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.9765ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4156ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.0568
+Running: npm test
+
+> export-platform-service@0.1.0 test
+> node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs
+
+✔ arch:check is declared as the scaffold gate (0.5375ms)
+✔ verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline (0.3004ms)
+✔ createDatabase 在缺少真实数据库环境时仍可构造 Kysely 对象 (1.1749ms)
+✔ MySQL pool options 使用拆分环境变量并允许 database URL 优先 (0.5679ms)
+✔ DB schema、TS migration、SQL migration 的表名集合一致 (0.3123ms)
+✔ DB schema、TS migration、SQL migration 的列集合一致 (1.2113ms)
+✔ arch:check 拒绝 SQL migration 的表尾逗号 (0.3934ms)
+✔ arch:check 的生产替身扫描覆盖 API 和 DB 生产路径 (0.1355ms)
+✔ 生产路径出现测试替身术语时 arch check 会失败 (0.2493ms)
+✔ review verdict parser accepts markdown Verdict heading followed by PASS or FAIL (0.6705ms)
+✔ OpenAPI operationIds are represented by route manifest entries (1.6764ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4888ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4596ms)
+✔ 脚手架声明的服务入口脚本存在 (0.5316ms)
+✔ npm test 仅覆盖当前脚手架可验证的测试文件 (0.1831ms)
+✔ 验证矩阵明确包含当前脚手架验证命令 (0.1084ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40251}
+✔ HTTP 服务可独立启动并暴露 health (100.8453ms)
+{"event":"export-platform.http.started","host":"127.0.0.1","port":40252}
+✔ 公开 API 在缺少认证上下文时返回受控 401 响应 (12.6383ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 879.4889
+Running: npm run test:api
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6679ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (648.8264ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1357.7028
+Running: npm run test:db
+
+> export-platform-service@0.1.0 test:db
+> node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs
+
+✔ DB tests require an explicit test database URL (0.6866ms)
+✔ migration exposes durable evidence tables for FR-001/005/007/010/013 (58.2195ms)
+✔ repositories persist registry, task idempotency, lease, checkpoint, file and audit evidence (141.8254ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 776.1739
+Running: npm run test:worker
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7654ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (289.5637ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (291.3646ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (285.1742ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (206.5048ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (261.1708ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (231.3863ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (202.2303ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (576.9726ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (186.6681ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (159.5776ms)
+✔ worker integration tests (2692.6336ms)
+ℹ tests 11
+ℹ suites 1
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3261.0684
+Running: npm run test:query
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.6981ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (215.6402ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (170.8303ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (148.7071ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (174.3572ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (89.1986ms)
+✔ query executor rejects field mappings that do not match selected columns (99.1024ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (111.5551ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1488.5694
+Running: npm run test:file
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (1.1455ms)
+✔ production object storage config is required outside injected test adapters (0.2022ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (213.4401ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (223.3104ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (135.0424ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (255.415ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (290.3661ms)
+✔ cleanup job deletes only published object when temp storage key is null (240.601ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (225.7289ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2158.4616
+Running: npm run test:sample
+
+> export-platform-service@0.1.0 test:sample
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a real MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs
+
+▶ sample purchase-order integration tests
+  ✔ sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent (1.146ms)
+  ✔ sample purchase-order registry contract is registered through the public registry service (232.7383ms)
+  ✔ sample boundary 0 rows completes through the public create and worker chain (387.452ms)
+  ✔ sample boundary 1 row keeps final file masked and records create/query/file/audit/download evidence (492.4857ms)
+  ✔ sample boundary 20000 rows completes with a single-file package (7495.6289ms)
+  ✔ sample boundary 20001 rows packages ZIP evidence without losing rows (7597.2225ms)
+  ✔ sample boundary 100000 rows stays on the default batch path and publishes every row (69292.5923ms)
+  ✔ sample boundary 100001 rows must be rejected under the default export limit (43844.9868ms)
+  ✔ sample masking failure leaves the task failed and does not publish a file (322.9412ms)
+✔ sample purchase-order integration tests (129668.3816ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 130209.5317
+Verification passed.
+Skipping npm run test:object-storage-live for mock/local rehearsal because the endpoint is local. Live object storage release evidence remains BLOCKED until a non-local endpoint is configured.
+LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal completed. This does not release RELEASE-001.
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。

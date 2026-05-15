@@ -1087,7 +1087,7 @@
                       "dependencies":  [
                                            "MOCK-INTEGRATION-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "local release rehearsal 只能产出 mock/local rehearsal evidence，不能替代真实 MySQL、live OSS/S3 或 RELEASE-001 release evidence",

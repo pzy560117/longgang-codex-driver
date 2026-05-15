@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 28696 (child process of PID 34060) has been terminated.
+SUCCESS: The process with PID 7408 (child process of PID 12940) has been terminated.
+SUCCESS: The process with PID 12940 (child process of PID 25668) has been terminated.
+SUCCESS: The process with PID 35996 (child process of PID 36620) has been terminated.
+SUCCESS: The process with PID 36620 (child process of PID 31352) has been terminated.
+SUCCESS: The process with PID 31352 (child process of PID 16452) has been terminated.
+SUCCESS: The process with PID 16452 (child process of PID 18800) has been terminated.
+SUCCESS: The process with PID 18800 (child process of PID 25668) has been terminated.
+SUCCESS: The process with PID 16928 (child process of PID 36092) has been terminated.
+SUCCESS: The process with PID 36092 (child process of PID 34968) has been terminated.
+SUCCESS: The process with PID 34968 (child process of PID 35876) has been terminated.
+SUCCESS: The process with PID 35876 (child process of PID 25668) has been terminated.
+## Requirement IDs
+- FR-001 - FR-014
+
+## Summary
+- 未改动仓库文件；现有 `LOCAL-RELEASE-REHEARSAL-001` 实现已满足本轮要求。
+- 已执行本地 release rehearsal：API / DB / worker / query / file / sample 链路全部通过。
+- `npm run test:object-storage-live` 因本地 object storage endpoint 被正确跳过，结论仍明确不是 `RELEASE-001 PASS` 证据，不能解除 `REAL-RELEASE-ENV-READY`。
+
+## Files Changed
+- 无
+
+## Validation
+- `npm run test:mock-local`: PASS - 17/17 passed
+- `npm run release:local-rehearsal`: PASS - arch/typecheck/contract/base/API/DB/worker/query/file/sample 全部通过；live object storage smoke 按 mock/local 口径跳过
+- `git diff --check`: PASS
+- `git status --short`: PASS - 仅存在未跟踪 `traces/LOCAL-RELEASE-REHEARSAL-001-*` 运行产物，按任务边界未修改
+
+## Evidence
+- `scripts/local-release-rehearsal.ps1`: release rehearsal 入口、MySQL env 加载、本地 object storage mock、集成命令编排、release 边界提示
+- `scripts/local-object-storage-server.mjs`: 本地 object storage mock server
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 断言任务、脚本、文档和 release 边界一致
+- `docs/testing/mock-first-release-plan.md`: mock/local rehearsal 与正式 release gate 的边界
+- `docs/testing/verify-matrix.md`: 本地 rehearsal 验证入口与非 release evidence 口径
+
+## Architecture Constraints
+- `independent_microservice`: PASS - rehearsal 覆盖 HTTP/API、DB、worker、query、file、sample 生产路径命令
+- `real persistence boundary`: PASS - 使用 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接本地 MySQL 执行集成测试
+- `test double policy`: PASS - object storage mock 仅作为 mock/local rehearsal evidence；未替代 live object storage release evidence
+- `forbidden implementations`: PASS - 未引入 `InMemory*`、fixture repository 或 mock 生产实现
+
+## Knowledge References
+- 无具体知识条目引用
+
+## Knowledge Outputs
+- 无
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `RELEASE-001` 仍需真实 MySQL 与 live object storage 环境验证。
+- `REAL-RELEASE-ENV-READY` 仍是外部哨兵依赖，本轮 rehearsal 不能替代正式 release evidence。
+- 未执行 commit：当前 Driver Context 明确禁止 `git add` / `git commit`，且本轮无合规源码或文档改动可提交。

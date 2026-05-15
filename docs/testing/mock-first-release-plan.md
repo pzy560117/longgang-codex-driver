@@ -42,7 +42,7 @@
 
 ## LOCAL-RELEASE-REHEARSAL-001 本地彩排边界
 
-本任务状态: pending / mock/local rehearsal evidence。
+本任务状态: passed / mock/local rehearsal evidence。
 
 `npm run release:local-rehearsal` 默认启动本地 object storage mock；如显式设置环境变量覆盖对象存储端点，也只能用于本地 rehearsal 的受控演练。无论使用默认 mock 还是显式覆盖，任务都必须连接本地 MySQL，且结果只能归类为 mock/local rehearsal evidence。MySQL URL 可以通过当前进程环境变量、`-DatabaseUrl` 参数，或本地未跟踪的 `.env.local` / `-EnvFile` 提供。
 
@@ -53,6 +53,18 @@
 | object storage | 默认本地 mock；显式 env 覆盖只限 local rehearsal；`npm run test:object-storage-live` 仅用于真实 release smoke | 本地 object storage mock 不是 live OSS/S3；live smoke 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。 |
 
 若本地 MySQL 或本地 object storage mock 未准备好，`LOCAL-RELEASE-REHEARSAL-001` 必须输出 `BLOCKED - 需要人工介入`，不得把缺失环境写成通过。该任务即使通过，也只能作为 mock/local rehearsal evidence，不能推动 `RELEASE-001` 退出 `BLOCKED`。
+
+## LOCAL-RELEASE-REHEARSAL-001 本地彩排结果
+
+本轮状态: passed / mock/local rehearsal evidence。
+
+| 验收项 | 结果 | Release 边界 |
+| --- | --- | --- |
+| `npm run release:local-rehearsal` | PASS | 使用本地 MySQL 配置与脚本启动的本地 object storage mock 完成本地彩排；证据只归类为 mock/local rehearsal evidence。 |
+| API / DB / worker / query / file / sample | PASS | 已依次执行 `npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample`，用于提前暴露本地集成问题，不替代 `RELEASE-001`、真实 MySQL、live object storage 或正式 release evidence。 |
+| live object storage smoke | SKIPPED / BLOCKED | 因当前 object storage endpoint 为本地 mock，`npm run test:object-storage-live` 被明确跳过；live OSS/S3 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后单独验证。 |
+
+`RELEASE-001` 仍保持 BLOCKED；`REAL-RELEASE-ENV-READY` 仍是外部哨兵依赖。`LOCAL-RELEASE-REHEARSAL-001` 的通过结果不能解除该哨兵，也不能写成 release gate 通过。
 
 ## MOCK-INTEGRATION-001 本地验收结果
 

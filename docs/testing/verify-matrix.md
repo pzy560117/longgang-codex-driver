@@ -63,7 +63,18 @@
 | 验证项 | 关联需求 | 状态 | 证据 / 归因 |
 | --- | --- | --- | --- |
 | 本地集成验收归档 | FR-001 - FR-014 | accepted / local-dev-only | `MOCK-INTEGRATION-001` 已执行 `npm run arch:check`、`npm run test:mock-local`、`npm test` 与 scoped `git diff --check`，并把 FR-001 - FR-014 的主流程、失败态和证据归档同步到 `docs/testing/mock-first-acceptance.md`、`docs/testing/mock-first-release-plan.md` 与本矩阵；该任务不是 release evidence，不替代真实 MySQL、live object storage、API、DB、worker、query、file 或 sample 集成证据；`RELEASE-001` 仍保持 BLOCKED，`REAL-RELEASE-ENV-READY` 仍保留为 release 外部哨兵依赖 |
-| 本地 release rehearsal | FR-001 - FR-014 | pending / mock/local rehearsal | `LOCAL-RELEASE-REHEARSAL-001` 通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，先执行 API、DB、worker、query、file 和 sample 集成命令；证据只能写成 mock/local rehearsal，不是 RELEASE-001 PASS 证据，不能解除 `REAL-RELEASE-ENV-READY`，也不能替代真实 MySQL、live object storage 或正式 release evidence |
+| 本地 release rehearsal | FR-001 - FR-014 | passed / mock/local rehearsal | `LOCAL-RELEASE-REHEARSAL-001` 已通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，先执行 API、DB、worker、query、file 和 sample 集成命令；证据只能写成 mock/local rehearsal，不是 RELEASE-001 PASS 证据，不能解除 `REAL-RELEASE-ENV-READY`，也不能替代真实 MySQL、live object storage 或正式 release evidence |
+
+## LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal result（2026-05-15）
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| 本地 release rehearsal 入口 | FR-001 - FR-014 | PASS / mock-local-only | `npm run release:local-rehearsal` 已执行通过；脚本使用本地 MySQL 配置，并启动本地 object storage mock。该结果只证明 mock/local rehearsal 链路可运行，不是 `RELEASE-001` PASS 证据。 |
+| API / DB / worker / query / file / sample 集成命令 | FR-001 - FR-014 | PASS / mock-local-only | 本轮依次通过 `npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample`。其中 API / DB / worker / query / file / sample 只作为本地彩排证据，不替代正式 release evidence。 |
+| Live object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | SKIPPED / BLOCKED | 当前 rehearsal endpoint 为本地 mock，脚本明确跳过 `npm run test:object-storage-live`；live object storage release evidence 仍需真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 后单独验证。 |
+| Release gate 边界 | FR-001 - FR-014 | BLOCKED remains | `RELEASE-001` 仍保持 BLOCKED，`REAL-RELEASE-ENV-READY` 仍保留为 release 外部哨兵依赖；本地彩排不能替代真实 MySQL、live object storage 或正式 release evidence。 |
+
+> 结论：`LOCAL-RELEASE-REHEARSAL-001` 在 2026-05-15 通过本地 mock/local rehearsal；该结论只说明本地 MySQL 与本地 object storage mock 下 API、DB、worker、query、file 和 sample 集成链路已压通。`RELEASE-001` 仍保持 BLOCKED，真实 release 仍必须等待 `REAL-RELEASE-ENV-READY`。
 
 ## Requirement 验证入口
 

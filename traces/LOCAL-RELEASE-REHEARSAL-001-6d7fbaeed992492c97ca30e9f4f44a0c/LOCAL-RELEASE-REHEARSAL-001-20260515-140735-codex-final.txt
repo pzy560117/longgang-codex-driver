@@ -1,0 +1,46 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已执行并复验 `npm run release:local-rehearsal`：API / DB / worker / query / file / sample 全部通过。
+- 已把本轮结果归档为 `mock/local rehearsal evidence`，明确不替代 `RELEASE-001`、真实 MySQL、live object storage 或正式 release evidence。
+- 按本任务强制边界未执行 `git add` / `git commit`。
+
+## Files Changed
+- `docs/testing/mock-first-release-plan.md`: 记录 LOCAL-RELEASE-REHEARSAL-001 本地彩排通过结果与 release 边界。
+- `docs/testing/verify-matrix.md`: 增加 2026-05-15 mock/local rehearsal result 表。
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 增加文档断言，防止本地彩排证据被升级成 release 证据。
+
+## Validation
+- `npm run test:mock-local`: PASS - 18/18 passed
+- `npm run release:local-rehearsal`: PASS - API / DB / worker / query / file / sample passed；live object storage smoke skipped/blocked because endpoint is local mock
+- PowerShell parser check for `scripts/local-release-rehearsal.ps1`: PASS
+- `node --check scripts/local-object-storage-server.mjs`: PASS
+- `git diff --check -- ...`: PASS
+
+## Evidence
+- `docs/testing/mock-first-release-plan.md`: 证明本地彩排通过但仍不能解除 release 阻塞。
+- `docs/testing/verify-matrix.md`: 证明 FR-001 至 FR-014 的本地 rehearsal 结果已映射。
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 证明文档口径受自动测试保护。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - rehearsal 覆盖 HTTP service、worker、scheduled job 相关测试入口。
+- `data_boundary=MySQL`: PASS - `test:api` / `test:db` / `test:worker` / `test:query` / `test:file` / `test:sample` 均使用本地 MySQL URL。
+- `test_double_policy`: PASS - object storage mock 仅标记为 local rehearsal，不作为 live/release evidence。
+- `forbidden_implementations`: PASS - 未把 mock、本地 adapter 或文档证据升级为生产 release 完成。
+
+## Knowledge References
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in 文档边界与测试断言 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in rehearsal 证据归档 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+
+## Knowledge Outputs
+- `PROCESS-RELEASE-REHEARSAL-001`: process - 本地 release rehearsal 证据不得升级为正式 release evidence - action(suggested) - `docs/knowledge/processes/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- live object storage smoke 仍是 SKIPPED / BLOCKED，需要真实 endpoint、bucket、credential 与 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`。
+- `RELEASE-001` 仍保持 BLOCKED，`REAL-RELEASE-ENV-READY` 仍保留为 release 外部哨兵依赖。

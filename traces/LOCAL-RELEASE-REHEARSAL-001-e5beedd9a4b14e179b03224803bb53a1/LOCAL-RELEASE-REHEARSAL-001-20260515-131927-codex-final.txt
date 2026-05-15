@@ -1,0 +1,43 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已完成本地 release rehearsal 验证：`npm run release:local-rehearsal` 使用 `.env.local` 中的本地 MySQL URL，并启动本地 object storage mock，压通 API / DB / worker / query / file / sample 链路。
+- 本轮没有 tracked 文件变更；预期产物已存在并通过验证。
+- 按 Driver Context 强制边界，未执行 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无 tracked 文件变更。
+
+## Validation
+- `npm run test:mock-local`: PASS - 16/16 passed
+- `npm run release:local-rehearsal`: PASS - `arch:check`、`typecheck`、contract、base test、API、DB、worker、query、file、sample 全部通过；local endpoint 下跳过 live object-storage smoke，并保留 release blocker 口径
+- `git diff --check -- package.json scripts/local-release-rehearsal.ps1 scripts/local-object-storage-server.mjs tests/mock-local/local-release-rehearsal-docs.test.mjs docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `scripts/local-release-rehearsal.ps1`: rehearsal 入口，加载本地 MySQL env，启动/配置本地 object storage mock，串行执行集成命令
+- `scripts/local-object-storage-server.mjs`: 本地 HTTP object storage mock
+- `tests/mock-local/local-release-rehearsal-docs.test.mjs`: 断言 rehearsal 证据边界、命令覆盖和 release 哨兵不被解除
+- `docs/testing/mock-first-release-plan.md`: 声明 rehearsal 只是 mock/local evidence
+- `docs/testing/verify-matrix.md`: 映射 `npm run release:local-rehearsal` 的验证范围和 release 边界
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - `npm run arch:check`
+- `API/DB/worker/query/file/sample production path`: PASS - `npm run release:local-rehearsal`
+- `object storage mock cannot replace live evidence`: PASS - live smoke 被明确跳过，输出保留 live object storage release evidence blocked
+- `RELEASE-001 remains blocked behind REAL-RELEASE-ENV-READY`: PASS - 未修改 `task.json`
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `SUGGESTED-PITFALL-LOCAL-REHEARSAL-TIMEOUT`: pitfall - local rehearsal sample 边界用例耗时超过 2 分钟，执行端应给 `npm run release:local-rehearsal` 配置更长超时 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 这不是 `RELEASE-001 PASS` 证据，不能解除 `REAL-RELEASE-ENV-READY`。
+- live object storage、正式 release evidence 仍需要真实 endpoint / bucket / credential / smoke write 开关。

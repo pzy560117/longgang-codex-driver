@@ -92,3 +92,16 @@ test("local release rehearsal evidence is recorded separately from release evide
   assert.match(verifyMatrix, /mock\/local rehearsal/u);
   assert.match(verifyMatrix, /不是 RELEASE-001 PASS 证据/u);
 });
+
+test("local release rehearsal result records API DB worker query file and sample coverage without promoting release", () => {
+  assert.match(releasePlan, /本轮状态: passed \/ mock\/local rehearsal evidence/u);
+  assert.match(releasePlan, /`npm run release:local-rehearsal` \| PASS/u);
+  assert.match(releasePlan, /API \/ DB \/ worker \/ query \/ file \/ sample \| PASS/u);
+  assert.match(releasePlan, /live object storage smoke \| SKIPPED \/ BLOCKED/u);
+  assert.match(releasePlan, /不替代 `RELEASE-001`、真实 MySQL、live object storage 或正式 release evidence/u);
+
+  assert.match(verifyMatrix, /LOCAL-RELEASE-REHEARSAL-001 mock\/local rehearsal result（2026-05-15）/u);
+  assert.match(verifyMatrix, /API \/ DB \/ worker \/ query \/ file \/ sample 集成命令 \| FR-001 - FR-014 \| PASS \/ mock-local-only/u);
+  assert.match(verifyMatrix, /Live object storage smoke \| FR-003 \/ FR-006 \/ FR-011 \/ FR-014 \| SKIPPED \/ BLOCKED/u);
+  assert.match(verifyMatrix, /`RELEASE-001` 仍保持 BLOCKED/u);
+});

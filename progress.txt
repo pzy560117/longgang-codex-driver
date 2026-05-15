@@ -1175,3 +1175,17 @@
 
 ### 备注：
 - 请先修复代码质量或测试缺口，再重新运行 driver。
+## [2026-05-15 14:28] - Task: LOCAL-RELEASE-REHEARSAL-001 执行本地 release rehearsal，使用本地 MySQL 与本地 object storage mock 先压通 API、DB、worker、query、file 和 sample 集成链路
+
+### 完成的工作：
+- 完成当前任务并更新 task.json。
+
+### 测试结果：
+- Stage 1、测试命令、Stage 2 全部通过。
+
+### 审查结果：
+- Stage 1: PASS - 审查通过。
+- Stage 2: PASS - 审查通过。
+
+### 备注：
+- 可继续运行 driver 处理下一个任务。
