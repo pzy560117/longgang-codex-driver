@@ -13,7 +13,7 @@ export const handler: RouteHandler = async (context, response) => {
     const data = hasSignedDownloadQuery
       ? await downloadSignedExportTask(context.params.taskId, query)
       : await downloadExportTask(
-          requireAuthContext(context.request),
+          await requireAuthContext(context.request, "DOWNLOAD"),
           context.params.taskId,
           typeof query.mode === "string" ? query.mode : undefined
         );
@@ -34,6 +34,6 @@ export const handler: RouteHandler = async (context, response) => {
 
     sendSuccess(response, 200, data);
   } catch (error) {
-    sendError(response, error);
+    await sendError(response, error);
   }
 };

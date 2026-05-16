@@ -9,7 +9,8 @@ export function sendSuccess(response: FastifyReply, statusCode: number, data: un
     data
   });
 }
-export function sendError(response: FastifyReply, error: unknown): void {
+
+export async function sendError(response: FastifyReply, error: unknown): Promise<void> {
   if (error instanceof ApiError) {
     sendJson(response, error.statusCode, {
       code: error.code,

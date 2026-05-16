@@ -5,10 +5,10 @@ import type { RouteHandler } from "../../types.ts";
 
 export const handler: RouteHandler = async (context, response) => {
   try {
-    const auth = requireAuthContext(context.request);
+    const auth = await requireAuthContext(context.request, "QUERY_HISTORY");
     const data = await listExportTasks(auth, context.request.query as Record<string, unknown>);
     sendSuccess(response, 200, data);
   } catch (error) {
-    sendError(response, error);
+    await sendError(response, error);
   }
 };

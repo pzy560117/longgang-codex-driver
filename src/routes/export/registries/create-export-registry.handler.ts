@@ -5,10 +5,10 @@ import type { RouteHandler } from "../../types.ts";
 
 export const handler: RouteHandler = async (context, response) => {
   try {
-    const auth = requireAuthContext(context.request);
+    const auth = await requireAuthContext(context.request, "REGISTRY_CREATE");
     const data = await upsertExportRegistry(auth, context.request.body ?? {});
     sendSuccess(response, 201, data);
   } catch (error) {
-    sendError(response, error);
+    await sendError(response, error);
   }
 };

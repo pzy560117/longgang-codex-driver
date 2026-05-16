@@ -24,6 +24,7 @@ import {
   ApiError,
   assertExportPermission,
   isExportAdmin,
+  isTrustedRegistryAdminTenant,
   type AuthContext
 } from "../audit-log/auth-context.ts";
 import { createExportFileService } from "../file-service/index.ts";
@@ -416,9 +417,7 @@ function assertTaskVisible(auth: AuthContext, task: ExportTaskRecord): void {
     return;
   }
 
-  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task", {
-    taskId: task.taskId
-  });
+  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task");
 }
 
 async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) => Promise<T>) {
@@ -743,6 +742,17 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
 export async function listExportTasks(auth: AuthContext, query: Record<string, unknown>) {
   return withDatabase(async (db) => {
     const now = await getDatabaseTime(db);
+    if (isExportAdmin(auth) && !isTrustedRegistryAdminTenant(auth)) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(403, "PERMISSION_DENIED", "operator has no permission"),
+        action: "QUERY_HISTORY",
+        now,
+        taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+        subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null
+      });
+    }
     const page = parsePositiveInteger(query.page, 1);
     const pageSize = Math.min(parsePositiveInteger(query.pageSize, 50), 100);
     const createdBy = isExportAdmin(auth)
@@ -754,7 +764,7 @@ export async function listExportTasks(auth: AuthContext, query: Record<string, u
       taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
       status: typeof query.status === "string" ? query.status : undefined,
       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
-      tenantId: isExportAdmin(auth) ? undefined : auth.tenantId,
+      tenantId: auth.tenantId,
       createdBy,
       fileFormat: typeof query.fileFormat === "string" ? query.fileFormat : undefined,
       createdAtFrom: parseDateFilter(query.createdAtFrom),

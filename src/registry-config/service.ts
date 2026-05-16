@@ -8,7 +8,12 @@ import {
   type ExportRegistryRecord
 } from "../repositories/index.ts";
 import { appendAudit } from "../audit-log/service.ts";
-import { ApiError, assertExportPermission, type AuthContext } from "../audit-log/auth-context.ts";
+import {
+  ApiError,
+  assertExportPermission,
+  isTrustedRegistryAdminTenant,
+  type AuthContext
+} from "../audit-log/auth-context.ts";
 
 type RegistryBody = {
   taskCode?: string;
@@ -88,6 +93,13 @@ async function requireRegistryAdmin(input: {
       return rejectRegistryWithAudit({ ...input, error });
     }
     throw error;
+  }
+
+  if (!isTrustedRegistryAdminTenant(input.auth)) {
+    return rejectRegistryWithAudit({
+      ...input,
+      error: new ApiError(403, "PERMISSION_DENIED", "operator has no permission")
+    });
   }
 }
 
