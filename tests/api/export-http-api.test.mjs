@@ -1004,6 +1004,26 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(expiredSignedResponse.statusCode, 403);
   assert.equal(expiredSignedResponse.json().code, "SIGNATURE_EXPIRED");
 
+  const deniedSignedUrl = new URL(signedDownloadData.downloadUrl);
+  deniedSignedUrl.searchParams.set("operatorId", "u999");
+  deniedSignedUrl.searchParams.set("roleCodes", "EXPORT_USER");
+  deniedSignedUrl.searchParams.set("requestId", `req-signed-download-denied-${runId}`);
+  deniedSignedUrl.searchParams.set(
+    "signature",
+    signPlatformDownloadUrl({
+      taskId,
+      storageKey: "exports/published/purchase-orders.xlsx",
+      url: deniedSignedUrl,
+      secret: downloadSigningSecret
+    })
+  );
+  const deniedSignedResponse = await app.inject({
+    method: "GET",
+    url: signedRoutePath(deniedSignedUrl)
+  });
+  assert.equal(deniedSignedResponse.statusCode, 403);
+  assert.equal(deniedSignedResponse.json().code, "PERMISSION_DENIED");
+
   const streamDownloadResponse = await app.inject({
     method: "GET",
     url: `/api/export/tasks/${taskId}/download?mode=STREAM`,
@@ -1078,4 +1098,8 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(deniedAudits.length, 1);
   assert.equal(deniedAudits[0].result, "FAILED");
   assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
+  const signedDeniedAudits = await auditLogsByRequestId(db, `req-signed-download-denied-${runId}`);
+  assert.equal(signedDeniedAudits.length, 1);
+  assert.equal(signedDeniedAudits[0].result, "FAILED");
+  assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
 });

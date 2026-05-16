@@ -1066,6 +1066,17 @@ export async function downloadSignedExportTask(
         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
       });
     }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          ...auditBase,
+          error
+        });
+      }
+      throw error;
+    }
 
     const fileService = createExportFileService({ db });
     try {
