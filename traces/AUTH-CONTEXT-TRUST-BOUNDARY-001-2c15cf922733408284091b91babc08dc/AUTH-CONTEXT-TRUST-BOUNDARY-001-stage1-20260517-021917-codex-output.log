@@ -1,0 +1,29 @@
+SUCCESS: The process with PID 27480 (child process of PID 15620) has been terminated.
+SUCCESS: The process with PID 29352 (child process of PID 30140) has been terminated.
+SUCCESS: The process with PID 30140 (child process of PID 28048) has been terminated.
+SUCCESS: The process with PID 29768 (child process of PID 4716) has been terminated.
+SUCCESS: The process with PID 4716 (child process of PID 14476) has been terminated.
+SUCCESS: The process with PID 14476 (child process of PID 23280) has been terminated.
+SUCCESS: The process with PID 23280 (child process of PID 11504) has been terminated.
+SUCCESS: The process with PID 11504 (child process of PID 28048) has been terminated.
+SUCCESS: The process with PID 26424 (child process of PID 6176) has been terminated.
+SUCCESS: The process with PID 6176 (child process of PID 30172) has been terminated.
+SUCCESS: The process with PID 30172 (child process of PID 28504) has been terminated.
+SUCCESS: The process with PID 28504 (child process of PID 28048) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md` AC-E016 要求认证上下文缺字段记录 requestId；`src/audit-log/auth-context.ts:119-125` 在缺少 `x-request-id` 时直接跳过审计；`tests/api/export-http-api.test.mjs:1184-1244` 只覆盖缺签名、伪造角色、空角色，未覆盖缺 `x-request-id` / `x-operator-id` / `x-tenant-id` / `x-org-scope` 的审计断言。 | 修复 `auditAuthContextFailure`，对缺 requestId 的认证失败使用服务端生成/标准化 requestId 写审计，并补齐最小字段缺失负向 API 测试。 | `npm run arch:check; npm run test:api; npm run test:contract; git diff --check -- src/audit-log tests/api docs/testing/verify-matrix.md` |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S1-F002 | HIGH | state_gap | backend | `docs/testing/RISK_BASED_TEST_PLAN.md:14` 要求 403 不泄露任务或文件；`src/task-api/service.ts:799-813`、`:885-899`、`:1172-1186`、`:1255-1269` 先按 `taskId` 查库，存在但跨租户返回 403，不存在返回 404，形成任务存在性差异；OpenAPI `contracts/openapi.yaml:1104-1114` 又把 TaskNotFound 描述为 “not found or invisible”。 | 统一任务详情/下载/取消/重试的不可见与不存在响应口径，避免跨租户调用者通过 403/404 区分任务或文件存在性；同步 OpenAPI 与 API 测试断言。 | `npm run test:api; npm run test:contract; git diff --check -- src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S1-F001 | backend | backend-worker | 1 | true |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S1-F002 | backend | backend-worker | 1 | true |

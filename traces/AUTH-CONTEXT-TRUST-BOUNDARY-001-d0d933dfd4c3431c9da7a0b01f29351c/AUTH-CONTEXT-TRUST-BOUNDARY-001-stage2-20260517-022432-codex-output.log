@@ -1,0 +1,46 @@
+SUCCESS: The process with PID 25076 (child process of PID 32628) has been terminated.
+SUCCESS: The process with PID 31420 (child process of PID 13816) has been terminated.
+SUCCESS: The process with PID 13816 (child process of PID 25012) has been terminated.
+SUCCESS: The process with PID 32640 (child process of PID 2248) has been terminated.
+SUCCESS: The process with PID 2248 (child process of PID 1692) has been terminated.
+SUCCESS: The process with PID 1692 (child process of PID 16896) has been terminated.
+SUCCESS: The process with PID 16896 (child process of PID 22740) has been terminated.
+SUCCESS: The process with PID 22740 (child process of PID 25012) has been terminated.
+SUCCESS: The process with PID 25368 (child process of PID 25832) has been terminated.
+SUCCESS: The process with PID 25832 (child process of PID 4732) has been terminated.
+SUCCESS: The process with PID 4732 (child process of PID 32252) has been terminated.
+SUCCESS: The process with PID 32252 (child process of PID 25012) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S2-F001 | HIGH | security | backend | `src/audit-log/auth-context.ts:163-179` 只校验 `X-Auth-Context-Issued-At` 可被 `Date.parse` 解析；`tests/api/export-http-api.test.mjs:1177` 新增用例覆盖缺签名、篡改角色、空角色和跨租户，但没有覆盖过期/未来/重放的认证上下文证明。 | 对认证上下文签名加入 freshness 校验，例如默认允许 5 分钟 clock skew / max age，并拒绝明显未来或过期的 `issuedAt`；补 API 负向测试：旧签名、未来时间、同一签名重放策略的预期行为。若无法做 nonce 去重，至少明确 freshness 边界并写入 OpenAPI/verify-matrix。 | `npm run typecheck; npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'; npm run test:contract; git diff --check -- task.json src/audit-log src/task-api src/registry-config src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md` |
+
+## Verification
+
+- 已检查命令:
+  - 用户提供测试命令摘要：退出码 0。
+  - `git status --short`
+  - `git diff --name-status`
+  - `git diff -- src/audit-log/auth-context.ts src/routes/respond.ts src/task-api/service.ts src/registry-config/service.ts`
+  - `git diff -- tests/api/export-http-api.test.mjs tests/contract/openapi-route-mapping.contract.test.mjs`
+  - `rg -n "requireAuthContext|sendError|isTrustedRegistryAdminTenant|AUTH_CONTEXT|EXPORT_PLATFORM_AUTH_CONTEXT|EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS" src tests contracts docs/testing task.json`
+  - `npm run typecheck`
+  - `git diff --check -- task.json progress.txt src/audit-log src/task-api src/registry-config src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md`
+- 结果摘要:
+  - `arch:check`、Docker MySQL 下 `test:api`、`test:contract`、scoped `git diff --check` 摘要均为通过。
+  - 补跑 `npm run typecheck` 通过。
+  - 扩大范围 `git diff --check` 通过；注意实际改动包含 `src/registry-config/service.ts` 和 `progress.txt`，原任务命令未覆盖这两个路径。
+  - 未发现硬编码 secret/token；测试 secret 使用随机 `test-only-*`。
+  - `knowledge_references`: 未发现本次实现直接依赖 `docs/knowledge/`。
+  - `knowledge_outputs` 建议：补充或归档 `GUIDELINE-SECURITY-001`，明确“认证上下文透传签名必须同时校验完整性与 freshness/replay 边界”。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| AUTH-CONTEXT-TRUST-BOUNDARY-001-S2-F001 | backend | backend-worker | 1 | yes |

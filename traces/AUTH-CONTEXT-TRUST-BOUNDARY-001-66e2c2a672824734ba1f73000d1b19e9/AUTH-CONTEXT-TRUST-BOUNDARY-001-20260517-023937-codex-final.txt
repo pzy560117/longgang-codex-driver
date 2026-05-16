@@ -1,0 +1,48 @@
+## Requirement IDs
+- FR-009
+- AC-009
+- AC-E006
+- AC-E016
+- RCR-P0-001
+
+## Summary
+- 已复核当前实现：可信 ingress HMAC 证明、签名时间窗口、缺失/篡改认证上下文、伪造 `EXPORT_ADMIN`、跨租户历史/详情/下载/配置访问拒绝均已有生产路径与测试覆盖。
+- 本轮未改动 tracked 文件；任务 owned paths 当前无 diff。未执行 `git add/commit/push`，因为 Driver 模板明确禁止。
+
+## Files Changed
+- 无本轮 tracked 文件改动。
+
+## Validation
+- `npm run arch:check; ... npm run test:api; ... npm run test:contract; ... git diff --check ...`: PASS
+- `npm run arch:check`: PASS
+- Docker MySQL 环境准备：PASS，`127.0.0.1:33306/export_platform_test`
+- `npm run test:api`: PASS，4/4
+- `npm run test:contract`: PASS，12/12
+- `git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `src/audit-log/auth-context.ts`: 可信认证上下文签名、freshness、最小字段和失败审计边界。
+- `tests/api/export-http-api.test.mjs`: 负向 API 场景覆盖。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: OpenAPI 可信证明头与边界说明守护。
+- `docs/testing/verify-matrix.md`: AUTH-CONTEXT 证据边界已记录。
+
+## Architecture Constraints
+- `independent_microservice / http_service`: PASS - route/handler/service 路径通过 `arch:check`。
+- `production DB boundary`: PASS - API 测试连接 Docker MySQL。
+- `no InMemory/mock production substitute`: PASS - `arch:check` 通过。
+- `secret not stored in repo`: PASS - 签名密钥来自环境变量。
+
+## Knowledge References
+- None
+
+## Knowledge Outputs
+- None
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前契约明确只覆盖 freshness，不包含 nonce/replay 去重；同一签名在窗口内允许重放。
+- 本轮证据是 Docker MySQL + 本地 mock 边界，不声明外部网关或 live 生产环境验证。

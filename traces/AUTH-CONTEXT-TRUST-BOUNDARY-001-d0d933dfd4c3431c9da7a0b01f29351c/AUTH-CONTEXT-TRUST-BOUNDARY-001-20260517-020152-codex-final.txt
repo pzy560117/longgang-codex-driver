@@ -1,0 +1,52 @@
+## Requirement IDs
+- FR-009
+- AC-009
+- AC-E006
+- AC-E016
+- RCR-P0-001
+
+## Summary
+- 已修复认证上下文可信边界：生产 HTTP 入口现在要求 `X-Auth-Context-Signature`、`X-Auth-Context-Issued-At`、`X-Auth-Context-Signature-Algorithm`，用环境变量 `EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET` 做 HMAC-SHA256 校验。
+- 缺少/篡改可信证明、伪造 `EXPORT_ADMIN`、空角色上下文会返回 `AUTH_CONTEXT_MISSING` 并写入失败审计。
+- 跨租户历史、详情、下载、配置访问会拒绝，且权限错误不再回显 `taskId` / `taskCode` 等敏感标识。
+
+## Files Changed
+- `src/audit-log/auth-context.ts`: 可信 ingress 签名校验、失败审计、配置管理员租户边界。
+- `src/task-api/service.ts`: 历史查询租户边界、权限失败响应脱敏。
+- `src/registry-config/service.ts`: 配置管理入口增加可信管理员租户检查。
+- `src/routes/export/**/**/*.handler.ts`: `requireAuthContext` 改为异步并传入审计 action。
+- `contracts/openapi.yaml`: 所有公开 operation 声明认证上下文可信证明头。
+- `tests/api/export-http-api.test.mjs`: 增加伪造管理员、缺少字段、跨租户历史/下载/配置负向用例。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 增加 OpenAPI 可信证明头守护。
+- `docs/testing/verify-matrix.md`: 记录本任务 Docker MySQL / API / contract 证据边界。
+
+## Validation
+- `npm run typecheck`: PASS
+- 完整任务命令：PASS  
+  `npm run arch:check; ... docker-test-env.ps1; npm run test:api; npm run test:contract; git diff --check ...`
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖缺少/篡改可信证明、空角色、跨租户历史/详情/下载/配置拒绝和失败审计。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 OpenAPI 可信证明头不漂移。
+- `docs/testing/verify-matrix.md`: 记录 `AUTH-CONTEXT-TRUST-BOUNDARY-001` fresh evidence。
+
+## Architecture Constraints
+- `independent_microservice / HTTP boundary`: PASS - 改动发生在 HTTP route/service 边界。
+- `no hardcoded secrets`: PASS - 签名密钥仅来自环境变量。
+- `no InMemory/mock production path`: PASS - API 验证走 Docker MySQL。
+- `contract + API evidence`: PASS - `test:api` 与 `test:contract` 均通过。
+
+## Knowledge References
+- `none`: 已检查知识目录，无本任务直接可复用条目。
+
+## Knowledge Outputs
+- `GUIDELINE-SECURITY-001`: guideline - 认证上下文透传必须有可信来源证明 - suggested - `docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未验证外部真实网关接入，只声明本地/Docker MySQL API + contract evidence。
+- 本轮未提交：Driver Prompt 明确禁止 `git add` / `git commit` / `git push`。

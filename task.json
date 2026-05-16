@@ -2083,7 +2083,7 @@
                       "dependencies":  [
                                            "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 / RCR-P0-001：认证上下文必须建立可信 ingress / header 校验边界，阻断请求头伪造 EXPORT_ADMIN 或跨租户上下文",

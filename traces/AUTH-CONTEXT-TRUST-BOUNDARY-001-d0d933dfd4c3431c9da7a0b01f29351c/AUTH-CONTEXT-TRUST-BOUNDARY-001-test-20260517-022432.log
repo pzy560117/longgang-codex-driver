@@ -1,0 +1,68 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:52273 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.7065ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (941.8384ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (179.9424ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (120.4386ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1876.0564
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9447ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4606ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3846ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.8935ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2108ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4399ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.554ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3284ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2812ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4358ms)
+✔ protected operations declare trusted auth context signature proof (0.4185ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.3694ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 68.0529
+warning: in the working copy of 'contracts/openapi.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/audit-log/auth-context.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/create-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/disable-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/enable-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/get-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/list-export-registries.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/update-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/cancel-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/create-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/download-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/get-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/list-export-tasks.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/retry-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/respond.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/task-api/service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/api/export-http-api.test.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/contract/openapi-route-mapping.contract.test.mjs', LF will be replaced by CRLF the next time Git touches it

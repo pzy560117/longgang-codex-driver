@@ -1,0 +1,54 @@
+## Requirement IDs
+- FR-009
+- AC-009
+- AC-E006
+- AC-E016
+- RCR-P0-001
+
+## Summary
+- 已将认证上下文改为 HMAC-SHA256 可信 ingress 证明校验，要求 `X-Auth-Context-Signature`、`X-Auth-Context-Issued-At`、`X-Auth-Context-Signature-Algorithm`，签名密钥仅来自 `EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET`。
+- 阻断缺证明、篡改 `EXPORT_ADMIN`、空角色、跨租户历史/详情/下载/配置访问，并记录失败审计。
+- 同步 OpenAPI 契约、API/contract 负向测试和 verify-matrix 证据边界。
+
+## Files Changed
+- `src/audit-log/auth-context.ts`: 可信证明校验、失败审计、管理员租户白名单。
+- `src/task-api/service.ts`: 历史查询租户隔离与跨租户管理员拒绝。
+- `src/registry-config/service.ts`: 配置管理管理员租户边界。
+- `src/routes/**`: 异步读取认证上下文并传入审计 action。
+- `contracts/openapi.yaml`: 声明认证上下文签名证明头。
+- `tests/api/export-http-api.test.mjs`: 增加伪造/缺失/跨租户负向用例。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 增加契约守护。
+- `docs/testing/verify-matrix.md`: 增加本任务证据行。
+
+## Validation
+- `npm run arch:check; ... npm run test:api; ... npm run test:contract; ... git diff --check ...`: PASS
+- `git diff --check -- src/registry-config`: PASS
+- `npm run typecheck`: PASS
+- secret pattern scan over changed source/test/contract/docs paths: PASS, no matches
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明可信证明、伪造管理员、空角色、跨租户访问拒绝和审计。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI 公开 operation 声明可信证明头。
+- `docs/testing/verify-matrix.md`: 记录 Docker MySQL / API / contract 证据边界。
+
+## Architecture Constraints
+- `independent_microservice / HTTP API boundary`: PASS - `npm run arch:check`
+- `production DB path`: PASS - Docker MySQL 下 `npm run test:api`
+- `no mock/InMemory production substitute`: PASS - 生产入口仍走 route/service/repository
+- `secret handling`: PASS - 密钥仅从环境变量读取，未写入仓库
+
+## Knowledge References
+- None - 当前 knowledge catalog 为 cold start，无直接适用条目。
+
+## Knowledge Outputs
+- `GUIDELINE-SECURITY-001`: guideline - 认证上下文透传必须有可信来源证明 - suggested - `docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未验证外部 live 网关接入；本轮证据边界是本机/Docker MySQL API + contract。
+- 生产环境必须配置 `EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET` 和 `EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS`。
+- 未执行 commit：当前 Driver Prompt 强制禁止 `git add` / `git commit`。
