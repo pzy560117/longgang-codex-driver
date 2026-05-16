@@ -2499,6 +2499,283 @@
                                      ]
                   },
                   {
+                      "id":  "HISTORY-PAGINATION-TOTAL-001",
+                      "description":  "修复历史任务分页 total 返回筛选条件真实总量",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-review-repair",
+                      "gate_profile":  "spec_required",
+                      "priority":  91,
+                      "dependencies":  [
+                                           "DATASOURCE-ADAPTER-BOUNDARY-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001：历史查询分页 total 必须返回筛选条件下真实总量",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+                                                       "保持普通用户仅见本人、管理员按可信租户边界访问的权限规则"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续用当前页 items.length 冒充 total",
+                                                        "禁止绕过 repository 直接拼接未参数化 SQL",
+                                                        "禁止删除既有历史查询权限、筛选或审计测试"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "src/task-api/service.ts",
+                                            "src/repositories/export-task.repository.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "src/task-api/service.ts",
+                                          "src/repositories/export-task.repository.ts",
+                                          "tests/api/export-http-api.test.mjs",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-004",
+                                              "AC-004"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/service.ts",
+                                                 "src/repositories/export-task.repository.ts",
+                                                 "tests/api/export-http-api.test.mjs",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核历史查询 service/repository 当前 total 计算方式和筛选条件",
+                                    "实现与筛选、租户和创建人权限一致的 total count 查询",
+                                    "补 API 回归断言 total 不等于当前页数量且符合筛选条件真实总量",
+                                    "同步 verify-matrix 记录 HISTORY-PAGINATION-TOTAL-001 evidence"
+                                ],
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "历史任务列表 total 返回符合当前筛选条件和权限边界的真实总量",
+                                         "分页 limit/offset 不影响 total，仅影响 items",
+                                         "普通用户、管理员和跨租户边界不回归",
+                                         "Docker MySQL 下 test:api、typecheck 与 scoped diff check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "TASK-CANCEL-ATOMICITY-001",
+                      "description":  "修复取消任务状态更新缺少原状态和 attemptNo CAS 条件",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-review-repair",
+                      "gate_profile":  "spec_required",
+                      "priority":  91,
+                      "dependencies":  [
+                                           "HISTORY-PAGINATION-TOTAL-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：取消任务更新必须使用原状态和 attemptNo CAS 条件",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+                                                       "保持 PENDING 取消、EXECUTING 批次边界取消和 FAILED retry 状态机语义"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只按 task_id 更新任务状态",
+                                                        "禁止让 cancel 覆盖 worker 已推进到 COMPLETED、FAILED 或新 attempt 的状态",
+                                                        "禁止删除既有 worker lease、retry 或 cancel 审计"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "src/task-api/service.ts",
+                                            "src/repositories/export-task.repository.ts",
+                                            "src/scheduler/worker.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "src/task-api/service.ts",
+                                          "src/repositories/export-task.repository.ts",
+                                          "src/scheduler/worker.ts",
+                                          "tests/api/export-http-api.test.mjs",
+                                          "tests/worker/scheduler-worker.test.mjs",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-012",
+                                              "AC-012",
+                                              "AC-E015"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/service.ts",
+                                                 "src/repositories/export-task.repository.ts",
+                                                 "src/scheduler/worker.ts",
+                                                 "tests/api/export-http-api.test.mjs",
+                                                 "tests/worker/scheduler-worker.test.mjs",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 cancel API 和 worker 批次边界取消状态更新路径",
+                                    "为 cancel 状态更新增加 expected status / attemptNo CAS 条件并处理 CAS miss",
+                                    "补 API / worker 回归证明 cancel 不覆盖 worker 已推进状态或新 attempt",
+                                    "同步 verify-matrix 记录 TASK-CANCEL-ATOMICITY-001 evidence"
+                                ],
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "取消任务更新使用原状态和 attemptNo CAS 条件",
+                                         "worker 状态推进或 retry 产生新 attempt 后，旧 cancel 不会覆盖真实状态",
+                                         "PENDING cancel 和 EXECUTING 批次边界 cancel 仍按产品状态机工作",
+                                         "Docker MySQL 下 test:api / test:worker、typecheck 与 scoped diff check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+                      "description":  "对齐 scheduler 默认 query batch retry 次数为产品默认 3",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-review-repair",
+                      "gate_profile":  "spec_required",
+                      "priority":  91,
+                      "dependencies":  [
+                                           "TASK-CANCEL-ATOMICITY-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：scheduler 默认 query_batch_max_retries 必须与产品默认 3 对齐",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+                                                       "保持显式传入 maxQueryBatchRetries 时的调用方覆盖能力"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只改测试不改生产默认值",
+                                                        "禁止破坏 retry backoff、checkpoint 或最终失败审计语义",
+                                                        "禁止把默认值硬编码到测试替身而非 scheduler 生产路径"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "src/scheduler/worker.ts",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "src/scheduler/worker.ts",
+                                          "tests/worker/scheduler-worker.test.mjs",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-006",
+                                              "FR-010",
+                                              "AC-020",
+                                              "AC-E004",
+                                              "AC-E020"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/scheduler/worker.ts",
+                                                 "tests/worker/scheduler-worker.test.mjs",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 state-matrix 中 query_batch_max_retries 默认值",
+                                    "将 scheduler 默认 maxQueryBatchRetries 对齐为 3，保留显式 override",
+                                    "补 worker 回归证明默认 retry 次数和最终失败边界",
+                                    "同步 verify-matrix 记录 DEFAULT-QUERY-RETRY-ALIGNMENT-001 evidence"
+                                ],
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "scheduler 默认 query batch retry 次数为 3",
+                                         "显式 maxQueryBatchRetries 覆盖值仍生效",
+                                         "retry checkpoint、backoff 和最终失败审计不回归",
+                                         "Docker MySQL 下 test:worker、typecheck 与 scoped diff check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "PUBLIC-ERROR-REDACTION-001",
+                      "description":  "修复公开错误响应和任务失败详情可能泄露底层消息",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-review-repair",
+                      "gate_profile":  "spec_required",
+                      "priority":  91,
+                      "dependencies":  [
+                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004：公开错误响应和任务失败详情必须使用公开错误码对应的安全消息",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+                                                       "保留内部日志 / 事件中必要的诊断边界，但不得向 public API 泄露 datasource、SQL、object storage 或实现细节"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把原始 Error.message 直接返回给公开 HTTP 响应",
+                                                        "禁止在任务详情 errorMessage 中暴露 SQL、连接串、对象存储 key、token、password 或 secret",
+                                                        "禁止吞掉公开 errorCode 或破坏已有审计 errorCode"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "contracts/openapi.yaml",
+                                            "src/routes/respond.ts",
+                                            "src/task-api/service.ts",
+                                            "src/query-executor/index.ts",
+                                            "src/file-service/index.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/query/query-executor.test.mjs",
+                                            "tests/file/export-file-service.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "contracts/openapi.yaml",
+                                          "src/routes/respond.ts",
+                                          "src/task-api/service.ts",
+                                          "src/query-executor/index.ts",
+                                          "src/file-service/index.ts",
+                                          "tests/api/export-http-api.test.mjs",
+                                          "tests/query/query-executor.test.mjs",
+                                          "tests/file/export-file-service.test.mjs",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-010",
+                                              "AC-010",
+                                              "AC-E012",
+                                              "AC-E013"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "contracts/openapi.yaml",
+                                                 "src/routes/respond.ts",
+                                                 "src/task-api/service.ts",
+                                                 "src/query-executor/index.ts",
+                                                 "src/file-service/index.ts",
+                                                 "tests/api/export-http-api.test.mjs",
+                                                 "tests/query/query-executor.test.mjs",
+                                                 "tests/file/export-file-service.test.mjs",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "盘点公开 HTTP 错误响应和任务详情 errorMessage 的来源",
+                                    "建立公开错误码到安全消息的映射，避免直接透出底层 Error.message",
+                                    "补 API / query / file 测试覆盖 datasource、SQL、object storage 和未知错误脱敏",
+                                    "同步 OpenAPI / verify-matrix 记录 PUBLIC-ERROR-REDACTION-001 evidence"
+                                ],
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts src/routes src/task-api src/query-executor src/file-service tests/api tests/query tests/file docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "公开 HTTP 错误响应不直接返回底层 Error.message",
+                                         "任务详情 errorMessage 不泄露 datasource、SQL、object storage 或 secret 细节",
+                                         "公开 errorCode、审计 errorCode 和既有失败状态语义不回归",
+                                         "test:contract、Docker MySQL 下 test:api / test:query / test:file、typecheck 与 scoped diff check 全部通过"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -2524,7 +2801,11 @@
                                            "P0-ACCEPTANCE-EVIDENCE-REPAIR-001",
                                            "REGISTRY-CONTRACT-VALIDATION-001",
                                            "CREATE-TASK-REGISTRY-GUARD-001",
-                                           "DATASOURCE-ADAPTER-BOUNDARY-001"
+                                           "DATASOURCE-ADAPTER-BOUNDARY-001",
+                                           "HISTORY-PAGINATION-TOTAL-001",
+                                           "TASK-CANCEL-ATOMICITY-001",
+                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+                                           "PUBLIC-ERROR-REDACTION-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [
@@ -2540,11 +2821,18 @@
                                                     ],
                       "context_files":  [
                                             "docs/product/prd-lite.md",
+                                            "docs/product/page-inventory.md",
+                                            "docs/product/difficulty-research.md",
                                             "docs/product/acceptance-criteria.md",
                                             "docs/product/requirement-interface-matrix.md",
                                             "docs/product/state-matrix.yaml",
                                             "docs/architecture/constraints.md",
                                             "contracts/openapi.yaml",
+                                            "docs/testing/ACCEPTANCE_CRITERIA.md",
+                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+                                            "docs/testing/TRACEABILITY_MATRIX.md",
+                                            "docs/testing/TEST_DATA_MATRIX.md",
+                                            "docs/testing/test-matrix.md",
                                             "docs/testing/verify-matrix.md",
                                             "task.json"
                                         ],
