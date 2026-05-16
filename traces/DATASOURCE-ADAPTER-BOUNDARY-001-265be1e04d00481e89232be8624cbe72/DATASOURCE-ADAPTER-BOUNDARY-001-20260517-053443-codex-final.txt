@@ -1,0 +1,47 @@
+## Requirement IDs
+- FR-008
+- FR-009
+- AC-008
+- AC-019
+- AC-E012
+
+## Summary
+- 已核验 `datasourceCode` 到独立只读 datasource adapter 的执行边界已存在并满足任务要求。
+- 本轮未新增源码改动；当前 scoped diff 为空。未执行 `git add/commit`，因为本任务模板强制禁止提交操作。
+
+## Files Changed
+- `none`: 本轮没有修改 `src/`、`tests/` 或 `docs/testing/verify-matrix.md`。
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed.
+- `scripts/docker-test-env.ps1 + npm run test:query`: PASS - 22/22 passed.
+- `npm run test:worker`: PASS - 22/22 passed.
+- `git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md`: PASS - no whitespace errors.
+
+## Evidence
+- `src/query-executor/index.ts`: resolves registry `datasourceCode` via readonly adapter provider and maps unavailable datasource errors.
+- `src/datasource-adapters/index.ts`: provides env-backed MySQL readonly adapter boundary.
+- `src/scheduler/worker.ts`: passes datasource adapter provider into default query executor.
+- `tests/query/query-executor.test.mjs`: covers adapter execution, unknown datasource, provider failure, invalid URL, and sanitized `DATASOURCE_UNAVAILABLE`.
+- `tests/worker/scheduler-worker.test.mjs`: covers worker adapter provider handoff and datasource unavailable audit mapping.
+- `docs/testing/verify-matrix.md`: records DATASOURCE-ADAPTER-BOUNDARY-001 evidence boundary.
+
+## Architecture Constraints
+- `independent_microservice`: PASS - production query path remains service/worker based.
+- `Data Boundary`: PASS - business SELECT goes through readonly datasource adapter, platform DB remains for registry/task/event/checkpoint/audit.
+- `Test Double Policy`: PASS - Docker MySQL gate used; adapter test doubles only in tests.
+- `Forbidden Implementations`: PASS - no `InMemory*` or mock repository used as production path.
+
+## Knowledge References
+- `none`: 未引用具体知识条目；仅按知识目录规则检查 catalog，无直接适用条目。
+
+## Knowledge Outputs
+- `none`: 本轮无新增可归档经验建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部业务库 live datasource 不在当前 gate 范围内；当前证据为本机/Docker MySQL 受控只读数据源模拟。

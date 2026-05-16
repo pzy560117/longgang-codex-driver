@@ -1,0 +1,96 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:64511 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.9779ms)
+✔ seed registry uses the same contract validation as production persistence and rejects empty bypass values (268.674ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (205.3037ms)
+✔ query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode (211.4637ms)
+✔ query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details (187.0178ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (213.0553ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (185.7667ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (174.3156ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (241.0299ms)
+✔ query executor replays the task config snapshot after the current registry changes (243.2316ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (216.9829ms)
+✔ query executor rejects rows with missing or null cursor values (189.9078ms)
+✔ query executor rejects duplicate cursor values (176.3586ms)
+✔ query executor rejects non-increasing cursor values without duplicates (177.8013ms)
+✔ query executor rejects checkpoints missing required cursor fields (169.6616ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (236.4221ms)
+✔ seed registry rejects missing masking rules for sensitive exportable fields before persistence (140.6575ms)
+✔ query executor rejects field mappings that do not match selected columns (160.0875ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (292.7345ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.3397ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4205.8588
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8975ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (238.5741ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (335.7857ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (264.6509ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (298.0946ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (280.5568ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (215.569ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (258.9856ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (241.2123ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (231.2004ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (198.6221ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (258.1893ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (333.7577ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (156.428ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (303.7132ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (270.3916ms)
+  ✖ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (392.9801ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (211.6163ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (180.9696ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (208.6531ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (311.9508ms)
+✖ worker integration tests (5194.5202ms)
+ℹ tests 21
+ℹ suites 1
+ℹ pass 20
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5744.8655
+
+✖ failing tests:
+
+test at tests\worker\scheduler-worker.test.mjs:19:10
+✖ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (392.9801ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:1263:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

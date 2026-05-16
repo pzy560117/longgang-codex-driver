@@ -1,0 +1,79 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:52807 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (1.1185ms)
+✔ seed registry uses the same contract validation as production persistence and rejects empty bypass values (269.0254ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (201.3783ms)
+✔ query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode (200.6016ms)
+✔ query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details (167.0563ms)
+✔ query executor maps provider failures to DATASOURCE_UNAVAILABLE without leaking adapter details (163.2506ms)
+✔ query executor maps invalid datasource URL failures to DATASOURCE_UNAVAILABLE (164.7088ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (217.1775ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (187.3687ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (177.4203ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (353.6992ms)
+✔ query executor replays the task config snapshot after the current registry changes (214.699ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (222.9191ms)
+✔ query executor rejects rows with missing or null cursor values (202.719ms)
+✔ query executor rejects duplicate cursor values (177.5689ms)
+✔ query executor rejects non-increasing cursor values without duplicates (172.5245ms)
+✔ query executor rejects checkpoints missing required cursor fields (178.8631ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (211.7519ms)
+✔ seed registry rejects missing masking rules for sensitive exportable fields before persistence (127.7745ms)
+✔ query executor rejects field mappings that do not match selected columns (146.8663ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (184.8149ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.4497ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4563.0163
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8007ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (232.2022ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (359.1636ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (248.9312ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (271.8293ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (269.6873ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (213.8527ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (251.8182ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (217.3893ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (212.2448ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (192.052ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (252.4507ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (244.375ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (183.3568ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (263.3477ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (242.4278ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (243.5192ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (163.8579ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (160.8967ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (158.2787ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (168.8404ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (155.8673ms)
+✔ worker integration tests (4708.837ms)
+ℹ tests 22
+ℹ suites 1
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5225.7189

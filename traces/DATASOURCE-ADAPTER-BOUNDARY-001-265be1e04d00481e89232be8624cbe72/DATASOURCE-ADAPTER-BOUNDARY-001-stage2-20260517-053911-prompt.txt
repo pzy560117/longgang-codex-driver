@@ -1,0 +1,198 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: DATASOURCE-ADAPTER-BOUNDARY-001
+- 描述: 实现 datasourceCode 到独立只读 datasource adapter 的执行边界
+- Requirement IDs:
+- FR-008
+- FR-009
+- AC-008
+- AC-019
+- AC-E012
+- 测试命令: npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- src/query-executor/index.ts
+- src/scheduler/worker.ts
+- tests/query/query-executor.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:52807 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (1.1185ms)
+✔ seed registry uses the same contract validation as production persistence and rejects empty bypass values (269.0254ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (201.3783ms)
+✔ query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode (200.6016ms)
+✔ query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details (167.0563ms)
+✔ query executor maps provider failures to DATASOURCE_UNAVAILABLE without leaking adapter details (163.2506ms)
+✔ query executor maps invalid datasource URL failures to DATASOURCE_UNAVAILABLE (164.7088ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (217.1775ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (187.3687ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (177.4203ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (353.6992ms)
+✔ query executor replays the task config snapshot after the current registry changes (214.699ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (222.9191ms)
+✔ query executor rejects rows with missing or null cursor values (202.719ms)
+✔ query executor rejects duplicate cursor values (177.5689ms)
+✔ query executor rejects non-increasing cursor values without duplicates (172.5245ms)
+✔ query executor rejects checkpoints missing required cursor fields (178.8631ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (211.7519ms)
+✔ seed registry rejects missing masking rules for sensitive exportable fields before persistence (127.7745ms)
+✔ query executor rejects field mappings that do not match selected columns (146.8663ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (184.8149ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.4497ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4563.0163
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8007ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (232.2022ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (359.1636ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (248.9312ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (271.8293ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (269.6873ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (213.8527ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (251.8182ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (217.3893ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (212.2448ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (192.052ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (252.4507ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (244.375ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (183.3568ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (263.3477ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (242.4278ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (243.5192ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (163.8579ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (160.8967ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (158.2787ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (168.8404ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (155.8673ms)
+✔ worker integration tests (4708.837ms)
+ℹ tests 22
+ℹ suites 1
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5225.7189
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。

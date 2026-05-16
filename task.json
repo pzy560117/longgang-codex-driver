@@ -2431,7 +2431,7 @@
                       "dependencies":  [
                                            "CREATE-TASK-REGISTRY-GUARD-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / DATASOURCE-ADAPTER-BOUNDARY-001：query executor 不再用平台 DB 连接冒充业务只读数据源",

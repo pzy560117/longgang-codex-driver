@@ -1,0 +1,68 @@
+SUCCESS: The process with PID 31216 (child process of PID 4688) has been terminated.
+SUCCESS: The process with PID 29336 (child process of PID 34292) has been terminated.
+SUCCESS: The process with PID 34292 (child process of PID 14132) has been terminated.
+SUCCESS: The process with PID 23524 (child process of PID 11556) has been terminated.
+SUCCESS: The process with PID 11556 (child process of PID 10936) has been terminated.
+SUCCESS: The process with PID 10936 (child process of PID 13812) has been terminated.
+SUCCESS: The process with PID 13812 (child process of PID 26040) has been terminated.
+SUCCESS: The process with PID 26040 (child process of PID 14132) has been terminated.
+SUCCESS: The process with PID 32248 (child process of PID 31320) has been terminated.
+SUCCESS: The process with PID 31320 (child process of PID 31680) has been terminated.
+SUCCESS: The process with PID 31680 (child process of PID 26316) has been terminated.
+SUCCESS: The process with PID 26316 (child process of PID 14132) has been terminated.
+## Requirement IDs
+- FR-008
+- FR-009
+- AC-008
+- AC-019
+- AC-E012
+
+## Summary
+- 已实现 `datasourceCode -> readonly datasource adapter` 执行边界，query executor 不再无条件用平台 DB `context.db` 执行业务查询。
+- scheduler worker 支持把 datasource adapter provider 传入默认 query processor。
+- 未知 / 不可用 datasource 统一收口为 `DATASOURCE_UNAVAILABLE`，错误消息不泄露底层细节。
+
+## Files Changed
+- `src/datasource-adapters/index.ts`: 新增只读 MySQL datasource adapter 与 env provider。
+- `src/query-executor/index.ts`: 按 registry `datasourceCode` resolve adapter 后执行 SELECT。
+- `src/scheduler/worker.ts`: 增加 datasource adapter provider 传递边界。
+- `tests/query/query-executor.test.mjs`: 增加 adapter 边界与不可用 datasource 测试。
+- `tests/worker/scheduler-worker.test.mjs`: 增加 scheduler 传递 adapter 边界测试。
+- `docs/testing/verify-matrix.md`: 同步 DATASOURCE-ADAPTER-BOUNDARY-001 证据。
+- `scripts/arch-check.ts`: 将 `src/datasource-adapters/` 纳入生产扫描根。
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run arch:check`: PASS
+- Driver 指定完整命令：PASS
+  - `npm run arch:check`
+  - Docker MySQL 环境下 `npm run test:query`: 20/20 PASS
+  - Docker MySQL 环境下 `npm run test:worker`: 21/21 PASS
+  - scoped `git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md`: PASS
+- `git diff --check -- scripts/arch-check.ts`: PASS
+
+## Evidence
+- `tests/query/query-executor.test.mjs`: 证明业务查询走 readonly datasource adapter，缺失 adapter 为 `DATASOURCE_UNAVAILABLE`。
+- `tests/worker/scheduler-worker.test.mjs`: 证明 scheduler 默认 query processor 传递 adapter provider。
+- `docs/testing/verify-matrix.md`: 记录本任务 query / worker / arch evidence 边界。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 保持 HTTP/worker 架构，未引入内存生产实现。
+- `Data Boundary`: PASS - 平台 DB 仅用于 registry/task/event/checkpoint/audit，业务 SELECT 走 datasource adapter。
+- `Test Double Policy`: PASS - 测试用 Docker MySQL 模拟只读业务数据源，不冒充 live datasource evidence。
+- `Forbidden Implementations`: PASS - 未引入 `InMemory*`、mock repository 或 fixture repository 生产路径。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `GUIDELINE-DATASOURCE-001`: guideline - query executor must resolve registered readonly datasource adapters instead of platform DB fallback - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `git add/commit`，因为本轮 Driver Context 明确禁止。
+- 工作区仍有 `traces/` 运行产物脏状态；这些不属于本任务源码改动，full `git diff --check` 会被 trace 日志尾随空格阻塞，任务指定 scoped diff 已通过。

@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 7212 (child process of PID 468) has been terminated.
+SUCCESS: The process with PID 468 (child process of PID 34768) has been terminated.
+SUCCESS: The process with PID 34768 (child process of PID 25416) has been terminated.
+SUCCESS: The process with PID 25416 (child process of PID 5256) has been terminated.
+SUCCESS: The process with PID 26552 (child process of PID 1924) has been terminated.
+SUCCESS: The process with PID 1924 (child process of PID 29216) has been terminated.
+SUCCESS: The process with PID 29216 (child process of PID 32968) has been terminated.
+SUCCESS: The process with PID 32968 (child process of PID 30852) has been terminated.
+SUCCESS: The process with PID 30852 (child process of PID 5256) has been terminated.
+SUCCESS: The process with PID 2088 (child process of PID 11960) has been terminated.
+SUCCESS: The process with PID 11960 (child process of PID 2904) has been terminated.
+SUCCESS: The process with PID 2904 (child process of PID 6828) has been terminated.
+SUCCESS: The process with PID 6828 (child process of PID 5256) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DATASOURCE-ADAPTER-BOUNDARY-001-S1-F001 | HIGH | missing_requirement | backend | `src/query-executor/index.ts:584`-`596` 会把 `resolveReadonlyAdapter()` 抛出的异常交给 `mapDatasourceAdapterError()`；`src/query-executor/index.ts:891`-`915` 只把少量 MySQL/网络错误码映射为 `DATASOURCE_UNAVAILABLE`，普通 provider/adapter 不可用异常或 invalid datasource URL 可能变成 `QUERY_EXECUTION_ERROR` 或透出原始错误名/信息。现有测试只覆盖 adapter 返回 `undefined` 和部分 code-based 错误：`tests/query/query-executor.test.mjs:542`、`tests/query/query-executor.test.mjs:1337`。这未闭合验收“adapter 不可用、凭证/连接失败统一收口为 `DATASOURCE_UNAVAILABLE` 且不泄露底层细节”。 | 在 datasource adapter 解析/连接入口补齐不可用错误分类：provider 抛错、无效 datasource URL、credential/config 读取失败等都应固定映射为 `DATASOURCE_UNAVAILABLE: datasource unavailable`；只保留真实业务 SELECT 执行错误为 `QUERY_EXECUTION_ERROR`。补 query/worker 负向测试覆盖 provider throws、invalid URL/adapter unavailable，并确认 worker 审计错误码仍为 `DATASOURCE_UNAVAILABLE`。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:query; npm run test:worker'; git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- Verdict: FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DATASOURCE-ADAPTER-BOUNDARY-001-S1-F001 | backend | backend-worker | 1 | yes |
