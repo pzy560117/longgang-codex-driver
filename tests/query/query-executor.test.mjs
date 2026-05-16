@@ -13,6 +13,80 @@ import {
   createQueryExecutorBatchProcessor,
   mapDatasourceAdapterError
 } from "../../src/query-executor/index.ts";
+import { buildValidatedRegistryUpsertInput } from "../../src/registry-config/contract.ts";
+
+const invalidRegistrySeedCases = [
+  {
+    field: "supportedFormats",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      supportedFormats: []
+    }
+  },
+  {
+    field: "parameterSchema",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      parameterSchema: null
+    }
+  },
+  {
+    field: "queryTemplate",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      queryTemplate: null
+    }
+  },
+  {
+    field: "fieldMappings",
+    code: "FIELD_MAPPING_INVALID",
+    overrides: {
+      fieldMappings: []
+    }
+  },
+  {
+    field: "maskingPolicy",
+    code: "MASKING_RULE_ERROR",
+    overrides: {
+      maskingPolicy: null
+    }
+  },
+  {
+    field: "maskingPolicyRuleCoverage",
+    code: "MASKING_RULE_ERROR",
+    overrides: {
+      maskingPolicy: { rules: {} }
+    }
+  },
+  {
+    field: "maskingPolicyUnsupportedRule",
+    code: "MASKING_RULE_ERROR",
+    overrides: {
+      maskingPolicy: { rules: { phone_mask: { type: "UNSUPPORTED" } } }
+    }
+  },
+  {
+    field: "dataScopeTemplate",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      dataScopeTemplate: ""
+    }
+  },
+  {
+    field: "cursorField",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      cursorField: ""
+    }
+  },
+  {
+    field: "orderBy",
+    code: "QUERY_TEMPLATE_INVALID",
+    overrides: {
+      orderBy: []
+    }
+  }
+];
 
 function parseCursorToken(lastCursor) {
   return JSON.parse(lastCursor);
@@ -106,101 +180,133 @@ async function seedRegistry(db, overrides = {}) {
   const taskCode = overrides.taskCode ?? `purchase-order-export-${runId}`;
   const subsystemCode = overrides.subsystemCode ?? "purchase";
   const registryRepository = createExportRegistryRepository(db);
+  const registryInput = buildValidatedRegistryUpsertInput({
+    body: {
+      taskCode,
+      subsystemCode,
+      displayName: "Purchase Order Export",
+      enabled: true,
+      concurrencyLimit: 1,
+      fileRetentionDays: 7,
+      taskHistoryRetentionDays: 30,
+      singleFileMaxRows: 20000,
+      exportMaxRows: overrides.exportMaxRows ?? 100000,
+      supportedFormats: Object.hasOwn(overrides, "supportedFormats")
+        ? overrides.supportedFormats
+        : ["XLSX", "ZIP"],
+      datasourceCode: "purchase-ro",
+      parameterSchema: Object.hasOwn(overrides, "parameterSchema")
+        ? overrides.parameterSchema
+        : {
+            type: "object",
+            properties: {
+              createdAtFrom: { type: "string" },
+              createdAtTo: { type: "string" },
+              orderStatus: { type: "string" },
+              supplierId: { type: "string" },
+              purchaseOrgId: { type: "string" },
+              keyword: { type: "string" }
+            },
+            required: ["createdAtFrom", "createdAtTo"]
+          },
+      queryTemplate: Object.hasOwn(overrides, "queryTemplate")
+        ? overrides.queryTemplate
+        : {
+            queryTemplateVersion: "v1",
+            templateText:
+              "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, order_status AS orderStatus, supplier_id AS supplierId, purchase_org_id AS purchaseOrgId, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
+            allowedParameters: [
+              "createdAtFrom",
+              "createdAtTo",
+              "orderStatus",
+              "supplierId",
+              "purchaseOrgId",
+              "keyword"
+            ]
+          },
+      fieldMappings: Object.hasOwn(overrides, "fieldMappings")
+        ? overrides.fieldMappings
+        : [
+            {
+              fieldCode: "orderId",
+              headerName: "Order ID",
+              fieldType: "STRING",
+              orderNo: 1,
+              sensitive: false,
+              exportable: true
+            },
+            {
+              fieldCode: "orderNo",
+              headerName: "Order No",
+              fieldType: "STRING",
+              orderNo: 2,
+              sensitive: false,
+              exportable: true
+            },
+            {
+              fieldCode: "contactPhone",
+              headerName: "Contact Phone",
+              fieldType: "STRING",
+              orderNo: 3,
+              sensitive: true,
+              exportable: true,
+              maskingRuleCode: "phone_mask"
+            }
+          ],
+      maskingPolicy: Object.hasOwn(overrides, "maskingPolicy")
+        ? overrides.maskingPolicy
+        : {
+            rules: {
+              phone_mask: {
+                type: "PHONE",
+                preservePrefix: 3,
+                preserveSuffix: 4
+              }
+            }
+          },
+      dataScopeTemplate: Object.hasOwn(overrides, "dataScopeTemplate")
+        ? overrides.dataScopeTemplate
+        : "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
+      cursorField: Object.hasOwn(overrides, "cursorField") ? overrides.cursorField : "orderId",
+      orderBy: Object.hasOwn(overrides, "orderBy")
+        ? overrides.orderBy
+        : [{ field: "orderId", direction: "ASC" }],
+      batchSize: overrides.batchSize ?? 2
+    },
+    now
+  });
 
   await registryRepository.upsertRegistry({
-    taskCode,
-    subsystemCode,
-    displayName: "Purchase Order Export",
-    enabled: true,
-    concurrencyLimit: 1,
-    fileRetentionDays: 7,
-    taskHistoryRetentionDays: 30,
-    singleFileMaxRows: 20000,
-    exportMaxRows: overrides.exportMaxRows ?? 100000,
-    datasourceCode: "purchase-ro",
-    supportedFormats: JSON.stringify(["XLSX", "ZIP"]),
-    parameterSchema: JSON.stringify({
-      type: "object",
-      properties: {
-        createdAtFrom: { type: "string" },
-        createdAtTo: { type: "string" },
-        orderStatus: { type: "string" },
-        supplierId: { type: "string" },
-        purchaseOrgId: { type: "string" },
-        keyword: { type: "string" }
-      },
-      required: ["createdAtFrom", "createdAtTo"]
-    }),
-    queryTemplate: JSON.stringify(
-      overrides.queryTemplate ?? {
-        queryTemplateVersion: "v1",
-        templateText:
-          "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, order_status AS orderStatus, supplier_id AS supplierId, purchase_org_id AS purchaseOrgId, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
-        allowedParameters: [
-          "createdAtFrom",
-          "createdAtTo",
-          "orderStatus",
-          "supplierId",
-          "purchaseOrgId",
-          "keyword"
-        ]
-      }
-    ),
-    fieldMappings: JSON.stringify(
-      overrides.fieldMappings ?? [
-        {
-          fieldCode: "orderId",
-          headerName: "Order ID",
-          fieldType: "STRING",
-          orderNo: 1,
-          sensitive: false,
-          exportable: true
-        },
-        {
-          fieldCode: "orderNo",
-          headerName: "Order No",
-          fieldType: "STRING",
-          orderNo: 2,
-          sensitive: false,
-          exportable: true
-        },
-        {
-          fieldCode: "contactPhone",
-          headerName: "Contact Phone",
-          fieldType: "STRING",
-          orderNo: 3,
-          sensitive: true,
-          exportable: true,
-          maskingRuleCode: "phone_mask"
-        }
-      ]
-    ),
-    maskingPolicy: JSON.stringify(
-      overrides.maskingPolicy ?? {
-        rules: {
-          phone_mask: {
-            type: "PHONE",
-            preservePrefix: 3,
-            preserveSuffix: 4
-          }
-        }
-      }
-    ),
-    dataScopeTemplate:
-      overrides.dataScopeTemplate ??
-      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
-    cursorField: "orderId",
-    orderBy: JSON.stringify([{ field: "orderId", direction: "ASC" }]),
-    batchSize: overrides.batchSize ?? 2,
+    ...registryInput,
     configSnapshotDigest: overrides.configSnapshotDigest ?? "sha256:config-v1",
-    parameterSchemaDigest: "sha256:params-v1",
-    fieldMappingDigest: "sha256:fields-v1",
-    maskingPolicyDigest: "sha256:mask-v1",
-    now
+    parameterSchemaDigest: overrides.parameterSchemaDigest ?? "sha256:params-v1",
+    fieldMappingDigest: overrides.fieldMappingDigest ?? "sha256:fields-v1",
+    maskingPolicyDigest: overrides.maskingPolicyDigest ?? "sha256:mask-v1"
   });
 
   return { taskCode, subsystemCode };
 }
+
+test("seed registry uses the same contract validation as production persistence and rejects empty bypass values", async (t) => {
+  const db = await createTestDatabase(t);
+
+  for (const [index, invalidCase] of invalidRegistrySeedCases.entries()) {
+    const taskCode = `invalid-seed-${invalidCase.field}-${Date.now()}-${index}`;
+    await assert.rejects(
+      () =>
+        seedRegistry(db, {
+          runId: `invalid-seed-${index}`,
+          taskCode,
+          ...invalidCase.overrides
+        }),
+      (error) => {
+        assert.equal(error?.code, invalidCase.code);
+        return true;
+      }
+    );
+    assert.equal(await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode), undefined);
+  }
+});
 
 async function seedTask(db, input) {
   const now = await getDatabaseTime(db);
@@ -985,45 +1091,16 @@ test("query executor rejects unsafe template forms and undeclared placeholders",
   }
 });
 
-test("query executor rejects missing masking rules for sensitive exportable fields", async (t) => {
+test("seed registry rejects missing masking rules for sensitive exportable fields before persistence", async (t) => {
   const db = await createTestDatabase(t);
-  const now = await getDatabaseTime(db);
-  const { taskCode, subsystemCode } = await seedRegistry(db, {
-    runId: "mask-missing",
-    maskingPolicy: { rules: {} }
-  });
-  const task = await seedTask(db, {
-    taskId: "exp-mask-missing",
-    taskCode,
-    subsystemCode
-  });
-  const processor = createQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
-      processor({
-        db,
-        task: {
-          ...task,
-          status: "EXECUTING",
-          lockOwner: "worker-query",
-          lockExpireAt: new Date(now.getTime() + 300000),
-          leaseRenewedAt: now
-        },
-        lease: {
-          taskId: task.taskId,
-          attemptNo: task.attemptNo,
-          lockOwner: "worker-query",
-          previousLockOwner: null,
-          lockExpireAt: new Date(now.getTime() + 300000),
-          leaseRenewedAt: now,
-          databaseTime: now,
-          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
-        },
-        checkpoint: undefined,
-        requestId: "req-mask-missing"
+      seedRegistry(db, {
+        runId: "mask-missing",
+        maskingPolicy: { rules: {} }
       }),
-    /MASKING_RULE_ERROR/
+    (error) => error.code === "MASKING_RULE_ERROR"
   );
 });
 

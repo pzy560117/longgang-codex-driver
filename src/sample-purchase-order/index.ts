@@ -37,17 +37,74 @@ export const SAMPLE_PURCHASE_ORDER_QUERY_TEMPLATE = {
 } as const;
 
 export const SAMPLE_PURCHASE_ORDER_FIELD_MAPPINGS = [
-  { fieldCode: "orderNo", headerName: "订单号", orderNo: 1, exportable: true },
-  { fieldCode: "orderStatus", headerName: "订单状态", orderNo: 2, exportable: true },
-  { fieldCode: "supplierName", headerName: "供应商", orderNo: 3, exportable: true },
-  { fieldCode: "purchaseOrgName", headerName: "采购组织", orderNo: 4, exportable: true },
-  { fieldCode: "purchaserName", headerName: "采购员", orderNo: 5, exportable: true },
-  { fieldCode: "createdAt", headerName: "创建时间", orderNo: 6, exportable: true },
-  { fieldCode: "totalAmount", headerName: "总金额", orderNo: 7, exportable: true },
-  { fieldCode: "currency", headerName: "币种", orderNo: 8, exportable: true },
+  {
+    fieldCode: "orderNo",
+    headerName: "订单号",
+    fieldType: "STRING",
+    orderNo: 1,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "orderStatus",
+    headerName: "订单状态",
+    fieldType: "STRING",
+    orderNo: 2,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "supplierName",
+    headerName: "供应商",
+    fieldType: "STRING",
+    orderNo: 3,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "purchaseOrgName",
+    headerName: "采购组织",
+    fieldType: "STRING",
+    orderNo: 4,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "purchaserName",
+    headerName: "采购员",
+    fieldType: "STRING",
+    orderNo: 5,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "createdAt",
+    headerName: "创建时间",
+    fieldType: "DATETIME",
+    orderNo: 6,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "totalAmount",
+    headerName: "总金额",
+    fieldType: "DECIMAL",
+    orderNo: 7,
+    sensitive: false,
+    exportable: true
+  },
+  {
+    fieldCode: "currency",
+    headerName: "币种",
+    fieldType: "STRING",
+    orderNo: 8,
+    sensitive: false,
+    exportable: true
+  },
   {
     fieldCode: "contactName",
     headerName: "联系人姓名",
+    fieldType: "STRING",
     orderNo: 9,
     sensitive: true,
     exportable: true,
@@ -56,6 +113,7 @@ export const SAMPLE_PURCHASE_ORDER_FIELD_MAPPINGS = [
   {
     fieldCode: "contactPhone",
     headerName: "联系人手机号",
+    fieldType: "STRING",
     orderNo: 10,
     sensitive: true,
     exportable: true,

@@ -197,6 +197,89 @@ function createRegistryPayload(taskCode) {
   };
 }
 
+const registryContractRejectionCases = [
+  {
+    field: "supportedFormats",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, supportedFormats: [] })
+  },
+  {
+    field: "parameterSchema",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, parameterSchema: null })
+  },
+  {
+    field: "queryTemplate",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, queryTemplate: null })
+  },
+  {
+    field: "fieldMappings",
+    code: "FIELD_MAPPING_INVALID",
+    apply: (payload) => ({ ...payload, fieldMappings: [] })
+  },
+  {
+    field: "maskingPolicy",
+    code: "MASKING_RULE_ERROR",
+    apply: (payload) => ({ ...payload, maskingPolicy: null })
+  },
+  {
+    field: "maskingPolicyRuleCoverage",
+    code: "MASKING_RULE_ERROR",
+    apply: (payload) => ({
+      ...payload,
+      fieldMappings: [
+        ...payload.fieldMappings,
+        {
+          fieldCode: "contactPhone",
+          headerName: "Contact Phone",
+          fieldType: "STRING",
+          orderNo: 2,
+          sensitive: true,
+          exportable: true,
+          maskingRuleCode: "phone_mask"
+        }
+      ],
+      maskingPolicy: { version: "v1", rules: {} }
+    })
+  },
+  {
+    field: "maskingPolicyUnsupportedRule",
+    code: "MASKING_RULE_ERROR",
+    apply: (payload) => ({
+      ...payload,
+      fieldMappings: [
+        ...payload.fieldMappings,
+        {
+          fieldCode: "contactPhone",
+          headerName: "Contact Phone",
+          fieldType: "STRING",
+          orderNo: 2,
+          sensitive: true,
+          exportable: true,
+          maskingRuleCode: "phone_mask"
+        }
+      ],
+      maskingPolicy: { version: "v1", rules: { phone_mask: { type: "UNSUPPORTED" } } }
+    })
+  },
+  {
+    field: "dataScopeTemplate",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, dataScopeTemplate: "" })
+  },
+  {
+    field: "cursorField",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, cursorField: "" })
+  },
+  {
+    field: "orderBy",
+    code: "QUERY_TEMPLATE_INVALID",
+    apply: (payload) => ({ ...payload, orderBy: [] })
+  }
+];
+
 function createTaskPayload(taskCode, clientRequestId = "client-001") {
   return {
     taskCode,
@@ -456,6 +539,35 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(createRegistryResponse.statusCode, 201);
+  const createdRegistrySnapshot = createRegistryResponse.json().data;
+
+  for (const [index, rejectionCase] of registryContractRejectionCases.entries()) {
+    const invalidTaskCode = `${taskCode}-invalid-create-${index}`;
+    const requestId = `req-registry-invalid-create-${rejectionCase.field}-${runId}`;
+    const invalidCreateResponse = await app.inject({
+      method: "POST",
+      url: "/api/export/registries",
+      headers: createHeaders(requestId),
+      payload: rejectionCase.apply(createRegistryPayload(invalidTaskCode))
+    });
+
+    assert.equal(
+      invalidCreateResponse.statusCode,
+      400,
+      `${rejectionCase.field} invalid create should be rejected`
+    );
+    assert.equal(invalidCreateResponse.json().code, rejectionCase.code);
+    const invalidCreateRows = await db
+      .selectFrom("export_registries")
+      .select("task_code")
+      .where("task_code", "=", invalidTaskCode)
+      .execute();
+    assert.equal(invalidCreateRows.length, 0);
+    const invalidCreateAudits = await auditLogsByRequestId(db, requestId);
+    assert.equal(invalidCreateAudits.length, 1);
+    assert.equal(invalidCreateAudits[0].result, "FAILED");
+    assert.equal(invalidCreateAudits[0].error_code, rejectionCase.code);
+  }
 
   const duplicateRegistryResponse = await app.inject({
     method: "POST",
@@ -562,6 +674,38 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(deniedRegistryUpdateAudits.length, 1);
   assert.equal(deniedRegistryUpdateAudits[0].result, "FAILED");
   assert.equal(deniedRegistryUpdateAudits[0].error_code, "PERMISSION_DENIED");
+
+  for (const rejectionCase of registryContractRejectionCases) {
+    const requestId = `req-registry-invalid-update-${rejectionCase.field}-${runId}`;
+    const invalidUpdateResponse = await app.inject({
+      method: "PUT",
+      url: `/api/export/registries/${taskCode}`,
+      headers: createHeaders(requestId),
+      payload: rejectionCase.apply({
+        ...createRegistryPayload(taskCode),
+        displayName: `Broken ${rejectionCase.field}`
+      })
+    });
+
+    assert.equal(
+      invalidUpdateResponse.statusCode,
+      400,
+      `${rejectionCase.field} invalid update should be rejected`
+    );
+    assert.equal(invalidUpdateResponse.json().code, rejectionCase.code);
+    const invalidUpdateAudits = await auditLogsByRequestId(db, requestId);
+    assert.equal(invalidUpdateAudits.length, 1);
+    assert.equal(invalidUpdateAudits[0].result, "FAILED");
+    assert.equal(invalidUpdateAudits[0].error_code, rejectionCase.code);
+
+    const unchangedRegistryResponse = await app.inject({
+      method: "GET",
+      url: `/api/export/registries/${taskCode}`,
+      headers: createHeaders(`req-registry-invalid-update-get-${rejectionCase.field}-${runId}`)
+    });
+    assert.equal(unchangedRegistryResponse.statusCode, 200);
+    assert.deepEqual(unchangedRegistryResponse.json().data, createdRegistrySnapshot);
+  }
 
   const updateRegistryResponse = await app.inject({
     method: "PUT",

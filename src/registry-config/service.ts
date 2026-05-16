@@ -14,28 +14,10 @@ import {
   isTrustedRegistryAdminTenant,
   type AuthContext
 } from "../audit-log/auth-context.ts";
-
-type RegistryBody = {
-  taskCode?: string;
-  subsystemCode?: string;
-  displayName?: string;
-  enabled?: boolean;
-  concurrencyLimit?: number;
-  fileRetentionDays?: number;
-  taskHistoryRetentionDays?: number;
-  singleFileMaxRows?: number;
-  exportMaxRows?: number;
-  supportedFormats?: unknown;
-  datasourceCode?: string;
-  parameterSchema?: unknown;
-  queryTemplate?: unknown;
-  fieldMappings?: unknown;
-  maskingPolicy?: unknown;
-  dataScopeTemplate?: string;
-  cursorField?: string;
-  orderBy?: unknown;
-  batchSize?: number;
-};
+import {
+  buildValidatedRegistryUpsertInput,
+  type RegistryBody
+} from "./contract.ts";
 
 function stableText(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value ?? null);
@@ -152,63 +134,41 @@ export async function upsertExportRegistry(
   options: { rejectExistingOnCreate?: boolean } = {}
 ) {
   return withDatabase(async (db) => {
-    const taskCode = taskCodeOverride ?? body.taskCode;
+    const taskCode = taskCodeOverride ?? (typeof body.taskCode === "string" ? body.taskCode : undefined);
     const now = await getDatabaseTime(db);
+    const action = taskCodeOverride ? "REGISTRY_UPDATE" : "REGISTRY_CREATE";
     await requireRegistryAdmin({
       db,
       auth,
-      action: taskCodeOverride ? "REGISTRY_UPDATE" : "REGISTRY_CREATE",
+      action,
       now,
       taskCode: taskCode ?? null,
-      subsystemCode: body.subsystemCode ?? null
+      subsystemCode: typeof body.subsystemCode === "string" ? body.subsystemCode : null
     });
 
-    if (!taskCode || !body.subsystemCode || !body.displayName || !body.datasourceCode) {
-      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "registry payload is incomplete");
+    let registryInput;
+    try {
+      registryInput = buildValidatedRegistryUpsertInput({
+        body,
+        now,
+        taskCodeOverride
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectRegistryWithAudit({
+          db,
+          auth,
+          error,
+          action,
+          now,
+          taskCode: taskCode ?? null,
+          subsystemCode: typeof body.subsystemCode === "string" ? body.subsystemCode : null
+        });
+      }
+      throw error;
     }
 
-    const parameterSchemaDigest = digest(body.parameterSchema);
-    const fieldMappingDigest = digest(body.fieldMappings);
-    const maskingPolicyDigest = digest(body.maskingPolicy);
-    const configSnapshotDigest = digest({
-      taskCode,
-      parameterSchemaDigest,
-      fieldMappingDigest,
-      maskingPolicyDigest,
-      queryTemplate: body.queryTemplate,
-      dataScopeTemplate: body.dataScopeTemplate,
-      cursorField: body.cursorField,
-      orderBy: body.orderBy,
-      batchSize: body.batchSize
-    });
-
     const repository = createExportRegistryRepository(db);
-    const registryInput = {
-      taskCode,
-      subsystemCode: body.subsystemCode,
-      displayName: body.displayName,
-      enabled: body.enabled ?? true,
-      concurrencyLimit: body.concurrencyLimit ?? 1,
-      fileRetentionDays: body.fileRetentionDays ?? 7,
-      taskHistoryRetentionDays: body.taskHistoryRetentionDays ?? 30,
-      singleFileMaxRows: body.singleFileMaxRows ?? 20000,
-      exportMaxRows: body.exportMaxRows ?? 100000,
-      datasourceCode: body.datasourceCode,
-      supportedFormats: stableText(body.supportedFormats ?? []),
-      parameterSchema: stableText(body.parameterSchema),
-      queryTemplate: stableText(body.queryTemplate),
-      fieldMappings: stableText(body.fieldMappings ?? []),
-      maskingPolicy: stableText(body.maskingPolicy),
-      dataScopeTemplate: body.dataScopeTemplate ?? "",
-      cursorField: body.cursorField ?? "",
-      orderBy: stableText(body.orderBy ?? []),
-      batchSize: body.batchSize ?? 500,
-      configSnapshotDigest,
-      parameterSchemaDigest,
-      fieldMappingDigest,
-      maskingPolicyDigest,
-      now
-    };
 
     try {
       if (!taskCodeOverride && options.rejectExistingOnCreate) {
@@ -222,22 +182,22 @@ export async function upsertExportRegistry(
           db,
           auth,
           error: new ApiError(409, "REGISTRY_CONFLICT", "taskCode already exists"),
-          action: "REGISTRY_CREATE",
+          action,
           now,
-          taskCode,
-          subsystemCode: body.subsystemCode
+          taskCode: registryInput.taskCode,
+          subsystemCode: registryInput.subsystemCode
         });
       }
       throw error;
     }
 
-    const registry = await repository.findRegistryByTaskCode(taskCode);
+    const registry = await repository.findRegistryByTaskCode(registryInput.taskCode);
     if (!registry) {
       return rejectRegistryWithAudit({
         db,
         auth,
         error: new ApiError(404, "TASK_NOT_REGISTERED", "registry not found"),
-        action: taskCodeOverride ? "REGISTRY_UPDATE" : "REGISTRY_CREATE",
+        action,
         now,
         taskCode
       });
@@ -250,7 +210,7 @@ export async function upsertExportRegistry(
       attemptNo: null,
       taskCode: registry.taskCode,
       subsystemCode: registry.subsystemCode,
-      action: taskCodeOverride ? "REGISTRY_UPDATE" : "REGISTRY_CREATE",
+      action,
       now
     });
 

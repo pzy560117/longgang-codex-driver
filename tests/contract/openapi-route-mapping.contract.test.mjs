@@ -59,9 +59,86 @@ function parseCreateExportTaskOperationBlock() {
   return block;
 }
 
+function parseExportRegistryUpsertSchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] =
+    openapi.match(/ExportRegistryUpsertRequest:\s*\n([\s\S]*?)\n\s{4}ExportRegistryEnvelope:/) ??
+    [];
+  return block;
+}
+
+function parseQueryTemplateContractSchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/QueryTemplateContract:\s*\n([\s\S]*?)\n\s{4}FieldMapping:/) ?? [];
+  return block;
+}
+
+function parseFieldMappingSchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/FieldMapping:\s*\n([\s\S]*?)\n\s{4}OrderBy:/) ?? [];
+  return block;
+}
+
+function parseOrderBySchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/OrderBy:\s*\n([\s\S]*?)\n\s{4}BatchCheckpoint:/) ?? [];
+  return block;
+}
+
 function parseYamlListFromBlock(block, key) {
-  const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
-  return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
+  const lines = block.split(/\r?\n/);
+  const inlineLine = lines.find((line) =>
+    new RegExp(`^\\s*${key}:\\s*\\[([^\\]]+)\\]\\s*$`).test(line)
+  );
+  if (inlineLine) {
+    const [, values] =
+      inlineLine.match(new RegExp(`^\\s*${key}:\\s*\\[([^\\]]+)\\]\\s*$`)) ?? [];
+    return new Set(
+      values
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    );
+  }
+
+  const startIndex = lines.findIndex((line) => new RegExp(`^\\s*${key}:\\s*$`).test(line));
+  if (startIndex === -1) {
+    return new Set();
+  }
+
+  const values = [];
+  let itemIndent = null;
+  for (const line of lines.slice(startIndex + 1)) {
+    const itemMatch = line.match(/^(\s*)-\s+([A-Za-z0-9_]+)/);
+    if (itemMatch) {
+      itemIndent ??= itemMatch[1].length;
+      values.push(itemMatch[2]);
+      continue;
+    }
+
+    if (itemIndent !== null && line.trim() !== "") {
+      const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+      if (indent <= itemIndent) {
+        break;
+      }
+    }
+  }
+
+  return new Set(values);
+}
+
+function parseTypescriptStringArray(source, exportName) {
+  const [, block] =
+    source.match(new RegExp(`export const ${exportName} = \\[([\\s\\S]*?)\\] as const;`)) ?? [];
+  return new Set([...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]));
+}
+
+function parseTypescriptStringMap(source, exportName) {
+  const [, block] =
+    source.match(new RegExp(`export const ${exportName} = \\{([\\s\\S]*?)\\} as const;`)) ?? [];
+  return Object.fromEntries(
+    [...block.matchAll(/([A-Za-z0-9_]+):\s*"([A-Z_]+)"/g)].map((match) => [match[1], match[2]])
+  );
 }
 
 function sourceAuditLiterals() {
@@ -281,4 +358,51 @@ test("create task contract declares 32768-byte canonical queryParams limit and e
   assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
   assert.match(openapi, /queryParamsTooLarge:/);
   assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
+});
+
+test("registry required fields and nested registry contract required fields stay aligned with production validation", () => {
+  const registryContractSource = readFileSync("src/registry-config/contract.ts", "utf8");
+
+  assert.deepEqual(
+    parseTypescriptStringArray(registryContractSource, "REGISTRY_REQUIRED_FIELDS"),
+    parseYamlListFromBlock(parseExportRegistryUpsertSchemaBlock(), "required")
+  );
+  assert.deepEqual(
+    parseTypescriptStringArray(registryContractSource, "QUERY_TEMPLATE_REQUIRED_FIELDS"),
+    parseYamlListFromBlock(parseQueryTemplateContractSchemaBlock(), "required")
+  );
+  assert.deepEqual(
+    parseTypescriptStringArray(registryContractSource, "FIELD_MAPPING_REQUIRED_FIELDS"),
+    parseYamlListFromBlock(parseFieldMappingSchemaBlock(), "required")
+  );
+  assert.deepEqual(
+    parseTypescriptStringArray(registryContractSource, "ORDER_BY_REQUIRED_FIELDS"),
+    parseYamlListFromBlock(parseOrderBySchemaBlock(), "required")
+  );
+});
+
+test("registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields", () => {
+  const registryContractSource = readFileSync("src/registry-config/contract.ts", "utf8");
+  const registryServiceSource = readFileSync("src/registry-config/service.ts", "utf8");
+  const errorCodes = parseTypescriptStringMap(
+    registryContractSource,
+    "REGISTRY_REQUIRED_FIELD_ERROR_CODES"
+  );
+
+  assert.equal(errorCodes.supportedFormats, "QUERY_TEMPLATE_INVALID");
+  assert.equal(errorCodes.parameterSchema, "QUERY_TEMPLATE_INVALID");
+  assert.equal(errorCodes.queryTemplate, "QUERY_TEMPLATE_INVALID");
+  assert.equal(errorCodes.fieldMappings, "FIELD_MAPPING_INVALID");
+  assert.equal(errorCodes.maskingPolicy, "MASKING_RULE_ERROR");
+  assert.equal(errorCodes.dataScopeTemplate, "QUERY_TEMPLATE_INVALID");
+  assert.equal(errorCodes.cursorField, "QUERY_TEMPLATE_INVALID");
+  assert.equal(errorCodes.orderBy, "QUERY_TEMPLATE_INVALID");
+  assert.match(registryContractSource, /SUPPORTED_MASKING_RULE_TYPES = \["PHONE", "PERSON_NAME"\]/);
+  assert.match(registryContractSource, /validateMaskingContract\(fieldMappings, maskingPolicy\)/);
+  assert.match(registryServiceSource, /buildValidatedRegistryUpsertInput/);
+  assert.doesNotMatch(registryServiceSource, /supportedFormats:\s*stableText\(body\.supportedFormats\s*\?\?\s*\[\]\)/);
+  assert.doesNotMatch(registryServiceSource, /fieldMappings:\s*stableText\(body\.fieldMappings\s*\?\?\s*\[\]\)/);
+  assert.doesNotMatch(registryServiceSource, /dataScopeTemplate:\s*body\.dataScopeTemplate\s*\?\?\s*""/);
+  assert.doesNotMatch(registryServiceSource, /cursorField:\s*body\.cursorField\s*\?\?\s*""/);
+  assert.doesNotMatch(registryServiceSource, /orderBy:\s*stableText\(body\.orderBy\s*\?\?\s*\[\]\)/);
 });

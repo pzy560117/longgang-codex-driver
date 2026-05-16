@@ -63,15 +63,19 @@ process.env.EXPORT_PLATFORM_DATABASE_URL = getTestDatabaseUrl();
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT ??= "https://oss.example.test";
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET ??= "export-platform-test";
 
-function getExpectedObjectStorageDownloadUrlPattern() {
-  const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
-  const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
-  const prefix = `${endpoint.replace(/\/+$/u, "")}/${encodeURIComponent(bucket)}/`;
-  return new RegExp(`^${escapeRegExp(prefix)}`);
-}
+function assertPlatformSignedDownloadUrl(downloadUrl, { taskId, expiresAt, auth }) {
+  const url = new URL(downloadUrl);
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  assert.equal(url.pathname, `/api/export/tasks/${taskId}/download`);
+  assert.equal(url.searchParams.get("mode"), "SIGNED_URL");
+  assert.equal(url.searchParams.get("signatureAlgorithm"), "HMAC-SHA256");
+  assert.equal(url.searchParams.get("operatorId"), auth.operatorId);
+  assert.equal(url.searchParams.get("tenantId"), auth.tenantId);
+  assert.equal(url.searchParams.get("roleCodes"), auth.roleCodes.join(","));
+  assert.equal(url.searchParams.get("orgScope"), auth.orgScope);
+  assert.equal(url.searchParams.get("requestId"), auth.requestId);
+  assert.equal(url.searchParams.get("expiresAt"), expiresAt);
+  assert.match(url.searchParams.get("signature") ?? "", /^[0-9a-f]{64}$/iu);
 }
 
 async function createTestDatabase(t) {
@@ -474,8 +478,9 @@ serialTest("sample boundary 1 row keeps final file masked and records create/que
     taskRequestId: "req-sample-create-e2e",
     clientRequestId: "sample-client-e2e"
   });
+  const downloadAuth = createUserAuth("req-sample-download-e2e");
   const download = await downloadExportTask(
-    createUserAuth("req-sample-download-e2e"),
+    downloadAuth,
     scenario.task.taskId
   );
   const downloadAudits = await createExportAuditRepository(scenario.db).listAuditLogsForTask(
@@ -491,7 +496,11 @@ serialTest("sample boundary 1 row keeps final file masked and records create/que
   assert.equal(scenario.fileMetadata?.fileName.endsWith(".xlsx"), true);
   assert.equal(download.fileName, scenario.fileMetadata.fileName);
   assert.equal(download.storageKey, scenario.fileMetadata.publishedStorageKey);
-  assert.match(download.downloadUrl, getExpectedObjectStorageDownloadUrlPattern());
+  assertPlatformSignedDownloadUrl(download.downloadUrl, {
+    taskId: scenario.task.taskId,
+    expiresAt: download.expiresAt,
+    auth: downloadAuth
+  });
   assert.ok(registryAudits.some((audit) => audit.action === "REGISTRY_CREATE"));
   assert.ok(createAudits.some((audit) => audit.action === "CREATE"));
   assert.ok(downloadAudits.some((audit) => audit.action === "DISPATCH"));
@@ -602,30 +611,22 @@ serialTest("sample boundary 100001 rows must be rejected under the default expor
   );
 });
 
-serialTest("sample masking failure leaves the task failed and does not publish a file", async (t) => {
-  const { task, fileMetadata, audits } = await runSampleExport(t, 1, {
-    clientRequestId: "sample-client-mask-failure",
-    registryOverrides: {
-      maskingPolicy: {
-        rules: {
-          phone_mask: {
-            type: "PHONE",
-            preservePrefix: 3,
-            preserveSuffix: 4
+serialTest("sample registry rejects missing masking rules before creating a task", async () => {
+  await assert.rejects(
+    () =>
+      registerSampleRegistry({
+        requestId: "req-sample-registry-mask-failure",
+        maskingPolicy: {
+          rules: {
+            phone_mask: {
+              type: "PHONE",
+              preservePrefix: 3,
+              preserveSuffix: 4
+            }
           }
         }
-      }
-    }
-  });
-
-  assert.equal(task.status, "FAILED");
-  assert.equal(fileMetadata, undefined);
-  assert.ok(
-    audits.some(
-      (audit) =>
-        audit.action === "EXECUTE_FAILED" &&
-        audit.errorCode === "MASKING_RULE_ERROR"
-    )
+      }),
+    (error) => error.code === "MASKING_RULE_ERROR"
   );
 });
 
