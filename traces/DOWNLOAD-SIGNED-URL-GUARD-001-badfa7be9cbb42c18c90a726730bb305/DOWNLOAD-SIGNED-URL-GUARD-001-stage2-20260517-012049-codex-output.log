@@ -1,0 +1,45 @@
+SUCCESS: The process with PID 24844 (child process of PID 27344) has been terminated.
+SUCCESS: The process with PID 27344 (child process of PID 14396) has been terminated.
+SUCCESS: The process with PID 14396 (child process of PID 16360) has been terminated.
+SUCCESS: The process with PID 16360 (child process of PID 31464) has been terminated.
+SUCCESS: The process with PID 27004 (child process of PID 11880) has been terminated.
+SUCCESS: The process with PID 11880 (child process of PID 29612) has been terminated.
+SUCCESS: The process with PID 29612 (child process of PID 11556) has been terminated.
+SUCCESS: The process with PID 11556 (child process of PID 29328) has been terminated.
+SUCCESS: The process with PID 29328 (child process of PID 31464) has been terminated.
+SUCCESS: The process with PID 10464 (child process of PID 25452) has been terminated.
+SUCCESS: The process with PID 25452 (child process of PID 16692) has been terminated.
+SUCCESS: The process with PID 16692 (child process of PID 30924) has been terminated.
+SUCCESS: The process with PID 30924 (child process of PID 31464) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S2-F001 | LOW | maintainability | backend | `src/task-api/service.ts:932` 生成 object-storage signed URL 但只使用其 `expiresAt`，`downloadUrl` 随后被平台签名 URL 替换 | 后续可拆出独立的 10 分钟 TTL/expiry helper，避免平台签名 URL 逻辑依赖 object storage adapter 的 presign 方法副作用 | `npm run typecheck; npm run test:file; npm run test:api` |
+
+## Verification
+
+- 已检查命令:
+  - `npm run arch:check`
+  - `.\scripts\docker-test-env.ps1` 后执行 `npm run test:file`
+  - `npm run test:api`
+  - `npm run test:contract`
+  - scoped `git diff --check`
+  - `npm run typecheck`
+- 结果摘要:
+  - Architecture check passed.
+  - `test:file`: 17/17 passed，覆盖 env-backed adapter HMAC URL、10 分钟 TTL、篡改签名、过期签名、checksum/cleanup guard。
+  - `test:api`: 2/2 passed，覆盖平台 signed URL、成功下载、伪造签名、过期签名、权限失败审计、stream checksum guard。
+  - `test:contract`: 10/10 passed，覆盖 signed URL callback 参数与公开错误码声明。
+  - `typecheck`: passed。
+  - 未发现阻塞性类型、安全、测试覆盖或假测试问题。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S2-F001 | backend | backend-worker | 1 | No |

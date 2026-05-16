@@ -1,0 +1,43 @@
+SUCCESS: The process with PID 29916 (child process of PID 28052) has been terminated.
+SUCCESS: The process with PID 28052 (child process of PID 26664) has been terminated.
+SUCCESS: The process with PID 26664 (child process of PID 20960) has been terminated.
+SUCCESS: The process with PID 20960 (child process of PID 28504) has been terminated.
+SUCCESS: The process with PID 11888 (child process of PID 9924) has been terminated.
+SUCCESS: The process with PID 9924 (child process of PID 6000) has been terminated.
+SUCCESS: The process with PID 6000 (child process of PID 29732) has been terminated.
+SUCCESS: The process with PID 29732 (child process of PID 30304) has been terminated.
+SUCCESS: The process with PID 30304 (child process of PID 28504) has been terminated.
+SUCCESS: The process with PID 21836 (child process of PID 7356) has been terminated.
+SUCCESS: The process with PID 7356 (child process of PID 22484) has been terminated.
+SUCCESS: The process with PID 22484 (child process of PID 28948) has been terminated.
+SUCCESS: The process with PID 28948 (child process of PID 28504) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S2-F001 | HIGH | security | backend | `src/task-api/service.ts:983-1027` 在验签前读取任务/文件并可能返回 `TASK_NOT_FOUND`、`FILE_NOT_READY`、`FILE_EXPIRED`；`src/task-api/service.ts:988-997` 还在验签前用未可信 query 构造审计身份，`appendAudit` 会把伪造的 `operatorId/requestId` 写入审计。现有测试只断言 `SIGNATURE_INVALID` 有失败审计，未断言失败审计不能被伪造身份污染。 | 调整 `downloadSignedExportTask` 边界：签名参数缺失/算法错误/格式错误时先用固定 system auth 或匿名 signed-download 归因并统一拒绝；在签名验证成功前不要信任 query 中的 operator/tenant/roles/requestId，也不要暴露任务存在、状态或文件过期细节。必要时把 signed callback payload 解析分成 `untrusted` 与 `verified` 两阶段。补 API 测试：伪造 `operatorId/requestId` + 无效签名时审计不得落到伪造主体，且响应统一为签名失败。 | `npm run test:api; npm run test:contract` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `git diff -- src/file-service/index.ts src/task-api/service.ts tests/file/export-file-service.test.mjs tests/api/export-http-api.test.mjs tests/contract docs/testing/verify-matrix.md contracts/openapi.yaml task.json`
+  - `rg -n "\.skip\(|skip\(|only\(|todo\(|console\.log|debugger|password|secret|token" tests src contracts task.json docs/testing/verify-matrix.md`
+  - `npm run test:contract`
+  - `git diff --check -- task.json contracts/openapi.yaml src/contracts src/file-service src/task-api src/routes/export/tasks/download-export-task.handler.ts tests/contract tests/file tests/api docs/testing/verify-matrix.md`
+- 结果摘要:
+  - 工作区源码无当前 diff，仅有未跟踪 trace 产物。
+  - `npm run test:contract` 通过：10 pass / 0 fail。
+  - `git diff --check` 通过。
+  - 测试覆盖了签名生成、10 分钟 TTL、篡改签名、过期签名、权限失败、流式校验失败和文件过期；但缺少“验签前不信任 query 身份/不污染审计”的关键负向断言。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S2-F001 | backend | backend-worker | 1 | true |

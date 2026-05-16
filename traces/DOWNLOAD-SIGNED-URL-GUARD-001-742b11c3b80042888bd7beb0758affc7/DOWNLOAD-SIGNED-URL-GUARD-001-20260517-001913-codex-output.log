@@ -1,0 +1,62 @@
+SUCCESS: The process with PID 28320 (child process of PID 31236) has been terminated.
+SUCCESS: The process with PID 31236 (child process of PID 30924) has been terminated.
+SUCCESS: The process with PID 30924 (child process of PID 29952) has been terminated.
+SUCCESS: The process with PID 29952 (child process of PID 26636) has been terminated.
+SUCCESS: The process with PID 31596 (child process of PID 14800) has been terminated.
+SUCCESS: The process with PID 14800 (child process of PID 30632) has been terminated.
+SUCCESS: The process with PID 30632 (child process of PID 15812) has been terminated.
+SUCCESS: The process with PID 15812 (child process of PID 26636) has been terminated.
+SUCCESS: The process with PID 2960 (child process of PID 29396) has been terminated.
+SUCCESS: The process with PID 29396 (child process of PID 25968) has been terminated.
+SUCCESS: The process with PID 25968 (child process of PID 22464) has been terminated.
+SUCCESS: The process with PID 22464 (child process of PID 1044) has been terminated.
+SUCCESS: The process with PID 1044 (child process of PID 26636) has been terminated.
+## Requirement IDs
+- `FR-003`
+- `FR-009`
+- `AC-003`
+- `AC-009`
+- `RCR-P0-003`
+
+## Summary
+- 下载 URL 改为 HMAC-SHA256 签名 URL，默认 TTL 为 10 分钟，并与文件保留期 `file.expiresAt` 分离。
+- 下载 API 的 `expiresAt` 现在表示签名 URL 过期时间；stream 模式仍返回文件保留期元信息并保留 checksum guard。
+- 补充 file/API 测试覆盖有效签名、伪造签名、过期签名、权限拒绝审计和 TTL 分离。
+- 按任务模板强制边界，未执行 `git add` / `git commit`。
+
+## Files Changed
+- `src/file-service/index.ts`: 增加签名 URL 生成、10 分钟 TTL、env signing secret 校验、内部 object-storage read header。
+- `src/task-api/service.ts`: 下载签名 URL 响应改用签名 TTL `expiresAt`。
+- `tests/file/export-file-service.test.mjs`: 覆盖签名 URL、伪造/过期拒绝、本地 object storage 验签。
+- `tests/api/export-http-api.test.mjs`: 覆盖 API 下载 TTL 分离、签名下载、伪造/过期拒绝、权限失败审计。
+- `docs/testing/verify-matrix.md`: 记录 `DOWNLOAD-SIGNED-URL-GUARD-001` 证据边界。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; npm run test:api; ... git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md`: PASS
+- `npm run typecheck`: PASS
+
+## Evidence
+- `tests/file/export-file-service.test.mjs`: 证明 HMAC 签名、10 分钟 TTL、篡改/过期拒绝。
+- `tests/api/export-http-api.test.mjs`: 证明 API 响应 TTL 分离、签名 URL 可下载、负向路径拒绝与审计。
+- `docs/testing/verify-matrix.md`: 证明 evidence 边界限定为 Docker MySQL + 本地 object storage mock。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 生产路径仍走 HTTP/API + file-service + object storage adapter。
+- `signed URL TTL separated from retention`: PASS - 签名 TTL 默认 10 分钟，不再使用文件保留期生成 URL。
+- `no hardcoded secret`: PASS - 生产签名材料来自 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET`；测试使用进程内随机临时值。
+- `forbidden_implementations`: PASS - 未继续使用仅 `expiresAt` 查询参数；未只改测试/文档。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `GUIDELINE-SECURITY-DOWNLOAD-URL-TTL`: guideline - 下载签名 TTL 必须与文件保留期分离 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 运行环境必须配置 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET`；缺失时会明确 BLOCKED，避免生成不可验证下载链接。
+- 外部 live OSS/S3 不属于本任务证据范围，本轮只声明 Docker MySQL + 本地 object storage mock。

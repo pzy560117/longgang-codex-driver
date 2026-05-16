@@ -1915,7 +1915,7 @@
                       "dependencies":  [
                                            "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 / RCR-P0-003：下载 URL 必须是不可伪造签名 URL，并与文件保留期分离，默认 TTL 为 10 分钟",

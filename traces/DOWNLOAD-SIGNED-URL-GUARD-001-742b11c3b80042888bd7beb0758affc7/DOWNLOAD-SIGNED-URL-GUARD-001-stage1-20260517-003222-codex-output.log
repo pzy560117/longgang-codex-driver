@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 31672 (child process of PID 29472) has been terminated.
+SUCCESS: The process with PID 29472 (child process of PID 31476) has been terminated.
+SUCCESS: The process with PID 31476 (child process of PID 24844) has been terminated.
+SUCCESS: The process with PID 24844 (child process of PID 31200) has been terminated.
+SUCCESS: The process with PID 31200 (child process of PID 29820) has been terminated.
+SUCCESS: The process with PID 12224 (child process of PID 28444) has been terminated.
+SUCCESS: The process with PID 28444 (child process of PID 26184) has been terminated.
+SUCCESS: The process with PID 26184 (child process of PID 31648) has been terminated.
+SUCCESS: The process with PID 31648 (child process of PID 29820) has been terminated.
+SUCCESS: The process with PID 25148 (child process of PID 26060) has been terminated.
+SUCCESS: The process with PID 26060 (child process of PID 6040) has been terminated.
+SUCCESS: The process with PID 6040 (child process of PID 6816) has been terminated.
+SUCCESS: The process with PID 6816 (child process of PID 29820) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | HIGH | architecture_gap | backend | `task.json:1923`、`task.json:1973-1980` 要求验签失败/签名过期也进入下载审计；但 `src/task-api/service.ts:743-872` 只在发放下载 URL 或 API 前置拒绝时写 `DOWNLOAD` 审计，签名 URL 实际访问绕到 object storage；`tests/api/export-http-api.test.mjs:959-977` 只断言本地 object storage mock 拒绝伪造/过期签名，`tests/api/export-http-api.test.mjs:1037-1042` 只断言成功下载和权限不足审计，缺少签名失败/过期审计证据。 | 增加生产可追踪的签名下载验签边界，例如平台/ingress download handler 校验 HMAC + TTL 后再转发对象，或提供能把 `SIGNATURE_INVALID` / `SIGNATURE_EXPIRED` 写入 `export_audit_logs` 的生产 adapter；同步 API/file 测试断言伪造签名、过期签名均拒绝且记录失败审计。 | `npm run arch:check; . .\scripts\docker-test-env.ps1; npm run test:file; npm run test:api; git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | backend | backend-worker | 1 | true |

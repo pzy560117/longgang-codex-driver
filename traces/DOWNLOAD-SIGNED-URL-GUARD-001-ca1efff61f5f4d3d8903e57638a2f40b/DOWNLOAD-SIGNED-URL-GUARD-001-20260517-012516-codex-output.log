@@ -1,0 +1,61 @@
+SUCCESS: The process with PID 28596 (child process of PID 31628) has been terminated.
+SUCCESS: The process with PID 31628 (child process of PID 29168) has been terminated.
+SUCCESS: The process with PID 29168 (child process of PID 26896) has been terminated.
+SUCCESS: The process with PID 26896 (child process of PID 3172) has been terminated.
+SUCCESS: The process with PID 15872 (child process of PID 27736) has been terminated.
+SUCCESS: The process with PID 27736 (child process of PID 29148) has been terminated.
+SUCCESS: The process with PID 29148 (child process of PID 31336) has been terminated.
+SUCCESS: The process with PID 31336 (child process of PID 3172) has been terminated.
+SUCCESS: The process with PID 30560 (child process of PID 31716) has been terminated.
+SUCCESS: The process with PID 31716 (child process of PID 21180) has been terminated.
+SUCCESS: The process with PID 21180 (child process of PID 16436) has been terminated.
+SUCCESS: The process with PID 16436 (child process of PID 27388) has been terminated.
+SUCCESS: The process with PID 27388 (child process of PID 3172) has been terminated.
+## Requirement IDs
+- FR-003
+- FR-009
+- AC-003
+- AC-009
+- RCR-P0-003
+
+## Summary
+- 本轮复核后确认签名下载实现已存在于当前 tracked 工作区：平台签名 URL 使用 HMAC-SHA256、默认 10 分钟 TTL、与文件保留期分离，并覆盖验签失败、过期签名、权限不足和下载审计。
+- 本轮未产生新的 tracked 文件 diff；未执行 commit，因为本任务 Driver Context 明确禁止 `git add` / `git commit`，且当前没有可提交的 tracked 变更。
+
+## Files Changed
+- 无 tracked 文件变更。
+- 当前仅存在未跟踪 runtime trace：`traces/DOWNLOAD-SIGNED-URL-GUARD-001-*`，按任务边界未修改。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; npm run test:api; npm run test:contract; git diff --check ...`: PASS
+- `npm run test:file`: PASS，17/17 passed
+- `npm run test:api`: PASS，2/2 passed
+- `npm run test:contract`: PASS，10/10 passed
+- `git diff --check -- ...`: PASS
+
+## Evidence
+- `src/file-service/index.ts`: env-backed object storage HMAC-SHA256 签名 URL、10 分钟默认 TTL、密钥来自环境变量。
+- `src/task-api/service.ts`: 平台可审计签名 URL、签名验签、过期拒绝、权限复核、失败下载审计。
+- `tests/file/export-file-service.test.mjs`: TTL、有效签名、篡改签名、过期签名覆盖。
+- `tests/api/export-http-api.test.mjs`: 下载 API 签名 URL、平台验签下载、伪造/过期/权限不足审计、stream checksum guard 覆盖。
+- `docs/testing/verify-matrix.md`: 记录 Docker MySQL + 本地 object storage mock 证据边界。
+
+## Architecture Constraints
+- `independent_microservice + HTTP API boundary`: PASS - route/handler/service 路径通过 `arch:check` 与 API 测试验证。
+- `MySQL production persistence`: PASS - Docker MySQL 测试环境启动并通过 file/api 集成测试。
+- `test double policy`: PASS - 对象存储使用本地 mock 作为受控 release gate，不冒充 live OSS/S3。
+- `no hardcoded secrets`: PASS - 签名密钥来自 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET`，未写入仓库。
+
+## Knowledge References
+- 无完整知识条目引用；仅按流程读取知识目录入口判断无需扩展读取。
+
+## Knowledge Outputs
+- 无新增归档建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 本轮证据边界仍是本机/Docker MySQL + 本地 object storage mock，不声明外部生产 MySQL 或 live OSS/S3 已验证。

@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 10532 (child process of PID 25008) has been terminated.
+SUCCESS: The process with PID 25008 (child process of PID 30540) has been terminated.
+SUCCESS: The process with PID 30540 (child process of PID 27388) has been terminated.
+SUCCESS: The process with PID 27388 (child process of PID 30240) has been terminated.
+SUCCESS: The process with PID 30240 (child process of PID 29396) has been terminated.
+SUCCESS: The process with PID 31572 (child process of PID 16840) has been terminated.
+SUCCESS: The process with PID 16840 (child process of PID 26184) has been terminated.
+SUCCESS: The process with PID 26184 (child process of PID 18652) has been terminated.
+SUCCESS: The process with PID 18652 (child process of PID 29396) has been terminated.
+SUCCESS: The process with PID 29272 (child process of PID 28976) has been terminated.
+SUCCESS: The process with PID 28976 (child process of PID 29268) has been terminated.
+SUCCESS: The process with PID 29268 (child process of PID 9676) has been terminated.
+SUCCESS: The process with PID 9676 (child process of PID 29396) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | HIGH | missing_requirement | backend | [src/routes/export/tasks/download-export-task.handler.ts](/E:/2026/alpha-project/longgang-codex-driver/src/routes/export/tasks/download-export-task.handler.ts:9) 检测到签名参数后绕过 `requireAuthContext`；[src/task-api/service.ts](/E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:978) `downloadSignedExportTask` 从 query 恢复 auth 并验签，但未像普通下载路径一样调用 [assertTaskVisible](/E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:386)。这与 task.json 中“下载交付边界必须包含签名生成、验签校验、权限检查和下载审计”不一致。 | 在签名 URL 二次访问路径补齐权限边界：验签后对 task 执行明确的可见性/权限校验，或引入不可伪造且可验证的下载授权快照，并补 signed callback 权限不足拒绝与失败审计断言。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'; npm run test:contract; git diff --check -- src/task-api src/routes tests/api tests/contract contracts/openapi.yaml docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | backend | backend-worker | 1 | yes |

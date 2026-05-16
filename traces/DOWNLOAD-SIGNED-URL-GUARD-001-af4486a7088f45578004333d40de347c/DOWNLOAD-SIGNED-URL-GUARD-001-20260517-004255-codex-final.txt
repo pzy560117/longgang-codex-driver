@@ -1,0 +1,50 @@
+## Requirement IDs
+- `FR-003`
+- `FR-009`
+- `AC-003`
+- `AC-009`
+- `RCR-P0-003`
+
+## Summary
+- 当前基线已包含下载签名 URL 修复：HMAC-SHA256 不可伪造签名、默认 10 分钟 TTL、与文件保留期分离、平台签名下载路由验签、伪造/过期拒绝和下载审计。
+- 本轮未产生新的源码/文档 diff；按任务边界完成 fresh verification。
+- 未执行 commit：本轮 Driver Prompt 明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无新增变更。
+- 相关已落地文件：`src/file-service/index.ts`、`src/task-api/service.ts`、`src/routes/export/tasks/download-export-task.handler.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`docs/testing/verify-matrix.md`
+
+## Validation
+- `npm run arch:check; ... npm run test:file; npm run test:api; npm run test:contract; git diff --check ...`: PASS
+- `npm run test:file`: PASS - 17/17
+- `npm run test:api`: PASS - 2/2
+- `npm run test:contract`: PASS - 9/9
+- scoped `git diff --check`: PASS
+
+## Evidence
+- `src/file-service/index.ts`: object storage URL 使用 HMAC-SHA256 签名，默认 TTL 为 10 分钟。
+- `src/task-api/service.ts`: 平台签名下载 URL 生成、验签失败/过期拒绝、下载审计。
+- `tests/file/export-file-service.test.mjs`: 覆盖 TTL、签名 URL 成功访问、伪造签名和过期签名拒绝。
+- `tests/api/export-http-api.test.mjs`: 覆盖 API 签名下载、伪造/过期签名审计、权限不足审计、stream checksum guard。
+- `docs/testing/verify-matrix.md`: 已记录 Docker MySQL + 本地 object storage mock 证据边界。
+
+## Architecture Constraints
+- `independent_microservice / HTTP + worker + scheduled_job`: PASS - `npm run arch:check`
+- `production repository / MySQL boundary`: PASS - Docker test env + `test:file` / `test:api`
+- `test double policy`: PASS - 本地 object storage mock 仅作为受控 release gate，不声明 live OSS/S3
+- `forbidden_implementations`: PASS - 未使用 `InMemory*` 或 mock repository 冒充生产路径
+
+## Knowledge References
+- 无
+
+## Knowledge Outputs
+- 无
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有本任务相关未跟踪 `traces/` 运行产物；我未读取或修改。
+- 外部 live OSS/S3 不在本任务证据边界内，当前只声明 Docker MySQL + 本地 object storage mock。

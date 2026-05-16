@@ -1,0 +1,47 @@
+## Requirement IDs
+- FR-003
+- FR-009
+- AC-003
+- AC-009
+- RCR-P0-003
+
+## Summary
+- 当前仓库已包含 `DOWNLOAD-SIGNED-URL-GUARD-001` 对应实现与测试，本轮未产生新的 tracked 文件改动。
+- 已复核下载签名 URL、10 分钟 TTL、验签失败/过期拒绝、权限失败审计、stream checksum guard 和 verify-matrix 证据边界。
+
+## Files Changed
+- 无 tracked 文件改动。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; npm run test:api; npm run test:contract; git diff --check ...`: PASS
+- `test:file`: PASS，17/17
+- `test:api`: PASS，2/2
+- `test:contract`: PASS，10/10
+
+## Evidence
+- `src/file-service/index.ts`: HMAC-SHA256 object storage signed URL、默认 10 分钟 TTL、TTL 与文件保留期分离。
+- `src/task-api/service.ts`: 平台签名下载 URL、回调验签、过期/伪造签名拒绝、下载审计。
+- `tests/file/export-file-service.test.mjs`: storage 签名 URL 成功、篡改签名、过期签名、TTL 分离覆盖。
+- `tests/api/export-http-api.test.mjs`: API 签名 URL、平台验签下载、SIGNATURE_INVALID / SIGNATURE_EXPIRED / 权限失败审计覆盖。
+- `docs/testing/verify-matrix.md`: Docker MySQL + 本地 object storage mock 证据边界已记录。
+
+## Architecture Constraints
+- `independent_microservice / http_service`: PASS - API handler/service 路径通过 `test:api` 与 `test:contract`。
+- `MySQL production boundary`: PASS - Docker MySQL 测试环境已自举并通过 file/API 集成测试。
+- `test double policy`: PASS - 使用本地 object storage mock 作为当前 release gate 声明边界，未声明 live OSS/S3。
+- `forbidden implementations`: PASS - 未用 InMemory/mock repository 冒充生产路径。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- `GUIDELINE-DOWNLOAD-SIGNED-URL-001`: guideline - 下载签名 URL TTL 与文件保留期分离并记录失败审计 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部 live OSS/S3 不属于本任务验证范围；当前证据限定为 Docker MySQL + 本地 object storage mock。
+- 未执行 git commit，因为 Driver Context 明确禁止本轮执行 `git add` / `git commit` / `git push`。

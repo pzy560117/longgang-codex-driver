@@ -1,0 +1,30 @@
+SUCCESS: The process with PID 29864 (child process of PID 26884) has been terminated.
+SUCCESS: The process with PID 26884 (child process of PID 12356) has been terminated.
+SUCCESS: The process with PID 12356 (child process of PID 29692) has been terminated.
+SUCCESS: The process with PID 29692 (child process of PID 26232) has been terminated.
+SUCCESS: The process with PID 26232 (child process of PID 29568) has been terminated.
+SUCCESS: The process with PID 31060 (child process of PID 30632) has been terminated.
+SUCCESS: The process with PID 30632 (child process of PID 30192) has been terminated.
+SUCCESS: The process with PID 30192 (child process of PID 31736) has been terminated.
+SUCCESS: The process with PID 31736 (child process of PID 29568) has been terminated.
+SUCCESS: The process with PID 4720 (child process of PID 28864) has been terminated.
+SUCCESS: The process with PID 28864 (child process of PID 1988) has been terminated.
+SUCCESS: The process with PID 1988 (child process of PID 12612) has been terminated.
+SUCCESS: The process with PID 12612 (child process of PID 29568) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | MEDIUM | contract_gap | contract | `contracts/openapi.yaml:1571-1585`、`contracts/openapi.yaml:1585-1613`：`DownloadResponse` 继承 `FileMetadata.expiresAt`，但又把同名 `expiresAt` 用作签名 URL 过期时间；`FileMetadata.expiresAt` 描述仍写着“文件保留期，签名 URL 响应也使用 expiresAt 表示 URL 过期”。实现已在 `src/task-api/service.ts:942-947` 覆盖为签名 URL TTL，但契约语义仍容易把文件保留期和 URL TTL 混淆。 | 下一轮 contract repair 将契约字段拆清：例如 `downloadUrlExpiresAt` 表示签名 URL TTL，`fileExpiresAt` 表示文件保留期；同步 examples、schema、contract test 和 API 响应测试。 | `npm run test:contract`; `npm run test:api`; `git diff --check -- contracts/openapi.yaml tests/contract tests/api` |
+
+## Verdict
+
+- PASS
+
+当前实现满足本任务 Stage 1 的功能验收：`task.json` 已携带架构约束和 forbidden implementations；实现包含 HMAC-SHA256 签名、默认 10 分钟 TTL、与文件保留期分离、验签失败/过期/权限不足拒绝和下载审计；`tests/file/`、`tests/api/`、`tests/contract/` 有对应正负向证据。上述 finding 是契约字段语义清晰度问题，不构成本任务阻塞性功能偏差。
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | contract | backend-worker | 1 | no |

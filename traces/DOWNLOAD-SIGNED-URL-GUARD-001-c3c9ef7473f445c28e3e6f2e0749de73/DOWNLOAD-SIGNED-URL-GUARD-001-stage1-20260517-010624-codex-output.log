@@ -1,0 +1,19 @@
+SUCCESS: The process with PID 29200 (child process of PID 29756) has been terminated.
+SUCCESS: The process with PID 17048 (child process of PID 10108) has been terminated.
+SUCCESS: The process with PID 26512 (child process of PID 28096) has been terminated.
+SUCCESS: The process with PID 29756 (child process of PID 21036) has been terminated.
+SUCCESS: The process with PID 10108 (child process of PID 21036) has been terminated.
+SUCCESS: The process with PID 28096 (child process of PID 21036) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

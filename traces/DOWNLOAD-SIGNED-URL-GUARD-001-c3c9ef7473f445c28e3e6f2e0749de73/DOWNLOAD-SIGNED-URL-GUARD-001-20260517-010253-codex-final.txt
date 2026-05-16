@@ -1,0 +1,48 @@
+## Requirement IDs
+- FR-003
+- FR-009
+- AC-003
+- AC-009
+- RCR-P0-003
+
+## Summary
+- 已复核下载签名 URL 链路：平台签发 HMAC-SHA256 URL，默认 TTL 为 10 分钟，并与文件保留期 `file.expiresAt` 分离。
+- 已复核验签/下载边界：伪造签名、过期签名、权限不足都会拒绝并写入下载失败审计；stream 模式仍走权限与 checksum guard。
+- 本轮未修改文件。现有实现、测试和 `docs/testing/verify-matrix.md` 已满足该任务验收。
+
+## Files Changed
+- 无源码或文档改动。
+- 未执行 `git add` / `git commit`，因为 Driver Context 明确禁止；且 scoped diff 为空，没有可提交改动。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; ... npm run test:api; ... npm run test:contract; ... git diff --check ...`: PASS
+- `npm run test:file`: PASS - 17/17 passed
+- `npm run test:api`: PASS - 2/2 passed
+- `npm run test:contract`: PASS - 10/10 passed
+- `git diff --check -- task.json contracts/openapi.yaml src/contracts src/file-service src/task-api src/routes/export/tasks/download-export-task.handler.ts tests/contract tests/file tests/api docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `src/file-service/index.ts`: object storage adapter HMAC-SHA256 signed URL、10 分钟默认 TTL、密钥来自环境变量。
+- `src/task-api/service.ts`: 平台签名 URL 生成、验签、过期拒绝、权限拒绝、下载审计。
+- `tests/file/export-file-service.test.mjs`: TTL、有效签名、伪造签名、过期签名覆盖。
+- `tests/api/export-http-api.test.mjs`: API 签发 URL、签名回调下载、伪造/过期/权限不足审计覆盖。
+- `docs/testing/verify-matrix.md`: DOWNLOAD-SIGNED-URL-GUARD-001 的 Docker MySQL / 本地 object storage mock 证据边界已记录。
+
+## Architecture Constraints
+- `independent_microservice production path`: PASS - HTTP route、service、repository、object storage adapter、MySQL 测试链路均通过验证。
+- `禁止 InMemory/mock 冒充生产路径`: PASS - 测试使用 Docker MySQL + 本地 object storage mock 作为受控边界，未替代生产 repository。
+- `secrets not committed`: PASS - 下载签名密钥仅从 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET` 读取。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未声明外部生产 MySQL 或 live OSS/S3 已验证；本任务证据边界是 Docker MySQL + 本地 object storage mock。

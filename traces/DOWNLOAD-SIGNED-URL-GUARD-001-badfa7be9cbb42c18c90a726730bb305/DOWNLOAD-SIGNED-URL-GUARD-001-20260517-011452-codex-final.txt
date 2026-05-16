@@ -1,0 +1,50 @@
+## Requirement IDs
+- FR-003
+- FR-009
+- AC-003
+- AC-009
+- RCR-P0-003
+
+## Summary
+- 复核了下载签名 URL 生成、平台验签回调、10 分钟 TTL、文件保留期分离、权限校验和审计链路。
+- 当前代码已覆盖目标行为；本轮未产生源码或文档 diff。
+- 未执行 commit：Driver 强制边界禁止 `git add` / `git commit`，且本轮没有可提交变更。
+
+## Files Changed
+- 无。当前相关文件无 diff。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; npm run test:api; npm run test:contract; git diff --check -- ...`: PASS
+  - `arch:check`: passed
+  - `test:file`: 17/17 passed
+  - `test:api`: 2/2 passed
+  - `test:contract`: 10/10 passed
+  - `git diff --check`: passed
+
+## Evidence
+- `src/file-service/index.ts`: HMAC-SHA256 object storage signed URL、默认 10 分钟 TTL，与文件 retention `expiresAt` 分离。
+- `src/task-api/service.ts`: 平台签名 URL、签名回调验签、过期/伪造拒绝、权限复核、下载审计。
+- `tests/file/export-file-service.test.mjs`: TTL、有效签名、篡改签名、过期签名覆盖。
+- `tests/api/export-http-api.test.mjs`: API 签名 URL、平台验签下载、伪造/过期/权限不足审计覆盖。
+- `docs/testing/verify-matrix.md`: 已记录 DOWNLOAD-SIGNED-URL-GUARD-001 的 Docker MySQL + 本地 object storage mock 证据边界。
+
+## Architecture Constraints
+- `independent_microservice / http_service`: PASS - `arch:check` 通过，下载 route/handler/service 已映射。
+- `production persistence uses MySQL`: PASS - `test:file` / `test:api` 在 Docker MySQL 测试环境下通过。
+- `object storage mock allowed only as local evidence`: PASS - 验证使用本地 object storage mock，不声明 live OSS/S3。
+- `no hardcoded secret`: PASS - 签名密钥来自 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET`。
+- `forbidden InMemory/mock production path`: PASS - 生产入口未以 InMemory repository 冒充完成。
+
+## Knowledge References
+- 无直接业务知识条目可引用；知识库当前仅有 harness/规则类 draft 条目。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL / live OSS/S3 不在本任务 gate 范围内；当前证据边界是 Docker MySQL + 本地 object storage mock。

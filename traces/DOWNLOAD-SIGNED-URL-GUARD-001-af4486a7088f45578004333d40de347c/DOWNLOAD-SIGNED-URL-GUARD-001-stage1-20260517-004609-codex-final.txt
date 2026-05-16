@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | HIGH | contract_gap | contract | `src/routes/export/tasks/download-export-task.handler.ts:9` 已把 `signature/expiresAt/signatureAlgorithm` 作为签名下载回跳入口；`src/task-api/service.ts:978` / `:1034` / `:1047` 实现 `SIGNATURE_INVALID`、`SIGNATURE_EXPIRED`；但 `contracts/openapi.yaml:440` 仅声明 `mode` 查询参数，`contracts/openapi.yaml:489` 的 403 仍只引用 `PermissionDenied`，`contracts/openapi.yaml:504` 的 `x-contract-errorResponses` 未列出签名失败/过期。 | 补齐 `/export/tasks/{taskId}/download` 的签名 URL 回跳契约：声明 `expiresAt`、`signatureAlgorithm`、`signature` 以及平台签名中公开携带的必要上下文字段，明确 `SIGNATURE_INVALID` / `SIGNATURE_EXPIRED` 的 403 响应，并让 contract 测试守护该映射。 | `npm run test:contract`; `npm run arch:check`; Docker MySQL 下 `npm run test:api`; `git diff --check -- contracts/openapi.yaml tests/contract tests/api docs/testing/verify-matrix.md task.json` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DOWNLOAD-SIGNED-URL-GUARD-001-S1-F001 | contract | backend-worker | 1 | true |

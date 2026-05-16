@@ -1,0 +1,74 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:54316 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (1.2105ms)
+✔ production object storage config is required outside injected test adapters (0.2636ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (262.2226ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (204.7263ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (124.2651ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (98.5082ms)
+✔ object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (125.2537ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (143.766ms)
+✔ xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (109.2636ms)
+✔ zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (106.0693ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (243.5953ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (222.2336ms)
+✔ scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit (237.0673ms)
+✔ scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit (216.9208ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (246.2355ms)
+✔ cleanup job deletes only published object when temp storage key is null (250.1352ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (214.3447ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3330.1859
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6802ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (930.084ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1670.7268
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.815ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.235ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3756ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9614ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2075ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4291ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5773ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.348ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2626ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.419ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.8853
