@@ -136,7 +136,8 @@ function registryEnvelope(registry: ExportRegistryRecord, auth: AuthContext) {
 export async function upsertExportRegistry(
   auth: AuthContext,
   body: RegistryBody,
-  taskCodeOverride?: string
+  taskCodeOverride?: string,
+  options: { rejectExistingOnCreate?: boolean } = {}
 ) {
   return withDatabase(async (db) => {
     const taskCode = taskCodeOverride ?? body.taskCode;
@@ -155,6 +156,21 @@ export async function upsertExportRegistry(
     }
 
     const repository = createExportRegistryRepository(db);
+    if (!taskCodeOverride && options.rejectExistingOnCreate) {
+      const existing = await repository.findRegistryByTaskCode(taskCode);
+      if (existing) {
+        return rejectRegistryWithAudit({
+          db,
+          auth,
+          error: new ApiError(409, "REGISTRY_CONFLICT", "taskCode already exists"),
+          action: "REGISTRY_CREATE",
+          now,
+          taskCode,
+          subsystemCode: body.subsystemCode
+        });
+      }
+    }
+
     const parameterSchemaDigest = digest(body.parameterSchema);
     const fieldMappingDigest = digest(body.fieldMappings);
     const maskingPolicyDigest = digest(body.maskingPolicy);

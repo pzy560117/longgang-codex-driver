@@ -427,6 +427,27 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   const runId = `${Date.now()}-${process.pid}`;
   const taskCode = `purchase-order-export-${runId}`;
 
+  const unregisteredTaskCode = `${taskCode}-unregistered`;
+  const unregisteredTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-unregistered-task-${runId}`),
+    payload: createTaskPayload(unregisteredTaskCode, "client-unregistered")
+  });
+
+  assert.equal(unregisteredTaskResponse.statusCode, 404);
+  assert.equal(unregisteredTaskResponse.json().code, "TASK_NOT_REGISTERED");
+  const unregisteredTasks = await db
+    .selectFrom("export_tasks")
+    .select("task_id")
+    .where("task_code", "=", unregisteredTaskCode)
+    .execute();
+  assert.equal(unregisteredTasks.length, 0);
+  const unregisteredAudits = await auditLogsByRequestId(db, `req-unregistered-task-${runId}`);
+  assert.equal(unregisteredAudits.length, 1);
+  assert.equal(unregisteredAudits[0].result, "FAILED");
+  assert.equal(unregisteredAudits[0].error_code, "TASK_NOT_REGISTERED");
+
   const createRegistryResponse = await app.inject({
     method: "POST",
     url: "/api/export/registries",
@@ -435,6 +456,98 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(createRegistryResponse.statusCode, 201);
+
+  const duplicateRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-registry-duplicate-${runId}`),
+    payload: {
+      ...createRegistryPayload(taskCode),
+      displayName: "Duplicate Purchase Order Export"
+    }
+  });
+
+  assert.equal(duplicateRegistryResponse.statusCode, 409);
+  assert.equal(duplicateRegistryResponse.json().code, "REGISTRY_CONFLICT");
+  const duplicateRegistryAudits = await auditLogsByRequestId(
+    db,
+    `req-registry-duplicate-${runId}`
+  );
+  assert.equal(duplicateRegistryAudits.length, 1);
+  assert.equal(duplicateRegistryAudits[0].result, "FAILED");
+  assert.equal(duplicateRegistryAudits[0].error_code, "REGISTRY_CONFLICT");
+
+  const getRegistryResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-registry-get-${runId}`)
+  });
+
+  assert.equal(getRegistryResponse.statusCode, 200);
+  assert.equal(getRegistryResponse.json().data.taskCode, taskCode);
+  assert.equal(getRegistryResponse.json().data.subsystemCode, "purchase");
+  assert.equal(getRegistryResponse.json().data.concurrencyLimit, 2);
+
+  const listRegistryResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries?subsystemCode=purchase&enabled=true`,
+    headers: createHeaders(`req-registry-list-${runId}`)
+  });
+
+  assert.equal(listRegistryResponse.statusCode, 200);
+  assert.ok(
+    listRegistryResponse.json().data.items.some((item) => item.taskCode === taskCode)
+  );
+
+  const unauthorizedRegistryUpdateResponse = await app.inject({
+    method: "PUT",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-registry-update-denied-${runId}`, {
+      roleCodes: "EXPORT_USER"
+    }),
+    payload: {
+      ...createRegistryPayload(taskCode),
+      concurrencyLimit: 9
+    }
+  });
+
+  assert.equal(unauthorizedRegistryUpdateResponse.statusCode, 403);
+  assert.equal(unauthorizedRegistryUpdateResponse.json().code, "PERMISSION_DENIED");
+  const deniedRegistryUpdateAudits = await auditLogsByRequestId(
+    db,
+    `req-registry-update-denied-${runId}`
+  );
+  assert.equal(deniedRegistryUpdateAudits.length, 1);
+  assert.equal(deniedRegistryUpdateAudits[0].result, "FAILED");
+  assert.equal(deniedRegistryUpdateAudits[0].error_code, "PERMISSION_DENIED");
+
+  const updateRegistryResponse = await app.inject({
+    method: "PUT",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-registry-update-${runId}`),
+    payload: {
+      ...createRegistryPayload(taskCode),
+      displayName: "Purchase Order Export Updated",
+      concurrencyLimit: 3,
+      supportedFormats: ["XLSX", "ZIP"]
+    }
+  });
+
+  assert.equal(updateRegistryResponse.statusCode, 200);
+  assert.equal(updateRegistryResponse.json().data.taskCode, taskCode);
+  assert.equal(updateRegistryResponse.json().data.displayName, "Purchase Order Export Updated");
+  assert.equal(updateRegistryResponse.json().data.concurrencyLimit, 3);
+  assert.deepEqual(updateRegistryResponse.json().data.supportedFormats, ["XLSX", "ZIP"]);
+
+  const updatedRegistryResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-registry-get-updated-${runId}`)
+  });
+
+  assert.equal(updatedRegistryResponse.statusCode, 200);
+  assert.equal(updatedRegistryResponse.json().data.concurrencyLimit, 3);
+  assert.deepEqual(updatedRegistryResponse.json().data.supportedFormats, ["XLSX", "ZIP"]);
 
   const disableResponse = await app.inject({
     method: "POST",
@@ -636,6 +749,27 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(listedTask.progressPercent, 0);
   assert.deepEqual(listedTask.recentEvents, []);
   assert.equal("events" in listedTask, false);
+
+  const statusSubsystemListResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}&status=PENDING&subsystemCode=purchase`,
+    headers: createHeaders(`req-list-status-subsystem-${runId}`)
+  });
+
+  assert.equal(statusSubsystemListResponse.statusCode, 200);
+  assert.ok(
+    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
+  );
+  assert.ok(
+    statusSubsystemListResponse
+      .json()
+      .data.items.every(
+        (item) =>
+          item.taskCode === taskCode &&
+          item.status === "PENDING" &&
+          item.subsystemCode === "purchase"
+      )
+  );
 
   const secondTaskResponse = await app.inject({
     method: "POST",

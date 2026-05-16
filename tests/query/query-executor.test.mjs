@@ -724,6 +724,157 @@ test("query executor accepts legacy string checkpoint cursors while producing st
   );
 });
 
+test("query executor rejects rows with missing or null cursor values", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "cursor-missing",
+    queryTemplate: {
+      queryTemplateVersion: "v-cursor-missing",
+      templateText:
+        "SELECT NULL AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo",
+      allowedParameters: ["createdAtFrom", "createdAtTo"]
+    }
+  });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-cursor-missing",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-cursor-missing"
+      }),
+    /QUERY_EXECUTION_ERROR/
+  );
+});
+
+test("query executor rejects duplicate or non-increasing cursor values", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "cursor-duplicate",
+    queryTemplate: {
+      queryTemplateVersion: "v-cursor-duplicate",
+      templateText:
+        "SELECT order_status AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo",
+      allowedParameters: ["createdAtFrom", "createdAtTo"]
+    }
+  });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-cursor-duplicate",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-cursor-duplicate"
+      }),
+    /QUERY_EXECUTION_ERROR/
+  );
+});
+
+test("query executor rejects checkpoints missing required cursor fields", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-checkpoint-cursor-missing",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
+        },
+        checkpoint: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lastCursor: JSON.stringify({
+            version: 1,
+            values: {
+              otherCursor: "order-001"
+            }
+          }),
+          processedCount: 1,
+          filePartNo: 1,
+          retryCount: 0,
+          batchSize: 1,
+          batchRowCount: 1,
+          backoffMs: 0
+        },
+        requestId: "req-query-checkpoint-cursor-missing"
+      }),
+    /QUERY_EXECUTION_ERROR/
+  );
+});
+
 test("query executor rejects unsafe template forms and undeclared placeholders", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);

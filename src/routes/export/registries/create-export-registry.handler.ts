@@ -6,7 +6,9 @@ import type { RouteHandler } from "../../types.ts";
 export const handler: RouteHandler = async (context, response) => {
   try {
     const auth = await requireAuthContext(context.request, "REGISTRY_CREATE");
-    const data = await upsertExportRegistry(auth, context.request.body ?? {});
+    const data = await upsertExportRegistry(auth, context.request.body ?? {}, undefined, {
+      rejectExistingOnCreate: true
+    });
     sendSuccess(response, 201, data);
   } catch (error) {
     await sendError(response, error);
