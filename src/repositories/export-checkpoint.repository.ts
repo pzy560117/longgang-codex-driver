@@ -14,7 +14,10 @@ export type SaveCheckpointInput = {
   now: Date;
 };
 
-export type CheckpointRecord = Omit<SaveCheckpointInput, "now">;
+export type CheckpointRecord = Omit<SaveCheckpointInput, "now"> & {
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 function toCheckpointRecord(row: {
   task_id: string;
@@ -26,6 +29,8 @@ function toCheckpointRecord(row: {
   batch_size: number | null;
   batch_row_count: number | null;
   backoff_ms: number | null;
+  created_at: Date;
+  updated_at: Date;
 }): CheckpointRecord {
   return {
     taskId: row.task_id,
@@ -36,7 +41,9 @@ function toCheckpointRecord(row: {
     retryCount: row.retry_count,
     batchSize: row.batch_size,
     batchRowCount: row.batch_row_count,
-    backoffMs: row.backoff_ms
+    backoffMs: row.backoff_ms,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 

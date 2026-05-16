@@ -121,6 +121,9 @@ async function seedRegistry(db, overrides = {}) {
 
 async function seedTask(db, input) {
   const now = await getDatabaseTime(db);
+  const registry =
+    input.configSnapshot ??
+    (await createExportRegistryRepository(db).findRegistryByTaskCode(input.taskCode));
   return createExportTaskRepository(db).createPendingTask({
     taskId: input.taskId,
     taskCode: input.taskCode,
@@ -131,14 +134,17 @@ async function seedTask(db, input) {
     clientRequestId: null,
     idempotencyScope: null,
     requestDigest: `sha256:${input.taskId}`,
-    configSnapshotDigest: "sha256:config-v1",
-    requestPayload: JSON.stringify({
-      fileFormat: "XLSX",
-      queryParams: {
-        createdAtFrom: "2026-05-01T00:00:00+08:00",
-        createdAtTo: "2026-05-31T23:59:59+08:00"
+    configSnapshotDigest: input.configSnapshotDigest ?? "sha256:config-v1",
+    requestPayload: JSON.stringify(
+      input.requestPayload ?? {
+        fileFormat: "XLSX",
+        configSnapshot: registry ?? undefined,
+        queryParams: {
+          createdAtFrom: "2026-05-01T00:00:00+08:00",
+          createdAtTo: "2026-05-31T23:59:59+08:00"
+        }
       }
-    }),
+    ),
     authContextPayload: JSON.stringify({
       operatorId: "u001",
       tenantId: "tenant-001",
@@ -506,6 +512,94 @@ serialTest("expired lease takeover keeps attemptNo and resumes from the latest c
   assert.equal(resumedCheckpoint.lastCursor, "order-100");
 });
 
+serialTest("task snapshot still dispatches and publishes after the current registry is disabled and updated", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-snap-${Date.now()}`;
+  const registryAtCreate = await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode);
+
+  await seedTask(db, {
+    taskId,
+    taskCode,
+    subsystemCode,
+    requestPayload: {
+      fileFormat: "XLSX",
+      queryParams: {
+        createdAtFrom: "2026-05-01T00:00:00+08:00",
+        createdAtTo: "2026-05-31T23:59:59+08:00"
+      },
+      configSnapshot: registryAtCreate
+    },
+    configSnapshotDigest: registryAtCreate.configSnapshotDigest
+  });
+
+  const now = await getDatabaseTime(db);
+  await createExportRegistryRepository(db).upsertRegistry({
+    taskCode,
+    subsystemCode,
+    displayName: "Purchase Order Export Updated",
+    enabled: false,
+    concurrencyLimit: 5,
+    fileRetentionDays: 14,
+    taskHistoryRetentionDays: 60,
+    singleFileMaxRows: 1000,
+    exportMaxRows: 5000,
+    datasourceCode: "purchase-ro-updated",
+    supportedFormats: JSON.stringify(["CSV"]),
+    parameterSchema: JSON.stringify({ type: "object", properties: { changed: { type: "string" } } }),
+    queryTemplate: "SELECT changed FROM broken_registry",
+    fieldMappings: JSON.stringify([{ source: "changed", target: "Changed" }]),
+    maskingPolicy: JSON.stringify({ fields: ["changed"] }),
+    dataScopeTemplate: "changed = 1",
+    cursorField: "changed",
+    orderBy: "changed DESC",
+    batchSize: 50,
+    configSnapshotDigest: "sha256:config-v2",
+    parameterSchemaDigest: "sha256:params-v2",
+    fieldMappingDigest: "sha256:fields-v2",
+    maskingPolicyDigest: "sha256:masking-v2",
+    now
+  });
+
+  let publishedRegistry;
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-snapshot",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => ({
+      checkpoint: {
+        lastCursor: "order-snapshot-finished",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed",
+      rows: [{ "Order No": "PO-SNAPSHOT" }]
+    }),
+    fileService: {
+      async publishRows(input) {
+        publishedRegistry = input.registry;
+        return { storageKey: "exports/published/snapshot-disabled.xlsx" };
+      }
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+  assert.equal(publishedRegistry.configSnapshotDigest, registryAtCreate.configSnapshotDigest);
+  assert.equal(publishedRegistry.enabled, true);
+  assert.equal(publishedRegistry.datasourceCode, "purchase-ro");
+  assert.equal(publishedRegistry.singleFileMaxRows, 20000);
+});
+
 serialTest("expired worker does not mark FAILED or overwrite the new owner after takeover", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
@@ -700,6 +794,14 @@ serialTest("query batch transient failure persists retry checkpoint and complete
     .where("task_id", "=", taskId)
     .where("attempt_no", "=", 0)
     .executeTakeFirst();
+  await db
+    .updateTable("export_task_checkpoints")
+    .set({
+      updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
   const secondPoll = await worker.pollAndProcessOnce();
   const task = await createExportTaskRepository(db).findTaskById(taskId);
 
@@ -708,6 +810,130 @@ serialTest("query batch transient failure persists retry checkpoint and complete
   assert.equal(checkpointAfterFailure.retry_count, 1);
   assert.equal(checkpointAfterFailure.backoff_ms, 25);
   assert.equal(secondPoll.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+});
+
+serialTest("query batch transient failure does not retry again before checkpoint backoff elapses", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-backoff-wait-${runId}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-wait",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 2,
+    queryBatchBackoffBaseMs: 60_000,
+    batchProcessor: async () => {
+      calls += 1;
+      if (calls === 1) {
+        const error = new Error("temporary datasource timeout");
+        error.name = "QUERY_EXECUTION_ERROR";
+        throw error;
+      }
+      return {
+        checkpoint: {
+          lastCursor: "order-retry-success",
+          processedCount: 10,
+          filePartNo: 1,
+          retryCount: 1,
+          batchSize: 500,
+          batchRowCount: 10,
+          backoffMs: 60_000
+        },
+        outcome: "completed",
+        rows: [{ "Order No": "PO-RETRY" }]
+      };
+    },
+    fileService: {
+      async publishRows() {
+        return { storageKey: "exports/published/retry-wait.xlsx" };
+      }
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(secondPoll.dispatched, 0);
+  assert.equal(secondPoll.completed, 0);
+  assert.equal(secondPoll.failed, 0);
+  assert.equal(calls, 1);
+  assert.equal(task.status, "EXECUTING");
+  assert.equal(task.lockOwner, "worker-retry-wait");
+  assert.equal(checkpoint.retry_count, 1);
+  assert.equal(checkpoint.backoff_ms, 60000);
+});
+
+serialTest("query batch retry resumes only after checkpoint backoff elapses", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-backoff-ready-${runId}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-ready",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 2,
+    queryBatchBackoffBaseMs: 1000,
+    batchProcessor: async () => {
+      calls += 1;
+      if (calls === 1) {
+        const error = new Error("temporary datasource timeout");
+        error.name = "QUERY_EXECUTION_ERROR";
+        throw error;
+      }
+      return {
+        checkpoint: {
+          lastCursor: "order-retry-ready",
+          processedCount: 10,
+          filePartNo: 1,
+          retryCount: 1,
+          batchSize: 500,
+          batchRowCount: 10,
+          backoffMs: 1000
+        },
+        outcome: "completed",
+        rows: [{ "Order No": "PO-RETRY-READY" }]
+      };
+    },
+    fileService: {
+      async publishRows() {
+        return { storageKey: "exports/published/retry-ready.xlsx" };
+      }
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  await db
+    .updateTable("export_task_checkpoints")
+    .set({
+      updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 2 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(secondPoll.dispatched, 1);
+  assert.equal(secondPoll.completed, 1);
+  assert.equal(calls, 2);
   assert.equal(task.status, "COMPLETED");
 });
 
@@ -723,7 +949,7 @@ serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and pe
     leaseDurationSeconds: 300,
     maxTasksPerPoll: 1,
     maxQueryBatchRetries: 1,
-    queryBatchBackoffBaseMs: 50,
+    queryBatchBackoffBaseMs: 1000,
     batchProcessor: async () => {
       const error = new Error("query still unavailable");
       error.name = "QUERY_EXECUTION_ERROR";
@@ -732,6 +958,14 @@ serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and pe
   });
 
   const firstPoll = await worker.pollAndProcessOnce();
+  await db
+    .updateTable("export_task_checkpoints")
+    .set({
+      updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 2 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
   const secondPoll = await worker.pollAndProcessOnce();
   const task = await createExportTaskRepository(db).findTaskById(taskId);
   const checkpoint = await db
@@ -747,7 +981,59 @@ serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and pe
   assert.equal(secondPoll.failed, 1);
   assert.equal(task.status, "FAILED");
   assert.equal(checkpoint.retry_count, 1);
-  assert.equal(checkpoint.backoff_ms, 50);
+  assert.equal(checkpoint.backoff_ms, 1000);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+});
+
+serialTest("query batch retry exhaustion waits for backoff before the terminal failed retry attempt", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-exh-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-exhausted-backoff",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 1,
+    queryBatchBackoffBaseMs: 60_000,
+    batchProcessor: async () => {
+      calls += 1;
+      const error = new Error("query still unavailable");
+      error.name = "QUERY_EXECUTION_ERROR";
+      throw error;
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  const prematurePoll = await worker.pollAndProcessOnce();
+  const callsAfterPrematurePoll = calls;
+  await db
+    .updateTable("export_task_checkpoints")
+    .set({
+      updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 61 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
+  const finalPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(prematurePoll.dispatched, 0);
+  assert.equal(prematurePoll.failed, 0);
+  assert.equal(callsAfterPrematurePoll, 1);
+  assert.equal(finalPoll.dispatched, 1);
+  assert.equal(finalPoll.failed, 1);
+  assert.equal(calls, 2);
+  assert.equal(task.status, "FAILED");
   assert.ok(
     audits.some(
       (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"

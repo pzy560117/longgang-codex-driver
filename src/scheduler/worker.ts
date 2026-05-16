@@ -93,7 +93,10 @@ type CandidateRow = {
   lease_renewed_at: Date | null;
   created_at: Date;
   updated_at: Date;
-  concurrency_limit: number;
+};
+
+type TaskRequestSnapshot = {
+  configSnapshot?: ExportRegistryRecord;
 };
 
 function toTaskRecord(row: CandidateRow): ExportTaskRecord {
@@ -221,7 +224,11 @@ async function acquireNextLease(input: {
     const databaseTime = await queryDatabaseTime(trx);
     const candidates = await trx
       .selectFrom("export_tasks as t")
-      .innerJoin("export_registries as r", "r.task_code", "t.task_code")
+      .leftJoin("export_task_checkpoints as cp", (join) =>
+        join
+          .onRef("cp.task_id", "=", "t.task_id")
+          .onRef("cp.attempt_no", "=", "t.attempt_no")
+      )
       .select([
         "t.task_id",
         "t.task_code",
@@ -241,10 +248,8 @@ async function acquireNextLease(input: {
         "t.lock_expire_at",
         "t.lease_renewed_at",
         "t.created_at",
-        "t.updated_at",
-        "r.concurrency_limit"
+        "t.updated_at"
       ])
-      .where("r.enabled", "=", true)
       .where((eb) =>
         eb.or([
           eb("t.status", "=", "PENDING"),
@@ -257,6 +262,18 @@ async function acquireNextLease(input: {
             eb("t.status", "=", "EXECUTING"),
             eb("t.lock_expire_at", "<", databaseTime)
           ])
+        ])
+      )
+      .where((eb) =>
+        eb.or([
+          eb("cp.task_id", "is", null),
+          eb("cp.backoff_ms", "is", null),
+          eb("cp.backoff_ms", "<=", 0),
+          eb(
+            sql`TIMESTAMPADD(MICROSECOND, COALESCE(cp.backoff_ms, 0) * 1000, cp.updated_at)`,
+            "<=",
+            sql`CURRENT_TIMESTAMP(3)`
+          )
         ])
       )
       .orderBy("t.created_at", "asc")
@@ -289,8 +306,9 @@ async function acquireNextLease(input: {
         .forUpdate()
         .execute();
 
+      const concurrencyLimit = resolveTaskConcurrencyLimit(toTaskRecord(candidate));
       const activeCount = activeTasks.length;
-      if (!isOwnActiveLeaseResume && activeCount >= candidate.concurrency_limit) {
+      if (!isOwnActiveLeaseResume && activeCount >= concurrencyLimit) {
         continue;
       }
 
@@ -475,9 +493,8 @@ async function processAcquiredLease(input: {
       if (Array.isArray(batch.rows)) {
         const registry =
           batch.registry ??
-          (await createExportRegistryRepository(input.db).findRegistryByTaskCode(
-            input.task.taskCode
-          ));
+          resolveTaskRegistrySnapshot(input.task) ??
+          (await createExportRegistryRepository(input.db).findRegistryByTaskCode(input.task.taskCode));
         if (!registry) {
           throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
         }
@@ -758,6 +775,33 @@ function isRetryableBatchError(error: unknown): boolean {
     error instanceof Error &&
     ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
   );
+}
+
+function resolveTaskRegistrySnapshot(task: ExportTaskRecord): ExportRegistryRecord | undefined {
+  const snapshot = parseTaskRequestSnapshot(task).configSnapshot;
+  if (snapshot?.configSnapshotDigest === task.configSnapshotDigest) {
+    return snapshot;
+  }
+  return undefined;
+}
+
+function resolveTaskConcurrencyLimit(task: ExportTaskRecord): number {
+  const registry = resolveTaskRegistrySnapshot(task);
+  return Number.isInteger(registry?.concurrencyLimit) && Number(registry?.concurrencyLimit) > 0
+    ? Number(registry?.concurrencyLimit)
+    : 1;
+}
+
+function parseTaskRequestSnapshot(task: ExportTaskRecord): TaskRequestSnapshot {
+  if (!task.requestPayload) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(task.requestPayload) as TaskRequestSnapshot;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 function calculateBackoffMs(baseMs: number, retryCount: number): number {
