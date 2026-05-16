@@ -1,0 +1,33 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | backend | `docs/reviews/requirements-complete-review.md`, `contracts/openapi.yaml`, `src/registry-config/service.ts` | 修复 `REGISTRY-CONTRACT-VALIDATION-001`：registry 持久化前强校验 OpenAPI 必填配置、schema、字段映射、脱敏和模板合同。 | `npm run test:api && npm run test:query && npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `docs/reviews/requirements-complete-review.md`, `src/task-api/service.ts`, `contracts/openapi.yaml` | 修复 `CREATE-TASK-REGISTRY-GUARD-001`：创建任务前按 registry `supportedFormats` 和 `parameterSchema` 拦截非法入队。 | `npm run test:api && npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | architecture_gap | backend | `docs/reviews/requirements-complete-review.md`, `docs/architecture/constraints.md`, `src/query-executor/index.ts` | 修复 `DATASOURCE-ADAPTER-BOUNDARY-001`：将 `datasourceCode` 映射到独立只读 datasource adapter，证明平台库和业务只读数据源边界。 | `npm run test:query && npm run test:worker && npm run arch:check` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | MEDIUM | missing_requirement | backend | `docs/reviews/requirements-complete-review.md`, `tests/api/export-http-api.test.mjs`, `docs/testing/verify-matrix.md` | 补 `CREATE-TASK-LATENCY-EVIDENCE-001`：为创建任务 1 秒 SLA 增加稳定断言或 release gate 样本。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | MEDIUM | missing_requirement | backend | `docs/reviews/requirements-complete-review.md`, `src/task-api/service.ts`, `src/repositories/export-task.repository.ts` | 修复 `HISTORY-PAGINATION-TOTAL-001`：历史查询返回符合筛选条件的真实 total。 | `npm run test:api && npm run test:db` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | state_gap | backend | `docs/reviews/requirements-complete-review.md`, `src/task-api/service.ts`, `src/repositories/export-task.repository.ts` | 修复 `TASK-CANCEL-ATOMICITY-001`：取消更新增加原状态、attemptNo 或租约 CAS 条件。 | `npm run test:api && npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | MEDIUM | missing_requirement | backend | `docs/product/state-matrix.yaml`, `src/scheduler/worker.ts`, `src/registry-config/service.ts` | 修复 `DEFAULTS-ALIGNMENT-001`：运行时默认重试 3 次、文件保留 15 天，与产品默认对齐。 | `npm run test:worker && npm run test:file` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F008 | MEDIUM | architecture_gap | backend | `docs/architecture/constraints.md`, `src/query-executor/index.ts`, `src/sample-purchase-order/index.ts` | 修复 `SAMPLE-CONTRACT-GENERIC-VALIDATION-001`：移除通用 query executor 中样板特例断言，改为通用 registry 合同校验。 | `npm run test:query && npm run test:sample` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F009 | MEDIUM | contract_gap | contract | `src/registry-config/service.ts`, `src/query-executor/index.ts`, `docs/testing/verify-matrix.md` | 修复 `QUERY-TEMPLATE-HARDENING-001`：把 datasource/table/function 治理前移到 registry-time。 | `npm run test:query && npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F010 | MEDIUM | contract_gap | backend | `src/routes/respond.ts`, `src/query-executor/index.ts`, `src/task-api/service.ts`, `src/file-service/index.ts` | 修复 `PUBLIC-ERROR-REDACTION-001`：公开响应和任务失败详情统一脱敏底层 SQL、数据源、对象存储错误。 | `npm run test:api && npm run test:file && npm run test:query` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | test-runner | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F008 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F009 | contract | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F010 | backend | backend-worker | 1 | false |

@@ -1,0 +1,46 @@
+﻿
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ docker test data task is queued after release with executable guardrails (0.8579ms)
+✔ docker local test command wires environment setup, seed and validation (0.5049ms)
+✔ verify matrix records docker test data evidence without promoting live validation (0.1469ms)
+✔ local demo entrypoint provisions local dependencies and starts the HTTP service (0.7121ms)
+✔ local demo setup runs migrations and seeds purchase-order demo data (0.2094ms)
+✔ local demo setup rejects local tunnels to non-demo databases before connecting (462.645ms)
+✔ local demo does not silently seed an inherited external database URL (0.4952ms)
+✔ local demo runbook is explicit about local-only dependencies and API examples (0.386ms)
+✔ local release rehearsal is declared as mock/local evidence without releasing RELEASE-001 (0.9248ms)
+✔ local release rehearsal script documents local-only preflight and command coverage (0.2578ms)
+✔ local release rehearsal does not auto-enable live object storage smoke writes (0.2358ms)
+✔ release verify self-provisions docker MySQL and local object storage smoke (0.0953ms)
+✔ local release rehearsal can load untracked env files for local MySQL credentials (0.2076ms)
+✔ local release rehearsal evidence is recorded separately from release evidence (0.0889ms)
+✔ local release rehearsal result records API DB worker query file and sample coverage without promoting release (0.1209ms)
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.499ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (0.9376ms)
+✔ mock integration acceptance archives executed local/dev evidence without release promotion (0.5202ms)
+✔ release task uses the local docker mock release gate (0.1454ms)
+▶ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only
+  ✔ registry and create task flow stay in local/dev evidence, not release evidence (1.0891ms)
+  ✔ progress, detail and data scope stay visible only to the right actor (0.2985ms)
+  ✔ worker lease, checkpoint, retry and cancel boundaries stay local (1.1399ms)
+  ✔ query chunking, file publish/download and cleanup invalidation stay in local/dev evidence (0.4835ms)
+  ✔ purchase order sample boundaries and blocked release env remain local/dev evidence (0.219ms)
+✔ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only (4.2569ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (36.6145ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.3678ms)
+✔ test practice matrix task owns the drift guard (0.5603ms)
+✔ each critical test script has a task owner and documented evidence boundary (0.7299ms)
+✔ release gate keeps docker mock evidence separate from external live validation (0.1009ms)
+✔ release gate pins the current OpenAPI lint command (0.0588ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2101.6399
+warning: in the working copy of 'docs/reviews/requirements-complete-review.findings.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/reviews/requirements-complete-review.md', LF will be replaced by CRLF the next time Git touches it

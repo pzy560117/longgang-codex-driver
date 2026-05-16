@@ -1,0 +1,42 @@
+SUCCESS: The process with PID 34160 (child process of PID 29748) has been terminated.
+SUCCESS: The process with PID 29748 (child process of PID 23260) has been terminated.
+SUCCESS: The process with PID 23260 (child process of PID 25984) has been terminated.
+SUCCESS: The process with PID 25984 (child process of PID 1856) has been terminated.
+SUCCESS: The process with PID 1856 (child process of PID 26344) has been terminated.
+SUCCESS: The process with PID 23132 (child process of PID 30180) has been terminated.
+SUCCESS: The process with PID 30180 (child process of PID 32376) has been terminated.
+SUCCESS: The process with PID 32376 (child process of PID 6516) has been terminated.
+SUCCESS: The process with PID 6516 (child process of PID 26344) has been terminated.
+SUCCESS: The process with PID 27576 (child process of PID 30428) has been terminated.
+SUCCESS: The process with PID 30428 (child process of PID 16360) has been terminated.
+SUCCESS: The process with PID 16360 (child process of PID 5952) has been terminated.
+SUCCESS: The process with PID 5952 (child process of PID 26344) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+  - `npm run typecheck`
+  - `git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md`
+  - 任务完整验证命令：`npm run arch:check` + Docker MySQL 环境 `npm run test:api` / `npm run test:query` + `npm run test:contract` + 限定 `git diff --check`
+
+- 结果摘要:
+  - `typecheck` 通过。
+  - `arch:check` 通过。
+  - `test:api`: 4/4 通过。
+  - `test:query`: 18/18 通过。
+  - `test:contract`: 14/14 通过。
+  - 限定 `git diff --check` 通过。
+  - 抽查代码路径显示 `src/registry-config/service.ts` 在持久化前调用 `buildValidatedRegistryUpsertInput`，API / query seed / contract 测试均覆盖必填字段、空值绕过、masking rule 和 OpenAPI required 对齐。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

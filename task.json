@@ -2263,7 +2263,7 @@
                       "dependencies":  [
                                            "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 / REGISTRY-CONTRACT-VALIDATION-001：registry 持久化前强校验 OpenAPI required 配置和 registry/query 合同",

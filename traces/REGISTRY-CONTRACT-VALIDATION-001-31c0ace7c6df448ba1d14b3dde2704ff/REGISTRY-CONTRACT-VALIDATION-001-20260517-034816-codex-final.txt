@@ -1,0 +1,58 @@
+## Requirement IDs
+- FR-007
+- FR-008
+- AC-007
+- AC-008
+- AC-E011
+- AC-E014
+- AC-E024
+
+## Summary
+- 新增共享 registry 合同校验：持久化前严格校验 OpenAPI required 字段和嵌套 `queryTemplate` / `fieldMappings` / `orderBy` required 字段，禁止用 `[]`、`""`、`null` 绕过。
+- API create/update、query seed 等价路径已补负向证据；样板 fieldMappings 也补齐必填元数据，避免被新合同校验拒绝。
+- 同步 `verify-matrix.md` 的证据边界：local/Docker MySQL + API + contract + query，不声明 live MySQL / live datasource。
+- 未执行 commit：本轮 Driver Context 明确禁止 `git add` / `git commit` / `git push`，优先级高于入口规则里的自动 commit。
+
+## Files Changed
+- `src/registry-config/contract.ts`: 新增共享合同校验与 OpenAPI required 常量。
+- `src/registry-config/service.ts`: registry create/update 持久化前调用共享校验。
+- `tests/api/export-http-api.test.mjs`: 覆盖缺失/空 required 配置的 create/update 负向场景。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 OpenAPI required 与生产校验常量一致。
+- `tests/query/query-executor.test.mjs`: seed helper 复用共享校验并补 seed 负向证据。
+- `src/sample-purchase-order/index.ts`: 补齐样板字段映射的 `fieldType` / `sensitive`。
+- `tests/sample/purchase-order-sample.test.mjs`: 更新样板下载断言为平台签名下载 URL 契约。
+- `docs/testing/verify-matrix.md`: 记录 REGISTRY-CONTRACT-VALIDATION-001 证据边界。
+
+## Validation
+- `npm run typecheck`: PASS
+- 指定门禁命令：PASS  
+  `arch:check` PASS；Docker MySQL 下 `test:api` 4/4 PASS；`test:query` 18/18 PASS；`test:contract` 14/14 PASS；scoped `git diff --check` PASS。
+- 补充样板验证：PASS  
+  Docker MySQL 下 `npm run test:sample` 9/9 PASS，附加 `git diff --check` PASS。
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明 create/update 不再持久化不完整 registry payload。
+- `tests/query/query-executor.test.mjs`: 证明 seed/等价路径复用生产合同校验。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI required 与生产校验不漂移。
+- `docs/testing/verify-matrix.md`: 记录本任务证据边界。
+
+## Architecture Constraints
+- `production DB boundary`: PASS - API/query 验证运行于 Docker MySQL。
+- `no InMemory/mock production replacement`: PASS - 未引入内存 repository 或 mock 作为生产实现。
+- `OpenAPI/API boundary`: PASS - contract 测试和 API 集成测试通过。
+- `forbidden_implementations`: PASS - 未修改任务状态、未绕过验证、未使用默认空值落库。
+
+## Knowledge References
+- 无具体知识条目引用；仅按流程读取 knowledge catalog 与 harness knowledge 文档。
+
+## Knowledge Outputs
+- `PITFALL-TEST-ENV-DOWNLOAD-SECRET-001`: pitfall - Docker 样板下载验证需要设置 `EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET` - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区已有 `traces/` runtime 脏文件，不属于本轮源码/测试改动，未处理。
+- 本轮按 Driver Context 未提交改动。

@@ -1,0 +1,62 @@
+SUCCESS: The process with PID 29180 (child process of PID 30828) has been terminated.
+SUCCESS: The process with PID 30828 (child process of PID 33912) has been terminated.
+SUCCESS: The process with PID 33912 (child process of PID 33292) has been terminated.
+SUCCESS: The process with PID 33292 (child process of PID 29684) has been terminated.
+SUCCESS: The process with PID 29684 (child process of PID 21204) has been terminated.
+SUCCESS: The process with PID 22972 (child process of PID 29360) has been terminated.
+SUCCESS: The process with PID 29360 (child process of PID 29216) has been terminated.
+SUCCESS: The process with PID 29216 (child process of PID 30552) has been terminated.
+SUCCESS: The process with PID 30552 (child process of PID 21204) has been terminated.
+SUCCESS: The process with PID 25764 (child process of PID 25820) has been terminated.
+SUCCESS: The process with PID 25820 (child process of PID 20420) has been terminated.
+SUCCESS: The process with PID 20420 (child process of PID 29420) has been terminated.
+SUCCESS: The process with PID 29420 (child process of PID 21204) has been terminated.
+## Requirement IDs
+- FR-007
+- FR-008
+- AC-007
+- AC-008
+- AC-E011
+- AC-E014
+- AC-E024
+
+## Summary
+- 复核后当前工作区已包含本任务所需实现：`src/registry-config/contract.ts` 提供共享 registry 合同校验，`service.ts` 在落库前调用，API create/update 与 query seed 路径均有负向证据。
+- 本轮未产生新的源码/测试/文档 diff；只做了任务边界复核和 fresh verification。
+- 未执行 commit：本轮 Driver Prompt 强制禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无：owned paths 当前无未提交 diff。
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed.
+- Docker MySQL 环境 + `npm run test:api`: PASS - 4/4 passed.
+- Docker MySQL 环境 + `npm run test:query`: PASS - 18/18 passed.
+- `npm run test:contract`: PASS - 14/14 passed.
+- `git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md`: PASS.
+
+## Evidence
+- `src/registry-config/contract.ts`: OpenAPI required 字段与嵌套 query/field/order/masking 合同校验。
+- `tests/api/export-http-api.test.mjs`: create/update 缺失或空 required 配置拒绝且不落库。
+- `tests/query/query-executor.test.mjs`: seed 路径复用生产合同校验，空数组/null/空字符串无法绕过。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: OpenAPI required 与生产校验常量保持一致。
+- `docs/testing/verify-matrix.md`: REGISTRY-CONTRACT-VALIDATION-001 证据边界已记录。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - HTTP service + MySQL production path 验证通过。
+- `registry create/update/seed 共享合同校验`: PASS - API/query tests 覆盖同一 `buildValidatedRegistryUpsertInput` 路径。
+- `forbidden_implementations`: PASS - 验证确认没有继续使用空数组、空字符串或 null 默认值绕过必填配置。
+
+## Knowledge References
+- none - 已检查 knowledge catalog，未发现本任务直接可复用条目。
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL / live datasource 不在本轮 gate 范围内；当前证据限定为本机 Docker MySQL 与受控测试数据源。

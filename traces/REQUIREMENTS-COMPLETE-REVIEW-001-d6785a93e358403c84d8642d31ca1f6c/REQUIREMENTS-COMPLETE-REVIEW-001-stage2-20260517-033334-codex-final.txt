@@ -1,0 +1,30 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S2-F001 | HIGH | artifact_gap | docs | `docs/reviews/requirements-complete-review.md:116-170` 列出 8 个新增 finding，`docs/reviews/requirements-complete-review.md:225-226` 声明 3 个 P0 和多个 P1；但 `docs/reviews/requirements-complete-review.findings.json:29-40` 只新增 `CREATE-TASK-LATENCY-EVIDENCE-001`，解析 JSON 后仅有 3 个 P1，且 FR-001 至 FR-014 仍全部为 `covered`。 | 同步 `.findings.json` 与 Markdown 报告：补齐 Markdown 中所有 P0/P1 finding、coverage 状态、remainingRisks、verdict 语义，并确保机器可读文件可直接驱动后续 repair queue。 | `npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S2-F002 | HIGH | test_gap | test | 本次复跑测试通过：`test:mock-local` 31 pass，`git diff --check` exit 0；但上述 Markdown/JSON 严重漂移未被发现。当前测试只证明 mock-local 与空白检查通过，不能证明 review artifact 一致。 | 增加 review artifact consistency guard：至少校验 Markdown finding IDs 与 JSON `findings[].id` 一致、Markdown/JSON verdict 与 remainingRisks 一致、coverage 的 `covered/partially_covered/gap` 状态不互相矛盾。把该测试纳入当前 task 的 `test_command`。 | `npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff -- docs/reviews/requirements-complete-review.md`
+  - `git diff -- docs/reviews/requirements-complete-review.findings.json`
+  - `git diff -- tests/mock-local/object-storage-local.test.mjs`
+  - `npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md`
+- 结果摘要:
+  - `test:mock-local`: 31 pass, 0 fail。
+  - `git diff --check`: exit 0，仅有 LF/CRLF warning。
+  - 阻塞问题：验证命令通过，但没有捕获 review Markdown 与 JSON truth artifact 的漂移。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S2-F001 | docs | docs-worker | 1 | Yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S2-F002 | test | test-runner | 1 | Yes |

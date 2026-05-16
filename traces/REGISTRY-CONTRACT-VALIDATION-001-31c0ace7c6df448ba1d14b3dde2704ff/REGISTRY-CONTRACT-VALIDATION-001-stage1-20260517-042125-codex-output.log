@@ -1,0 +1,28 @@
+SUCCESS: The process with PID 11448 (child process of PID 31972) has been terminated.
+SUCCESS: The process with PID 31972 (child process of PID 21204) has been terminated.
+SUCCESS: The process with PID 21204 (child process of PID 32844) has been terminated.
+SUCCESS: The process with PID 32844 (child process of PID 24840) has been terminated.
+SUCCESS: The process with PID 24840 (child process of PID 30636) has been terminated.
+SUCCESS: The process with PID 13412 (child process of PID 4676) has been terminated.
+SUCCESS: The process with PID 4676 (child process of PID 16980) has been terminated.
+SUCCESS: The process with PID 16980 (child process of PID 7140) has been terminated.
+SUCCESS: The process with PID 7140 (child process of PID 30636) has been terminated.
+SUCCESS: The process with PID 34028 (child process of PID 14020) has been terminated.
+SUCCESS: The process with PID 14020 (child process of PID 31088) has been terminated.
+SUCCESS: The process with PID 31088 (child process of PID 21180) has been terminated.
+SUCCESS: The process with PID 21180 (child process of PID 30636) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REGISTRY-CONTRACT-VALIDATION-001-S1-F001 | HIGH | contract_gap | backend | `contracts/openapi.yaml:1811`-`1814` 声明 `maskingPolicy` 必须覆盖所有 `sensitive=true` 字段的 `maskingRuleCode`；但 `src/registry-config/contract.ts:206`-`207` 只校验 `fieldMappings` 结构和 `maskingPolicy` 是对象，`src/registry-config/contract.ts:365`-`370` 允许敏感字段携带任意可选 `maskingRuleCode`，未在持久化前验证 `maskingPolicy.rules` 覆盖。当前缺口会让脱敏合同不完整的 registry 配置落库，直到 `src/query-executor/index.ts:590`-`599` 执行期才失败。 | 在 `buildValidatedRegistryUpsertInput` / registry 合同校验层增加持久化前 masking contract 校验：所有 `sensitive=true && exportable=true` 的字段必须有非空 `maskingRuleCode`，且 `maskingPolicy.rules[maskingRuleCode]` 存在并为受支持规则；补 API create/update 与 seed 负向证据，确认不落库且错误码为 `MASKING_RULE_ERROR`。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api; npm run test:query'; npm run test:contract; git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REGISTRY-CONTRACT-VALIDATION-001-S1-F001 | backend | backend-worker | 1 | yes |
