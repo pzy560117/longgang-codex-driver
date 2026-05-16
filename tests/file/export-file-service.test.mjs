@@ -325,6 +325,9 @@ function createProductionEquivalentObjectStorageAdapter(options = {}) {
       objects.set(input.storageKey, Buffer.from(input.body));
     },
     async readObject(storageKey) {
+      if (options.readError) {
+        throw options.readError;
+      }
       const object = objects.get(storageKey);
       if (!object) {
         throw new Error(`missing object ${storageKey}`);
@@ -524,6 +527,34 @@ test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not pub
         registry,
         attemptNo: 0,
         requestId: "req-file-put-failed",
+        rows: [{ "Order No": "PO-001" }]
+      }),
+    (error) => error.name === "FILE_VERIFY_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.publishes.length, 0);
+});
+
+test("object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    readError: new Error("object storage read unavailable")
+  });
+  const service = createExportFileService({ db, storage });
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-read-failed",
         rows: [{ "Order No": "PO-001" }]
       }),
     (error) => error.name === "FILE_VERIFY_ERROR"
@@ -741,6 +772,55 @@ test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_
 
   assert.equal(result.failed, 1);
   assert.equal(failed.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+    )
+  );
+});
+
+test("scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+  const db = await createTestDatabase(t);
+  const { task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    readError: new Error("object storage read unavailable")
+  });
+  const fileService = createExportFileService({ db, storage });
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file-read-failure",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": "PO-001" }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const audits = await db
+    .selectFrom("export_audit_logs")
+    .selectAll()
+    .where("task_id", "=", task.taskId)
+    .execute();
+
+  assert.equal(result.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.publishes.length, 0);
   assert.ok(
     audits.some(
       (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"

@@ -204,7 +204,12 @@ export function createExportFileService(options: ExportFileServiceOptions) {
       }
     });
 
-    const persistedBody = await storage.readObject(tempStorageKey);
+    let persistedBody: Buffer;
+    try {
+      persistedBody = await storage.readObject(tempStorageKey);
+    } catch (error) {
+      throw toFileVerifyError(error, "object storage read failed");
+    }
     if (createChecksum(persistedBody) !== checksum) {
       throw fileError("FILE_VERIFY_ERROR", "file checksum verification failed");
     }
