@@ -1,16 +1,3 @@
-SUCCESS: The process with PID 29060 (child process of PID 3172) has been terminated.
-SUCCESS: The process with PID 3172 (child process of PID 33036) has been terminated.
-SUCCESS: The process with PID 33036 (child process of PID 3608) has been terminated.
-SUCCESS: The process with PID 3608 (child process of PID 33500) has been terminated.
-SUCCESS: The process with PID 31592 (child process of PID 32716) has been terminated.
-SUCCESS: The process with PID 32716 (child process of PID 31852) has been terminated.
-SUCCESS: The process with PID 31852 (child process of PID 12588) has been terminated.
-SUCCESS: The process with PID 12588 (child process of PID 33500) has been terminated.
-SUCCESS: The process with PID 8028 (child process of PID 13816) has been terminated.
-SUCCESS: The process with PID 13816 (child process of PID 30140) has been terminated.
-SUCCESS: The process with PID 30140 (child process of PID 32400) has been terminated.
-SUCCESS: The process with PID 32400 (child process of PID 29596) has been terminated.
-SUCCESS: The process with PID 29596 (child process of PID 33500) has been terminated.
 ## Stage 2 Findings
 
 | Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
