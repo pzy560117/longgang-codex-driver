@@ -981,24 +981,28 @@ export async function downloadSignedExportTask(
 ): Promise<DownloadStreamResponse> {
   return withDatabase(async (db) => {
     const now = await getDatabaseTime(db);
+    const expiresAt = readSignedQueryText(query.expiresAt);
+    const signature = readSignedQueryText(query.signature);
+    const untrustedOperatorId = readSignedQueryText(query.operatorId);
+    const untrustedTenantId = readSignedQueryText(query.tenantId);
+    const untrustedRoleCodes = readSignedQueryText(query.roleCodes) ?? "";
+    const untrustedOrgScope = readSignedQueryText(query.orgScope);
+    const untrustedRequestId = readSignedQueryText(query.requestId);
+    const systemAuth: AuthContext = {
+      operatorId: "signed-download",
+      tenantId: "",
+      roleCodes: [],
+      orgScope: "",
+      requestId: `signed-download-${randomUUID()}`
+    };
     const task = await createExportTaskRepository(db).findTaskById(taskId);
     const file = task
       ? await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo)
       : null;
-    const auth: AuthContext = {
-      operatorId: readSignedQueryText(query.operatorId) ?? "signed-download",
-      tenantId: readSignedQueryText(query.tenantId) ?? "",
-      roleCodes: (readSignedQueryText(query.roleCodes) ?? "")
-        .split(",")
-        .map((role) => role.trim())
-        .filter(Boolean),
-      orgScope: readSignedQueryText(query.orgScope) ?? "",
-      requestId: readSignedQueryText(query.requestId) ?? `signed-download-${randomUUID()}`
-    };
 
-    const auditBase = {
+    const unverifiedAuditBase = {
       db,
-      auth,
+      auth: systemAuth,
       action: "DOWNLOAD",
       now,
       taskId,
@@ -1007,63 +1011,78 @@ export async function downloadSignedExportTask(
       subsystemCode: task?.subsystemCode ?? null
     };
 
-    if (!task) {
+    if (
+      query.signatureAlgorithm !== "HMAC-SHA256" ||
+      !expiresAt ||
+      !signature ||
+      !untrustedOperatorId ||
+      !untrustedTenantId ||
+      !untrustedRequestId
+    ) {
       return rejectWithAudit({
-        ...auditBase,
-        error: new ApiError(404, "TASK_NOT_FOUND", "task not found")
-      });
-    }
-    if (task.status !== "COMPLETED" || !file || !file.publishedStorageKey || !file.deliveryReadyAt) {
-      return rejectWithAudit({
-        ...auditBase,
-        error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
-      });
-    }
-    if (file.expiresAt <= now) {
-      return rejectWithAudit({
-        ...auditBase,
-        error: new ApiError(410, "FILE_EXPIRED", "file expired")
-      });
-    }
-
-    const expiresAt = readSignedQueryText(query.expiresAt);
-    const signature = readSignedQueryText(query.signature);
-    if (query.signatureAlgorithm !== "HMAC-SHA256" || !expiresAt || !signature) {
-      return rejectWithAudit({
-        ...auditBase,
+        ...unverifiedAuditBase,
         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
       });
     }
     const expiresAtTime = Date.parse(expiresAt);
     if (!Number.isFinite(expiresAtTime)) {
       return rejectWithAudit({
-        ...auditBase,
+        ...unverifiedAuditBase,
         error: new ApiError(403, "SIGNATURE_INVALID", "download signature expiry is invalid")
       });
     }
     if (expiresAtTime <= now.getTime()) {
       return rejectWithAudit({
-        ...auditBase,
+        ...unverifiedAuditBase,
         error: new ApiError(403, "SIGNATURE_EXPIRED", "download signature expired")
       });
     }
+    if (!task || !file?.publishedStorageKey) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
 
-    const roleCodes = auth.roleCodes.join(",");
     const expectedSignature = createSignedDownloadSignature({
       taskId,
       storageKey: file.publishedStorageKey,
       expiresAt,
-      operatorId: auth.operatorId,
-      tenantId: auth.tenantId,
-      roleCodes,
-      orgScope: auth.orgScope,
-      requestId: auth.requestId,
+      operatorId: untrustedOperatorId,
+      tenantId: untrustedTenantId,
+      roleCodes: untrustedRoleCodes,
+      orgScope: untrustedOrgScope ?? "",
+      requestId: untrustedRequestId,
       secret: requireDownloadSigningSecret()
     });
     if (!isValidSignature(signature, expectedSignature)) {
       return rejectWithAudit({
-        ...auditBase,
+        ...unverifiedAuditBase,
         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+
+    const auth: AuthContext = {
+      operatorId: untrustedOperatorId,
+      tenantId: untrustedTenantId,
+      roleCodes: untrustedRoleCodes.split(",").map((role) => role.trim()).filter(Boolean),
+      orgScope: untrustedOrgScope ?? "",
+      requestId: untrustedRequestId
+    };
+    const verifiedAuditBase = {
+      ...unverifiedAuditBase,
+      auth
+    };
+    if (task.status !== "COMPLETED" || !file.deliveryReadyAt) {
+      return rejectWithAudit({
+        ...verifiedAuditBase,
+        error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
+      });
+    }
+    if (file.expiresAt <= now) {
+      return rejectWithAudit({
+        ...verifiedAuditBase,
+        error: new ApiError(410, "FILE_EXPIRED", "file expired")
       });
     }
     try {
@@ -1071,7 +1090,7 @@ export async function downloadSignedExportTask(
     } catch (error) {
       if (error instanceof ApiError) {
         return rejectWithAudit({
-          ...auditBase,
+          ...verifiedAuditBase,
           error
         });
       }
@@ -1099,7 +1118,7 @@ export async function downloadSignedExportTask(
       };
     } catch (error) {
       return rejectWithAudit({
-        ...auditBase,
+        ...verifiedAuditBase,
         error: toStorageApiError(error, file)
       });
     }

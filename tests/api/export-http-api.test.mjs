@@ -974,6 +974,9 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const tamperedSignedUrl = new URL(signedDownloadData.downloadUrl);
   const originalSignature = tamperedSignedUrl.searchParams.get("signature") ?? "";
+  const forgedInvalidRequestId = `req-forged-invalid-signature-${runId}`;
+  tamperedSignedUrl.searchParams.set("operatorId", "forged-operator");
+  tamperedSignedUrl.searchParams.set("requestId", forgedInvalidRequestId);
   tamperedSignedUrl.searchParams.set(
     "signature",
     `${originalSignature.startsWith("0") ? "1" : "0"}${originalSignature.slice(1)}`
@@ -1086,7 +1089,11 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.ok(auditLogs.some((log) => log.action === "DOWNLOAD" && log.result === "SUCCESS"));
   assert.ok(
     auditLogs.some(
-      (log) => log.action === "DOWNLOAD" && log.result === "FAILED" && log.errorCode === "SIGNATURE_INVALID"
+      (log) =>
+        log.action === "DOWNLOAD" &&
+        log.result === "FAILED" &&
+        log.errorCode === "SIGNATURE_INVALID" &&
+        log.operatorId === "signed-download"
     )
   );
   assert.ok(
@@ -1102,4 +1109,6 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(signedDeniedAudits.length, 1);
   assert.equal(signedDeniedAudits[0].result, "FAILED");
   assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
+  const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
+  assert.equal(forgedInvalidAudits.length, 0);
 });
