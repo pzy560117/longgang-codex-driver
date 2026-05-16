@@ -326,10 +326,14 @@ async function renderFileBody(
   }
 ): Promise<Buffer> {
   void summary;
-  return renderExportPackage({
-    packageFileName,
-    parts
-  });
+  try {
+    return await renderExportPackage({
+      packageFileName,
+      parts
+    });
+  } catch (error) {
+    throw toExportRenderError(error, "export package render failed");
+  }
 }
 
 function createChecksum(body: Buffer): string {
@@ -415,6 +419,16 @@ function toFileVerifyError(error: unknown, fallbackMessage: string): Error {
   }
   return fileError(
     "FILE_VERIFY_ERROR",
+    error instanceof Error ? error.message : fallbackMessage
+  );
+}
+
+function toExportRenderError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+    return error;
+  }
+  return fileError(
+    "EXPORT_RENDER_ERROR",
     error instanceof Error ? error.message : fallbackMessage
   );
 }

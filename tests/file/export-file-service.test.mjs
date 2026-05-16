@@ -564,6 +564,67 @@ test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps me
   assert.match(storage.writes[0].storageKey, /\/tmp\//);
 });
 
+test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const service = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-render-failed-xlsx",
+        rows: [{ "Order No": circularValue }]
+      }),
+    (error) => error.name === "EXPORT_RENDER_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 0);
+  assert.equal(storage.publishes.length, 0);
+});
+
+test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 2,
+    fileFormat: "XLSX"
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const service = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-render-failed-zip",
+        rows: [
+          { "Order No": "PO-001" },
+          { "Order No": circularValue },
+          { "Order No": "PO-003" }
+        ]
+      }),
+    (error) => error.name === "EXPORT_RENDER_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 0);
+  assert.equal(storage.publishes.length, 0);
+});
+
 test("scheduler publishes file metadata before marking a completed batch as COMPLETED", async (t) => {
   const db = await createTestDatabase(t);
   const { registry, task } = await seedRegistryAndTask(db, {
@@ -651,6 +712,54 @@ test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_
   assert.ok(
     audits.some(
       (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+    )
+  );
+});
+
+test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+  const db = await createTestDatabase(t);
+  const { task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const fileService = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file-render-failure",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": circularValue }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const audits = await db
+    .selectFrom("export_audit_logs")
+    .selectAll()
+    .where("task_id", "=", task.taskId)
+    .execute();
+
+  assert.equal(result.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.equal(storage.writes.length, 0);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
     )
   );
 });
