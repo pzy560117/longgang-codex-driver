@@ -1945,8 +1945,12 @@
                                         ],
                       "owned_paths":  [
                                           "task.json",
+                                          "contracts/openapi.yaml",
+                                          "src/contracts/",
                                           "src/file-service/",
                                           "src/task-api/",
+                                          "src/routes/export/tasks/download-export-task.handler.ts",
+                                          "tests/contract/",
                                           "tests/file/",
                                           "tests/api/",
                                           "docs/testing/verify-matrix.md"
@@ -1974,7 +1978,7 @@
                                     "补 file 与 API 测试，覆盖 TTL、生效签名、伪造签名、过期签名和下载审计负向路径",
                                     "同步 verify-matrix 记录 DOWNLOAD-SIGNED-URL-GUARD-001 的 Docker MySQL / 本地 object storage mock 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/contracts src/file-service src/task-api src/routes/export/tasks/download-export-task.handler.ts tests/contract tests/file tests/api docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "下载 URL 采用不可伪造签名，默认 TTL 为 10 分钟且与文件保留期分离",
                                          "验签失败、签名过期或权限不足时下载被拒绝并记录审计，不泄露可复用链接",

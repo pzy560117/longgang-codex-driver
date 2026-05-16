@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
 import http from "node:http";
 import test from "node:test";
@@ -15,6 +15,8 @@ import {
   createExportTaskRepository,
   getDatabaseTime
 } from "../../src/repositories/index.ts";
+
+const downloadSigningSecret = `test-only-${randomUUID()}`;
 
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
@@ -33,11 +35,14 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
   const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const previousDownloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT =
     objectStorageConfig.endpoint ?? "https://oss.example.test";
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET =
     objectStorageConfig.bucket ?? "export-platform-test";
+  process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
+    objectStorageConfig.signingSecret ?? downloadSigningSecret;
 
   return () => {
     if (previousDatabaseUrl === undefined) {
@@ -56,6 +61,12 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
     } else {
       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = previousObjectStorageBucket;
+    }
+
+    if (previousDownloadSigningSecret === undefined) {
+      delete process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+    } else {
+      process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = previousDownloadSigningSecret;
     }
   };
 }
@@ -172,7 +183,10 @@ async function auditLogsByRequestId(db, requestId) {
 
 async function createLocalObjectStorageServer(t, options = {}) {
   const bucket = options.bucket ?? "export-platform-test";
+  const signingSecret = options.signingSecret ?? downloadSigningSecret;
+  const clock = options.clock ?? { now: new Date() };
   const objects = new Map();
+  const requests = [];
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
     const pathSegments = url.pathname.split("/").filter(Boolean);
@@ -185,7 +199,33 @@ async function createLocalObjectStorageServer(t, options = {}) {
       return;
     }
 
+    requests.push({
+      method: request.method ?? "GET",
+      storageKey,
+      search: url.search,
+      internalRead: request.headers["x-export-internal-object-read"] === "true",
+      signatureResult: null
+    });
+
     if (request.method === "GET") {
+      const latestRequest = requests[requests.length - 1];
+      if (!latestRequest.internalRead) {
+        const signatureResult = verifyDownloadUrl({
+          bucket,
+          storageKey,
+          expiresAt: url.searchParams.get("expiresAt"),
+          signature: url.searchParams.get("signature"),
+          secret: signingSecret,
+          now: clock.now ?? new Date()
+        });
+        latestRequest.signatureResult = signatureResult;
+        if (!signatureResult.valid) {
+          response.statusCode = 403;
+          response.end(signatureResult.reason);
+          return;
+        }
+      }
+
       const body = objects.get(storageKey);
       if (!body) {
         response.statusCode = 404;
@@ -227,7 +267,9 @@ async function createLocalObjectStorageServer(t, options = {}) {
   return {
     bucket,
     endpoint: `http://127.0.0.1:${address.port}`,
-    objects
+    objects,
+    requests,
+    clock
   };
 }
 
@@ -237,6 +279,55 @@ function decodeStorageKey(segments) {
 
 function checksum(body) {
   return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+}
+
+function signDownloadUrl({ bucket, storageKey, expiresAt, secret }) {
+  return createHmac("sha256", secret)
+    .update(["GET", bucket, storageKey, expiresAt].join("\n"))
+    .digest("hex");
+}
+
+function verifyDownloadUrl({ bucket, storageKey, expiresAt, signature, secret, now }) {
+  if (!expiresAt || !signature) {
+    return { valid: false, reason: "SIGNATURE_REQUIRED" };
+  }
+  const expiresAtTime = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtTime)) {
+    return { valid: false, reason: "SIGNATURE_EXPIRES_AT_INVALID" };
+  }
+  if (expiresAtTime <= now.getTime()) {
+    return { valid: false, reason: "SIGNATURE_EXPIRED" };
+  }
+  const expected = signDownloadUrl({ bucket, storageKey, expiresAt, secret });
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const signatureBuffer = Buffer.from(signature, "hex");
+  if (
+    expectedBuffer.length !== signatureBuffer.length ||
+    !timingSafeEqual(expectedBuffer, signatureBuffer)
+  ) {
+    return { valid: false, reason: "SIGNATURE_INVALID" };
+  }
+  return { valid: true, reason: "OK" };
+}
+
+function signedRoutePath(url) {
+  return `${url.pathname}${url.search}`;
+}
+
+function signPlatformDownloadUrl({ taskId, storageKey, url, secret }) {
+  return createHmac("sha256", secret)
+    .update([
+      "GET",
+      taskId,
+      storageKey,
+      url.searchParams.get("expiresAt"),
+      url.searchParams.get("operatorId"),
+      url.searchParams.get("tenantId"),
+      url.searchParams.get("roleCodes"),
+      url.searchParams.get("orgScope"),
+      url.searchParams.get("requestId")
+    ].join("\n"))
+    .digest("hex");
 }
 
 test("HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL", () => {
@@ -818,6 +909,8 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const streamBody = Buffer.from("stream-download-body");
   const now = await getDatabaseTime(db);
+  objectStorageServer.clock.now = now;
+  const fileRetentionExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   await fileRepository.saveFileMetadata({
     taskId,
     attemptNo: 0,
@@ -828,7 +921,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     checksumAlgorithm: "SHA-256",
     tempStorageKey: "exports/tmp/purchase-orders.xlsx",
     publishedStorageKey: "exports/published/purchase-orders.xlsx",
-    expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+    expiresAt: fileRetentionExpiresAt,
     publishedAt: now,
     deliveryReadyAt: now,
     checksumVerifiedAt: now,
@@ -857,14 +950,59 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(downloadResponse.statusCode, 200);
-  assert.equal(downloadResponse.json().data.fileName, "purchase-orders.xlsx");
-  assert.equal(downloadResponse.json().data.storageKey, "exports/published/purchase-orders.xlsx");
-  assert.match(
-    downloadResponse.json().data.downloadUrl,
-    new RegExp(`^${objectStorageServer.endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`)
-  );
+  const signedDownloadData = downloadResponse.json().data;
+  assert.equal(signedDownloadData.fileName, "purchase-orders.xlsx");
+  assert.equal(signedDownloadData.storageKey, "exports/published/purchase-orders.xlsx");
+  const signedDownloadUrl = new URL(signedDownloadData.downloadUrl);
+  assert.equal(signedDownloadUrl.searchParams.get("signatureAlgorithm"), "HMAC-SHA256");
+  assert.equal(signedDownloadUrl.searchParams.get("expiresAt"), signedDownloadData.expiresAt);
+  assert.equal(signedDownloadUrl.pathname, `/api/export/tasks/${taskId}/download`);
+  assert.equal(signedDownloadUrl.searchParams.get("operatorId"), "u001");
+  assert.equal(signedDownloadUrl.searchParams.get("requestId"), `req-download-${runId}`);
+  assert.ok(new Date(signedDownloadData.expiresAt).getTime() < now.getTime() + 20 * 60 * 1000);
+  assert.ok(new Date(signedDownloadData.expiresAt).getTime() > now.getTime());
+  assert.ok(new Date(signedDownloadData.expiresAt).getTime() < fileRetentionExpiresAt.getTime());
 
   objectStorageServer.objects.set("exports/published/purchase-orders.xlsx", streamBody);
+  const signedFetchResponse = await app.inject({
+    method: "GET",
+    url: signedRoutePath(signedDownloadUrl)
+  });
+  assert.equal(signedFetchResponse.statusCode, 200);
+  assert.equal(signedFetchResponse.body, "stream-download-body");
+  assert.equal(objectStorageServer.requests.at(-1).internalRead, true);
+
+  const tamperedSignedUrl = new URL(signedDownloadData.downloadUrl);
+  const originalSignature = tamperedSignedUrl.searchParams.get("signature") ?? "";
+  tamperedSignedUrl.searchParams.set(
+    "signature",
+    `${originalSignature.startsWith("0") ? "1" : "0"}${originalSignature.slice(1)}`
+  );
+  const tamperedSignedResponse = await app.inject({
+    method: "GET",
+    url: signedRoutePath(tamperedSignedUrl)
+  });
+  assert.equal(tamperedSignedResponse.statusCode, 403);
+  assert.equal(tamperedSignedResponse.json().code, "SIGNATURE_INVALID");
+
+  const expiredSignedUrl = new URL(signedDownloadData.downloadUrl);
+  const expiredAt = new Date(now.getTime() - 60_000).toISOString();
+  expiredSignedUrl.searchParams.set("expiresAt", expiredAt);
+  expiredSignedUrl.searchParams.set(
+    "signature",
+    signPlatformDownloadUrl({
+      taskId,
+      storageKey: "exports/published/purchase-orders.xlsx",
+      url: expiredSignedUrl,
+      secret: downloadSigningSecret
+    })
+  );
+  const expiredSignedResponse = await app.inject({
+    method: "GET",
+    url: signedRoutePath(expiredSignedUrl)
+  });
+  assert.equal(expiredSignedResponse.statusCode, 403);
+  assert.equal(expiredSignedResponse.json().code, "SIGNATURE_EXPIRED");
 
   const streamDownloadResponse = await app.inject({
     method: "GET",
@@ -926,6 +1064,16 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const auditLogs = await auditRepository.listAuditLogsForTask(taskId);
   assert.ok(auditLogs.some((log) => log.action === "DOWNLOAD" && log.result === "SUCCESS"));
+  assert.ok(
+    auditLogs.some(
+      (log) => log.action === "DOWNLOAD" && log.result === "FAILED" && log.errorCode === "SIGNATURE_INVALID"
+    )
+  );
+  assert.ok(
+    auditLogs.some(
+      (log) => log.action === "DOWNLOAD" && log.result === "FAILED" && log.errorCode === "SIGNATURE_EXPIRED"
+    )
+  );
   const deniedAudits = await auditLogsByRequestId(db, `req-denied-download-${runId}`);
   assert.equal(deniedAudits.length, 1);
   assert.equal(deniedAudits[0].result, "FAILED");

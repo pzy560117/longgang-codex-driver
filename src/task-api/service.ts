@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import { createDatabase } from "../db/kysely.ts";
@@ -62,6 +62,17 @@ type DownloadStreamResponse = {
   checksum: string;
   checksumAlgorithm: string;
   attemptNo: number;
+};
+
+type SignedDownloadQuery = {
+  expiresAt?: unknown;
+  signature?: unknown;
+  signatureAlgorithm?: unknown;
+  operatorId?: unknown;
+  tenantId?: unknown;
+  roleCodes?: unknown;
+  orgScope?: unknown;
+  requestId?: unknown;
 };
 
 function digest(value: unknown): string {
@@ -417,6 +428,89 @@ function toDownloadMetadata(
     checksumAlgorithm: file.checksumAlgorithm,
     attemptNo: file.attemptNo
   };
+}
+
+function requireDownloadSigningSecret(): string {
+  const secret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  if (!secret) {
+    throw new ApiError(
+      500,
+      "FILE_VERIFY_ERROR",
+      "download URL signing secret is not configured"
+    );
+  }
+  return secret;
+}
+
+function readSignedQueryText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function createSignedDownloadSignature(input: {
+  taskId: string;
+  storageKey: string;
+  expiresAt: string;
+  operatorId: string;
+  tenantId: string;
+  roleCodes: string;
+  orgScope: string;
+  requestId: string;
+  secret: string;
+}): string {
+  return createHmac("sha256", input.secret)
+    .update([
+      "GET",
+      input.taskId,
+      input.storageKey,
+      input.expiresAt,
+      input.operatorId,
+      input.tenantId,
+      input.roleCodes,
+      input.orgScope,
+      input.requestId
+    ].join("\n"))
+    .digest("hex");
+}
+
+function isValidSignature(value: string, expected: string): boolean {
+  const signature = Buffer.from(value, "hex");
+  const expectedSignature = Buffer.from(expected, "hex");
+  return signature.length === expectedSignature.length && timingSafeEqual(signature, expectedSignature);
+}
+
+function createPlatformSignedDownloadUrl(input: {
+  taskId: string;
+  storageKey: string;
+  expiresAt: string;
+  auth: AuthContext;
+  secret: string;
+}): string {
+  const baseUrl = process.env.EXPORT_PLATFORM_PUBLIC_BASE_URL ?? "http://export-platform.local";
+  const url = new URL(`/api/export/tasks/${encodeURIComponent(input.taskId)}/download`, baseUrl);
+  const roleCodes = input.auth.roleCodes.join(",");
+  url.searchParams.set("mode", "SIGNED_URL");
+  url.searchParams.set("expiresAt", input.expiresAt);
+  url.searchParams.set("signatureAlgorithm", "HMAC-SHA256");
+  url.searchParams.set("operatorId", input.auth.operatorId);
+  url.searchParams.set("tenantId", input.auth.tenantId);
+  url.searchParams.set("roleCodes", roleCodes);
+  url.searchParams.set("orgScope", input.auth.orgScope);
+  url.searchParams.set("requestId", input.auth.requestId);
+  url.searchParams.set(
+    "signature",
+    createSignedDownloadSignature({
+      taskId: input.taskId,
+      storageKey: input.storageKey,
+      expiresAt: input.expiresAt,
+      operatorId: input.auth.operatorId,
+      tenantId: input.auth.tenantId,
+      roleCodes,
+      orgScope: input.auth.orgScope,
+      requestId: input.auth.requestId,
+      secret: input.secret
+    })
+  );
+  return url.toString();
 }
 
 function toStorageApiError(error: unknown, file: { checksumAlgorithm: string }): ApiError {
@@ -835,10 +929,21 @@ export async function downloadExportTask(
           ...metadata
         };
       } else {
+        const signedDownload = await fileService.createDownloadUrl(file.publishedStorageKey, {
+          now
+        });
+        const downloadUrl = createPlatformSignedDownloadUrl({
+          taskId,
+          storageKey: file.publishedStorageKey,
+          expiresAt: signedDownload.expiresAt.toISOString(),
+          auth,
+          secret: requireDownloadSigningSecret()
+        });
         responseData = {
           deliveryMode,
-          downloadUrl: await fileService.createDownloadUrl(file.publishedStorageKey, file.expiresAt),
-          ...metadata
+          downloadUrl,
+          ...metadata,
+          expiresAt: signedDownload.expiresAt.toISOString()
         };
       }
     } catch (error) {
@@ -867,6 +972,126 @@ export async function downloadExportTask(
     });
 
     return responseData;
+  });
+}
+
+export async function downloadSignedExportTask(
+  taskId: string,
+  query: SignedDownloadQuery
+): Promise<DownloadStreamResponse> {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const task = await createExportTaskRepository(db).findTaskById(taskId);
+    const file = task
+      ? await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo)
+      : null;
+    const auth: AuthContext = {
+      operatorId: readSignedQueryText(query.operatorId) ?? "signed-download",
+      tenantId: readSignedQueryText(query.tenantId) ?? "",
+      roleCodes: (readSignedQueryText(query.roleCodes) ?? "")
+        .split(",")
+        .map((role) => role.trim())
+        .filter(Boolean),
+      orgScope: readSignedQueryText(query.orgScope) ?? "",
+      requestId: readSignedQueryText(query.requestId) ?? `signed-download-${randomUUID()}`
+    };
+
+    const auditBase = {
+      db,
+      auth,
+      action: "DOWNLOAD",
+      now,
+      taskId,
+      attemptNo: task?.attemptNo ?? null,
+      taskCode: task?.taskCode ?? null,
+      subsystemCode: task?.subsystemCode ?? null
+    };
+
+    if (!task) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found")
+      });
+    }
+    if (task.status !== "COMPLETED" || !file || !file.publishedStorageKey || !file.deliveryReadyAt) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
+      });
+    }
+    if (file.expiresAt <= now) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(410, "FILE_EXPIRED", "file expired")
+      });
+    }
+
+    const expiresAt = readSignedQueryText(query.expiresAt);
+    const signature = readSignedQueryText(query.signature);
+    if (query.signatureAlgorithm !== "HMAC-SHA256" || !expiresAt || !signature) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+    const expiresAtTime = Date.parse(expiresAt);
+    if (!Number.isFinite(expiresAtTime)) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature expiry is invalid")
+      });
+    }
+    if (expiresAtTime <= now.getTime()) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(403, "SIGNATURE_EXPIRED", "download signature expired")
+      });
+    }
+
+    const roleCodes = auth.roleCodes.join(",");
+    const expectedSignature = createSignedDownloadSignature({
+      taskId,
+      storageKey: file.publishedStorageKey,
+      expiresAt,
+      operatorId: auth.operatorId,
+      tenantId: auth.tenantId,
+      roleCodes,
+      orgScope: auth.orgScope,
+      requestId: auth.requestId,
+      secret: requireDownloadSigningSecret()
+    });
+    if (!isValidSignature(signature, expectedSignature)) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+
+    const fileService = createExportFileService({ db });
+    try {
+      const body = await fileService.readObject(file.publishedStorageKey);
+      validateStreamBody(file, body);
+      await appendAudit({
+        db,
+        auth,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode,
+        action: "DOWNLOAD",
+        now
+      });
+      return {
+        deliveryMode: "STREAM",
+        body,
+        ...toDownloadMetadata(file)
+      };
+    } catch (error) {
+      return rejectWithAudit({
+        ...auditBase,
+        error: toStorageApiError(error, file)
+      });
+    }
   });
 }
 

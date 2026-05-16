@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { type Kysely } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
@@ -48,6 +47,12 @@ export type PublishedFile = {
   attemptNo: number;
 };
 
+export type SignedDownloadUrl = {
+  downloadUrl: string;
+  expiresAt: Date;
+  ttlSeconds: number;
+};
+
 export type ExportFileServiceOptions = {
   db: Kysely<ExportPlatformDatabase>;
   storage?: ObjectStorage;
@@ -77,10 +82,16 @@ const signedUrlExpiresMinutes = 10;
 export function createObjectStorageFromEnv(): ObjectStorage {
   const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const downloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
 
   if (!endpoint || !bucket) {
     throw new Error(
       "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for file publishing."
+    );
+  }
+  if (!downloadSigningSecret) {
+    throw new Error(
+      "BLOCKED - 需要人工介入: download URL signing secret must be configured for signed downloads."
     );
   }
 
@@ -97,7 +108,11 @@ export function createObjectStorageFromEnv(): ObjectStorage {
       }
     },
     async readObject(storageKey) {
-      const response = await fetch(`${baseUrl}/${encodeStorageKey(storageKey)}`);
+      const response = await fetch(`${baseUrl}/${encodeStorageKey(storageKey)}`, {
+        headers: {
+          "x-export-internal-object-read": "true"
+        }
+      });
       if (!response.ok) {
         throw fileError("FILE_VERIFY_ERROR", `object storage read failed: ${response.status}`);
       }
@@ -116,7 +131,18 @@ export function createObjectStorageFromEnv(): ObjectStorage {
     },
     async createDownloadUrl(storageKey, expiresAt) {
       const url = new URL(`${baseUrl}/${encodeStorageKey(storageKey)}`);
-      url.searchParams.set("expiresAt", expiresAt.toISOString());
+      const expiresAtIso = expiresAt.toISOString();
+      url.searchParams.set("expiresAt", expiresAtIso);
+      url.searchParams.set("signatureAlgorithm", "HMAC-SHA256");
+      url.searchParams.set(
+        "signature",
+        createDownloadUrlSignature({
+          bucket,
+          storageKey,
+          expiresAt: expiresAtIso,
+          secret: downloadSigningSecret
+        })
+      );
       return url.toString();
     }
   };
@@ -281,8 +307,18 @@ export function createExportFileService(options: ExportFileServiceOptions) {
     };
   }
 
-  async function createDownloadUrl(storageKey: string, expiresAt: Date): Promise<string> {
-    return storage.createDownloadUrl(storageKey, expiresAt);
+  async function createDownloadUrl(
+    storageKey: string,
+    input: { now?: Date; ttlMs?: number } = {}
+  ): Promise<SignedDownloadUrl> {
+    const ttlMs = positiveInteger(input.ttlMs, signedUrlExpiresMinutes * 60 * 1000);
+    const issuedAt = input.now ?? await getDatabaseTime(options.db);
+    const expiresAt = new Date(issuedAt.getTime() + ttlMs);
+    return {
+      downloadUrl: await storage.createDownloadUrl(storageKey, expiresAt),
+      expiresAt,
+      ttlSeconds: Math.floor(ttlMs / 1000)
+    };
   }
 
   async function readObject(storageKey: string): Promise<Buffer> {
@@ -439,6 +475,17 @@ function positiveInteger(value: number | null | undefined, fallback: number): nu
 
 function encodeStorageKey(storageKey: string): string {
   return storageKey.split("/").map(encodeURIComponent).join("/");
+}
+
+function createDownloadUrlSignature(input: {
+  bucket: string;
+  storageKey: string;
+  expiresAt: string;
+  secret: string;
+}): string {
+  return createHmac("sha256", input.secret)
+    .update(["GET", input.bucket, input.storageKey, input.expiresAt].join("\n"))
+    .digest("hex");
 }
 
 function toArrayBuffer(body: Buffer): ArrayBuffer {

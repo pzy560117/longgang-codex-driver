@@ -1,17 +1,22 @@
 import { requireAuthContext } from "../../../audit-log/auth-context.ts";
-import { downloadExportTask } from "../../../task-api/service.ts";
+import { downloadExportTask, downloadSignedExportTask } from "../../../task-api/service.ts";
 import { sendError, sendSuccess } from "../../respond.ts";
 import type { RouteHandler } from "../../types.ts";
 
 export const handler: RouteHandler = async (context, response) => {
   try {
-    const auth = requireAuthContext(context.request);
     const query = context.request.query as Record<string, unknown>;
-    const data = await downloadExportTask(
-      auth,
-      context.params.taskId,
-      typeof query.mode === "string" ? query.mode : undefined
-    );
+    const hasSignedDownloadQuery =
+      typeof query.signature === "string" ||
+      typeof query.expiresAt === "string" ||
+      typeof query.signatureAlgorithm === "string";
+    const data = hasSignedDownloadQuery
+      ? await downloadSignedExportTask(context.params.taskId, query)
+      : await downloadExportTask(
+          requireAuthContext(context.request),
+          context.params.taskId,
+          typeof query.mode === "string" ? query.mode : undefined
+        );
 
     if (data.deliveryMode === "STREAM") {
       response

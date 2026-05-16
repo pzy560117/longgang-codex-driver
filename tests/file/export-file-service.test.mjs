@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
 import http from "node:http";
 import test from "node:test";
@@ -22,6 +23,8 @@ import {
   inspectXlsxBuffer,
   inspectZipOfXlsxBuffer
 } from "./xlsx-zip-helpers.mjs";
+
+const downloadSigningSecret = `test-only-${randomUUID()}`;
 
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
@@ -177,6 +180,7 @@ async function seedRegistryAndTask(db, overrides = {}) {
 
 async function createLocalObjectStorageServer(t, options = {}) {
   const bucket = options.bucket ?? "export-platform-test";
+  const signingSecret = options.signingSecret ?? downloadSigningSecret;
   const objects = new Map();
   const requests = [];
   const server = http.createServer(async (request, response) => {
@@ -224,6 +228,24 @@ async function createLocalObjectStorageServer(t, options = {}) {
     }
 
     if (request.method === "GET") {
+      const internalRead = request.headers["x-export-internal-object-read"] === "true";
+      if (!internalRead) {
+        const signatureResult = verifyDownloadUrl({
+          bucket,
+          storageKey,
+          expiresAt: url.searchParams.get("expiresAt"),
+          signature: url.searchParams.get("signature"),
+          secret: signingSecret,
+          now: options.now ?? new Date()
+        });
+        requests[requests.length - 1].signatureResult = signatureResult;
+        if (!signatureResult.valid) {
+          response.statusCode = 403;
+          response.end(signatureResult.reason);
+          return;
+        }
+      }
+
       const body = objects.get(storageKey);
       if (!body) {
         response.statusCode = 404;
@@ -285,9 +307,12 @@ function decodeStorageKey(segments) {
 async function withObjectStorageEnv(config, callback) {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const originalSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
 
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
+  process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
+    config.signingSecret ?? downloadSigningSecret;
 
   try {
     return await callback();
@@ -303,7 +328,42 @@ async function withObjectStorageEnv(config, callback) {
     } else {
       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = originalBucket;
     }
+
+    if (originalSigningSecret === undefined) {
+      delete process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+    } else {
+      process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = originalSigningSecret;
+    }
   }
+}
+
+function signDownloadUrl({ bucket, storageKey, expiresAt, secret }) {
+  return createHmac("sha256", secret)
+    .update(["GET", bucket, storageKey, expiresAt].join("\n"))
+    .digest("hex");
+}
+
+function verifyDownloadUrl({ bucket, storageKey, expiresAt, signature, secret, now }) {
+  if (!expiresAt || !signature) {
+    return { valid: false, reason: "SIGNATURE_REQUIRED" };
+  }
+  const expiresAtTime = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtTime)) {
+    return { valid: false, reason: "SIGNATURE_EXPIRES_AT_INVALID" };
+  }
+  if (expiresAtTime <= now.getTime()) {
+    return { valid: false, reason: "SIGNATURE_EXPIRED" };
+  }
+  const expected = signDownloadUrl({ bucket, storageKey, expiresAt, secret });
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const signatureBuffer = Buffer.from(signature, "hex");
+  if (
+    expectedBuffer.length !== signatureBuffer.length ||
+    !timingSafeEqual(expectedBuffer, signatureBuffer)
+  ) {
+    return { valid: false, reason: "SIGNATURE_INVALID" };
+  }
+  return { valid: true, reason: "OK" };
 }
 
 function createProductionEquivalentObjectStorageAdapter(options = {}) {
@@ -453,7 +513,16 @@ test("env-backed object storage adapter publishes ZIP metadata through a local H
     assert.deepEqual(archive.parts[0].workbook.rows, [["PO-001"], ["PO-002"]]);
     assert.deepEqual(archive.parts[1].workbook.rows, [["PO-003"]]);
 
-    const downloadUrl = await service.createDownloadUrl(metadata.publishedStorageKey, metadata.expiresAt);
+    const signedUrlIssuedAt = new Date();
+    const signedDownload = await service.createDownloadUrl(metadata.publishedStorageKey, {
+      now: signedUrlIssuedAt
+    });
+    const downloadUrl = signedDownload.downloadUrl;
+    assert.equal(
+      signedDownload.expiresAt.toISOString(),
+      new Date(signedUrlIssuedAt.getTime() + 10 * 60 * 1000).toISOString()
+    );
+    assert.notEqual(signedDownload.expiresAt.toISOString(), metadata.expiresAt.toISOString());
     assert.match(
       downloadUrl,
       new RegExp(
@@ -461,6 +530,8 @@ test("env-backed object storage adapter publishes ZIP metadata through a local H
       )
     );
     assert.match(downloadUrl, /[?&]expiresAt=/);
+    assert.match(downloadUrl, /[?&]signature=/);
+    assert.match(downloadUrl, /[?&]signatureAlgorithm=HMAC-SHA256/);
 
     const downloadResponse = await fetch(downloadUrl);
     assert.equal(downloadResponse.ok, true);
@@ -478,10 +549,35 @@ test("env-backed object storage adapter publishes ZIP metadata through a local H
         `GET ${metadata.publishedStorageKey}`
       ]
     );
+    assert.equal(objectStorageServer.requests[3].signatureResult.valid, true);
     assert.equal(
       objectStorageServer.requests[2].copySource,
       `${objectStorageServer.bucket}/${metadata.tempStorageKey}`
     );
+
+    const tamperedUrl = new URL(downloadUrl);
+    const originalSignature = tamperedUrl.searchParams.get("signature") ?? "";
+    tamperedUrl.searchParams.set(
+      "signature",
+      `${originalSignature.startsWith("0") ? "1" : "0"}${originalSignature.slice(1)}`
+    );
+    const tamperedResponse = await fetch(tamperedUrl);
+    assert.equal(tamperedResponse.status, 403);
+
+    const expiredUrl = new URL(downloadUrl);
+    const expiredAt = new Date(signedUrlIssuedAt.getTime() - 60_000).toISOString();
+    expiredUrl.searchParams.set("expiresAt", expiredAt);
+    expiredUrl.searchParams.set(
+      "signature",
+      signDownloadUrl({
+        bucket: objectStorageServer.bucket,
+        storageKey: metadata.publishedStorageKey,
+        expiresAt: expiredAt,
+        secret: downloadSigningSecret
+      })
+    );
+    const expiredResponse = await fetch(expiredUrl);
+    assert.equal(expiredResponse.status, 403);
   });
 });
 
