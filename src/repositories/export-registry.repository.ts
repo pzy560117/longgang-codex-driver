@@ -105,6 +105,50 @@ function toRegistryRecord(row: {
 
 export function createExportRegistryRepository(db: Kysely<ExportPlatformDatabase>) {
   return {
+    async insertRegistry(input: ExportRegistryUpsertInput): Promise<void> {
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .insertInto("export_registries")
+          .values({
+            task_code: input.taskCode,
+            subsystem_code: input.subsystemCode,
+            display_name: input.displayName,
+            enabled: input.enabled,
+            concurrency_limit: input.concurrencyLimit,
+            file_retention_days: input.fileRetentionDays,
+            task_history_retention_days: input.taskHistoryRetentionDays,
+            single_file_max_rows: input.singleFileMaxRows,
+            export_max_rows: input.exportMaxRows,
+            datasource_code: input.datasourceCode,
+            supported_formats: input.supportedFormats,
+            parameter_schema: input.parameterSchema,
+            query_template: input.queryTemplate,
+            field_mappings: input.fieldMappings,
+            masking_policy: input.maskingPolicy,
+            data_scope_template: input.dataScopeTemplate,
+            cursor_field: input.cursorField,
+            order_by: input.orderBy,
+            batch_size: input.batchSize,
+            config_snapshot_digest: input.configSnapshotDigest,
+            created_at: input.now,
+            updated_at: input.now
+          })
+          .execute();
+
+        await trx
+          .insertInto("export_registry_versions")
+          .values({
+            task_code: input.taskCode,
+            config_snapshot_digest: input.configSnapshotDigest,
+            parameter_schema_digest: input.parameterSchemaDigest,
+            field_mapping_digest: input.fieldMappingDigest,
+            masking_policy_digest: input.maskingPolicyDigest,
+            created_at: input.now
+          })
+          .execute();
+      });
+    },
+
     async upsertRegistry(input: ExportRegistryUpsertInput): Promise<void> {
       await db.transaction().execute(async (trx) => {
         await trx

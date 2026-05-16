@@ -477,6 +477,48 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(duplicateRegistryAudits[0].result, "FAILED");
   assert.equal(duplicateRegistryAudits[0].error_code, "REGISTRY_CONFLICT");
 
+  const concurrentTaskCode = `${taskCode}-concurrent`;
+  const [concurrentFirstResponse, concurrentSecondResponse] = await Promise.all([
+    app.inject({
+      method: "POST",
+      url: "/api/export/registries",
+      headers: createHeaders(`req-registry-concurrent-first-${runId}`),
+      payload: {
+        ...createRegistryPayload(concurrentTaskCode),
+        displayName: "Concurrent Create Winner"
+      }
+    }),
+    app.inject({
+      method: "POST",
+      url: "/api/export/registries",
+      headers: createHeaders(`req-registry-concurrent-second-${runId}`),
+      payload: {
+        ...createRegistryPayload(concurrentTaskCode),
+        displayName: "Concurrent Create Loser"
+      }
+    })
+  ]);
+  const concurrentResponses = [concurrentFirstResponse, concurrentSecondResponse];
+  assert.deepEqual(
+    concurrentResponses.map((response) => response.statusCode).sort(),
+    [201, 409]
+  );
+  assert.equal(
+    concurrentResponses.find((response) => response.statusCode === 409).json().code,
+    "REGISTRY_CONFLICT"
+  );
+
+  const concurrentRegistryResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${concurrentTaskCode}`,
+    headers: createHeaders(`req-registry-concurrent-get-${runId}`)
+  });
+  assert.equal(concurrentRegistryResponse.statusCode, 200);
+  assert.equal(
+    concurrentRegistryResponse.json().data.displayName,
+    concurrentResponses.find((response) => response.statusCode === 201).json().data.displayName
+  );
+
   const getRegistryResponse = await app.inject({
     method: "GET",
     url: `/api/export/registries/${taskCode}`,

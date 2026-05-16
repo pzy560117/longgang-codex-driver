@@ -45,6 +45,18 @@ function digest(value: unknown): string {
   return `sha256:${createHash("sha256").update(stableText(value)).digest("hex")}`;
 }
 
+function isDuplicateKeyError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current && typeof current === "object") {
+    const candidate = current as { code?: unknown; errno?: unknown; cause?: unknown };
+    if (candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
 async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) => Promise<T>) {
   const db = createDatabase();
   try {
@@ -155,22 +167,6 @@ export async function upsertExportRegistry(
       throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "registry payload is incomplete");
     }
 
-    const repository = createExportRegistryRepository(db);
-    if (!taskCodeOverride && options.rejectExistingOnCreate) {
-      const existing = await repository.findRegistryByTaskCode(taskCode);
-      if (existing) {
-        return rejectRegistryWithAudit({
-          db,
-          auth,
-          error: new ApiError(409, "REGISTRY_CONFLICT", "taskCode already exists"),
-          action: "REGISTRY_CREATE",
-          now,
-          taskCode,
-          subsystemCode: body.subsystemCode
-        });
-      }
-    }
-
     const parameterSchemaDigest = digest(body.parameterSchema);
     const fieldMappingDigest = digest(body.fieldMappings);
     const maskingPolicyDigest = digest(body.maskingPolicy);
@@ -186,7 +182,8 @@ export async function upsertExportRegistry(
       batchSize: body.batchSize
     });
 
-    await repository.upsertRegistry({
+    const repository = createExportRegistryRepository(db);
+    const registryInput = {
       taskCode,
       subsystemCode: body.subsystemCode,
       displayName: body.displayName,
@@ -211,7 +208,28 @@ export async function upsertExportRegistry(
       fieldMappingDigest,
       maskingPolicyDigest,
       now
-    });
+    };
+
+    try {
+      if (!taskCodeOverride && options.rejectExistingOnCreate) {
+        await repository.insertRegistry(registryInput);
+      } else {
+        await repository.upsertRegistry(registryInput);
+      }
+    } catch (error) {
+      if (!taskCodeOverride && options.rejectExistingOnCreate && isDuplicateKeyError(error)) {
+        return rejectRegistryWithAudit({
+          db,
+          auth,
+          error: new ApiError(409, "REGISTRY_CONFLICT", "taskCode already exists"),
+          action: "REGISTRY_CREATE",
+          now,
+          taskCode,
+          subsystemCode: body.subsystemCode
+        });
+      }
+      throw error;
+    }
 
     const registry = await repository.findRegistryByTaskCode(taskCode);
     if (!registry) {
