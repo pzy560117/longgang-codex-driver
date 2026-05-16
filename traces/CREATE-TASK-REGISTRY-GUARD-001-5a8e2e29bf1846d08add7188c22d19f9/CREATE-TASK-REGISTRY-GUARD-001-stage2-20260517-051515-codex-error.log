@@ -2012,3 +2012,263 @@ exec
 
 codex
 实现里 guard 先做 32KB 校验、读 registry、处理幂等 replay，再执行 registry guard 并入队，顺序和新增 API 测试基本对齐。现在我会跑一遍与本审查结论直接相关的验证命令，确认不是只依赖摘要。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '"'. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 7565ms:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58244 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (1.0398ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1754.5749ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (253.3742ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (143.9743ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (128.1265ms)
+✔ create task idempotent replay returns existing task after registry guard changes (132.7539ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3103.0942
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.6807ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4612ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4331ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.2152ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2644ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.6328ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5995ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3516ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2894ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4476ms)
+✔ protected operations declare trusted auth context signature proof (0.4486ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.387ms)
+✔ create task contract guard is implemented before PENDING enqueue (0.5393ms)
+✔ registry required fields and nested registry contract required fields stay aligned with production validation (1.5048ms)
+✔ registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields (0.4581ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 78.6753
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=1; Get-Content task.json | ForEach-Object { if ($i -ge 2330 -and $i -le 2420) { '"'{0,5}: {1}' -f "'$i, $_ }; $i++ }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 475ms:
+ 2330:                                          "create/update/seed 生产路径不会通过默认空数组、空字符串或 null 绕过合同校验",
+ 2331:                                          "API / contract / query 负向证据覆盖缺失 supportedFormats、parameterSchema、queryTemplate、fieldMappings、maskingPolicy、dataScopeTemplate、cursorField 或 orderBy 的代表场景",
+ 2332:                                          "arch:check、Docker MySQL 下的 test:api / test:query、test:contract 与 git diff --check 全部通过"
+ 2333:                                      ]
+ 2334:                   },
+ 2335:                   {
+ 2336:                       "id":  "CREATE-TASK-REGISTRY-GUARD-001",
+ 2337:                       "description":  "修复创建任务入队前 registry format 和参数 schema guard",
+ 2338:                       "task_kind":  "feature_impl",
+ 2339:                       "phase":  "requirements-repair",
+ 2340:                       "gate_profile":  "spec_required",
+ 2341:                       "required_truth_sources":  [
+ 2342:                                                      "product",
+ 2343:                                                      "architecture",
+ 2344:                                                      "contract",
+ 2345:                                                      "testing"
+ 2346:                                                  ],
+ 2347:                       "priority":  91.91,
+ 2348:                       "dependencies":  [
+ 2349:                                            "REGISTRY-CONTRACT-VALIDATION-001"
+ 2350:                                        ],
+ 2351:                       "passes":  true,
+ 2352:                       "architecture_constraints":  [
+ 2353:                                                        "delivery_shape=independent_microservice",
+ 2354:                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 / CREATE-TASK-REGISTRY-GUARD-001：创建任务入队前校验 registry supportedFormats 和 parameterSchema",
+ 2355:                                                        "非法 fileFormat 或 queryParams 必须在创建 PENDING 任务前被拒绝，且不得写入无效任务后再补偿清理",
+ 2356:                                                        "必须沿用已修复的 auth context、dataScopeTemplate、32KB queryParams 和 registry 原子 create 边界"
+ 2357:                                                    ],
+ 2358:                       "forbidden_implementations":  [
+ 2359:                                                         "禁止把非法格式或非法参数写入 PENDING 后再异步失败",
+ 2360:                                                         "禁止只在测试 fixture 或 mock-local 路径做 schema 校验",
+ 2361:                                                         "禁止放宽 queryParams 32KB 限制、幂等冲突、权限或未注册任务边界"
+ 2362:                                                     ],
+ 2363:                       "context_files":  [
+ 2364:                                             "docs/product/prd-lite.md",
+ 2365:                                             "docs/product/acceptance-criteria.md",
+ 2366:                                             "docs/architecture/constraints.md",
+ 2367:                                             "contracts/openapi.yaml",
+ 2368:                                             "docs/reviews/requirements-complete-review.md",
+ 2369:                                             "docs/reviews/requirements-complete-review.findings.json",
+ 2370:                                             "src/task-api/service.ts",
+ 2371:                                             "src/registry-config/",
+ 2372:                                             "tests/api/export-http-api.test.mjs",
+ 2373:                                             "tests/contract/openapi-route-mapping.contract.test.mjs",
+ 2374:                                             "docs/testing/verify-matrix.md",
+ 2375:                                             "task.json"
+ 2376:                                         ],
+ 2377:                       "owned_paths":  [
+ 2378:                                           "task.json",
+ 2379:                                           "src/task-api/",
+ 2380:                                           "src/registry-config/",
+ 2381:                                           "tests/api/",
+ 2382:                                           "tests/contract/",
+ 2383:                                           "docs/testing/verify-matrix.md"
+ 2384:                                       ],
+ 2385:                       "requirement_ids":  [
+ 2386:                                               "FR-001",
+ 2387:                                               "FR-008",
+ 2388:                                               "FR-014",
+ 2389:                                               "AC-001",
+ 2390:                                               "AC-008",
+ 2391:                                               "AC-017",
+ 2392:                                               "AC-E021"
+ 2393:                                           ],
+ 2394:                       "produces_artifacts":  [
+ 2395:                                                  "src/task-api/",
+ 2396:                                                  "src/registry-config/",
+ 2397:                                                  "tests/api/",
+ 2398:                                                  "tests/contract/",
+ 2399:                                                  "docs/testing/verify-matrix.md"
+ 2400:                                              ],
+ 2401:                       "execution":  {
+ 2402:                                         "mode":  "single"
+ 2403:                                     },
+ 2404:                       "steps":  [
+ 2405:                                     "复核创建任务路径如何读取 registry snapshot、fileFormat 和 queryParams",
+ 2406:                                     "实现入队前 format allow-list 和 parameterSchema 校验，错误码与公开响应符合契约",
+ 2407:                                     "补 API / contract 测试，证明非法 fileFormat 或 queryParams 不会创建 PENDING 任务、不泄露无效任务详情",
+ 2408:                                     "同步 verify-matrix 记录 CREATE-TASK-REGISTRY-GUARD-001 的 Docker MySQL / API / contract 证据边界"
+ 2409:                                 ],
+ 2410:                       "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md",
+ 2411:                       "acceptance":  [
+ 2412:                                          "创建任务会在入队前拒绝不在 registry supportedFormats 内的 fileFormat",
+ 2413:                                          "创建任务会在入队前按 registry parameterSchema 拒绝非法 queryParams，且不创建 PENDING 任务",
+ 2414:                                          "新增证据不回退未注册任务不落库、queryParams 32KB、幂等冲突、权限和 registry 原子 create 边界",
+ 2415:                                          "arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过"
+ 2416:                                      ]
+ 2417:                   },
+ 2418:                   {
+ 2419:                       "id":  "DATASOURCE-ADAPTER-BOUNDARY-001",
+ 2420:                       "description":  "实现 datasourceCode 到独立只读 datasource adapter 的执行边界",
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content package.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 352ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+codex
+测试命令本身没有包含 `typecheck`，而 Stage 2 需要看类型安全。我会额外跑 `npm run typecheck`，如果失败会作为审查证据；如果通过，就把它记录为补充验证。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2259ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"console\\.(log|debug|warn)|debugger|TODO|FIXME|process\\.env\\.[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|KEY)|skipped|\\.skip\\(\" src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md contracts/openapi.yaml' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 384ms:
+ succeeded in 402ms:
+tests/api\export-http-api.test.mjs:39:  const previousDownloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+tests/api\export-http-api.test.mjs:40:  const previousAuthContextSigningSecret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+tests/api\export-http-api.test.mjs:47:  process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
+tests/api\export-http-api.test.mjs:49:  process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET =
+tests/api\export-http-api.test.mjs:74:      delete process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+tests/api\export-http-api.test.mjs:76:      process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = previousDownloadSigningSecret;
+tests/api\export-http-api.test.mjs:80:      delete process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+tests/api\export-http-api.test.mjs:82:      process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET = previousAuthContextSigningSecret;
+src/task-api\service.ts:584:  const secret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+
+codex
+补充检查没有发现调试输出、跳过测试或格式 diff 问题；`typecheck` 也通过。唯一工作区噪音是本任务的未跟踪 trace 产物，不属于代码质量阻塞项。
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+  - `npm run arch:check`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'`
+  - `npm run test:contract`
+  - `npm run typecheck`
+  - `git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md contracts/openapi.yaml`
+- 结果摘要:
+  - `arch:check` 通过。
+  - Docker MySQL 测试环境成功 seed。
+  - `test:api` 6/6 通过，覆盖非法 `fileFormat`、缺失必填参数、未声明参数、类型不匹配、未入队、无 idempotency 记录、失败审计、幂等 replay。
+  - `test:contract` 15/15 通过，覆盖 OpenAPI 错误码声明与 guard 在 `createPendingTask` 前执行的契约检查。
+  - `typecheck` 通过。
+  - `git diff --check` 通过。
+  - 未发现调试输出、跳过测试、硬编码密钥或无关代码改动。
+  - 未依赖 `docs/knowledge/` 决策；暂无新增 `knowledge_outputs` 阻塞建议。
+
+## Verdict
+
+- Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+tokens used
+45,522
