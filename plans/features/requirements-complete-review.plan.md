@@ -63,7 +63,7 @@
 {
   "id": "REQUIREMENTS-COMPLETE-REVIEW-001",
   "description": "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
-  "task_kind": "review",
+  "task_kind": "feature_plan",
   "phase": "requirements-review",
   "gate_profile": "spec_required",
   "priority": 92,
