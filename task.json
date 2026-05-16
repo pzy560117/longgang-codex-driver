@@ -2248,6 +2248,257 @@
                                      ]
                   },
                   {
+                      "id":  "REGISTRY-CONTRACT-VALIDATION-001",
+                      "description":  "修复 registry 配置持久化前合同校验缺口",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.9,
+                      "dependencies":  [
+                                           "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 / REGISTRY-CONTRACT-VALIDATION-001：registry 持久化前强校验 OpenAPI required 配置和 registry/query 合同",
+                                                       "必须以 docs/product/*、docs/architecture/constraints.md、contracts/openapi.yaml、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 为 truth source",
+                                                       "registry create/update/seed 生产路径必须共享合同校验策略，不能只在测试或 HTTP handler 层补空壳断言"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续把 supportedFormats、parameterSchema、queryTemplate、fieldMappings、maskingPolicy、dataScopeTemplate、cursorField 或 orderBy 缺失默认成空值后落库",
+                                                        "禁止为通过测试放宽 OpenAPI required 字段或删除产品验收要求",
+                                                        "禁止引入仅测试专用生产分支或 mock registry 合同"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "src/registry-config/service.ts",
+                                            "src/repositories/export-registry.repository.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/contract/openapi-route-mapping.contract.test.mjs",
+                                            "tests/query/query-executor.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/registry-config/",
+                                          "src/repositories/export-registry.repository.ts",
+                                          "tests/api/",
+                                          "tests/contract/",
+                                          "tests/query/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-007",
+                                              "FR-008",
+                                              "AC-007",
+                                              "AC-008",
+                                              "AC-E011",
+                                              "AC-E014",
+                                              "AC-E024"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/registry-config/",
+                                                 "tests/api/",
+                                                 "tests/contract/",
+                                                 "tests/query/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 OpenAPI registry required 字段和现有 registry normalization/default 行为",
+                                    "实现生产路径共享的 registry 合同校验，覆盖 supportedFormats、parameterSchema、queryTemplate、fieldMappings、maskingPolicy、dataScopeTemplate、cursorField 和 orderBy",
+                                    "补 create/update/seed 或等价路径的负向测试，证明缺失 required 配置不会落库或启用",
+                                    "同步 verify-matrix 记录 REGISTRY-CONTRACT-VALIDATION-001 的 Docker MySQL / API / contract / query 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "registry 持久化前会拒绝缺少 OpenAPI required 配置或 registry/query 合同不完整的 payload",
+                                         "create/update/seed 生产路径不会通过默认空数组、空字符串或 null 绕过合同校验",
+                                         "API / contract / query 负向证据覆盖缺失 supportedFormats、parameterSchema、queryTemplate、fieldMappings、maskingPolicy、dataScopeTemplate、cursorField 或 orderBy 的代表场景",
+                                         "arch:check、Docker MySQL 下的 test:api / test:query、test:contract 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "CREATE-TASK-REGISTRY-GUARD-001",
+                      "description":  "修复创建任务入队前 registry format 和参数 schema guard",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.91,
+                      "dependencies":  [
+                                           "REGISTRY-CONTRACT-VALIDATION-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 / CREATE-TASK-REGISTRY-GUARD-001：创建任务入队前校验 registry supportedFormats 和 parameterSchema",
+                                                       "非法 fileFormat 或 queryParams 必须在创建 PENDING 任务前被拒绝，且不得写入无效任务后再补偿清理",
+                                                       "必须沿用已修复的 auth context、dataScopeTemplate、32KB queryParams 和 registry 原子 create 边界"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把非法格式或非法参数写入 PENDING 后再异步失败",
+                                                        "禁止只在测试 fixture 或 mock-local 路径做 schema 校验",
+                                                        "禁止放宽 queryParams 32KB 限制、幂等冲突、权限或未注册任务边界"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "src/task-api/service.ts",
+                                            "src/registry-config/",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/contract/openapi-route-mapping.contract.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/task-api/",
+                                          "src/registry-config/",
+                                          "tests/api/",
+                                          "tests/contract/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-008",
+                                              "FR-014",
+                                              "AC-001",
+                                              "AC-008",
+                                              "AC-017",
+                                              "AC-E021"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "src/registry-config/",
+                                                 "tests/api/",
+                                                 "tests/contract/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核创建任务路径如何读取 registry snapshot、fileFormat 和 queryParams",
+                                    "实现入队前 format allow-list 和 parameterSchema 校验，错误码与公开响应符合契约",
+                                    "补 API / contract 测试，证明非法 fileFormat 或 queryParams 不会创建 PENDING 任务、不泄露无效任务详情",
+                                    "同步 verify-matrix 记录 CREATE-TASK-REGISTRY-GUARD-001 的 Docker MySQL / API / contract 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "创建任务会在入队前拒绝不在 registry supportedFormats 内的 fileFormat",
+                                         "创建任务会在入队前按 registry parameterSchema 拒绝非法 queryParams，且不创建 PENDING 任务",
+                                         "新增证据不回退未注册任务不落库、queryParams 32KB、幂等冲突、权限和 registry 原子 create 边界",
+                                         "arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "DATASOURCE-ADAPTER-BOUNDARY-001",
+                      "description":  "实现 datasourceCode 到独立只读 datasource adapter 的执行边界",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.92,
+                      "dependencies":  [
+                                           "CREATE-TASK-REGISTRY-GUARD-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / DATASOURCE-ADAPTER-BOUNDARY-001：query executor 不再用平台 DB 连接冒充业务只读数据源",
+                                                       "datasourceCode 必须映射到独立只读 datasource adapter 或明确的数据中台 adapter 边界，平台库和业务查询库职责分离",
+                                                       "测试可以使用 Docker MySQL 中的独立业务 datasource 配置，但不能把 mock/local evidence 写成 live evidence"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续在生产 query executor 中无条件使用 context.db 执行业务查询",
+                                                        "禁止把 datasource adapter 实现成只返回 context.db 的命名包装而没有边界校验、错误映射或配置入口",
+                                                        "禁止写入业务 datasource，adapter 必须是 readonly 查询边界"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "src/query-executor/index.ts",
+                                            "src/scheduler/worker.ts",
+                                            "tests/query/query-executor.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/query-executor/",
+                                          "src/datasource-adapters/",
+                                          "src/scheduler/",
+                                          "tests/query/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-008",
+                                              "FR-009",
+                                              "AC-008",
+                                              "AC-019",
+                                              "AC-E012"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/query-executor/",
+                                                 "src/datasource-adapters/",
+                                                 "src/scheduler/",
+                                                 "tests/query/",
+                                                 "tests/worker/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 query executor 当前 DB 使用点和 scheduler worker 调用边界",
+                                    "引入 datasource adapter 解析 / 注入 / 错误映射机制，按 registry datasourceCode 获取只读业务连接或数据中台查询边界",
+                                    "补 query / worker 测试，证明业务查询走 datasource adapter、未知或不可用 datasource 收口为 DATASOURCE_UNAVAILABLE",
+                                    "同步 verify-matrix 记录 DATASOURCE-ADAPTER-BOUNDARY-001 的 Docker MySQL / query / worker / arch evidence 边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "query executor 按 datasourceCode 通过独立 readonly datasource adapter 执行业务查询，而不是无条件使用平台 DB context.db",
+                                         "未知 datasourceCode、凭证 / 连接失败或 adapter 不可用会收口为 DATASOURCE_UNAVAILABLE 且不泄露底层细节",
+                                         "scheduler worker 能把 datasource adapter 边界传入 query executor，现有 query/worker 功能不回退",
+                                         "arch:check、Docker MySQL 下的 test:query / test:worker 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -2270,7 +2521,10 @@
                                            "DOWNLOAD-SIGNED-URL-GUARD-001",
                                            "QUERY-PARAMS-SIZE-LIMIT-001",
                                            "AUTH-CONTEXT-TRUST-BOUNDARY-001",
-                                           "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
+                                           "P0-ACCEPTANCE-EVIDENCE-REPAIR-001",
+                                           "REGISTRY-CONTRACT-VALIDATION-001",
+                                           "CREATE-TASK-REGISTRY-GUARD-001",
+                                           "DATASOURCE-ADAPTER-BOUNDARY-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [
