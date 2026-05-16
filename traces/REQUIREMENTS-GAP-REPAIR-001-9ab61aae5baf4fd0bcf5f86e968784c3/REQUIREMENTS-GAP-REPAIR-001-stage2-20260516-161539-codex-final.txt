@@ -1,0 +1,31 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-GAP-REPAIR-001-S2-F001 | HIGH | architecture_test_gap | backend | `src/scheduler/worker.ts:224` 仍 `innerJoin("export_registries")`，`src/scheduler/worker.ts:247` 仍用当前 `r.enabled` 过滤，`src/scheduler/worker.ts:245`/`:293` 仍用当前 registry `concurrency_limit`；但快照修复测试只在 `tests/query/query-executor.test.mjs:406` 直接调用 query executor，未覆盖真实 scheduler worker 入口。 | 调度器获取/执行旧任务时不要依赖当前 registry 的 enabled/配置来证明快照重放；至少补 worker 集成测试：创建任务后更新/禁用当前 registry，worker 仍按任务创建时 `configSnapshot` 完成；FAILED retry 也必须沿用旧快照。实现上应从任务快照解析执行配置，当前 registry 只可作为明确允许的调度元数据来源。 | `npm run test:worker; npm run test:query; npm run test:docker-local` |
+| REQUIREMENTS-GAP-REPAIR-001-S2-F002 | HIGH | test_gap | backend | `src/scheduler/worker.ts:416` 只计算 `backoffMs`，`src/repositories/export-checkpoint.repository.ts:57`/`:68` 只持久化；调度候选查询 `src/scheduler/worker.ts:222-260` 没有按 checkpoint/backoff 延迟重试。测试 `tests/worker/scheduler-worker.test.mjs:703` 在失败后立即第二次 `pollAndProcessOnce()`，反而固化了“记录 backoff 但不生效”的行为。 | 为 checkpoint 暴露可判断的更新时间或 retryDueAt，并在 scheduler 取任务/处理前尊重 `backoffMs`；补测试：backoff 未到期时 processor 不再被调用、任务不失败不完成，到期后才重试；耗尽路径也验证按策略触发。 | `npm run test:worker; npm run test:docker-local` |
+
+## Verification
+
+- 已检查命令:
+  - `git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt`
+  - `npm run test:contract`
+  - `npm run test:mock-local`
+  - 核对 `traces/REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3/REQUIREMENTS-GAP-REPAIR-001-test-20260516-161539.log`
+- 结果摘要:
+  - `git diff --check` 通过。
+  - `test:contract` fresh run 4/4 passed。
+  - `test:mock-local` fresh run 31/31 passed。
+  - trace 显示 `test:docker-local` 链路内 `arch:check`、`typecheck`、`test:api/db/worker/query/file/sample` 与 object-storage smoke 均通过。
+  - 但上述测试没有覆盖真实 worker 在 registry 变更后的快照重放，也没有验证 backoff 实际生效。
+
+## Verdict
+
+Verdict: FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-GAP-REPAIR-001-S2-F001 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-GAP-REPAIR-001-S2-F002 | backend | backend-worker | 2 | yes |

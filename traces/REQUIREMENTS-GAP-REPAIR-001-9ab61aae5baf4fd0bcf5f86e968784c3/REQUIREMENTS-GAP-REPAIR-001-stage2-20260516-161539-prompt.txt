@@ -1,0 +1,349 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: REQUIREMENTS-GAP-REPAIR-001
+- 描述: 修复 Requirements Complete Review Stage 1 repair queue 的 P0/P1 缺口，并为完整复审准备新证据
+- Requirement IDs:
+- FR-004
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-013
+- AC-004
+- AC-010
+- AC-011
+- AC-016
+- AC-019
+- AC-E004
+- AC-E005
+- AC-E012
+- AC-E013
+- AC-E020
+- AC-E024
+- AC-E026
+- AC-E027
+- 测试命令: npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/verify-matrix.md
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- traces/REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111939-codex-final.txt
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.7975ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.316ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3897ms)
+✔ audit action and result literals written by production code stay within OpenAPI public enums (0.9964ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.4949
+
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ docker test data task is queued after release with executable guardrails (0.9468ms)
+✔ docker local test command wires environment setup, seed and validation (0.5137ms)
+✔ verify matrix records docker test data evidence without promoting live validation (0.1488ms)
+✔ local demo entrypoint provisions local dependencies and starts the HTTP service (0.8675ms)
+✔ local demo setup runs migrations and seeds purchase-order demo data (0.2406ms)
+✔ local demo setup rejects local tunnels to non-demo databases before connecting (448.8943ms)
+✔ local demo does not silently seed an inherited external database URL (0.6601ms)
+✔ local demo runbook is explicit about local-only dependencies and API examples (0.4147ms)
+✔ local release rehearsal is declared as mock/local evidence without releasing RELEASE-001 (0.9473ms)
+✔ local release rehearsal script documents local-only preflight and command coverage (0.2828ms)
+✔ local release rehearsal does not auto-enable live object storage smoke writes (0.2363ms)
+✔ release verify self-provisions docker MySQL and local object storage smoke (0.0995ms)
+✔ local release rehearsal can load untracked env files for local MySQL credentials (0.2055ms)
+✔ local release rehearsal evidence is recorded separately from release evidence (0.0994ms)
+✔ local release rehearsal result records API DB worker query file and sample coverage without promoting release (0.1585ms)
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.5166ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (1.0942ms)
+✔ mock integration acceptance archives executed local/dev evidence without release promotion (0.7536ms)
+✔ release task uses the local docker mock release gate (0.1662ms)
+▶ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only
+  ✔ registry and create task flow stay in local/dev evidence, not release evidence (1.7917ms)
+  ✔ progress, detail and data scope stay visible only to the right actor (0.3945ms)
+  ✔ worker lease, checkpoint, retry and cancel boundaries stay local (1.1153ms)
+  ✔ query chunking, file publish/download and cleanup invalidation stay in local/dev evidence (0.5146ms)
+  ✔ purchase order sample boundaries and blocked release env remain local/dev evidence (0.2651ms)
+✔ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only (5.416ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (38.6819ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.4654ms)
+✔ test practice matrix task owns the drift guard (0.5683ms)
+✔ each critical test script has a task owner and documented evidence boundary (0.6154ms)
+✔ release gate keeps docker mock evidence separate from external live validation (0.1018ms)
+✔ release gate pins the current OpenAPI lint command (0.0593ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2145.6542
+
+> export-platform-service@0.1.0 test:docker-local
+> powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\docker-test-env.ps1 -RunValidation
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:56805 bucket=export-platform-docker-test
+Running: npm run arch:check
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+Running: npm run typecheck
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+Running: npm run test:api
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6994ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (585.6456ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1237.8407
+Running: npm run test:db
+
+> export-platform-service@0.1.0 test:db
+> node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs
+
+✔ DB tests require an explicit test database URL (0.7251ms)
+✔ migration exposes durable evidence tables for FR-001/005/007/010/013 (48.5932ms)
+✔ repositories persist registry, task idempotency, lease, checkpoint, file and audit evidence (131.6847ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 626.9027
+Running: npm run test:worker
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (1.4549ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (268.0643ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (258.5365ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (277.2605ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (195.558ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (259.4948ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (217.792ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (186.1777ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (242.3661ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (262.2004ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (223.4043ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (163.1578ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (153.7673ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (154.7816ms)
+✔ worker integration tests (2865.5927ms)
+ℹ tests 14
+ℹ suites 1
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3372.6958
+Running: npm run test:query
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.7303ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (222.8679ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (176.2225ms)
+✔ query executor replays the task config snapshot after the current registry changes (155.1385ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (162.221ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (168.59ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (88.8008ms)
+✔ query executor rejects field mappings that do not match selected columns (92.5717ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (102.2437ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.3534ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1644.3435
+Running: npm run test:file
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (0.8158ms)
+✔ production object storage config is required outside injected test adapters (0.1825ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (221.99ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (225.9927ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (127.3952ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (121.8961ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (127.2872ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (242.5988ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (235.7787ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (420.2471ms)
+✔ cleanup job deletes only published object when temp storage key is null (235.3511ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (232.1045ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2774.377
+Running: npm run test:sample
+
+> export-platform-service@0.1.0 test:sample
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs
+
+▶ sample purchase-order integration tests
+  ✔ sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent (0.7602ms)
+  ✔ sample purchase-order registry contract is registered through the public registry service (248.3904ms)
+  ✔ sample boundary 0 rows completes through the public create and worker chain (387.0498ms)
+  ✔ sample boundary 1 row keeps final file masked and records create/query/file/audit/download evidence (469.6004ms)
+  ✔ sample boundary 20000 rows completes with a single-file package (7523.9466ms)
+  ✔ sample boundary 20001 rows packages ZIP evidence without losing rows (7301.6872ms)
+  ✔ sample boundary 100000 rows stays on the default batch path and publishes every row (68749.4738ms)
+  ✔ sample boundary 100001 rows must be rejected under the default export limit (44826.3733ms)
+  ✔ sample masking failure leaves the task failed and does not publish a file (337.3434ms)
+✔ sample purchase-order integration tests (129845.9817ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 130379.5458
+Running: npm run test:object-storage-live
+
+> export-platform-service@0.1.0 test:object-storage-live
+> node --import tsx scripts/object-storage-live-smoke.mjs
+
+Live object storage smoke passed.
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。

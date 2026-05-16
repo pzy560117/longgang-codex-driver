@@ -1,0 +1,3306 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e2fce-3d4e-7ea1-a977-6f1eec8a5c0d
+--------
+user
+# Codex 单任务实现 Prompt 模板
+
+## 元信息
+
+- 版本: v2.0
+- 标签: codex, harness, implementation, non-interactive
+
+## 角色
+
+你是一个非交互 Codex 自动实现会话。你只处理 Driver Context 中指定的一个任务，不负责调度、提交、更新任务状态或评审其他任务。
+
+## 输入
+
+Driver 会在本模板后追加 `## Driver Context`，其中包含：
+
+- 当前任务 ID、描述、类型、阶段、优先级和依赖
+- task session 策略、truth source、context files、produces artifacts、architecture constraints、forbidden implementations
+- knowledge catalog、knowledge query budget 和归档约束（如任务声明）
+- 子代理策略
+- 执行步骤、验收标准和测试命令
+
+## 工作流程
+
+1. 先阅读 Driver Context。
+2. 只读取优先上下文源和任务相关文件；信息不足时再做最小范围扩展检索。
+3. 如果存在 `docs/knowledge/knowledge-catalog.md`，先按任务阶段判断是否需要读取 `docs/knowledge/catalog.md` 和相关条目；遵守 `knowledge_query_budget`，不要贪婪读取整库。
+4. 先确认 Architecture Constraints Packet：读取 `docs/architecture/constraints.md`（如存在）、任务的 `architecture_constraints` 和 `forbidden_implementations`；如果当前任务需要生产路径，不得用测试替身、内存实现或领域原型替代。
+5. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
+6. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
+7. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
+8. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
+9. 自检是否满足验收标准、测试影响、架构约束、知识引用和 forbidden path 约束。
+10. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、architecture constraints result、knowledge references、knowledge outputs 和剩余风险。
+
+## 强制边界
+
+- 不要处理 `task.json` 中其他任务。
+- 不要删除或改写任务描述。
+- 不要修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`。
+- 不要修改 `trace.schema.json`，除非当前任务明确把它列入 owned paths 且任务目标就是 harness/runtime schema 改造。
+- 不要执行 `git add`、`git commit`、`git push`、`git reset`、`git checkout`。
+- 不要修改与当前任务无关的文件。
+- 不要在没有验收示例或追溯矩阵支撑时自行猜测 P0/P1 业务规则。
+- 不要在没有 `docs/architecture/constraints.md` 或等价架构约束说明时开始 `feature_impl`；如果任务缺少约束但明显涉及服务形态、数据持久化、外部接口或 worker，输出 BLOCKED。
+- 不要把 `InMemory*`、mock、fixture、local-only adapter 或纯领域原型作为生产实现完成，除非任务 `architecture_constraints` 明确声明 `delivery_shape=domain-prototype`。
+- 不要违反任务 `forbidden_implementations`；如发现当前任务验收与 forbidden implementation 冲突，输出 BLOCKED。
+- 如果子代理策略是 `off`，不要主动使用子代理。
+- 如果子代理策略不是 `off`，只有在存在两个以上独立子问题时才可使用，并且只消费结构化结论。
+- 如果本轮是 stop hook 强制继续后的续跑，子代理启用前必须先重读对应 docs / rules / skills；只有明确授权的 writer 角色可以写它们被分配的路径，其余子代理保持只读。
+- 测试失败时不能声称任务完成，不能把任何状态标记为通过。
+
+## UI 任务额外规则
+
+如果任务涉及前端页面、组件、布局、交互状态或视觉还原：
+
+- 必须确认是否存在 `docs/design/ai-image-brief.md`、`ui-image-review.md`、`image-to-frontend-spec.md`、`visual-parity-review.md`。
+- 必须在真实浏览器中验证页面，截图保存到 `artifacts/visual-review/` 或任务指定目录。
+- 最终回答必须写明截图路径和视觉差异处理情况。
+- 如果无法启动浏览器或无法截图，输出 BLOCKED，而不是跳过视觉验证。
+
+## BLOCKED 格式
+
+```text
+BLOCKED - 需要人工介入
+
+当前任务: <task-id> <task-description>
+
+已完成的工作:
+- ...
+
+阻塞原因:
+- ...
+
+需要人工操作:
+1. ...
+
+解除阻塞后请运行:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## 输出格式
+
+```markdown
+## Requirement IDs
+- ...
+
+## Summary
+- ...
+
+## Files Changed
+- `path`: ...
+
+## Validation
+- `command`: PASS / FAIL / NOT_RUN - evidence
+
+## Evidence
+- `path`: what it proves
+
+## Architecture Constraints
+- `constraint`: PASS / FAIL / NOT_APPLICABLE - evidence
+
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `id-or-suggested-id`: type - title - action(created/updated/suggested/archived) - `path-or-target`
+
+## Visual Evidence
+- reference: `path-or-none`
+- screenshot: `path-or-none`
+- parity report: `path-or-none`
+
+## Remaining Risks
+- ...
+```
+
+
+## Driver Context
+
+任务 ID: REQUIREMENTS-GAP-REPAIR-001
+任务描述: 修复 Requirements Complete Review Stage 1 repair queue 的 P0/P1 缺口，并为完整复审准备新证据
+任务类型: feature_impl
+Gate Profile: spec_required
+Phase: requirements-repair
+优先级: 91.5
+Requirement IDs:
+- FR-004
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-013
+- AC-004
+- AC-010
+- AC-011
+- AC-016
+- AC-019
+- AC-E004
+- AC-E005
+- AC-E012
+- AC-E013
+- AC-E020
+- AC-E024
+- AC-E026
+- AC-E027
+依赖: DOCKER-TEST-DATA-AUTOMATION-001
+Task Session ID: 9ab61aae5baf4fd0bcf5f86e968784c3
+
+会话策略:
+- Session mode: fresh-process
+- Reuse previous chat: False
+- Carry forward summary: False
+
+优先上下文源:
+- AGENTS.md
+- docs/harness/task-session-strategy.md
+- docs/harness/architecture.md
+- docs/harness/knowledge-architecture.md
+- docs/harness/prompt-knowledge-integration.md
+- docs/harness/rule-governance.md
+- docs/harness/regression-rules.md
+- docs/knowledge/knowledge-catalog.md
+- docs/testing/ACCEPTANCE_EXAMPLES.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/verify-matrix.md
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/verify-matrix.md
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- traces/REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111939-codex-final.txt
+- task.json
+
+前置 truth source:
+- product
+- architecture
+- contract
+- testing
+
+知识使用:
+- 如果存在 docs/knowledge/knowledge-catalog.md，先按任务阶段判断是否需要读取 docs/knowledge/catalog.md 和相关条目。
+- 如果引用了知识条目，最终总结必须列出 knowledge_references，包含 id、title、used_in 和 path。
+- 如果发现可复用的新经验，最终总结必须列出 knowledge_outputs 建议，供 ARCHIVE 任务归档。
+
+预期产物:
+- src/task-api/
+- src/registry-config/
+- src/query-executor/
+- src/scheduler/
+- src/file-service/
+- tests/api/
+- tests/query/
+- tests/worker/
+- tests/file/
+- tests/contract/
+- tests/mock-local/
+- docs/testing/verify-matrix.md
+
+子代理策略:
+- Mode: guided
+- Allowed roles: explorer, readonly-research, docs-researcher, planner, architect, reviewer, stage1-reviewer, stage2-reviewer, security-reviewer, test-planner, failure-triage, harness-writer, docs-worker, backend-worker, test-runner
+- Max parallel roles: 3
+- Notes:
+- Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.
+- Subagents must read the matching AGENTS/rules/docs/skills before concluding.
+- Read-only roles stay read-only and return summaries or concrete results, not full transcripts.
+- Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly.
+
+执行步骤:
+- 统一审计 action/result/errorCode 的公开契约、实现写入和测试断言，修复 AUDIT-CONTRACT-ALIGN-001 指向的 contract drift
+- 修复管理员全局历史查询范围，落实 TASK-HISTORY-ADMIN-SCOPE-001；如果实现依赖额外授权判断，必须在 API、service 和测试中完整体现
+- 持久化并重放任务创建时的完整配置快照，确保旧任务和失败重试不依赖当前 registry，覆盖 CONFIG-SNAPSHOT-REPLAY-001
+- 为查询批次实现 retry/backoff/retryCount 持久化及耗尽收口，覆盖 QUERY-BATCH-RETRY-001，并补短暂失败后成功与耗尽失败路径
+- 补齐 datasource adapter 不可用/凭证错误分类，确保 worker 最终按 DATASOURCE_UNAVAILABLE 收口，覆盖 DATASOURCE-ADAPTER-ERROR-001
+- 把对象存储 put/publish 失败映射到产品要求的文件错误口径并补测试，覆盖 FILE-STORAGE-ERROR-MAPPING-001
+
+验收标准:
+- AUDIT-CONTRACT-ALIGN-001、TASK-HISTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QUERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-ERROR-001、FILE-STORAGE-ERROR-MAPPING-001 六个 findings 均有实现与测试证据
+- 审计契约、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射不再依赖 review 文档中的已知 gap 行为
+- 验证输出明确区分 mock/local/docker/live evidence，且本任务不会把 docker/mock 当作 live evidence
+- REQUIREMENTS-COMPLETE-REVIEW-001 下一轮可基于修复后的 fresh evidence 重跑
+
+测试命令:
+npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按当前 Driver Context 只处理 `REQUIREMENTS-GAP-REPAIR-001`，先读取必需规则、架构约束和测试矩阵，再定位六个 review finding 对应的实现与测试缺口。技能上会使用 `superpowers:using-superpowers` 建立技能读取规则，并用 TDD/验证相关技能约束实现顺序。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 357ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\test-driven-development\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\verification-before-completion\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 316ms:
+---
+name: verification-before-completion
+description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+---
+
+# Verification Before Completion
+
+## Overview
+
+Claiming work is complete without verification is dishonesty, not efficiency.
+
+**Core principle:** Evidence before claims, always.
+
+**Violating the letter of this rule is violating the spirit of this rule.**
+
+## The Iron Law
+
+```
+NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
+```
+
+If you haven't run the verification command in this message, you cannot claim it passes.
+
+## The Gate Function
+
+```
+BEFORE claiming any status or expressing satisfaction:
+
+1. IDENTIFY: What command proves this claim?
+2. RUN: Execute the FULL command (fresh, complete)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim?
+   - If NO: State actual status with evidence
+   - If YES: State claim WITH evidence
+5. ONLY THEN: Make the claim
+
+Skip any step = lying, not verifying
+```
+
+## Common Failures
+
+| Claim | Requires | Not Sufficient |
+|-------|----------|----------------|
+| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
+| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
+| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
+| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
+| Regression test works | Red-green cycle verified | Test passes once |
+| Agent completed | VCS diff shows changes | Agent reports "success" |
+| Requirements met | Line-by-line checklist | Tests passing |
+
+## Red Flags - STOP
+
+- Using "should", "probably", "seems to"
+- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
+- About to commit/push/PR without verification
+- Trusting agent success reports
+- Relying on partial verification
+- Thinking "just this once"
+- Tired and wanting work over
+- **ANY wording implying success without having run verification**
+
+## Rationalization Prevention
+
+| Excuse | Reality |
+|--------|---------|
+| "Should work now" | RUN the verification |
+| "I'm confident" | Confidence ≠ evidence |
+| "Just this once" | No exceptions |
+| "Linter passed" | Linter ≠ compiler |
+| "Agent said success" | Verify independently |
+| "I'm tired" | Exhaustion ≠ excuse |
+| "Partial check is enough" | Partial proves nothing |
+| "Different words so rule doesn't apply" | Spirit over letter |
+
+## Key Patterns
+
+**Tests:**
+```
+✅ [Run test command] [See: 34/34 pass] "All tests pass"
+❌ "Should pass now" / "Looks correct"
+```
+
+**Regression tests (TDD Red-Green):**
+```
+✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+❌ "I've written a regression test" (without red-green verification)
+```
+
+**Build:**
+```
+✅ [Run build] [See: exit 0] "Build passes"
+❌ "Linter passed" (linter doesn't check compilation)
+```
+
+**Requirements:**
+```
+✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
+❌ "Tests pass, phase complete"
+```
+
+**Agent delegation:**
+```
+✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
+❌ Trust agent report
+```
+
+## Why This Matters
+
+From 24 failure memories:
+- your human partner said "I don't believe you" - trust broken
+- Undefined functions shipped - would crash
+- Missing requirements shipped - incomplete features
+- Time wasted on false completion → redirect → rework
+- Violates: "Honesty is a core value. If you lie, you'll be replaced."
+
+## When To Apply
+
+**ALWAYS before:**
+- ANY variation of success/completion claims
+- ANY expression of satisfaction
+- ANY positive statement about work state
+- Committing, PR creation, task completion
+- Moving to next task
+- Delegating to agents
+
+**Rule applies to:**
+- Exact phrases
+- Paraphrases and synonyms
+- Implications of success
+- ANY communication suggesting completion/correctness
+
+## The Bottom Line
+
+**No shortcuts for verification.**
+
+Run the command. Read the output. THEN claim the result.
+
+This is non-negotiable.
+
+
+ succeeded in 361ms:
+---
+name: test-driven-development
+description: Use when implementing any feature or bugfix, before writing implementation code
+---
+
+# Test-Driven Development (TDD)
+
+## Overview
+
+Write the test first. Watch it fail. Write minimal code to pass.
+
+**Core principle:** If you didn't watch the test fail, you don't know if it tests the right thing.
+
+**Violating the letter of the rules is violating the spirit of the rules.**
+
+## When to Use
+
+**Always:**
+- New features
+- Bug fixes
+- Refactoring
+- Behavior changes
+
+**Exceptions (ask your human partner):**
+- Throwaway prototypes
+- Generated code
+- Configuration files
+
+Thinking "skip TDD just this once"? Stop. That's rationalization.
+
+## The Iron Law
+
+```
+NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+```
+
+Write code before the test? Delete it. Start over.
+
+**No exceptions:**
+- Don't keep it as "reference"
+- Don't "adapt" it while writing tests
+- Don't look at it
+- Delete means delete
+
+Implement fresh from tests. Period.
+
+## Red-Green-Refactor
+
+```dot
+digraph tdd_cycle {
+    rankdir=LR;
+    red [label="RED\nWrite failing test", shape=box, style=filled, fillcolor="#ffcccc"];
+    verify_red [label="Verify fails\ncorrectly", shape=diamond];
+    green [label="GREEN\nMinimal code", shape=box, style=filled, fillcolor="#ccffcc"];
+    verify_green [label="Verify passes\nAll green", shape=diamond];
+    refactor [label="REFACTOR\nClean up", shape=box, style=filled, fillcolor="#ccccff"];
+    next [label="Next", shape=ellipse];
+
+    red -> verify_red;
+    verify_red -> green [label="yes"];
+    verify_red -> red [label="wrong\nfailure"];
+    green -> verify_green;
+    verify_green -> refactor [label="yes"];
+    verify_green -> green [label="no"];
+    refactor -> verify_green [label="stay\ngreen"];
+    verify_green -> next;
+    next -> red;
+}
+```
+
+### RED - Write Failing Test
+
+Write one minimal test showing what should happen.
+
+<Good>
+```typescript
+test('retries failed operations 3 times', async () => {
+  let attempts = 0;
+  const operation = () => {
+    attempts++;
+    if (attempts < 3) throw new Error('fail');
+    return 'success';
+  };
+
+  const result = await retryOperation(operation);
+
+  expect(result).toBe('success');
+  expect(attempts).toBe(3);
+});
+```
+Clear name, tests real behavior, one thing
+</Good>
+
+<Bad>
+```typescript
+test('retry works', async () => {
+  const mock = jest.fn()
+    .mockRejectedValueOnce(new Error())
+    .mockRejectedValueOnce(new Error())
+    .mockResolvedValueOnce('success');
+  await retryOperation(mock);
+  expect(mock).toHaveBeenCalledTimes(3);
+});
+```
+Vague name, tests mock not code
+</Bad>
+
+**Requirements:**
+- One behavior
+- Clear name
+- Real code (no mocks unless unavoidable)
+
+### Verify RED - Watch It Fail
+
+**MANDATORY. Never skip.**
+
+```bash
+npm test path/to/test.test.ts
+```
+
+Confirm:
+- Test fails (not errors)
+- Failure message is expected
+- Fails because feature missing (not typos)
+
+**Test passes?** You're testing existing behavior. Fix test.
+
+**Test errors?** Fix error, re-run until it fails correctly.
+
+### GREEN - Minimal Code
+
+Write simplest code to pass the test.
+
+<Good>
+```typescript
+async function retryOperation<T>(fn: () => Promise<T>): Promise<T> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === 2) throw e;
+    }
+  }
+  throw new Error('unreachable');
+}
+```
+Just enough to pass
+</Good>
+
+<Bad>
+```typescript
+async function retryOperation<T>(
+  fn: () => Promise<T>,
+  options?: {
+    maxRetries?: number;
+    backoff?: 'linear' | 'exponential';
+    onRetry?: (attempt: number) => void;
+  }
+): Promise<T> {
+  // YAGNI
+}
+```
+Over-engineered
+</Bad>
+
+Don't add features, refactor other code, or "improve" beyond the test.
+
+### Verify GREEN - Watch It Pass
+
+**MANDATORY.**
+
+```bash
+npm test path/to/test.test.ts
+```
+
+Confirm:
+- Test passes
+- Other tests still pass
+- Output pristine (no errors, warnings)
+
+**Test fails?** Fix code, not test.
+
+**Other tests fail?** Fix now.
+
+### REFACTOR - Clean Up
+
+After green only:
+- Remove duplication
+- Improve names
+- Extract helpers
+
+Keep tests green. Don't add behavior.
+
+### Repeat
+
+Next failing test for next feature.
+
+## Good Tests
+
+| Quality | Good | Bad |
+|---------|------|-----|
+| **Minimal** | One thing. "and" in name? Split it. | `test('validates email and domain and whitespace')` |
+| **Clear** | Name describes behavior | `test('test1')` |
+| **Shows intent** | Demonstrates desired API | Obscures what code should do |
+
+## Why Order Matters
+
+**"I'll write tests after to verify it works"**
+
+Tests written after code pass immediately. Passing immediately proves nothing:
+- Might test wrong thing
+- Might test implementation, not behavior
+- Might miss edge cases you forgot
+- You never saw it catch the bug
+
+Test-first forces you to see the test fail, proving it actually tests something.
+
+**"I already manually tested all the edge cases"**
+
+Manual testing is ad-hoc. You think you tested everything but:
+- No record of what you tested
+- Can't re-run when code changes
+- Easy to forget cases under pressure
+- "It worked when I tried it" ≠ comprehensive
+
+Automated tests are systematic. They run the same way every time.
+
+**"Deleting X hours of work is wasteful"**
+
+Sunk cost fallacy. The time is already gone. Your choice now:
+- Delete and rewrite with TDD (X more hours, high confidence)
+- Keep it and add tests after (30 min, low confidence, likely bugs)
+
+The "waste" is keeping code you can't trust. Working code without real tests is technical debt.
+
+**"TDD is dogmatic, being pragmatic means adapting"**
+
+TDD IS pragmatic:
+- Finds bugs before commit (faster than debugging after)
+- Prevents regressions (tests catch breaks immediately)
+- Documents behavior (tests show how to use code)
+- Enables refactoring (change freely, tests catch breaks)
+
+"Pragmatic" shortcuts = debugging in production = slower.
+
+**"Tests after achieve the same goals - it's spirit not ritual"**
+
+No. Tests-after answer "What does this do?" Tests-first answer "What should this do?"
+
+Tests-after are biased by your implementation. You test what you built, not what's required. You verify remembered edge cases, not discovered ones.
+
+Tests-first force edge case discovery before implementing. Tests-after verify you remembered everything (you didn't).
+
+30 minutes of tests after ≠ TDD. You get coverage, lose proof tests work.
+
+## Common Rationalizations
+
+| Excuse | Reality |
+|--------|---------|
+| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "I'll test after" | Tests passing immediately prove nothing. |
+| "Tests after achieve same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
+| "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
+| "Deleting X hours is wasteful" | Sunk cost fallacy. Keeping unverified code is technical debt. |
+| "Keep as reference, write tests first" | You'll adapt it. That's testing after. Delete means delete. |
+| "Need to explore first" | Fine. Throw away exploration, start with TDD. |
+| "Test hard = design unclear" | Listen to test. Hard to test = hard to use. |
+| "TDD will slow me down" | TDD faster than debugging. Pragmatic = test-first. |
+| "Manual test faster" | Manual doesn't prove edge cases. You'll re-test every change. |
+| "Existing code has no tests" | You're improving it. Add tests for existing code. |
+
+## Red Flags - STOP and Start Over
+
+- Code before test
+- Test after implementation
+- Test passes immediately
+- Can't explain why test failed
+- Tests added "later"
+- Rationalizing "just this once"
+- "I already manually tested it"
+- "Tests after achieve the same purpose"
+- "It's about spirit not ritual"
+- "Keep as reference" or "adapt existing code"
+- "Already spent X hours, deleting is wasteful"
+- "TDD is dogmatic, I'm being pragmatic"
+- "This is different because..."
+
+**All of these mean: Delete code. Start over with TDD.**
+
+## Example: Bug Fix
+
+**Bug:** Empty email accepted
+
+**RED**
+```typescript
+test('rejects empty email', async () => {
+  const result = await submitForm({ email: '' });
+  expect(result.error).toBe('Email required');
+});
+```
+
+**Verify RED**
+```bash
+$ npm test
+FAIL: expected 'Email required', got undefined
+```
+
+**GREEN**
+```typescript
+function submitForm(data: FormData) {
+  if (!data.email?.trim()) {
+    return { error: 'Email required' };
+  }
+  // ...
+}
+```
+
+**Verify GREEN**
+```bash
+$ npm test
+PASS
+```
+
+**REFACTOR**
+Extract validation for multiple fields if needed.
+
+## Verification Checklist
+
+Before marking work complete:
+
+- [ ] Every new function/method has a test
+- [ ] Watched each test fail before implementing
+- [ ] Each test failed for expected reason (feature missing, not typo)
+- [ ] Wrote minimal code to pass each test
+- [ ] All tests pass
+- [ ] Output pristine (no errors, warnings)
+- [ ] Tests use real code (mocks only if unavoidable)
+- [ ] Edge cases and errors covered
+
+Can't check all boxes? You skipped TDD. Start over.
+
+## When Stuck
+
+| Problem | Solution |
+|---------|----------|
+| Don't know how to test | Write wished-for API. Write assertion first. Ask your human partner. |
+| Test too complicated | Design too complicated. Simplify interface. |
+| Must mock everything | Code too coupled. Use dependency injection. |
+| Test setup huge | Extract helpers. Still complex? Simplify design. |
+
+## Debugging Integration
+
+Bug found? Write failing test reproducing it. Follow TDD cycle. Test proves fix and prevents regression.
+
+Never fix bugs without a test.
+
+## Testing Anti-Patterns
+
+When adding mocks or test utilities, read @testing-anti-patterns.md to avoid common pitfalls:
+- Testing mock behavior instead of real behavior
+- Adding test-only methods to production classes
+- Mocking without understanding dependencies
+
+## Final Rule
+
+```
+Production code → test exists and failed first
+Otherwise → not TDD
+```
+
+No exceptions without your human partner's permission.
+
+
+codex
+我先做只读扫描：确认工作区状态、项目结构、约束文件和 review findings。之后会按 TDD 顺序为每个缺口补或调整测试，再做最小实现。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Force' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw AGENTS.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\architecture\\constraints.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 397ms:
+
+    Directory: E:\2026\alpha-project\longgang-codex-driver
+
+[32;1mMode   [0m[32;1m              LastWriteTime[0m [32;1;3m        Length[0m[32;1m Name[0m
+[32;1m----   [0m [32;1m             -------------[0m [32;1m        ------[0m [32;1m----[0m
+d----           2026/5/13    10:48                [44;1m.agents[0m
+d----           2026/5/14    12:52                [44;1m.codex[0m
+d--h-           2026/5/16    16:01                [44;1m.git[0m
+d----           2026/5/13    10:47                [44;1magent[0m
+d----           2026/5/13    20:20                [44;1mcontracts[0m
+d----           2026/5/16    11:12                [44;1mdocs[0m
+d----           2026/5/14    22:14                [44;1mmigrations[0m
+d----           2026/5/15     2:48                [44;1mnode_modules[0m
+d----           2026/5/13    15:11                [44;1mplans[0m
+d----           2026/5/16    10:32                [44;1mscripts[0m
+d----           2026/5/15     0:31                [44;1msrc[0m
+d----           2026/5/15    14:04                [44;1mtests[0m
+d----           2026/5/16    16:01                [44;1mtraces[0m
+-a---           2026/5/15    13:08             84 .env.local
+-a---           2026/5/15    13:00             20 .gitignore
+-a---           2026/5/14    11:19           3025 AGENTS.md
+-a---           2026/5/12    11:02          13131 [33;1mbootstrap-codex-harness.ps1[0m
+-a---           2026/5/16    11:58          86649 [33;1mcodex-loop.ps1[0m
+-a---           2026/5/14    12:08           6329 [33;1mdoctor.ps1[0m
+-a---           2026/4/16    10:11            835 [33;1menv-check.ps1[0m
+-a---           2026/5/15     2:48          49452 package-lock.json
+-a---           2026/5/16    10:32           2652 package.json
+-a---           2026/5/16    15:58          49254 progress.txt
+-a---           2026/5/14    11:22          22920 project-task-template.json
+-a---           2026/4/26     8:27           2503 smoke-task.json
+-a---           2026/5/16    15:33         121576 task.json
+-a---           2026/5/12     9:25           5637 trace.schema.json
+-a---           2026/5/14    15:37            345 tsconfig.json
+-a---           2026/5/13    22:14           8917 [33;1mverify.ps1[0m
+
+
+ succeeded in 389ms:
+# AGENTS.md
+
+本文件只保留每次会话都必须知道的 Harness 入口规则。细节按需读取下方深文档，不把长期协议全部塞进入口文件。
+
+## 核心入口
+
+- 本仓库默认采用 `driver-first`：真实任务进入 `task.json`，由 `codex-loop.ps1` 逐个执行。
+- `single task` 是当前唯一自动执行模式；每轮 driver 只处理一个 `passes: false` 且依赖已通过的任务。
+- 交互开发模式只负责需求收敛、分析、规划和任务输入；方案确认后，默认回到 `task.json -> codex-loop.ps1`。
+- 主控会话不直接维护仓库状态文件；`task.json`、`progress.txt`、`traces/` 和 Git 提交由 runtime 链路推进。
+- 需要落盘规则、任务、文档、前端、后端或测试内容时，先确认 truth source，再委派匹配的 writer 子代理或进入 driver 任务。
+
+## 硬约束
+
+- 启动前 Git 工作区必须干净，除非用户明确说明哪些改动属于本任务；可再生运行产物只能通过 `runtime.git.non_blocking_dirty_paths` 列白名单。
+- 不要伪造完成状态：不得手工把未验证任务标记为 `passes: true`，不得绕过 `test_command`、review gate 或 commit gate。
+- 不要删除或改写已有任务描述，除非用户明确要求替换模板示例或重建任务队列。
+- 修改后必须运行与改动直接对应的验证；文档改动至少运行 `git diff --check`。
+- 测试范围从需求收敛阶段开始定义；P0/P1 需求进入实现前必须有可追溯验收、测试数据和证据路径。
+- 外部系统、开源栈、第三方平台或真实环境集成需求，完成声明必须包含真实依赖接入、成功态证据和失败态证据。
+- 需求分析或编码前必须先形成 Architecture Constraints Packet：至少明确交付形态、API 边界、数据持久化、异步/worker 边界、测试替身策略、禁止实现和 Definition of Done。
+- `feature_impl` 任务必须携带可执行的 `architecture_constraints`、`forbidden_implementations` 和对应验证命令；禁止把测试替身、内存实现或领域原型伪装成生产路径完成，除非任务明确标记为 `domain-prototype`。
+- Stage 1 Review 必须先审查架构约束符合性，再审查业务规格；若交付形态、API/DB/worker/部署入口或测试替身策略与约束冲突，必须直接 FAIL。
+- 阻塞时追加 `progress.txt`，输出 `BLOCKED - 需要人工介入`，然后停止。
+
+## 必读索引
+
+- Harness 架构：`docs/harness/architecture.md`
+- 架构约束包：`docs/architecture/constraints.md`
+- 新项目使用：`docs/harness/new-project-usage.md`
+- Task 会话与 `task.json` 细则：`docs/harness/task-session-strategy.md`
+- 规则治理与 AGENTS.md 分层：`docs/harness/rule-governance.md`
+- 回归与验证策略：`docs/harness/regression-rules.md`
+- Trace 格式：`docs/harness/trace-format.md`
+- 权限策略：`docs/harness/sandbox-policy.md`
+- Prompt 与知识集成：`docs/harness/prompt-knowledge-integration.md`
+
+
+ succeeded in 473ms:
+?? traces/REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3/
+
+ succeeded in 442ms:
+# Architecture Constraints Packet：统一导出平台
+
+本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+
+## 1. System Shape
+
+- 交付形态：`independent_microservice`。
+- 运行方式：`http_service` + `worker` + `scheduled_job`。
+- 部署单位：独立服务进程；后续实现必须提供生产启动入口和部署入口。
+- 生产入口最低要求：HTTP server entry、scheduler worker entry、cleanup job entry、配置加载入口。
+- 当前状态：仓库保留产品、契约、架构和测试文档；不保留任何已完成的业务实现、测试证据或旧运行 trace。
+
+## 2. API Boundary
+
+- 外部入口：HTTP，契约来源为 `contracts/openapi.yaml`。
+- 子系统接入：仅通过 HTTP/Feign 调用统一导出平台，不加载业务 JAR，不直接写平台表。
+- Public operation 完成条件：每个公开 operation 必须能追踪到 route/handler、service、repository 或外部 adapter、测试和证据路径。
+- 禁止状态：只有 service class、领域函数或单元测试时，不得声明 API 需求完成。
+
+## 3. Data Boundary
+
+- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+- 数据访问：平台只允许访问注册配置声明的只读数据源或数据中台，禁止执行调用方传入的原始 SQL。
+- 数据一致性：幂等键、配置快照、任务状态机、DB 锁租约和审计写入必须有可验证约束。
+
+## 4. Async And Worker Boundary
+
+- 调度方式：MySQL 轮询 + DB 抢锁。
+- 锁模型：`lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。
+- 默认租约：5 分钟，worker 只能在批次边界续租。
+- 接管规则：租约过期后的实例接管延续当前 `attemptNo`，从最近持久化批次检查点继续。
+- 重试规则：只有 FAILED 重试递增 `attemptNo`；PENDING/EXECUTING 重试必须拒绝。
+
+## 5. Test Double Policy
+
+- `InMemory*` 允许范围：unit tests only。
+- Mock 允许范围：外部生产依赖不可用时可作为临时单测替身；当前验收允许本机/Docker MySQL 与本地 object storage mock，但不能使用内存 repository 冒充生产路径。
+- 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
+- 若本机/Docker MySQL、本地 object storage mock 或任务声明的第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。外部生产 MySQL / live OSS 不属于当前 release gate 的完成条件。
+
+## 6. Forbidden Implementations
+
+- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+- 禁止只有 `src/*/service.ts` 而没有 HTTP route/handler、server entry 和 API 集成测试。
+- 禁止只有调度 class 而没有 worker entry、DB 锁 schema、repository 原子抢锁和租约测试。
+- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+- 禁止把采购订单样板写成平台特例接口；样板必须复用标准 registry、query、file、audit 链路。
+
+## 7. Architecture Fitness Checks
+
+后续脚手架任务必须创建 `arch:check` 或等价命令。最低检查项：
+
+- 生产 HTTP server entry 存在。
+- scheduler worker entry 和 cleanup job entry 存在。
+- `contracts/openapi.yaml` 的公开 operation 有 route/handler 和测试映射。
+- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+
+## 8. Definition Of Done
+
+- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+- Stage 1 Review 先审查架构形态，再审查业务规格。
+- 完成声明能说明 production path、test double 和 BLOCKED 依赖边界。
+
+
+codex
+当前工作区只有本任务 trace 目录是未跟踪产物，我不会修改 `traces/`。架构约束存在，任务可以继续；接下来读取 review findings、契约、验收矩阵和相关源码来建立修复清单。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\task-session-strategy.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\architecture.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\prompt-knowledge-integration.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\knowledge-architecture.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\regression-rules.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 365ms:
+# Task 会话策略
+
+## 默认策略
+
+- 每个任务默认使用 fresh process。
+- 子代理默认采用 guided 模式；主控 / 主会话不直接写仓库文件。
+- 当前版本只支持单任务 driver，不提供额外执行工作区。
+- runtime 脚本会继续负责 `progress.txt`、`traces/` 和 Git 状态推进；除此之外的仓库写入由匹配的 writer 子代理执行。
+
+## 运行模式边界
+
+| 模式 | 触发方式 | 边界 |
+| --- | --- | --- |
+| driver 自动执行模式 | `codex-loop.ps1` 从 `task.json` 选择任务 | 外层 runtime 负责任务推进、验证、trace 和 commit |
+| single task | 内层 `codex exec` 处理当前任务 | 只处理当前任务直接要求的代码或文档改动 |
+| 交互开发模式 | 人工要求分析、规划、创建任务或实现功能 | 负责收敛输入；需要落盘时委派 writer 或转成 driver 任务 |
+
+交互开发模式在 spec / plan 明确后，默认下一步是初始化真实 `task.json` 并运行 `codex-loop.ps1`。除非用户明确要求继续在当前会话直接开发，否则不要长期停留在聊天推进阶段。
+
+如果 spec 和 architecture 已完成，应先让合适的 writer 子代理同步项目规则文件，再初始化任务队列，避免后续 driver 建立在过期的 `AGENTS.md`、`docs/harness/*` 或 `docs/context/*` 之上。
+
+## Hooks 边界
+
+- `.codex/hooks.json` 的 `Stop` hook 是交互会话结束前的增强层，不是 driver 主链路。
+- `codex-loop.ps1` 调用内层 `codex exec` 时会传入 `--disable hooks`，因此实现阶段、Stage 1 和 Stage 2 的子 Codex 会话不会触发 Stop hook。
+- Windows 当前仍以 PowerShell driver 作为确定性控制点；是否继续任务、是否允许停止、是否提交，以 `codex-loop.ps1` 的验证、trace、progress 和 commit gate 为准。
+- 如果需要记录 Stop hook 没有触发，先检查 driver 日志里是否出现 `--disable hooks`；若出现，这是预期行为，不应按 hook 脚本失败处理。
+- 外层交互会话的 Stop hook 只有在当前 Codex 客户端确实加载 `.codex/hooks.json` 且未被命令行禁用时才会运行；API/工具驱动的当前对话不应依赖它兜底。
+
+## 任务文件规则
+
+- `task.json` 使用 `{ "runtime": {...}, "tasks": [...] }` 结构；新任务默认 `passes: false`。
+- 标准交接入口是 `project-task-template.json`，首个任务固定为 `INIT-001`，用于锁定 spec 输入、任务依赖、验证矩阵、`execution.mode` 和 owned paths。
+- 如果 `task.json` 为空文件，先初始化为合法 JSON；如果仍是 smoke 模板或示例任务，先替换为当前项目真实任务。
+- 交互开发模式可以决定新增或更新哪些待办任务，但实际写入必须委派给 `harness-writer` 等匹配 writer。
+- 不得删除或改写已有任务描述，除非用户明确要求替换模板示例或重建任务队列。
+- `spec` 定义做什么，`plan` 定义怎么拆，`task.json` 是主控唯一执行入口。
+
+## 自动任务规则
+
+- 每次只处理一个 `passes: false` 的任务。
+- 优先级数字越小越先执行。
+- 所有依赖任务必须已经通过。
+- 如果仍有 `passes: false` 任务，但当前没有依赖已满足的 runnable task，Stop hook 应允许停止；历史 failed trace 继续作为 release blocker evidence，而不是强制续跑依据。
+- `execution.mode` 缺省为 `single`，当前只允许 `single`。
+- 修改后必须运行当前任务的 `test_command`。
+- 测试失败时禁止提交，禁止把 `passes` 改为 `true`。
+- 阻塞时必须追加 `progress.txt`，输出 `BLOCKED - 需要人工介入`，然后停止。
+
+## 工作区规则
+
+- 启动前 Git 工作区必须干净，除非用户明确说明哪些改动属于本任务。
+- 如需忽略 smoke 残留、历史 trace 或其他已声明的运行产物，只允许通过 `runtime.git.non_blocking_dirty_paths` 明确列白名单。
+- `non_blocking_dirty_paths` 只允许包含可再生运行产物，例如 `progress.txt`、`SMOKE-RESULT.md`、`traces/`、`artifacts/`；不要把源码、配置或业务文档加入白名单。
+- 不要修改与当前任务无关的文件。
+- 所有任务相关变更必须和 `task.json`、`progress.txt` 同一个 commit。
+
+## 推荐做法
+
+- 先收敛 truth source，再进入实现。
+- 大任务先拆成多个 `single` 任务，再交给 driver 顺序执行。
+- 当主控遇到文档、规则、任务队列、前端、后端或测试相关写入时，分别委派 `docs-worker`、`harness-writer`、`frontend-worker`、`backend-worker`、`test-runner` 等 writer 角色处理。
+- 并行分析只允许发生在只读调研层；如需并行写入，不允许多个角色同时写同一路径。
+- 任何子代理在开始前，先读 `AGENTS.md`、本文件、`.agents/rules/agents.md`、当前 truth source 和对应 `.agents/skills/*/SKILL.md`（如存在）。
+- 如果当前轮次是被 stop hook 强制继续后的续跑，先重新阅读上述文档，再决定是否真的需要子代理。
+
+## 模型策略
+
+- 默认模型和思考强度定义在 `.codex/task-run-profile.json`。
+- 如需任务级覆盖，使用 `task.execution.modelPolicy`。
+
+
+ succeeded in 411ms:
+# Harness 架构
+
+## 目标
+
+Harness 的目标是把 Codex 的执行过程固定成可重复、可验证、可追踪、可沉淀知识的工程闭环。
+
+## 核心链路
+
+```text
+task.json
+  -> codex-loop.ps1
+  -> codex exec
+  -> verify / lint / build / test
+  -> progress.txt + traces/*.json
+  -> docs/knowledge/ 引用与归档
+  -> task.json passes=true
+  -> git commit
+```
+
+## 分层
+
+- 规则层：`AGENTS.md`
+- 任务层：`task.json`
+- 执行层：`codex-loop.ps1`
+- 配置层：`.codex/task-run-profile.json`
+- 证据层：`progress.txt`、`traces/`
+- 验证层：`verify.ps1` 与任务内 `test_command`
+- 知识层：`docs/knowledge/knowledge-catalog.md`、分类索引和知识条目
+- 治理层：`docs/harness/rule-governance.md`、`docs/harness/knowledge-architecture.md`、`docs/harness/knowledge-import.md`、`docs/harness/knowledge-lint.md`、`docs/harness/team-knowledge-sync.md`
+
+## 原则
+
+- 任何完成声明都必须有验证证据。
+- 任何任务推进都必须回到可验证的 `task.json`、`progress.txt` 或 `traces/` 证据链上。
+- 任何复用过的项目经验都应在 trace 中留下 `knowledge_references`，避免知识只停留在对话上下文。
+- 任何可复用的新经验都应在归档任务中沉淀到 `docs/knowledge/`，初始成熟度默认是 `draft`。
+- 既有项目接入时，知识冷启动只生成 draft 条目；成熟度提升必须来自后续引用和验证证据。
+- 知识库需要定期 lint，检查索引、孤儿条目、重复、冲突、成熟度和长期未引用条目。
+- 团队知识库是可选上层能力，只同步 verified/proven 级别的跨项目候选；外部知识库不可用时不应阻塞本地 driver。
+- `progress.txt`、`traces/` 和 Git 状态由 runtime 脚本落盘；其他需要新增或修改的仓库内容必须委派给匹配的 writer 子代理，主控会话自身不直接写文件。
+- 默认只在当前 Git 工作区内执行，不创建额外执行目录。
+
+
+ succeeded in 352ms:
+# Prompt Knowledge Integration
+
+本文定义 `.codex/prompts/*` 如何消费 `docs/harness/*` 和 `docs/knowledge/*`，确保知识沉淀不只停留在文档里，而是进入实现、审查、修复和归档链路。
+
+## 目标
+
+- 每个执行角色都知道何时读取知识目录。
+- 每个输出角色都能记录 `knowledge_references` 和 `knowledge_outputs`。
+- review 能检查知识是否被使用、是否被误用。
+- failure triage、repair 和 visual review 能把坏例转成可归档建议。
+- harness writer 和 docs worker 能按规则治理协议决定内容写到哪里。
+
+## Prompt 覆盖矩阵
+
+| Prompt | 知识消费 | 知识产出 |
+| --- | --- | --- |
+| `controller-loop.md` | 判断任务是否需要注入 `docs/knowledge/` 和规则治理上下文 | 决定是否进入 `ARCHIVE-*` |
+| `implement-one-task.md` | 按阶段读取 knowledge catalog 和相关条目 | 输出 `Knowledge References` / `Knowledge Outputs` |
+| `review-stage1-spec.md` | 检查 `knowledge` truth source、archive 阶段和规则误升级 | 输出 `knowledge_gap` finding |
+| `review-stage2-quality.md` | 检查代码或文档决策是否引用知识 | 输出 `knowledge_gap` finding |
+| `failure-triage.md` | 读取历史坑辅助归因 | 输出 `knowledgeOutputSuggestions` |
+| `repair-one-finding.md` | 读取相关知识，避免重复踩坑 | 输出修复后的知识建议 |
+| `visual-evaluator.md` | 使用设计和视觉相关经验 | 输出视觉 pitfall / guideline 建议 |
+| `harness-audit.md` | 审计 prompt、trace、archive 和 catalog 覆盖 | 输出 Knowledge Gaps |
+| `worker-role/harness-writer.md` | 读取知识架构和规则治理 | 同步 prompt/docs/knowledge mirrors |
+| `worker-role/docs-worker.md` | 判断长期文档与临时讨论边界 | 把可复用经验写入 `docs/knowledge/` |
+| `worker-role/frontend-worker.md` | 读取 UI/视觉/组件经验 | 输出前端知识引用和新坑建议 |
+| `worker-role/backend-worker.md` | 读取架构、安全、API 风险经验 | 输出后端知识引用和新坑建议 |
+| `worker-role/test-runner.md` | 读取历史测试/环境坑 | 输出失败模式归档建议 |
+
+## 阶段查询矩阵
+
+实现会话不应一次性读取全部知识。先读 `knowledge-catalog.md`，再按阶段和任务类型选择 catalog 与少量完整条目。
+
+| 阶段 | 查询重点 | 优先知识类型 | 默认用途 |
+| --- | --- | --- | --- |
+| `analysis` / 产品分析 | 业务实体、历史需求、流程和已知坑 | `model`、`process`、`pitfall` | 补齐需求边界、异常流和术语 |
+| `plan` / 技术分析 | 既有架构决策、禁止做法、失败模式 | `decision`、`guideline(avoid)`、`pitfall` | 避免重复推导和重复踩坑 |
+| `design` / 架构设计 | 实体关系、模块边界、历史决策 | `model`、`decision` | 保持设计与已有约束一致 |
+| `implement` | 编码实践、团队约定、风险路径 | `guideline`、`pitfall` | 指导实现细节和边界处理 |
+| `verify` / release | 回归风险、环境坑、禁止做法 | `pitfall`、`guideline(avoid)` | 选择 affected tests 和失败排查路径 |
+| `archive` | 本轮引用、产出、冲突和可提升条目 | 全部类型 | 更新 `last_referenced`、输出 promotion/decay/conflict/merge candidates |
+
+每个阶段只读取和当前任务直接相关的条目。`draft` 条目可以启发分析，但不能成为阻塞性 review 依据；`proven` 条目才适合升级为规则、模板或 prompt。
+
+## 输出字段约定
+
+实现、修复和 worker handoff 应尽量使用以下 Markdown 字段：
+
+```markdown
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `suggested-id`: type - title - action - `target-path`
+```
+
+失败归因 JSON 使用：
+
+```json
+{
+  "knowledgeReferences": [],
+  "knowledgeOutputSuggestions": []
+}
+```
+
+driver trace 使用 `trace.schema.json` 中的：
+
+- `knowledge_references`
+- `knowledge_outputs`
+- `archive_summary`
+
+## 使用边界
+
+- `draft` 知识只能作为参考，不应作为阻塞性 review 依据。
+- `verified` 知识可以作为 reviewer 的辅助依据。
+- `proven` 知识才适合升级为规则、模板或 prompt。
+- 单次任务经验不得直接写入 `AGENTS.md`，应先进入 `docs/knowledge/`。
+- prompt 改动后必须同步 `agent/.codex/prompts/`、`agent/docs/codex-harness-engineering/templates/prompts/` 和 `.agents/docs/codex-harness-engineering/templates/prompts/`。
+
+## 维护检查
+
+每次改动 `docs/harness/knowledge-architecture.md`、`docs/harness/rule-governance.md`、`trace.schema.json` 或 `project-task-template.json` 后，检查：
+
+1. `implement-one-task.md` 是否仍要求输出知识引用和知识产出。
+2. Stage 1 / Stage 2 review 是否能检查知识缺口。
+3. failure / repair / visual prompts 是否能把坏例转成归档建议。
+4. worker-role prompts 是否要求读取对应知识文档。
+5. `refresh-agent-package.ps1 -CheckOnly` 是否通过。
+
+
+ succeeded in 360ms:
+# Harness Knowledge Architecture
+
+本文定义 Codex Harness 的项目知识层。Harness 不只负责把任务跑完，还要把执行中被证明有用的经验沉淀成可检索、可追踪、可维护的项目资产。
+
+## 目标
+
+- 让任务执行前能按需读取项目经验，而不是每次从零推导。
+- 让任务执行后能把架构决策、风险、流程和坏例归档。
+- 让 trace 记录知识引用，支持后续成熟度提升、衰减和冲突治理。
+- 控制上下文预算，避免把大量完整知识一次性塞进每个 Codex 会话。
+
+## 存储层
+
+当前仓库先落地项目级知识层：
+
+```text
+docs/knowledge/
+  knowledge-catalog.md      # 全景入口，约 50-120 行
+  catalog.md                # 当前项目全部知识条目的一行摘要索引
+  models/                   # 实体、数据结构、关系
+  decisions/                # 架构决策和技术选型
+  guidelines/               # 推荐做法和禁止做法
+  pitfalls/                 # 已知风险、失败模式、排查路径
+  processes/                # 工作流、业务流、操作步骤
+  archive/                  # 过时或低置信条目
+```
+
+跨项目团队知识库暂不直接耦合到 runtime。后续如引入独立 Git 知识仓库，应通过同步任务把稳定条目提升出去，而不是让 driver 直接依赖外部仓库可用性。
+
+可选团队知识库建议使用独立 Git 仓库，而不是寄生在某个业务项目中：
+
+```text
+team-knowledge/
+  knowledge-catalog.md        # 团队级全景入口
+  .knowledge-config.yaml      # 成员、角色、同步和冲突策略
+  log.md                      # 只追加的知识变更日志
+  team-conventions/           # Layer 0-T: 团队约定
+  tech-wiki/                  # Layer 1: 跨项目技术知识
+  biz-wiki/<domain>/          # Layer 2: 领域业务知识
+  project-profiles/           # 项目画像和知识源映射
+  contributions/
+    pending/                  # 待合并贡献
+    conflicts/                # 内容矛盾和人工裁决项
+```
+
+团队知识库是可选上层能力。项目 driver 必须能在没有外部知识仓库的情况下继续执行；外部知识同步失败时只能降级为缺少可复用上下文，不应阻断本地验证。
+
+团队知识库的完整同步协议见 `docs/harness/team-knowledge-sync.md`。本文件只定义项目知识层和提升边界；团队知识库的成员角色、贡献暂存、冲突裁决和追加日志由同步协议约束。
+
+## 知识层级
+
+| 层级 | 范围 | 存放建议 | 进入方式 |
+| --- | --- | --- | --- |
+| Layer 0-P | 个人偏好 | 用户本地配置，不提交项目 | 人工维护 |
+| Layer 0-T | 团队约定 | `team-conventions/` | 团队维护 |
+| Layer 1 | 跨项目技术知识 | `tech-wiki/` | verified / proven 技术条目提升 |
+| Layer 2 | 业务领域知识 | `biz-wiki/<domain>/` | verified / proven 业务条目提升 |
+| Layer 3 | 项目知识 | `docs/knowledge/` | `ARCHIVE-*` 或 `KNOWLEDGE-IMPORT-*` 写入 |
+
+提升方向默认从 Layer 3 开始。只有当条目不再是项目特有经验，并且 evidence 显示可跨任务或跨项目复用时，才建议提升到 Layer 1 或 Layer 2。
+
+## 知识类型
+
+| 类型 | 用途 | 示例 |
+| --- | --- | --- |
+| `model` | 描述实体、结构和关系 | task、trace、truth source 的关系 |
+| `decision` | 记录技术选择及原因 | driver-first 优先于聊天内手工实现 |
+| `guideline` | 记录推荐或禁止做法 | 禁止只写禁令而不给替代方案 |
+| `pitfall` | 记录已知风险和排查步骤 | smoke 占位任务被误带入真实项目 |
+| `process` | 记录可重复流程 | ARCHIVE 从 trace 提取知识 |
+
+## 成熟度
+
+| 成熟度 | 定义 | 默认处理 |
+| --- | --- | --- |
+| `draft` | 单次任务、单一来源提取 | 可引用，但不能作为强约束 |
+| `verified` | 至少在一个真实任务中被复用并通过验证 | 可作为 reviewer 的参考依据 |
+| `proven` | 至少两个不同任务或项目复用并保持有效 | 可提升为规则、模板或 prompt |
+
+成熟度提升必须基于 evidence，不接受口头判断。长期未引用或被发现过时的条目应降级或移入 `docs/knowledge/archive/`。
+
+`verified -> proven` 不应由单个任务静默完成。默认需要两个不同任务或项目的证据；如果只有一个项目内证据，必须有 maintainer 在归档报告或团队知识同步记录中明确审批。
+
+## 提升、衰减和冲突
+
+| 事件 | 默认处理 |
+| --- | --- |
+| draft 条目在一个真实任务中被引用并通过验证 | 可提升为 `verified` |
+| verified 条目在两个不同任务或项目中被引用并保持有效 | 可提升为 `proven` |
+| proven 条目 12 个月未被引用 | 建议降级为 `verified` 或标记复核 |
+| verified 条目 6 个月未被引用 | 建议降级为 `draft` 或标记复核 |
+| draft 条目长期未引用且 lint 标记无入口 | 移入 `docs/knowledge/archive/` |
+| 同一主题出现相反结论 | 保留较低成熟度，写入 conflict candidate，等待人工裁决 |
+| 仅追加 evidence、last_referenced 或 contributors | 可自动合并 |
+
+自动化只能产生候选，不应静默提升到 `proven` 或删除知识条目。成熟度变更必须在 trace 的 `archive_summary.maturity_changes` 或归档报告中留下证据。
+
+团队知识库引入后，角色边界如下：
+
+| 角色 | 项目知识权限 | 团队知识权限 |
+| --- | --- | --- |
+| `maintainer` | 可审批归档、衰减和冲突裁决 | 可审批 proven、合并冲突和维护 `log.md` |
+| `contributor` | 可新增 draft、追加 evidence、输出候选 | 可写入 `contributions/pending/` |
+| `reader` | 可读取并引用知识 | 只读，不写团队仓库 |
+
+## 条目格式
+
+每条知识使用 Markdown 文件，文件名推荐：
+
+```text
+<TYPE>-<AREA>-<NNN>.md
+```
+
+条目头部使用 YAML frontmatter：
+
+```markdown
+---
+id: GUIDELINE-HARNESS-001
+type: guideline
+maturity: draft
+tags: [harness, rules, context]
+applicable_phases: [analysis, plan, implement, archive]
+source_references:
+  - traces/<task-id>-<timestamp>.json
+last_referenced:
+contributors:
+  - codex
+evidence:
+  contributors:
+    - name: codex
+      source_ref: traces/<task-id>-<timestamp>.json
+  validated_projects: []
+  contradictions: []
+---
+
+# 标题
+
+## Context
+
+这条知识成立的背景。
+
+## Guidance
+
+可执行的规则、判断或流程。
+
+## Evidence
+
+验证命令、trace、review finding 或失败记录。
+```
+
+## 渐进式查询
+
+Codex 会话按三层读取：
+
+1. 读 `docs/knowledge/knowledge-catalog.md`，判断有哪些分类和阶段推荐入口。
+2. 读 `docs/knowledge/catalog.md`，按 `tags`、`type`、`applicable_phases` 过滤候选条目。
+3. 只读取和当前任务直接相关的完整条目。
+
+任务可通过 `knowledge_query_budget` 限制读取量：
+
+```json
+{
+  "knowledge_query_budget": {
+    "catalogs": 2,
+    "entries": 5
+  }
+}
+```
+
+## Trace 集成
+
+任务使用知识后，应在最终报告或 trace 中留下：
+
+```json
+{
+  "knowledge_references": [
+    {
+      "id": "GUIDELINE-HARNESS-001",
+      "title": "规则必须配替代方案",
+      "used_in": "Stage 1 review"
+    }
+  ]
+}
+```
+
+归档任务读取 `knowledge_references` 后，可以更新 `last_referenced`、提升成熟度，或标记冲突。
+
+归档任务还应输出以下候选清单，供维护者或后续 lint 任务处理：
+
+- promotion candidates：可提升成熟度或提升到团队知识库的条目。
+- decay candidates：长期未引用、上下文疑似过时的条目。
+- conflict candidates：同一主题存在相反结论或适用条件冲突。
+- merge candidates：重复或高度相似条目。
+
+## 归档策略
+
+`ARCHIVE-*` 任务只做知识沉淀和索引维护，不重新定义需求范围。归档输入包括：
+
+- 当前任务 trace
+- `progress.txt`
+- Stage 1 / Stage 2 review 输出
+- failure triage
+- changed files
+- 验证命令输出
+
+归档输出包括：
+
+- 新增或更新的知识条目
+- 更新后的 `knowledge-catalog.md`
+- 更新后的 `catalog.md`
+- trace 中的 `archive_summary`
+
+归档阶段缺失不应阻塞代码验证，但会降低后续任务复用历史经验的能力。
+
+## 相关流程
+
+- 冷启动导入：`docs/harness/knowledge-import.md`
+- 知识健康检查：`docs/harness/knowledge-lint.md`
+- 团队知识同步：`docs/harness/team-knowledge-sync.md`
+
+
+ succeeded in 386ms:
+# 回归规则
+
+| 风险 | 约束 |
+| --- | --- |
+| 误改文件 | Git 工作区清洁检查、task 边界、owned paths |
+| 漏测 | 每个任务必须运行 `test_command` |
+| 伪完成 | `passes=true` 必须建立在 fresh evidence 上 |
+| 文档漂移 | 规则、模板、命令改动后同步更新对应文档 |
+
+## 基本要求
+
+- 文档改动至少运行 `git diff --check`。
+- 代码改动必须运行与任务风险匹配的验证命令。
+- 不允许在未验证的情况下手工把任务标记为通过。
+
+## 需求到验证的左移规则
+
+- 测试从需求收敛阶段开始介入，不允许等代码完成后才第一次补测试范围。
+- 任何 P0/P1 需求进入实现前，至少要有 Requirement ID、业务规则、正向示例、异常示例、测试层级映射、测试数据说明和证据路径。
+- `docs/testing/TRACEABILITY_MATRIX.md`、验收示例和验证矩阵属于实现前 truth source；缺失时应优先补齐，而不是继续猜测实现。
+- 修改业务代码时必须同时检查测试影响；相关测试缺失时，先补测试骨架或测试计划，再继续实现。
+
+## 完成定义
+
+- 对外部系统、既定开源栈、第三方平台或真实环境的集成型需求，完成定义至少包含：真实依赖接上、真实请求走通、成功态证据、失败态证据。
+- 页面能打开、本地接口能返回、单元测试通过，都不足以声称正式 `FR-*` 已完成。
+- 如果当前只是原型 / spike / exploratory 路径，不要把演示性交付直接标成正式 `FR-*` 完成；应改用 `PROTO-*`、`SPIKE-*`、`INTEGRATION-*` 等单独标识，或在 spec / plan 中显式记录该 FR 仍处于未完成集成态。
+- 单元测试只能证明本地逻辑；集成型需求还必须补环境 smoke、E2E、真实下游连通性验证和证据 note。
+- Stage 17 只负责 fresh evidence、affected tests 和 P0/P1 回归确认，不负责第一次定义需求测试范围。
+
+## 技术栈验证基线
+
+| 改动类型 | 最小验证 |
+| --- | --- |
+| 文档 | `git diff --check` |
+| JSON | `ConvertFrom-Json` |
+| PowerShell | Parser 语法检查 |
+| TypeScript / 前端 | lint、typecheck、build |
+| API 或业务流程 | 单元测试、集成测试或 E2E，按风险选择 |
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\harness\\rule-governance.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\knowledge\\knowledge-catalog.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\testing\\ACCEPTANCE_EXAMPLES.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\testing\\TRACEABILITY_MATRIX.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\testing\\verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 352ms:
+# 验收示例
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
+
+> 本文件提供验收示例索引。当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；外部生产 MySQL / live OSS 不属于当前完成条件。历史自动化用例、契约文件和实现测试仅可作为旧证据。
+
+## 核心场景
+
+### AE-001 创建任务成功
+
+- 关联需求: FR-001
+- 正向示例: 给定认证上下文完整且 `taskCode` 已注册启用，当调用 `POST /api/export/tasks`，则 1 秒内返回全局唯一 `taskId`，任务为 `PENDING`，并记录创建审计。
+- 负向示例: 给定 `taskCode` 未注册、已禁用、无权限或 `queryParams` 超过 32KB，当创建任务，则返回对应错误且不得落无效任务。
+- 证据目标: 创建请求/响应、任务记录、幂等范围、审计日志。
+
+### AE-002 查询任务进度
+
+- 关联需求: FR-002
+- 正向示例: 给定用户有任务可见权限，当查询任务详情，则返回状态、总数、已处理数、进度百分比和错误信息字段。
+- 负向示例: 给定任务不存在或无权查看，当查询详情，则返回 404 或 403，不泄露其他用户任务信息。
+- 证据目标: 详情响应、权限失败响应、进度快照。
+
+### AE-003 下载文件
+
+- 关联需求: FR-003
+- 正向示例: 给定任务 `COMPLETED` 且文件未过期，当请求下载，则签名 URL 返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，stream 模式返回等价元信息。
+- 负向示例: 给定文件过期、未发布、校验失败或无权限，当请求下载，则返回失效或拒绝结果，不返回下载地址。
+- 证据目标: 文件元信息、签名响应、校验记录、下载审计。
+
+### AE-004 查询历史任务
+
+- 关联需求: FR-004
+- 正向示例: 给定正式筛选维度，当普通用户查询历史，则只返回本人任务；管理员按权限查看全局任务。
+- 负向示例: 给定测试层新增未确认筛选项，则必须标记为 assumption / gap，不得写成已验收口径。
+- 证据目标: 分页响应、筛选参数、用户/管理员对比。
+
+### AE-005 调度并发与 DB 抢锁
+
+- 关联需求: FR-005
+- 正向示例: 给定多个 worker 实例，当同一子系统待执行任务超过并发上限，则成功执行数不超过配置值。
+- 负向示例: 给定多实例同时抢同一任务，只有一个实例获得有效锁。
+- 证据目标: 抢锁记录、并发计数、数据库时间、审计。
+
+### AE-006 分片、ZIP 与空数据
+
+- 关联需求: FR-006
+- 正向示例: 给定导出行数超过 20000，当执行导出，则自动分片并打包 ZIP；给定 0 行，则生成仅表头文件并完成。
+- 负向示例: 给定渲染失败、字段校验失败或超过最大导出量，则任务失败或拒绝创建并记录错误码。
+- 证据目标: 分片文件、ZIP 清单、空文件表头、阶段事件。
+
+### AE-007 注册配置
+
+- 关联需求: FR-007
+- 正向示例: 给定管理员权限，当创建或更新导出注册配置，则 `taskCode` 唯一，启停、并发、保留期、阈值和格式策略可查询。
+- 负向示例: 给定无权限或禁用配置，当操作或创建任务，则返回 403 或 `TASK_DISABLED`。
+- 证据目标: registry 快照、配置摘要、启停响应。
+
+### AE-008 集中查询模板
+
+- 关联需求: FR-008
+- 正向示例: 给定注册配置声明数据源、参数 schema、模板、字段映射、脱敏策略和游标字段，当执行导出，则平台按集中查询口径生成数据。
+- 负向示例: 给定非法模板、未声明参数、不允许数据源或快照冲突，则任务失败并收口到产品定义错误码。
+- 证据目标: 模板版本、参数摘要、字段映射摘要、批次检查点。
+
+### AE-009 权限、数据范围和脱敏
+
+- 关联需求: FR-009
+- 正向示例: 给定认证上下文完整，当创建、查询、下载或执行查询，则平台按 `operatorId`、`tenantId`、`roleCodes`、`orgScope` 施加权限和数据范围。
+- 负向示例: 给定权限不足、认证字段缺失或脱敏失败，则拒绝操作或任务失败，并记录审计。
+- 证据目标: 403 响应、dataScopeExpression、脱敏校验证据。
+
+### AE-010 审计与事件追踪
+
+- 关联需求: FR-010
+- 正向示例: 给定任务完整执行，当查看审计和事件日志，则 CREATE、DISPATCH、EXECUTE、DOWNLOAD、CANCEL、RETRY 等动作可按 `requestId` 串联。
+- 负向示例: 给定失败任务，必须记录错误码、失败阶段和上一成功阶段。
+- 证据目标: 审计日志、任务事件日志、failure triage。
+
+### AE-011 过期清理
+
+- 关联需求: FR-011
+- 正向示例: 给定文件超过保留期，当 cleanup job 执行，则先标记不可下载再删除对象。
+- 负向示例: 给定对象删除失败，则保留可重试记录且下载返回失效结果。
+- 证据目标: 失效标记、清理日志、重试记录。
+
+### AE-012 取消和重试
+
+- 关联需求: FR-012
+- 正向示例: 给定 PENDING 任务，当取消，则最终状态为 `CANCELED`；给定 FAILED 任务，当重试，则沿用原 `taskId` 并递增 `attemptNo`。
+- 负向示例: 给定 PENDING/EXECUTING 任务收到重试请求，则返回 `INVALID_TASK_STATE` 且不得重复派发执行。
+- 证据目标: 状态机记录、attemptNo、审计链路。
+
+### AE-013 执行尝试、锁租约和配置快照
+
+- 关联需求: FR-013
+- 正向示例: 给定任务创建后配置发生变化，当执行或失败重试，则沿用创建时配置快照，并记录 `attemptNo`、`lockOwner`、`lockExpireAt`。
+- 负向示例: 给定锁租约过期，接管实例必须延续当前 `attemptNo` 并从检查点继续。
+- 证据目标: configSnapshotDigest、锁租约、批次检查点。
+
+### AE-014 幂等冲突
+
+- 关联需求: FR-013
+- 正向示例: 给定相同幂等范围和相同参数摘要，当重复创建任务，则返回原 `taskId`。
+- 负向示例: 给定相同幂等范围但参数摘要不同，则返回 `IDEMPOTENCY_CONFLICT`，不得创建新任务。
+- 证据目标: idempotencyScope、requestDigest、冲突响应。
+
+### AE-015 锁续租和接管
+
+- 关联需求: FR-005 / FR-013
+- 正向示例: 给定 worker 抢锁成功，当批次执行中，则在批次边界续租并记录 `leaseRenewedAt`。
+- 负向示例: 给定租约未过期，其他实例不得抢占；租约过期后只能一个实例接管。
+- 证据目标: 数据库时间、锁字段、接管审计。
+
+### AE-016 配置变更隔离
+
+- 关联需求: FR-007 / FR-013
+- 正向示例: 给定注册配置更新，当创建新任务，则新任务使用新配置；旧任务和失败重试继续使用原快照。
+- 负向示例: 给定快照与模板或字段映射冲突，不得静默放宽字段、格式或阈值。
+- 证据目标: 新旧配置快照、冲突证据。
+
+### AE-017 采购订单样板注册
+
+- 关联需求: FR-014
+- 正向示例: 给定 `purchase-order-export` / `purchase` 注册启用，当提交创建时间范围、订单状态、供应商、采购组织和关键词条件，则按样板查询合同创建导出任务。
+- 负向示例: 给定缺失游标字段、字段顺序错误或敏感字段策略缺失，则不得进入成功交付。
+- 证据目标: 样板 registry、查询模板、字段定义、脱敏策略。
+
+### AE-018 采购订单边界和压测
+
+- 关联需求: FR-014
+- 正向示例: 给定 `0/1/20000/20001/100000` 行测试数据，则分别验证空表头、单文件、分片 ZIP 和 10 万行压测记录。
+- 负向示例: 给定 `100001` 行且配置未放开，则拒绝创建或进入更严格控制流。
+- 证据目标: 边界数据、总耗时、批大小、分片数、锁续租次数、文件校验值。
+
+### AE-019 查询执行上下文串联
+
+- 关联需求: FR-008 / FR-010 / FR-013
+- 正向示例: 给定查询批次执行，当查看日志，则任务快照、尝试上下文、模板版本、数据源编码和批次检查点可串联。
+- 负向示例: 给定批次重试耗尽，则错误收口并保留重试次数和退避时间。
+- 证据目标: 查询日志、审计日志、批次检查点。
+
+### AE-020 执行阶段事件
+
+- 关联需求: FR-006 / FR-010 / FR-013
+- 正向示例: 给定任务成功执行，则事件包含 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。
+- 负向示例: 给定任一阶段失败，则记录失败阶段、错误码和上一成功阶段。
+- 证据目标: 阶段事件序列、失败阶段证据。
+
+### AE-021 文件发布和校验
+
+- 关联需求: FR-003 / FR-006 / FR-011
+- 正向示例: 给定文件渲染完成，当校验通过，则从临时对象发布为可下载对象并记录校验时间。
+- 负向示例: 给定元信息缺失、校验值不匹配或发布失败，则不生成下载地址并进入失败处置。
+- 证据目标: tempStorageKey、publishedStorageKey、checksum、publishedAt、deliveryReadyAt。
+
+
+ succeeded in 354ms:
+# Knowledge Catalog
+
+本目录保存当前项目的可复用知识。Codex 会话应先读本文件，再按需读取 `catalog.md` 和具体条目。
+
+## 查询顺序
+
+1. 当前任务涉及 harness、规则、driver、trace、模板或 prompt 时，先读 `docs/harness/knowledge-architecture.md`。
+2. 需要查找已有经验时，读 `docs/knowledge/catalog.md`。
+3. 只读取与当前任务直接相关的完整条目。
+
+## 维护入口
+
+- 冷启动导入：`docs/harness/knowledge-import.md`
+- 健康检查：`docs/harness/knowledge-lint.md`
+- 架构协议：`docs/harness/knowledge-architecture.md`
+
+## 分类
+
+| 分类 | 路径 | 用途 |
+| --- | --- | --- |
+| Models | `docs/knowledge/models/` | 实体、结构、关系 |
+| Decisions | `docs/knowledge/decisions/` | 架构决策、取舍和原因 |
+| Guidelines | `docs/knowledge/guidelines/` | 推荐做法、禁止做法和替代方案 |
+| Pitfalls | `docs/knowledge/pitfalls/` | 已知风险、失败模式、排查步骤 |
+| Processes | `docs/knowledge/processes/` | 可重复工作流和操作步骤 |
+| Archive | `docs/knowledge/archive/` | 过时、低置信或待合并条目 |
+
+## 阶段推荐
+
+| 阶段 | 优先知识类型 |
+| --- | --- |
+| analysis | `model`、`process`、`pitfall` |
+| design | `decision`、`guideline`、`model` |
+| plan | `decision`、`process`、`pitfall` |
+| implement | `guideline`、`pitfall` |
+| review | `guideline`、`pitfall`、`decision` |
+| archive | 所有类型 |
+
+## 当前状态
+
+当前知识库处于 cold start。新增条目默认 maturity 为 `draft`，需要通过 trace 引用和验证证据逐步提升。
+
+
+ succeeded in 361ms:
+# 验证矩阵
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**当前基线**: 2026-05-14 fresh-start
+
+> 本矩阵从无实现、无旧运行证据的状态重新开始。当前仓库只保留产品真相源、架构约束、OpenAPI 契约和计划文档；不再承认此前内存 service、Vitest 单测或旧 trace 为生产实现证据。
+
+## 当前状态
+
+| 检查项 | 关联需求 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- |
+| 产品真相源 | FR-001 - FR-014 | available | `docs/product/` |
+| 架构约束包 | FR-001 - FR-014 | available | `docs/architecture/constraints.md` |
+| 架构 brief | FR-001 - FR-014 | available | `docs/context/architecture-brief.md` |
+| STACK-ADR-001 设计基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design-baseline / implemented-by-release | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+| OpenAPI 契约 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | available / production-boundary-reviewed | `contracts/openapi.yaml`、`contracts/README.md` |
+| 生产 HTTP 服务入口 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-012 / FR-013 | available / route-handler-service-db wired | `src/server.ts`、`src/routes/route-manifest.ts`、`src/task-api/service.ts`、`src/registry-config/service.ts`、`src/audit-log/service.ts`、`tests/api/export-http-api.test.mjs` |
+| MySQL schema / migration | FR-001 - FR-014 | available / production-boundary | `migrations/001_initial_export_platform_schema.sql`、`migrations/001_initial_export_platform.ts`、`migrations/003_task_api_visibility_fields.ts`、`migrations/004_task_tenant_visibility_field.ts`、`src/db/migrator.ts`、`npm run arch:check` |
+| 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / local-or-docker-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+| scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / local-or-docker-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+| query executor | FR-006 / FR-008 / FR-009 / FR-014 | production-path wired / local-or-docker-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；测试数据由本机/Docker MySQL 自动建表和 seed；不得把 file/sample 口径写成已通过 |
+| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | file-service production-path wired / cleanup job production entry + poll-once wired / local-or-docker-mysql；`npm run test:file` 同时覆盖生产等价 object-storage adapter 失败态与本地 HTTP server 驱动的 env-backed adapter，证明 `createObjectStorageFromEnv()` 可完成 put/read/publish/download URL 协议链路，但不宣称 live OSS/S3 release evidence；环境变量缺失时 `createObjectStorageFromEnv()` 仍必须 `BLOCKED - 需要人工介入` | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`src/scheduler/worker.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker` |
+| purchase-order sample | FR-014 | executable sample contract / local-or-docker-mysql；`npm run test:sample` 通过公开 registry/task/download service + worker + production-equivalent object-storage adapter 串联样板证据，不宣称 live OSS/S3 release evidence | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample`；本机/Docker MySQL 会自动建表并写入测试数据；若要声明外部对象存储已验证，必须另开 live 专项验证 |
+| API / DB / worker 集成测试 | FR-001 - FR-014 | available / local-or-docker-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+| 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
+
+## REQUIREMENTS-GAP-REPAIR-001 fresh repair evidence（2026-05-16）
+
+| Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
+| --- | --- | --- | --- | --- |
+| AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+| TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
+| CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+| DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+| FILE-STORAGE-ERROR-MAPPING-001 | FR-003 / FR-006 / AC-E005 / AC-E026 | repaired | `npm run test:file` 覆盖 object storage put/publish 失败均映射为 `FILE_VERIFY_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + FILE_VERIFY_ERROR` | production-equivalent adapter + local/Docker MySQL；不声明 live OSS/S3 |
+
+## 计划验证入口
+
+| 阶段 | 命令 / 证据 | 最低要求 |
+| --- | --- | --- |
+| 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
+| 契约复核 | `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+| 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
+| 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
+| 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
+| API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接本机或 Docker MySQL；release gate 会自动自举 Docker MySQL |
+| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接本机或 Docker MySQL；release gate 会自动建库、建表并写入测试数据 |
+| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接本机或 Docker MySQL；release gate 会自动提供 DB URL |
+| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接本机或 Docker MySQL；外部业务数据源以受控测试数据模拟 |
+| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接本机或 Docker MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证 |
+| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；测试数据由本机/Docker MySQL seed；live 对象存储不属于当前完成条件 |
+| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | `MOCK-FIRST-001` 负责建立 FR-001 - FR-014 的 mock-first local/dev evidence 基线；`MOCK-INTEGRATION-001` 负责补齐本地主流程、失败态和证据归档，并同步到 `docs/testing/mock-first-acceptance.md`。本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 docker/mock release gate；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 docker/mock release gate |
+| 本地 release rehearsal | `npm run release:local-rehearsal` | `LOCAL-RELEASE-REHEARSAL-001` 默认使用本地 object storage mock，显式 env 覆盖也只允许在本地 rehearsal 中使用；同时必须连接本地 MySQL 先压通 API / DB / worker / query / file / sample 集成命令。MySQL URL 可由当前进程环境变量、`-DatabaseUrl` 参数或本地未跟踪的 `.env.local` / `-EnvFile` 提供。证据只能标记为 mock/local rehearsal，不能替代 `RELEASE-001` 的 docker/mock release gate；缺少本地依赖时必须输出 `BLOCKED - 需要人工介入` |
+| 本地 demo | `npm run demo:local`、`npm run demo:local:smoke` | `LOCAL-DEMO-001` 负责本机演示入口、自动 migration/seed、runbook 和健康检查 smoke。它使用本机 Docker MySQL 与本地 object storage mock，只产出 local demo / local smoke evidence，不是 release evidence，不能替代 `LOCAL-RELEASE-REHEARSAL-001` 或 `RELEASE-001`。 |
+| Docker test data automation | `npm run test:docker-local` | `DOCKER-TEST-DATA-AUTOMATION-001` 负责自动启动或等待 Docker Desktop、创建或复用本机 Docker MySQL、执行 migration、seed `purchase-order-export` 测试数据并运行 API / DB / worker / query / file / sample / object-storage smoke。依赖形态为本机 Docker MySQL + 本地 object storage mock；该证据不是 live evidence，不证明外部生产 MySQL 或 live OSS/S3 已验证。 |
+| 测试实践映射守护 | `npm run test:mock-local`、scoped `git diff --check` | `TEST-PRACTICE-MATRIX-001` 负责把关键 test script 显式映射到 task id、需求范围、依赖形态和 evidence 边界，并由 `tests/mock-local/test-practice-matrix.test.mjs` 守护 package scripts、task test_command 与本矩阵不漂移。该任务不替代任何功能测试或 release gate，只防止测试实践失去 task 归属。 |
+| release 验证 | `RELEASE-001 docker/mock release gate`（2026-05-15） | `RELEASE-001` 已通过 docker/mock release gate。`scripts/release-verify.ps1` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时复用或创建本机 Docker MySQL `export-platform-mysql-local`，并启动本地 object storage mock 执行 smoke。该 gate 是本机受控 release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件；release 结论来自 docker/mock release gate，未直接沿用 mock-first 或 local rehearsal 结果。 |
+
+## 测试实践到 task 映射
+
+| 测试实践 | package script / 命令 | task 归属 | 需求范围 | 依赖形态 | evidence 边界 |
+| --- | --- | --- | --- | --- | --- |
+| 基础架构与契约静态检查 | `npm run arch:check`、`npm run typecheck`、`npm run test:contract`、OpenAPI lint | `SERVICE-SCAFFOLD-001`、`CONTRACT-REVIEW-001`、`TEST-PRACTICE-MATRIX-001`、`RELEASE-001` | FR-001 - FR-014 | 本地静态 / 契约文件 | 只能证明入口、路由映射、契约和类型边界；不能替代 API / DB / worker / query / file / sample 集成证据。 |
+| 基础单测 | `npm test` | `SERVICE-SCAFFOLD-001`、`MOCK-FIRST-001`、`MOCK-INTEGRATION-001`、`RELEASE-001` | FR-001 - FR-014 | 本地进程 | 覆盖基础脚手架、文档守护和轻量 HTTP 行为；不能替代本机/Docker MySQL 集成测试。 |
+| API 集成测试 | `npm run test:api` | `TASK-API-HTTP-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明公开 HTTP route/handler/service/repository 链路；release 只算 docker/mock，外部生产 MySQL 不属于当前完成条件。 |
+| DB 集成测试 | `npm run test:db` | `DB-SCHEMA-001`、`SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明 migration、repository、锁和持久化边界；未设置 MySQL 时必须 BLOCKED，不能降级为内存替身。 |
+| Worker 集成测试 | `npm run test:worker` | `SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`CLEANUP-JOB-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-005 / FR-010 / FR-012 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明 polling、租约、接管、取消、重试和 cleanup 调度边界；不替代 query/file/sample 的内容级断言。 |
+| Query executor 验证 | `npm run test:query` | `QUERY-EXECUTOR-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-006 / FR-008 / FR-009 / FR-014 | MySQL；外部数据源以受控测试数据模拟 | 证明模板绑定、数据范围、脱敏、字段映射和 checkpoint；不声明外部业务库 live 已接入。 |
+| File service 验证 | `npm run test:file` | `FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-003 / FR-006 / FR-009 / FR-011 / FR-014 | MySQL + production-equivalent adapter；release 时使用本地 object storage mock | 证明 temp/checksum/publish/download/cleanup；本地 HTTP adapter 和 docker/mock smoke 不能写成外部 live OSS/S3 已验证。 |
+| Sample 样板验证 | `npm run test:sample` | `SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-014 | MySQL + production-equivalent adapter；release 时使用本地 object storage mock | 证明采购订单样板、0/1/20000/20001/100000/100001 行边界、XLSX/ZIP 和公开 create/download 链路；live 对象存储不属于当前完成条件。 |
+| Mock-first local/dev 验收 | `npm run test:mock-local` | `MOCK-FIRST-001`、`MOCK-INTEGRATION-001`、`TEST-PRACTICE-MATRIX-001` | FR-001 - FR-014 | 本地 mock / 文档守护 | 只证明本地开发、失败态演练、文档边界和测试实践映射；不是 release evidence。 |
+| Object storage smoke | `npm run test:object-storage-live` | `LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-003 / FR-006 / FR-011 / FR-014 | local rehearsal 可跳过；docker/mock release 显式允许本地 smoke；外部 live 需另行配置 | 在 `RELEASE-001` 中只声明 docker/mock release evidence；外部 live OSS/S3 验证必须另开任务，不得覆盖当前结论。 |
+| 本地 release rehearsal | `npm run release:local-rehearsal` | `LOCAL-RELEASE-REHEARSAL-001` | FR-001 - FR-014 | 本地 MySQL + 本地 object storage mock | 只用于本机彩排 API / DB / worker / query / file / sample 链路；不能替代 `RELEASE-001` docker/mock release gate。 |
+| 本地 demo | `npm run demo:local`、`npm run demo:local:smoke` | `LOCAL-DEMO-001` | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-014 | 本机 Docker MySQL + 本地 object storage mock + 本地 seed 数据 | 只用于人工演示、runbook 示例和 `GET /health` smoke；不是 release evidence，不能替代 API / DB / worker / query / file / sample 全链路验证，也不能写成外部 MySQL 或 live OSS/S3 证据。 |
+| Docker test data automation | `npm run test:docker-local` | `DOCKER-TEST-DATA-AUTOMATION-001` | FR-001 - FR-014 | 本机 Docker MySQL + 本地 object storage mock | 自动准备 Docker daemon、Docker MySQL、migration、`purchase-order-export` seed 数据和主链路验证；不是 live evidence，不替代外部生产 MySQL 或 live OSS/S3 专项验证。 |
+| Docker/mock release gate | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` | `RELEASE-001` | FR-001 - FR-014 | 本机 Docker MySQL + 本地 object storage mock | 当前 release 结论来源；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。 |
+
+## RELEASE-001 fresh release evidence snapshot（2026-05-15）
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:api`，2/2 passed。 |
+| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:db`，3/3 passed。 |
+| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:worker`，11/11 passed。 |
+| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:query`，8/8 passed。 |
+| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:file`，9/9 passed。 |
+| Sample 样板验证 | FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:sample`，9/9 passed，包含 0/1/20000/20001/100000/100001 行边界。 |
+| Docker/mock object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | PASS / docker-mock-release | `scripts/release-verify.ps1` 启动本地 object storage mock，设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE=true` 后执行 `npm run test:object-storage-live`，smoke passed。该项只声明 docker/mock release evidence，不声明外部 live OSS/S3 已验证。 |
+| 契约 / 基线校验 | FR-001 - FR-014 | 已执行通过 / 本轮前置门槛通过 | 当前 release gate 使用 `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml`；该项只能证明契约和前置校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+
+> 结论：`RELEASE-001` 已通过 docker/mock release gate。2026-05-15 22:16 +08:00 前后执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`，脚本自举本机 Docker MySQL 与本地 object storage mock 后完整通过 audit、arch、typecheck、contract、base tests、OpenAPI lint、API、DB、worker、query、file、sample、object-storage smoke 和 scoped `git diff --check`。
+
+## MOCK-INTEGRATION-001 local/dev acceptance
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| 本地集成验收归档 | FR-001 - FR-014 | accepted / local-dev-only | `MOCK-INTEGRATION-001` 已执行 `npm run arch:check`、`npm run test:mock-local`、`npm test` 与 scoped `git diff --check`，并把 FR-001 - FR-014 的主流程、失败态和证据归档同步到 `docs/testing/mock-first-acceptance.md`、`docs/testing/mock-first-release-plan.md` 与本矩阵；该任务不是 release evidence，不替代 docker/mock release gate |
+| 本地 release rehearsal | FR-001 - FR-014 | passed / mock/local rehearsal | `LOCAL-RELEASE-REHEARSAL-001` 已通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，先执行 API、DB、worker、query、file 和 sample 集成命令；证据只能写成 mock/local rehearsal，不是 RELEASE-001 PASS 证据，不能替代 docker/mock release gate |
+
+## LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal result（2026-05-15）
+
+| 验证项 | 关联需求 | 状态 | 证据 / 归因 |
+| --- | --- | --- | --- |
+| 本地 release rehearsal 入口 | FR-001 - FR-014 | PASS / mock-local-only | `npm run release:local-rehearsal` 已执行通过；脚本使用本地 MySQL 配置，并启动本地 object storage mock。该结果只证明 mock/local rehearsal 链路可运行，不是 `RELEASE-001` PASS 证据。 |
+| API / DB / worker / query / file / sample 集成命令 | FR-001 - FR-014 | PASS / mock-local-only | 本轮依次通过 `npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample`。其中 API / DB / worker / query / file / sample 只作为本地彩排证据，不替代正式 release evidence。 |
+| Docker/mock object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | PASS / docker-mock-release | `RELEASE-001` 已由 `release-verify.ps1` 独立启动本地 object storage mock 并执行 docker/mock smoke。 |
+| Release gate 边界 | FR-001 - FR-014 | PASS / docker/mock gate | `RELEASE-001` 已通过 docker/mock release gate；本地彩排未替代该 gate 的完整验证。 |
+
+> 结论：`LOCAL-RELEASE-REHEARSAL-001` 在 2026-05-15 通过本地 mock/local rehearsal；该结论只说明本地 MySQL 与本地 object storage mock 下 API、DB、worker、query、file 和 sample 集成链路已压通。`RELEASE-001` 已单独执行并通过 docker/mock release gate。
+
+## Requirement 验证入口
+
+| Req ID | 后续验证类型 | 当前状态 | 证据路径 |
+| --- | --- | --- | --- |
+| FR-001 | contract / API / DB | HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+| FR-004 | contract / API / DB | HTTP list handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-005 | DB / worker | DB lease repository and worker polling available / local-or-docker-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed HTTP adapter 的发布与下载 URL 流程，`npm run test:sample` 覆盖默认批次 10 万行不丢批次；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+| FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-008 | query / DB / security | query executor production-path wired / local-or-docker-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；外部业务数据源以受控测试数据模拟 |
+| FR-009 | API / query / security | API auth context consumed / query executor production-path wired + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；本机/Docker MySQL 与测试数据由 release gate 提供，adapter 级对象存储证据不得写成 live release 已验证 |
+| FR-010 | audit / API / worker | API and worker audit writes wired / local-or-docker-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+| FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+| STACK-ADR-001 | design-baseline / arch-check | available / DB repository boundary added | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+
+## STACK-ADR-001 验证细则
+
+`scripts/arch-check.ts` / `npm run arch:check` 的最低检查项、适用范围和状态如下：
+
+| 项目 | 内容 |
+| --- | --- |
+| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+| 适用范围 | 后续 `feature_impl` 的固定架构门禁；适用于脚手架、实现、worker、db、file 和 sample 相关任务 |
+| 当前状态 | available / DB repository boundary added |
+| 证据路径 | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md`、`scripts/arch-check.ts`、`src/db/migrator.ts`、`src/repositories/`、`npm run arch:check`、`npm run test:db` |
+| 备注 | `npm run arch:check` 不能被 `git diff --check`、OpenAPI lint、单测或人工检查替代 |
+
+## 最终规则
+
+- `feature_impl` 任务不得只以文档、OpenAPI、内存 repository、mock 或 `git diff --check` 作为完成证据。
+- `feature_impl` 任务不得只以“契约存在”或“契约 lint 通过”作为完成证据；还必须满足 handler、repository / adapter、worker、file、DB 和测试的生产路径证据要求。
+- 每个实现任务必须从 `docs/architecture/constraints.md` 复制 `architecture_constraints` 和 `forbidden_implementations`。
+- 没有本机/Docker MySQL、本地 object storage mock 或任务声明依赖时必须记录 `BLOCKED - 需要人工介入`，不得用内存替身绕过。
+- `STACK-ADR-001` 当前是 design-baseline；后续 `feature_impl` 不得只靠文档和 `git diff --check` 通过，必须先具备 `npm run arch:check` 所需的入口、路由映射和 migration 证据。
+- `LOCAL-RELEASE-REHEARSAL-001` 的结果只能算 mock/local rehearsal evidence；`RELEASE-001` 的正式 release evidence 来自 `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 的完整 docker/mock release gate。
+
+
+ succeeded in 372ms:
+# 需求追溯矩阵
+
+**功能**: FEAT-EXPORT-PLATFORM-001 统一导出平台
+**最后更新**: 2026-05-15
+**负责人**: RELEASE-001
+
+| Req ID | 业务规则 | 页面 / 组件 | 状态 | API / 契约 | 测试层级 | 测试文件 / 计划 | 证据路径 | 风险 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| FR-001 | 仅允许已注册且启用的 `taskCode` 创建任务；创建任务前必须通过操作权限校验；支持 `clientRequestId` 幂等并返回 `taskId` | 无前端页面；后端创建接口 | PENDING | `POST /api/export/tasks` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `docs/product/prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | P0 创建主路径、幂等和注册校验错误容易漂移 |
+| FR-002 | 查询任务进度时必须返回状态、总数、已处理数、进度和错误信息；任务详情必须受认证上下文和可见性约束 | 无前端页面；后端查询接口 | PENDING / EXECUTING / COMPLETED / FAILED | `GET /api/export/tasks/{taskId}` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-002`、`AC-009`、`AC-010`、`state-matrix.yaml` | 进度口径和失败态字段易被实现偏差 |
+| FR-003 | 下载前必须再次校验权限和文件有效期；签名 URL 与 stream 两种交付方式都要携带文件元信息；未发布对象不得下载 | 无前端页面；文件服务 / OSS / 下载接口 | COMPLETED / EXPIRED | `GET /api/export/tasks/{taskId}/download`、文件元信息契约 | contract / file / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`state-matrix.yaml` | 校验、发布边界和元信息缺失会造成误交付 |
+| FR-004 | 历史任务正式筛选维度限定为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；普通用户仅见本人任务，管理员按权限看全局 | 无前端页面；历史查询接口 | default / empty / permission_denied | `GET /api/export/tasks` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-004`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 筛选维度和可见性最容易在联调中扩展失控 |
+| FR-005 | 同一子系统的执行数不超过配置值；调度采用 MySQL 轮询 + DB 抢锁；锁时间判断以数据库时间为准 | Scheduler / worker | PENDING / EXECUTING | Scheduler + DB lock 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 多实例重复执行和租约漂移风险高 |
+| FR-006 | 超过单文件阈值时自动分片并打包；空数据生成仅表头文件；执行链路必须保留关键阶段事件 | 无前端页面；worker / file service | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-006`、`AC-020`、`state-matrix.yaml` | 分片、打包和空数据分支是回归高发点 |
+| FR-007 | 注册导出任务必须可创建、更新、查询、启停，并支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略 | registry/config APIs | default / disabled / permission_denied | registry/config APIs | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`page-inventory.md`、`requirement-interface-matrix.md` | 配置同步和启停状态最容易与任务快照冲突 |
+| FR-008 | 注册配置必须声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式；不得执行原始 SQL | registry/config + datasource/query template | default / invalid_template / datasource_unavailable / query_execution_error / field_mapping_invalid / masking_rule_error | 集中查询契约 | contract / backend / query / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 契约漂移会直接变成越权或错误导出 |
+| FR-009 | 平台必须消费认证上下文，执行任务可见性、操作权限、下载权限和查询数据范围约束；字段脱敏必须按注册策略执行 | auth + data scope + masking + download guard | permission_denied / masking_error | 认证上下文契约、数据范围契约 | contract / backend / api / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md` | 认证上下文字段缺失或脱敏失败会导致高风险泄露 |
+| FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志必须包含任务、操作、结果、错误码、请求和时间信息 | audit log + task event log | all | 审计契约、任务事件契约 | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-010`、`AC-019`、`AC-020` | 没有审计链路就无法证明真实交付 |
+| FR-011 | 过期文件先标记为不可下载，再清理对象存储文件；清理失败必须保留可重试记录 | cleanup job | EXPIRED | cleanup job 契约 | contract / scheduler / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-011`、`state-matrix.yaml` | 清理顺序错误会导致误删或继续可下载 |
+| FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 取消按批次边界收口并最终置为 `CANCELED` | cancel / retry API | CANCELED / PENDING / FAILED / EXECUTING | `POST /api/export/tasks/{taskId}/cancel`、`POST /api/export/tasks/{taskId}/retry` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-012`、`AC-E015`、`state-matrix.yaml` | 取消和重试状态机容易被误返回内部标记 |
+| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照必须形成同一条审计链路；锁租约默认 5 分钟，接管延续当前 `attemptNo`，FAILED 重试才递增 `attemptNo` | create API + Scheduler + task snapshot | default / conflict / processing / error | create API、Scheduler、snapshot 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 幂等冲突、锁接管和快照沿用是最容易漏证据的区域 |
+| FR-014 | 采购订单样板必须覆盖创建时间范围、订单状态、供应商、采购组织、关键词、游标分页、敏感字段、空数据、分片、权限、审计、下载和 10 万行压测证据 | purchase-order query template + platform export flow | default / empty / long_content / error | 采购订单样板契约 | contract / backend / query / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-017`、`AC-018`、`AC-E022`、`AC-E023` | 样板合同是实现前最关键的可执行证据 |
+
+## 规则
+
+- 每条 P0/P1 需求都必须恰好出现一次，或被明确拆分。
+- 每一行都必须指向至少一个测试层级和一个证据路径。
+- API / 数据行必须包含契约或 schema 校验证据。
+- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；历史通过记录仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。
+
+
+ succeeded in 382ms:
+# Harness Rule Governance
+
+本文定义规则如何进入 `AGENTS.md`、深文档、prompt、task template 和自动化检查。目标是控制指令预算，同时让关键约束可执行、可验证、可演进。
+
+## `docs/doc/1.md` 落地结论
+
+`docs/doc/1.md` 的核心价值不是把模板原样搬进本仓库，而是约束规则系统的形态：
+
+- `AGENTS.md` 做短入口，保留每次会话必须遵守的少量硬约束和深文档索引。
+- AI 可以从代码、schema、lint 或脚本推断 / 检查的内容，不进入 `AGENTS.md`。
+- 禁令必须带替代方案；例如不要伪造 `passes=true`，替代方案是让 `codex-loop.ps1` 在验证、review 和 commit gate 通过后写回状态。
+- Bad Case 先进入知识、prompt、role rules 或自动化检查；只有所有会话都必须知道时，才升级到 `AGENTS.md`。
+- 能自动检查的规则应进入 `verify.ps1`、`doctor.ps1`、JSON schema、hook 或同步脚本，不长期只靠文字提醒。
+- 重要深文档必须被 `AGENTS.md` 引用，避免成为孤立文档。
+
+本仓库实践选择：入口文件控制在“读完即可开工”的长度；任务、验证、知识、prompt 和镜像同步细节分别落到 `docs/harness/*`、`.agents/rules/*`、`.codex/prompts/*` 和 `agent/` package mirrors。
+
+## 分层原则
+
+| 层级 | 放什么 | 不放什么 |
+| --- | --- | --- |
+| `AGENTS.md` | 每次会话都必须遵守的少量硬约束、入口索引 | 长模板、通用编码常识、会频繁变动的细节 |
+| `docs/harness/*` | driver、任务、验证、知识、治理等工程协议 | 具体业务需求 |
+| `.agents/rules/*` | agent 角色、阶段路由、协作边界 | 单个功能的临时计划 |
+| `.codex/prompts/*` | driver 注入给实现、review、repair 的执行提示 | 人类阅读优先的长说明 |
+| `task.json` | 当前真实任务队列和验证命令 | 模板示例、过期 smoke 占位 |
+
+## 规则进入标准
+
+只有满足以下至少一项，才应新增规则：
+
+- 同类问题在 review、trace 或失败记录中重复出现。
+- 违反后会造成安全、数据、提交、验证或上下文污染风险。
+- AI 无法从代码和现有文档自然推断。
+- 新人或新会话必须知道，否则会走错执行链路。
+
+以下内容默认不写进规则：
+
+- formatter、linter 已经确定性检查的风格细节。
+- “写清晰代码”这类无法改变行为的泛化建议。
+- README 面向人类读者的项目介绍。
+- 没有验证方式的一次性偏好。
+
+## 禁令写法
+
+禁令必须同时给替代方案：
+
+```text
+不要直接改 task.json 来伪造完成状态；应让 codex-loop.ps1 在验证、review 和 commit gate 通过后写回 passes=true。
+```
+
+如果无法给替代方案，先不要写成硬规则，改写成待确认风险或知识条目。
+
+## Bad Case 闭环
+
+每次出现 AI 错误，先判断应该落到哪里：
+
+| 错误类型 | 处理位置 |
+| --- | --- |
+| 单次任务失败 | `progress.txt`、trace、failure triage |
+| 可复用经验 | `docs/knowledge/pitfalls/` 或 `guidelines/` |
+| 会反复影响 driver 行为 | `.codex/prompts/*` 或 `.agents/rules/*` |
+| 所有会话必须知道 | `AGENTS.md` |
+| 可以自动检查 | `verify.ps1`、`doctor.ps1`、JSON schema 或 hook |
+
+## 变更流程
+
+1. 先确认触发来源：trace、review finding、失败日志、用户明确要求或文档分析。
+2. 选择最小生效层级，不把深文档内容直接搬进 `AGENTS.md`。
+3. 如果改动影响模板或镜像，按 `harness-surface-sync` 同步 canonical source 和 mirrors。
+4. 运行最小验证：文档至少 `git diff --check`，JSON 需要 `ConvertFrom-Json`，PowerShell 需要 parser 检查。
+5. 提交前确认没有把 token、cookie、私钥、密码写入规则或 trace。
+
+## 定期治理
+
+建议每 10 个 driver 任务或每次较大 harness 改造后执行一次规则治理检查：
+
+- `AGENTS.md` 是否仍保持短入口。
+- 深文档是否有孤立规则没有被入口引用。
+- prompt 是否与 `AGENTS.md`、`.agents/rules/agents.md` 冲突。
+- task template 是否还包含 smoke、示例领域或占位路径。
+- 知识条目是否有重复、过时、矛盾或长期未引用内容。
+
+## AGENTS.md 压缩检查表
+
+调整 `AGENTS.md` 时逐条检查：
+
+| 问题 | 处理 |
+| --- | --- |
+| 这条规则是否每次会话都必须知道？ | 是则保留，否则下沉到深文档 |
+| 这条规则是否已有脚本、schema、lint 或 hook 检查？ | 链接自动化位置，不重复写长说明 |
+| 这条规则是否只是通用工程常识？ | 删除 |
+| 这条规则是否只有禁止项？ | 补充替代方案，否则降级为风险说明 |
+| 这条规则是否源自单次失败？ | 先进入 `docs/knowledge/` 或 trace，不直接升级入口 |
+| 深文档是否在入口可发现？ | 在 `AGENTS.md` 索引补链接 |
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\reviews\\requirements-complete-review.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 356ms:
+# Requirements Complete Review: FEAT-EXPORT-PLATFORM-001
+
+Verdict: FAIL
+
+## Truth Source
+
+- `docs/product/*` 与 `docs/architecture/constraints.md` 是本次 review 的基准。
+- 其中 `docs/product/prd-lite.md`、`docs/product/acceptance-criteria.md`、`docs/product/requirement-interface-matrix.md`、`docs/product/state-matrix.yaml` 定义产品口径、验收口径、接口映射和状态边界。
+- `docs/architecture/constraints.md` 定义交付形态、API/worker/DB 边界、测试替身策略和禁止实现。
+
+## 总结
+
+当前实现对大部分 FR、AC 和异常验收已有证据，但存在 6 个 P0/P1 缺口，足以导致 Review 结论为 FAIL。
+
+主要风险集中在：
+
+- 审计 action/result/errorCode 契约漂移，公开契约与真实实现不一致。
+- 历史查询管理员全局可见性与产品口径不一致。
+- 任务配置快照只保存 digest，执行时仍依赖当前 registry，无法证明旧任务和失败重试沿用原配置快照。
+- 查询批次重试策略缺失，短暂失败不能按验收要求进入批次重试成功或重试耗尽链路。
+- `DATASOURCE_UNAVAILABLE` 的可执行路径缺失，契约有定义但实现与测试证据不足。
+- 对象存储上传/发布失败的错误映射与验收不一致。
+
+## FR 覆盖矩阵
+
+| FR ID | 状态 | 说明 |
+| --- | --- | --- |
+| FR-001 | covered | 创建任务接口、PENDING 返回和幂等链路已有契约、服务和测试证据。 |
+| FR-002 | covered | 任务详情/进度查询有 API、服务和测试映射。 |
+| FR-003 | covered | 下载链路、签名 URL/stream 元信息和文件元数据证据已覆盖。 |
+| FR-004 | partially_covered | 历史查询筛选维度和同租户权限边界有证据，但管理员全局可见性被 `tenantId` 固定过滤。 |
+| FR-005 | covered | 调度和 DB 锁边界已有 worker / repository / test 证据。 |
+| FR-006 | covered | 分片、打包和样板批次链路已有证据。 |
+| FR-007 | covered | 注册、启停和配置链路已有 API / service / repository 证据。 |
+| FR-008 | partially_covered | 集中查询模板、字段映射和脱敏策略有实现与测试，但数据源不可用/批次重试的证据链不完整。 |
+| FR-009 | partially_covered | 权限、脱敏和下载保护有覆盖，但审计 result contract drift 影响对外一致性。 |
+| FR-010 | gap | 审计动作/结果/错误码契约漂移，导致公开审计契约不可稳定消费。 |
+| FR-011 | partially_covered | cleanup 行为有实现证据，但审计 action/result/errorCode 漂移影响验收稳定性。 |
+| FR-012 | covered | 取消与重试边界、非法状态错误和 worker 收口已有证据。 |
+| FR-013 | partially_covered | 幂等、执行尝试和 DB 锁租约已有证据，但配置快照沿用只保存 digest，旧任务执行仍依赖当前 registry。 |
+| FR-014 | covered | 采购订单样板的集中查询合同、样板链路和压测边界已有证据。 |
+
+## AC 覆盖矩阵
+
+| AC ID | 状态 | 说明 |
+| --- | --- | --- |
+| AC-001 | covered | 创建任务 1 秒返回 taskId、PENDING 状态的证据齐备。 |
+| AC-002 | covered | 任务状态、总数、已处理数、进度和错误信息可查询。 |
+| AC-003 | covered | 下载响应、文件元信息和过期前下载保护有证据。 |
+| AC-004 | gap | 历史分页筛选有证据，但管理员按权限查看全局未按产品口径落实。 |
+| AC-005 | covered | 同子系统并发控制有 scheduler / lease 证据。 |
+| AC-006 | covered | 超阈值分片打包和空数据表头文件已覆盖。 |
+| AC-007 | covered | 注册创建、更新、查询、启停和配置同步已有证据。 |
+| AC-008 | covered | 集中查询模板、schema、字段映射、脱敏策略和数据源约束有证据。 |
+| AC-009 | covered | 无权限创建或下载返回 403 并记录审计。 |
+| AC-010 | gap | 审计日志契约 drift 导致创建、执行、失败、下载、取消、重试的追溯字段不稳定。 |
+| AC-011 | partially_covered | 过期标记、不可下载和清理失败记录有链路，但结果口径仍受审计 drift 影响。 |
+| AC-012 | covered | PENDING 可取消、FAILED 可重试、EXECUTING 批次边界收口有证据。 |
+| AC-013 | covered | taskId 串联幂等、执行尝试、锁租约和快照证据可追踪。 |
+| AC-014 | covered | 幂等范围和参数摘要一致/冲突行为有证据。 |
+| AC-015 | covered | attemptNo、lockOwner、lockExpireAt 和租约续租证据存在。 |
+| AC-016 | gap | 当前任务只保存 `configSnapshotDigest`，执行时读取当前 registry 并做 digest 相等校验，无法证明旧任务和失败重试沿用原完整配置快照。 |
+| AC-017 | covered | 采购订单样板注册与查询条件、字段和格式契约已覆盖。 |
+| AC-018 | covered | 0/1/20000/20001/100000/100001 边界证据已覆盖。 |
+| AC-019 | partially_covered | 批次检查点、重试和失败上下文有证据，但批次重试耗尽与短暂失败成功链路不完整。 |
+| AC-020 | covered | 阶段事件链路可追踪。 |
+| AC-021 | covered | 临时对象到已发布对象的交付模型和校验失败处置有证据。 |
+
+## AC-E 覆盖矩阵
+
+| AC-E ID | 状态 | 说明 |
+| --- | --- | --- |
+| AC-E001 | covered | 空数据生成仅表头文件。 |
+| AC-E002 | covered | 未注册任务创建失败，不落无效任务。 |
+| AC-E003 | covered | 任务禁用返回 `TASK_DISABLED`。 |
+| AC-E004 | gap | 短暂失败后重试成功缺少明确 retry loop 证据，当前无法证明按批次重试策略完成。 |
+| AC-E005 | partially_covered | object storage put/publish 错误被映射为 `EXPORT_RENDER_ERROR`，与验收要求的 `FILE_VERIFY_ERROR` 不一致。 |
+| AC-E006 | covered | 权限不足返回 403。 |
+| AC-E007 | covered | 文件过期返回 410 或等价失效结果。 |
+| AC-E008 | covered | 多实例重复抢锁仅一个实例成功执行。 |
+| AC-E009 | covered | 请求参数过长返回 400。 |
+| AC-E010 | covered | 超大导出按配置拒绝或进入更严格控制流。 |
+| AC-E011 | covered | 查询模板不存在或不合法收口为 `QUERY_TEMPLATE_INVALID`。 |
+| AC-E012 | gap | `DATASOURCE_UNAVAILABLE` 仅有契约定义，缺少 src/tests 可执行路径。 |
+| AC-E013 | partially_covered | 查询执行失败最终 FAILED / `QUERY_EXECUTION_ERROR` 有证据，但按批次重试策略处理的 retry loop 缺失，与 RCR-002 一致。 |
+| AC-E014 | covered | 字段映射不合法收口为 `FIELD_MAPPING_INVALID`。 |
+| AC-E015 | covered | 非法或重复重试请求返回非法状态错误。 |
+| AC-E016 | covered | 认证上下文缺少最小字段可返回权限/参数错误并记录 requestId。 |
+| AC-E017 | covered | 文件校验值不匹配拒绝交付并进入失败处置链路。 |
+| AC-E018 | covered | 幂等键冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+| AC-E019 | partially_covered | 锁租约过期接管、attemptNo 延续和批次检查点有证据，但失败/重试/接管混合场景的完整链路仍有缺口。 |
+| AC-E020 | gap | 查询批次重试耗尽无明确 retry loop 和耗尽测试路径。 |
+| AC-E021 | covered | 超过默认最大导出量的拒绝/更严格控制流有证据。 |
+| AC-E022 | partially_covered | 采购订单样板敏感字段脱敏有覆盖，但审计 drift 影响证据稳定性。 |
+| AC-E023 | partially_covered | 游标不稳定有查询层测试与契约证据，但批次/重试耗尽场景仍不完整。 |
+| AC-E024 | gap | 快照冲突现在直接按当前 registry digest 不一致失败，缺少沿用创建时完整配置快照后的冲突判定证据。 |
+| AC-E025 | partially_covered | 批次字段/顺序/脱敏校验有实现痕迹，但与重试和失败收口的证据不完全。 |
+| AC-E026 | partially_covered | 文件发布前失败不会生成下载地址，但 put/publish 失败错误码映射为 `EXPORT_RENDER_ERROR`，与产品要求的 `FILE_VERIFY_ERROR` 不一致。 |
+| AC-E027 | partially_covered | `EXPORT_RENDER_ERROR` 有实现映射，但缺少明确 XLSX/ZIP 渲染失败测试。 |
+
+## Findings
+
+### RCR-001
+
+- Severity: P0
+- Title: audit action/result/errorCode contract drift
+- Evidence:
+  - `docs/product/prd-lite.md` 要求审计动作至少覆盖 `EXPIRE_MARK`、`CLEANUP_FAILED`。
+  - `contracts/openapi.yaml` 的 `AuditEvent.action` 枚举包含 `REGISTRY_QUERY`、`EXPIRE_MARK`、`CLEANUP_FAILED`，`result` 枚举为 `SUCCESS` / `FAILED` / `ACCEPTED`。
+  - `src/task-api/service.ts` 与 `src/registry-config/service.ts` 在拒绝审计时写入 `FAILURE`。
+  - `src/registry-config/service.ts` 使用 `REGISTRY_LIST`。
+  - `src/cleanup-job/index.ts` 使用 `CLEANUP_DELETE` 与 `FILE_CLEANUP_DELETE_ERROR`。
+  - `tests/worker/scheduler-worker.test.mjs` 断言 `CLEANUP_DELETE`。
+- Risk: FR-010 / AC-010 的审计契约无法稳定消费，公开契约与真实审计实现不一致，后续查询、归档和联调都会出现口径漂移。
+- Suggested next task id: `AUDIT-CONTRACT-ALIGN-001`
+
+### RCR-002
+
+- Severity: P0
+- Title: admin global task history visibility missing
+- Evidence:
+  - `docs/product/acceptance-criteria.md` 的 `AC-004` 要求普通用户仅看本人任务，管理员按权限查看全局。
+  - `src/task-api/service.ts:373-383` 的 `listExportTasks()` 固定传入 `tenantId: auth.tenantId`，管理员也无法跨租户查看全局。
+  - `tests/api/export-http-api.test.mjs:412-423` 明确断言跨租户管理员查询不到其他租户任务。
+- Risk: FR-004 / AC-004 的管理员全局历史查询合同未实现，跨租户或全局运营场景会被错误过滤；如果产品实际只允许同租户全局，需要回写产品真相源收窄口径。
+- Suggested next task id: `TASK-HISTORY-ADMIN-SCOPE-001`
+
+### RCR-003
+
+- Severity: P0
+- Title: config snapshot replay missing
+- Evidence:
+  - `docs/product/acceptance-criteria.md` 的 `AC-016` 要求配置变更只影响新创建任务，已创建任务和失败重试沿用原任务配置快照。
+  - `src/task-api/service.ts` 创建任务时保存 `configSnapshotDigest`，但未持久化完整 registry/query/mapping/masking 快照。
+  - `src/query-executor/index.ts:87-96` 执行时读取当前 registry，并在 digest 不一致时直接 `QUERY_TEMPLATE_INVALID`，这更像“发现配置变更后失败”，不是沿用原快照。
+  - `tests/query/query-executor.test.mjs` 未覆盖“创建后 registry 更新，旧任务/失败重试仍按旧快照执行”的场景。
+- Risk: FR-013 / AC-016 / AC-E024 的快照隔离无法证明，配置变更可能破坏已创建任务或失败重试的执行口径。
+- Suggested next task id: `CONFIG-SNAPSHOT-REPLAY-001`
+
+### RCR-004
+
+- Severity: P0
+- Title: query batch retry policy missing
+- Evidence:
+  - `docs/product/acceptance-criteria.md` 的 `AC-E004`、`AC-E020` 明确要求短暂失败重试成功和批次重试耗尽。
+  - `src/scheduler/worker.ts` 的 `processAcquiredLease` 在 `catch` 中直接 `markTaskTerminal` 为 `FAILED` 并写 `EXECUTE_FAILED`。
+  - `tests/query/query-executor.test.mjs` 只覆盖 `retryCount=0` 和错误直接 reject，没有短暂失败重试成功或重试耗尽测试。
+- Risk: 短暂数据源/查询失败无法按产品口径重试，FR-008 / FR-010 / FR-013 的证据不足，批次级恢复能力不可验证。
+- Suggested next task id: `QUERY-BATCH-RETRY-001`
+
+### RCR-005
+
+- Severity: P0
+- Title: datasource unavailable execution path missing
+- Evidence:
+  - `contracts/openapi.yaml` 定义了 `DATASOURCE_UNAVAILABLE`。
+  - `src/query-executor/index.ts` 没有 `DATASOURCE_UNAVAILABLE` 分支，仅记录 `datasourceCode` 并在 SQL 错误时走 `queryExecutionError`。
+  - `tests/query/query-executor.test.mjs` 没有 `DATASOURCE_UNAVAILABLE` 场景。
+- Risk: 只读数据源或凭证不可用时无法按 `AC-E012` 收口，实际可能被误归类为 `QUERY_EXECUTION_ERROR`，影响 FR-008 的异常合同。
+- Suggested next task id: `DATASOURCE-ADAPTER-ERROR-001`
+
+### RCR-006
+
+- Severity: P1
+- Title: object storage upload/publish failure error mapping partial
+- Evidence:
+  - `docs/product/acceptance-criteria.md` 的 `AC-E005` 要求 OSS 上传失败收口为 `FILE_VERIFY_ERROR`。
+  - `src/file-service/index.ts` 将 `putObject` / `publishObject` 失败映射为 `EXPORT_RENDER_ERROR`，而 `read` / checksum 失败才映射为 `FILE_VERIFY_ERROR`。
+  - `tests/file/export-file-service.test.mjs` 只覆盖 checksum `FILE_VERIFY_ERROR`，未覆盖 put/publish 失败映射。
+- Risk: 文件依赖失败错误码与验收口径不一致，外部调用方会收到不同于产品要求的错误分类。
+- Suggested next task id: `FILE-STORAGE-ERROR-MAPPING-001`
+
+## Evidence Boundary
+
+- `RELEASE-001` 是 docker/mock release gate。
+- 本次 review 不得声明外部生产 MySQL 或 live OSS/S3 已验证。
+- `docs/architecture/constraints.md` 已明确当前 release gate 不要求 live evidence，外部 live 验证不属于本次完成条件。
+
+## Knowledge References
+
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: review 输出 knowledge references/outputs - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: review 以 truth source 和验证边界给出 findings - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+
+- `PITFALL-REVIEW-001`: draft, “release gate 通过不能替代逐项异常验收 review”, target `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+- `GUIDELINE-EVIDENCE-001`: draft, “mock/local/docker/live evidence 分层命名”, target `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+
+## Remaining Risks
+
+- 外部 live MySQL 和 live OSS/S3 不属于当前完成条件。
+- 真实依赖验证需要另开任务，不能用当前 docker/mock release gate 直接替代。
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\reviews\\requirements-complete-review.findings.json" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw traces\\REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af\\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111939-codex-final.txt" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\knowledge\\catalog.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw package.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 346ms:
+{
+  "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+  "verdict": "FAIL",
+  "reviewedAt": "2026-05-16",
+  "truthSources": [
+    "docs/product/prd-lite.md",
+    "docs/product/acceptance-criteria.md",
+    "docs/product/requirement-interface-matrix.md",
+    "docs/product/state-matrix.yaml",
+    "docs/architecture/constraints.md",
+    "contracts/openapi.yaml",
+    "docs/testing/verify-matrix.md",
+    "task.json"
+  ],
+  "findings": [
+    {
+      "id": "RCR-001",
+      "severity": "P0",
+      "title": "audit action/result/errorCode contract drift",
+      "evidence": [
+        "docs/product/prd-lite.md",
+        "contracts/openapi.yaml",
+        "src/task-api/service.ts",
+        "src/registry-config/service.ts",
+        "src/cleanup-job/index.ts",
+        "tests/worker/scheduler-worker.test.mjs"
+      ],
+      "risk": "FR-010/AC-010 的审计契约无法稳定消费，公开契约与真实审计实现不一致，后续查询、归档和联调都会出现口径漂移。",
+      "suggestedNextTaskId": "AUDIT-CONTRACT-ALIGN-001"
+    },
+    {
+      "id": "RCR-002",
+      "severity": "P0",
+      "title": "admin global task history visibility missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/task-api/service.ts",
+        "tests/api/export-http-api.test.mjs"
+      ],
+      "risk": "FR-004/AC-004 的管理员全局历史查询合同未实现，跨租户或全局运营场景会被错误过滤；如果产品实际只允许同租户全局，需要回写产品真相源收窄口径。",
+      "suggestedNextTaskId": "TASK-HISTORY-ADMIN-SCOPE-001"
+    },
+    {
+      "id": "RCR-003",
+      "severity": "P0",
+      "title": "config snapshot replay missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/task-api/service.ts",
+        "src/query-executor/index.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "FR-013/AC-016/AC-E024 的快照隔离无法证明，配置变更可能破坏已创建任务或失败重试的执行口径。",
+      "suggestedNextTaskId": "CONFIG-SNAPSHOT-REPLAY-001"
+    },
+    {
+      "id": "RCR-004",
+      "severity": "P0",
+      "title": "query batch retry policy missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/scheduler/worker.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "短暂数据源/查询失败无法按产品口径重试，FR-008/FR-010/FR-013 的证据不足，批次级恢复能力不可验证。",
+      "suggestedNextTaskId": "QUERY-BATCH-RETRY-001"
+    },
+    {
+      "id": "RCR-005",
+      "severity": "P0",
+      "title": "datasource unavailable execution path missing",
+      "evidence": [
+        "contracts/openapi.yaml",
+        "src/query-executor/index.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "只读数据源或凭证不可用时无法按 AC-E012 收口，实际可能被误归类为 QUERY_EXECUTION_ERROR，影响 FR-008 的异常合同。",
+      "suggestedNextTaskId": "DATASOURCE-ADAPTER-ERROR-001"
+    },
+    {
+      "id": "RCR-006",
+      "severity": "P1",
+      "title": "object storage upload/publish failure error mapping partial",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/file-service/index.ts",
+        "tests/file/export-file-service.test.mjs"
+      ],
+      "risk": "文件依赖失败错误码与验收口径不一致，外部调用方会收到不同于产品要求的错误分类。",
+      "suggestedNextTaskId": "FILE-STORAGE-ERROR-MAPPING-001"
+    }
+  ],
+  "coverage": {
+    "requirements": [
+      { "id": "FR-001", "status": "covered" },
+      { "id": "FR-002", "status": "covered" },
+      { "id": "FR-003", "status": "covered" },
+      { "id": "FR-004", "status": "partially_covered" },
+      { "id": "FR-005", "status": "covered" },
+      { "id": "FR-006", "status": "covered" },
+      { "id": "FR-007", "status": "covered" },
+      { "id": "FR-008", "status": "partially_covered" },
+      { "id": "FR-009", "status": "partially_covered" },
+      { "id": "FR-010", "status": "gap" },
+      { "id": "FR-011", "status": "partially_covered" },
+      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-013", "status": "partially_covered" },
+      { "id": "FR-014", "status": "covered" }
+    ],
+    "acceptance": [
+      { "id": "AC-001", "status": "covered" },
+      { "id": "AC-002", "status": "covered" },
+      { "id": "AC-003", "status": "covered" },
+      { "id": "AC-004", "status": "gap" },
+      { "id": "AC-005", "status": "covered" },
+      { "id": "AC-006", "status": "covered" },
+      { "id": "AC-007", "status": "covered" },
+      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-009", "status": "covered" },
+      { "id": "AC-010", "status": "gap" },
+      { "id": "AC-011", "status": "partially_covered" },
+      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-013", "status": "covered" },
+      { "id": "AC-014", "status": "covered" },
+      { "id": "AC-015", "status": "covered" },
+      { "id": "AC-016", "status": "gap" },
+      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-018", "status": "covered" },
+      { "id": "AC-019", "status": "partially_covered" },
+      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-021", "status": "covered" }
+    ],
+    "exceptions": [
+      { "id": "AC-E001", "status": "covered" },
+      { "id": "AC-E002", "status": "covered" },
+      { "id": "AC-E003", "status": "covered" },
+      { "id": "AC-E004", "status": "gap" },
+      { "id": "AC-E005", "status": "partially_covered" },
+      { "id": "AC-E006", "status": "covered" },
+      { "id": "AC-E007", "status": "covered" },
+      { "id": "AC-E008", "status": "covered" },
+      { "id": "AC-E009", "status": "covered" },
+      { "id": "AC-E010", "status": "covered" },
+      { "id": "AC-E011", "status": "covered" },
+      { "id": "AC-E012", "status": "gap" },
+      { "id": "AC-E013", "status": "partially_covered" },
+      { "id": "AC-E014", "status": "covered" },
+      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E016", "status": "covered" },
+      { "id": "AC-E017", "status": "covered" },
+      { "id": "AC-E018", "status": "covered" },
+      { "id": "AC-E019", "status": "partially_covered" },
+      { "id": "AC-E020", "status": "gap" },
+      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E022", "status": "partially_covered" },
+      { "id": "AC-E023", "status": "partially_covered" },
+      { "id": "AC-E024", "status": "gap" },
+      { "id": "AC-E025", "status": "partially_covered" },
+      { "id": "AC-E026", "status": "partially_covered" },
+      { "id": "AC-E027", "status": "partially_covered" }
+    ]
+  },
+  "evidenceBoundary": {
+    "releaseId": "RELEASE-001",
+    "type": "docker/mock release gate",
+    "notes": [
+      "不得声明外部生产 MySQL 已验证",
+      "不得声明 live OSS/S3 已验证",
+      "当前 architecture constraints 中 live evidence 不是完成条件"
+    ]
+  },
+  "knowledgeReferences": [
+    {
+      "id": "DECISION-HARNESS-001",
+      "title": "release gate 与逐项异常验收分层",
+      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md",
+      "usedIn": "Review boundary",
+      "note": "release gate 与逐项异常验收必须分层"
+    },
+    {
+      "id": "GUIDELINE-RULES-001",
+      "title": "truth source、验证边界和 review 结论必须可追溯",
+      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md",
+      "usedIn": "Review boundary",
+      "note": "truth source、验证边界和 review 结论必须可追溯"
+    }
+  ],
+  "knowledgeOutputs": [
+    {
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常验收 review",
+      "action": "draft",
+      "draft": "release gate 通过不能替代逐项异常验收 review",
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md",
+      "pathOrTarget": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+    },
+    {
+      "id": "GUIDELINE-EVIDENCE-001",
+      "type": "guideline",
+      "title": "mock/local/docker/live evidence 分层命名",
+      "action": "draft",
+      "draft": "mock/local/docker/live evidence 分层命名",
+      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md",
+      "pathOrTarget": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
+    }
+  ]
+}
+
+
+ succeeded in 352ms:
+# Knowledge Item Catalog
+
+| ID | Type | Maturity | Title | Tags | Path |
+| --- | --- | --- | --- | --- | --- |
+| DECISION-HARNESS-001 | decision | draft | Harness 从执行闭环扩展为知识闭环 | harness, knowledge | `docs/knowledge/decisions/DECISION-HARNESS-001.md` |
+| GUIDELINE-RULES-001 | guideline | draft | 规则必须短入口、深文档、可验证 | rules, governance | `docs/knowledge/guidelines/GUIDELINE-RULES-001.md` |
+
+
+ succeeded in 364ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+
+ succeeded in 396ms:
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | contract | `AC-010` 要求审计 `result` 字段可稳定追踪；但 `contracts/openapi.yaml:1828-1830` 只允许 `SUCCESS/FAILED/ACCEPTED`，`src/task-api/service.ts:104-114`、`src/registry-config/service.ts:61-72` 写入 `FAILURE`；`src/registry-config/service.ts:218-223` 使用 `REGISTRY_LIST`，但契约枚举是 `REGISTRY_QUERY`。 | 新增 `AUDIT-CONTRACT-ALIGN-001`：统一 OpenAPI、审计写入和测试断言中的 action/result/errorCode；要么扩展契约，要么改实现，不能双轨。 | `npm run test:api; npm run test:worker; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `AC-004` 要求管理员按权限看全局；`src/task-api/service.ts:363-383` 对列表查询固定传入 `tenantId: auth.tenantId`；`tests/api/export-http-api.test.mjs:412-423` 还断言跨租户管理员看不到目标任务。 | 新增 `TASK-HISTORY-ADMIN-SCOPE-001`：实现或重新定义管理员全局可见性。如果产品只允许同租户全局，必须先回写 truth source。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | architecture_gap | backend | `AC-016` 要求已创建任务和失败重试沿用原配置快照；创建时只保存 `configSnapshotDigest`（`src/task-api/service.ts:320-331`），执行时读取当前 registry 并在 digest 不一致时失败（`src/query-executor/index.ts:87-96`），无法证明“沿用原完整快照”。 | 新增 `CONFIG-SNAPSHOT-REPLAY-001`：持久化可执行 registry/query/mapping/masking 快照，并让 worker/retry 使用任务快照执行；补配置变更后旧任务仍成功、冲突仍失败的测试。 | `npm run test:query; npm run test:worker; npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | missing_requirement | backend | `AC-E004`、`AC-E020` 要求批次短暂失败重试成功和重试耗尽；`src/scheduler/worker.ts:484-515` 捕获非租约错误后直接标记 `FAILED` 并写 `EXECUTE_FAILED`，`src/query-executor/index.ts:162-170` 仅回传当前 `retryCount`，没有 retry loop。 | 新增 `QUERY-BATCH-RETRY-001`：实现批次级 retry/backoff/retryCount 持久化，覆盖短暂失败后完成、重试耗尽后 `QUERY_EXECUTION_ERROR`。 | `npm run test:query; npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | HIGH | contract_gap | backend | `AC-E012` 和 OpenAPI 都定义 `DATASOURCE_UNAVAILABLE`（`contracts/openapi.yaml:249-256`），但 `src/query-executor/index.ts` 只有通用 `QUERY_EXECUTION_ERROR` 构造（`src/query-executor/index.ts:746-754`），缺少数据源/凭证不可用的可执行分支和测试证据。 | 新增 `DATASOURCE-ADAPTER-ERROR-001`：为 datasource adapter 增加不可用/凭证错误分类，worker 最终落 `DATASOURCE_UNAVAILABLE`，补 contract/query/worker 测试。 | `npm run test:query; npm run test:worker; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | contract_gap | backend | `AC-E005`、`AC-E026` 要求 OSS 上传/发布失败收口为 `FILE_VERIFY_ERROR`；`src/file-service/index.ts:78-105` 把 `putObject`/`publishObject` 失败映射为 `EXPORT_RENDER_ERROR`；现有文件测试只覆盖 checksum `FILE_VERIFY_ERROR`（`tests/file/export-file-service.test.mjs:480-497`）。 | 新增 `FILE-STORAGE-ERROR-MAPPING-001`：把对象存储写入/发布失败映射到产品要求的文件校验/发布错误口径，并补 put/publish 失败测试。 | `npm run test:file; npm run test:worker` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | contract | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 3 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | backend-worker | 3 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | no |
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\knowledge\\decisions\\DECISION-HARNESS-001.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\knowledge\\guidelines\\GUIDELINE-RULES-001.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"FAILURE|REGISTRY_LIST|CLEANUP_DELETE|DATASOURCE_UNAVAILABLE|QUERY_EXECUTION_ERROR|FILE_VERIFY_ERROR|EXPORT_RENDER_ERROR|configSnapshot|retryCount|backoff|listExportTasks|createdBy|tenantId\" src tests contracts docs\\product docs\\testing\\verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 347ms:
+---
+id: DECISION-HARNESS-001
+type: decision
+maturity: draft
+tags: [harness, knowledge]
+applicable_phases: [analysis, plan, implement, review, archive]
+source_references:
+  - docs/doc/Harness不是目的，知识才是护城河.md
+last_referenced:
+contributors:
+  - codex
+---
+
+# Harness 从执行闭环扩展为知识闭环
+
+## Context
+
+当前 harness 已经能通过 `task.json`、`codex-loop.ps1`、验证命令、Stage 1/2 review、trace 和 commit gate 建立执行闭环，但缺少知识复用与归档机制。
+
+## Decision
+
+将 `docs/knowledge/` 作为项目级知识层，并在 trace、任务模板和归档阶段中显式记录知识引用与知识产出。
+
+## Consequences
+
+正面影响：
+
+- 后续任务可以复用已验证经验，减少重复推导。
+- review finding 和失败经验能沉淀为可检索资产。
+- 规则升级可以基于 proven 知识，而不是单次偏好。
+
+代价：
+
+- 需要维护 catalog 和条目成熟度。
+- 需要在归档阶段控制噪音，避免把一次性结论误升为规则。
+
+## Evidence
+
+本条来自 `docs/doc/` 中对 Harness Engineering 和知识沉淀实践的分析，初始成熟度为 `draft`。
+
+
+ succeeded in 327ms:
+docs\testing\verify-matrix.md:33:| CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+docs\testing\verify-matrix.md:34:| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+docs\testing\verify-matrix.md:35:| DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+docs\testing\verify-matrix.md:36:| FILE-STORAGE-ERROR-MAPPING-001 | FR-003 / FR-006 / AC-E005 / AC-E026 | repaired | `npm run test:file` 覆盖 object storage put/publish 失败均映射为 `FILE_VERIFY_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + FILE_VERIFY_ERROR` | production-equivalent adapter + local/Docker MySQL；不声明 live OSS/S3 |
+docs\product\acceptance-criteria.md:12:| AC-004 | FR-004 | 可按 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 分页查询历史任务；普通用户仅看本人任务，管理员按权限看全局。测试文档若出现更细筛选项，必须回填到产品真相源或标记为假设。 | P0 |
+docs\product\acceptance-criteria.md:22:| AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+docs\product\acceptance-criteria.md:39:| AC-E005 | OSS 上传失败 | 任务置为 `FAILED`，错误码收口为 `FILE_VERIFY_ERROR`，并记录对象存储写入失败原因和临时对象定位或清理记录。 |
+docs\product\acceptance-criteria.md:46:| AC-E012 | 数据源不可用或凭证不可用 | 任务置为 `FAILED`，错误码为 `DATASOURCE_UNAVAILABLE`。 |
+docs\product\acceptance-criteria.md:47:| AC-E013 | 查询执行失败 | 按批次重试策略处理；最终失败时任务置为 `FAILED`，错误码为 `QUERY_EXECUTION_ERROR`。 |
+docs\product\acceptance-criteria.md:54:| AC-E020 | 查询批次重试耗尽 | 批次按策略重试后仍失败，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR` 并记录重试次数。 |
+docs\product\acceptance-criteria.md:57:| AC-E023 | 采购订单样板游标不稳定 | 查询结果缺失游标、重复游标或非递增游标时，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR`。 |
+docs\product\acceptance-criteria.md:60:| AC-E026 | 文件发布前校验失败 | 文件元信息缺失、校验值不匹配或临时对象发布失败时，不生成下载地址，任务置为 `FAILED`，错误码为 `FILE_VERIFY_ERROR`，并记录临时对象定位或清理记录。 |
+docs\product\acceptance-criteria.md:61:| AC-E027 | 文件渲染失败 | XLSX/ZIP 文件渲染失败时，任务置为 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。 |
+contracts\README.md:41:| 创建幂等 | `contracts/api/` | `clientRequestId`、成功响应 `idempotencyScope=tenantId+operatorId+taskCode+clientRequestId`、`requestDigest`、`IDEMPOTENCY_CONFLICT` |
+contracts\README.md:42:| 配置快照 | `contracts/api/`、`contracts/query/` | `configSnapshotDigest`、`datasourceCode`、`queryTemplateVersion`、`parameterSchemaDigest`、`fieldMappingDigest`、`maskingPolicyDigest` |
+contracts\README.md:45:| 批次检查点 | `contracts/scheduler/`、`contracts/query/` | `lastCursor`、`processedCount`、`filePartNo`、`attemptNo`、`retryCount`、`backoffMs` |
+contracts\README.md:46:| 认证上下文 | `contracts/api/`、`contracts/query/` | `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`，并叠加数据范围约束 |
+contracts\README.md:71:| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、成功响应 `idempotencyScope`、`requestDigest`、`configSnapshotDigest` |
+contracts\README.md:89:| `AUTH_CONTEXT_MISSING` | 401 | 缺少 `operatorId`、`tenantId`、`roleCodes`、`orgScope` 或 `requestId` |
+contracts\README.md:100:| `FILE_VERIFY_ERROR` | 500 | OSS 上传、元信息或校验失败 |
+contracts\README.md:102:| `DATASOURCE_UNAVAILABLE` | 500 | 数据源或凭证不可用 |
+contracts\README.md:103:| `QUERY_EXECUTION_ERROR` | 500 | 查询执行失败、批次重试耗尽或游标异常 |
+contracts\README.md:106:| `EXPORT_RENDER_ERROR` | 500 | XLSX/ZIP 渲染失败 |
+contracts\README.md:133:| `listExportTasks` | `GET /api/export/tasks` | FR-004 / FR-009 / FR-010 | `src/routes/export/tasks/list-export-tasks.handler.ts` | DB: task、file、audit；audit: `QUERY_HISTORY`；file: 只返回已发布文件元信息 | contract / api |
+contracts\README.md:154:4. API 契约、scheduler 契约、query 契约、file 契约、audit 契约和 sample 契约必须保持同一组术语，尤其是 `attemptNo`、`configSnapshotDigest`、`batchCheckpoint`、`storageKey`、`requestId`。
+docs\product\page-inventory.md:26:- 历史查询筛选维度限定为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；新增筛选项必须先回填 PRD 和验收标准。
+docs\product\page-inventory.md:30:- 认证上下文最小字段为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；缺少最小字段时不得继续创建、下载或配置操作。
+docs\product\page-inventory.md:32:- 创建任务的幂等范围为 `tenantId + operatorId + taskCode + clientRequestId`；参数摘要一致返回原任务，参数摘要不同返回 `IDEMPOTENCY_CONFLICT`。
+docs\product\page-inventory.md:37:- 查询执行必须来自任务快照和当前执行尝试，至少包含 `taskId`、`taskCode`、`subsystemCode`、`attemptNo`、`tenantId`、`operatorId`、`roleCodes`、`orgScope`、`requestId`、`dataScopeExpression`、参数摘要和批次游标。
+docs\product\page-inventory.md:65:- 创建证据：`clientRequestId`、`idempotencyScope`、`requestDigest`、`taskId`、`configSnapshotDigest`。
+docs\product\page-inventory.md:67:- 批次证据：`cursorField`、`lastCursor`、`processedCount`、`filePartNo`、`batchSize`、`batchRowCount`、`retryCount`、`backoffMs`。
+docs\product\state-matrix.yaml:44:  scope_fields: ["tenantId", "operatorId", "taskCode", "clientRequestId"]
+docs\product\state-matrix.yaml:60:          - "调用方提供 clientRequestId 时按 tenantId、operatorId、taskCode、clientRequestId 做幂等"
+docs\product\state-matrix.yaml:62:          - "记录 requestDigest 和 configSnapshotDigest"
+docs\product\state-matrix.yaml:189:          - "支持 taskCode、status、createdBy、createdAtRange、fileFormat、subsystemCode 筛选"
+docs\product\state-matrix.yaml:192:          - "权限判断依赖 operatorId、tenantId、roleCodes、orgScope、requestId"
+docs\product\state-matrix.yaml:219:          - "配置变更只影响新创建任务，已创建任务沿用 configSnapshotDigest"
+docs\product\state-matrix.yaml:274:          - "执行时叠加 tenantId、operatorId、roleCodes、orgScope 对应的数据范围约束"
+docs\product\state-matrix.yaml:286:        error_code: "DATASOURCE_UNAVAILABLE"
+docs\product\state-matrix.yaml:292:        error_code: "QUERY_EXECUTION_ERROR"
+docs\product\state-matrix.yaml:411:        error_code: "EXPORT_RENDER_ERROR"
+docs\product\state-matrix.yaml:472:          - "错误码收口为 MASKING_RULE_ERROR 或 QUERY_EXECUTION_ERROR"
+docs\product\difficulty-research.md:38:- 历史查询筛选维度先收敛为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`，避免测试层先行扩散。
+docs\product\difficulty-research.md:41:- 认证上下文最小字段锁定为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`，平台据此执行任务可见性、操作权限、下载权限和查询数据范围约束。
+docs\product\difficulty-research.md:70:| 数据源不可用或凭证不可用 | `FAILED` | `DATASOURCE_UNAVAILABLE` | 记录数据源编码和连接失败原因 |
+docs\product\difficulty-research.md:71:| 查询执行失败 | `FAILED` | `QUERY_EXECUTION_ERROR` | 可重试性由平台批次策略判断 |
+docs\product\difficulty-research.md:72:| 查询批次重试耗尽 | `FAILED` | `QUERY_EXECUTION_ERROR` | 记录重试次数和退避时间 |
+docs\product\difficulty-research.md:76:| 文件渲染失败 | `FAILED` | `EXPORT_RENDER_ERROR` | 记录渲染输入摘要和失败原因 |
+docs\product\difficulty-research.md:77:| OSS 上传失败 | `FAILED` | `FILE_VERIFY_ERROR` | 记录对象存储写入失败原因和临时对象定位或清理记录 |
+docs\product\difficulty-research.md:78:| 文件发布前校验失败 | `FAILED` | `FILE_VERIFY_ERROR` | 不生成下载地址 |
+docs\product\difficulty-research.md:79:| 采购订单游标缺失、重复或非递增 | `FAILED` | `QUERY_EXECUTION_ERROR` | 保留批次检查点和游标证据 |
+docs\product\difficulty-research.md:85:| 创建幂等范围 | `tenantId + operatorId + taskCode + clientRequestId` | 防止调用方超时重试造成重复任务 |
+docs\product\difficulty-research.md:91:| 查询批次重试 | 最多 3 次指数退避 | 重试耗尽后映射 `QUERY_EXECUTION_ERROR` |
+contracts\openapi.yaml:48:    listExportTasks:
+contracts\openapi.yaml:220:        clientRequestId is idempotent in scope tenantId + operatorId + taskCode + clientRequestId.
+contracts\openapi.yaml:253:        - DATASOURCE_UNAVAILABLE
+contracts\openapi.yaml:278:                      configSnapshotDigest: sha256:config-digest
+contracts\openapi.yaml:303:        DATASOURCE_UNAVAILABLE: 500
+contracts\openapi.yaml:311:      operationId: listExportTasks
+contracts\openapi.yaml:326:        - name: createdBy
+contracts\openapi.yaml:410:                      configSnapshotDigest: sha256:config-digest
+contracts\openapi.yaml:411:                      createdBy: u001
+contracts\openapi.yaml:503:        - FILE_VERIFY_ERROR
+contracts\openapi.yaml:504:        - EXPORT_RENDER_ERROR
+contracts\openapi.yaml:658:                  dataScopeTemplate: "tenant_id = :tenantId and org_id in (:orgScope)"
+contracts\openapi.yaml:1086:                code: FILE_VERIFY_ERROR
+contracts\openapi.yaml:1099:                code: DATASOURCE_UNAVAILABLE
+contracts\openapi.yaml:1112:                code: QUERY_EXECUTION_ERROR
+contracts\openapi.yaml:1161:                code: DATASOURCE_UNAVAILABLE
+contracts\openapi.yaml:1186:                code: EXPORT_RENDER_ERROR
+contracts\openapi.yaml:1230:        - FILE_VERIFY_ERROR
+contracts\openapi.yaml:1232:        - DATASOURCE_UNAVAILABLE
+contracts\openapi.yaml:1233:        - QUERY_EXECUTION_ERROR
+contracts\openapi.yaml:1236:        - EXPORT_RENDER_ERROR
+contracts\openapi.yaml:1293:          description: Optional idempotency key scoped by tenantId/operatorId/taskCode.
+contracts\openapi.yaml:1317:        - configSnapshotDigest
+contracts\openapi.yaml:1336:          description: Stable success-response evidence for the tenantId + operatorId + taskCode + clientRequestId idempotency scope.
+contracts\openapi.yaml:1339:        configSnapshotDigest:
+contracts\openapi.yaml:1368:        - configSnapshotDigest
+contracts\openapi.yaml:1369:        - createdBy
+contracts\openapi.yaml:1410:        configSnapshotDigest:
+contracts\openapi.yaml:1412:        createdBy:
+contracts\openapi.yaml:1552:        configSnapshotDigest:
+contracts\openapi.yaml:1631:          description: Data scope expression using tenantId, operatorId, roleCodes and orgScope.
+contracts\openapi.yaml:1676:            - configSnapshotDigest
+contracts\openapi.yaml:1683:            configSnapshotDigest:
+contracts\openapi.yaml:1763:        retryCount:
+contracts\openapi.yaml:1765:        backoffMs:
+docs\product\prd-lite.md:33:- 历史任务查询正式筛选维度为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；普通用户默认只能看本人任务，管理员可按权限查看全局。
+docs\product\prd-lite.md:36:- 统一认证上下文最小字段为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；平台按认证上下文执行任务可见性、操作权限、下载权限和查询数据范围约束，子系统只传上下文。
+docs\product\prd-lite.md:38:- 创建任务接口支持 `clientRequestId` 幂等键，幂等范围为 `tenantId + operatorId + taskCode + clientRequestId`。
+docs\product\prd-lite.md:45:- 查询执行必须叠加 `tenantId`、`operatorId`、`roleCodes`、`orgScope` 对应的数据范围约束。
+docs\product\prd-lite.md:105:- 平台执行查询时必须叠加 `tenantId`、`operatorId`、`roleCodes`、`orgScope` 对应的数据范围约束。
+docs\product\prd-lite.md:134:- 执行阶段失败统一映射到 `FAILED` 和明确错误码，例如 `QUERY_TEMPLATE_INVALID`、`DATASOURCE_UNAVAILABLE`、`QUERY_EXECUTION_ERROR`、`FIELD_MAPPING_INVALID`、`MASKING_RULE_ERROR`、`EXPORT_RENDER_ERROR`。
+docs\product\requirement-interface-matrix.md:31:- `FR-004` 历史查询的正式筛选维度为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；测试层如已先出现更细筛选项，应标记为分析阶段假设而不是既定事实。
+docs\product\requirement-interface-matrix.md:42:| FR-004 | `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` | 正式历史查询筛选维度 |
+docs\product\requirement-interface-matrix.md:45:| FR-009 | `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`、`dataScopeExpression` | 统一认证上下文和数据范围约束最小字段 |
+docs\product\requirement-interface-matrix.md:48:| FR-013 | `clientRequestId`、`idempotencyScope`、`requestDigest`、`configSnapshotDigest`、`attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt` | 用于证明幂等、防重复执行、配置快照和锁租约行为 |
+docs\product\requirement-interface-matrix.md:49:| FR-006/FR-013 | `cursorField`、`lastCursor`、`processedCount`、`filePartNo`、`batchSize`、`batchRowCount`、`retryCount`、`backoffMs` | 用于证明游标分页、锁接管、批次执行和查询重试证据 |
+docs\product\requirement-interface-matrix.md:59:| 数据源不可用或凭证不可用 | `FAILED` | `DATASOURCE_UNAVAILABLE` | AC-E012 |
+docs\product\requirement-interface-matrix.md:60:| 查询执行失败 | `FAILED` | `QUERY_EXECUTION_ERROR` | AC-E013 |
+docs\product\requirement-interface-matrix.md:61:| 查询批次重试耗尽 | `FAILED` | `QUERY_EXECUTION_ERROR` | AC-E020 |
+docs\product\requirement-interface-matrix.md:66:| 文件渲染失败 | `FAILED` | `EXPORT_RENDER_ERROR` | AC-E027 |
+docs\product\requirement-interface-matrix.md:67:| OSS 上传失败 | `FAILED` | `FILE_VERIFY_ERROR` | AC-E005 |
+docs\product\requirement-interface-matrix.md:68:| 文件发布前校验失败 | `FAILED` | `FILE_VERIFY_ERROR` | AC-E026 |
+docs\product\requirement-interface-matrix.md:69:| 采购订单游标缺失、重复或非递增 | `FAILED` | `QUERY_EXECUTION_ERROR` | AC-E023 |
+docs\product\requirement-interface-matrix.md:76:| GAP-002 | 统一认证上下文字段 | 最小字段锁定为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；联调只确认字段来源和透传方式 |
+tests\worker\scheduler-worker.test.mjs:105:    queryTemplate: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+tests\worker\scheduler-worker.test.mjs:108:    dataScopeTemplate: "tenant_id = :tenantId",
+tests\worker\scheduler-worker.test.mjs:112:    configSnapshotDigest: "sha256:config-v1",
+tests\worker\scheduler-worker.test.mjs:128:    tenantId: "tenant-001",
+tests\worker\scheduler-worker.test.mjs:129:    createdBy: "u001",
+tests\worker\scheduler-worker.test.mjs:134:    configSnapshotDigest: "sha256:config-v1",
+tests\worker\scheduler-worker.test.mjs:144:      tenantId: "tenant-001",
+tests\worker\scheduler-worker.test.mjs:159:      retryCount: 0,
+tests\worker\scheduler-worker.test.mjs:162:      backoffMs: 0
+tests\worker\scheduler-worker.test.mjs:248:          retryCount: 0,
+tests\worker\scheduler-worker.test.mjs:251:          backoffMs: 0
+tests\worker\scheduler-worker.test.mjs:320:        retryCount: 0,
+tests\worker\scheduler-worker.test.mjs:323:        backoffMs: 0
+tests\worker\scheduler-worker.test.mjs:347:        retryCount: 0,
+tests\worker\scheduler-worker.test.mjs:350:        backoffMs: 0
+tests\worker\scheduler-worker.test.mjs:579:        operatorId: task.createdBy,
+tests\worker\scheduler-worker.test.mjs:672:        error.name = "QUERY_EXECUTION_ERROR";
+tests\worker\scheduler-worker.test.mjs:680:          retryCount: 1,
+tests\worker\scheduler-worker.test.mjs:683:          backoffMs: 25
+tests\worker\scheduler-worker.test.mjs:709:  assert.equal(checkpointAfterFailure.backoff_ms, 25);
+tests\worker\scheduler-worker.test.mjs:714:serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+tests\worker\scheduler-worker.test.mjs:729:      error.name = "QUERY_EXECUTION_ERROR";
+tests\worker\scheduler-worker.test.mjs:750:  assert.equal(checkpoint.backoff_ms, 50);
+tests\worker\scheduler-worker.test.mjs:753:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests\worker\scheduler-worker.test.mjs:758:serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion", async (t) => {
+tests\worker\scheduler-worker.test.mjs:772:      error.name = "DATASOURCE_UNAVAILABLE";
+tests\worker\scheduler-worker.test.mjs:786:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests\db\export-repositories.test.mjs:134:    queryTemplate: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+tests\db\export-repositories.test.mjs:137:    dataScopeTemplate: "tenant_id = :tenantId",
+tests\db\export-repositories.test.mjs:141:    configSnapshotDigest: "sha256:config-v1",
+tests\db\export-repositories.test.mjs:152:    tenantId: "tenant-001",
+tests\db\export-repositories.test.mjs:153:    createdBy: "u001",
+tests\db\export-repositories.test.mjs:158:    configSnapshotDigest: "sha256:config-v1",
+tests\db\export-repositories.test.mjs:168:      tenantId: "tenant-001",
+tests\db\export-repositories.test.mjs:211:    retryCount: 0,
+tests\db\export-repositories.test.mjs:214:    backoffMs: 0,
+tests\db\export-repositories.test.mjs:276:  assert.equal(JSON.parse(task?.authContextPayload ?? "{}").tenantId, "tenant-001");
+tests\db\export-repositories.test.mjs:278:  assert.equal(registry?.configSnapshotDigest, "sha256:config-v1");
+tests\db\export-repositories.test.mjs:280:  assert.equal(registry?.queryTemplate, "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId");
+tests\db\export-repositories.test.mjs:281:  assert.equal(registry?.dataScopeTemplate, "tenant_id = :tenantId");
+tests\api\export-http-api.test.mjs:91:    "x-tenant-id": overrides.tenantId ?? "tenant-001",
+tests\api\export-http-api.test.mjs:121:      templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+tests\api\export-http-api.test.mjs:138:    dataScopeTemplate: "tenant_id = :tenantId",
+tests\api\export-http-api.test.mjs:324:  assert.equal(createTaskResponse.json().data.tenantId, "tenant-001");
+tests\api\export-http-api.test.mjs:325:  assert.equal(createTaskResponse.json().data.createdBy, "u001");
+tests\api\export-http-api.test.mjs:329:  assert.equal(createdTaskPayload.configSnapshot.taskCode, taskCode);
+tests\api\export-http-api.test.mjs:331:    createdTaskPayload.configSnapshot.configSnapshotDigest,
+tests\api\export-http-api.test.mjs:332:    createTaskResponse.json().data.configSnapshotDigest
+tests\api\export-http-api.test.mjs:378:    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}&createdBy=u001&fileFormat=XLSX&createdAtFrom=2026-05-01T00%3A00%3A00.000Z&createdAtTo=2099-01-01T00%3A00%3A00.000Z`,
+tests\api\export-http-api.test.mjs:385:    listResponse.json().data.items.find((item) => item.taskId === taskId).createdBy,
+tests\api\export-http-api.test.mjs:424:      tenantId: "tenant-002",
+tests\api\export-http-api.test.mjs:437:      tenantId: "tenant-002",
+tests\api\export-http-api.test.mjs:567:  assert.equal(corruptedStreamDownloadResponse.json().code, "FILE_VERIFY_ERROR");
+tests\sample\purchase-order-sample.test.mjs:159:    tenantId: "tenant-001",
+tests\sample\purchase-order-sample.test.mjs:169:    tenantId: "tenant-001",
+tests\sample\purchase-order-sample.test.mjs:205:    dataScopeTemplate: "tenantId = :tenantId and orgId in (:orgScope)",
+tests\sample\purchase-order-sample.test.mjs:564:  assert.equal(checkpoint?.retryCount, 0);
+tests\query\query-executor.test.mjs:136:          "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, order_no AS orderNo, order_status AS orderStatus, supplier_id AS supplierId, purchase_org_id AS purchaseOrgId, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
+tests\query\query-executor.test.mjs:189:      "tenantId = :tenantId and orgId in (:orgScope)",
+tests\query\query-executor.test.mjs:193:    configSnapshotDigest: overrides.configSnapshotDigest ?? "sha256:config-v1",
+tests\query\query-executor.test.mjs:209:    tenantId: input.tenantId ?? "tenant-001",
+tests\query\query-executor.test.mjs:210:    createdBy: input.createdBy ?? "u001",
+tests\query\query-executor.test.mjs:215:    configSnapshotDigest: input.configSnapshotDigest ?? "sha256:config-v1",
+tests\query\query-executor.test.mjs:230:        operatorId: input.createdBy ?? "u001",
+tests\query\query-executor.test.mjs:231:        tenantId: input.tenantId ?? "tenant-001",
+tests\query\query-executor.test.mjs:387:      retryCount: 0,
+tests\query\query-executor.test.mjs:390:      backoffMs: 0
+tests\query\query-executor.test.mjs:425:      configSnapshot: snapshot
+tests\query\query-executor.test.mjs:433:    configSnapshotDigest: "sha256:config-v2",
+tests\query\query-executor.test.mjs:475:  assert.equal(result.registry.configSnapshotDigest, "sha256:config-v1");
+tests\query\query-executor.test.mjs:515:      retryCount: 0,
+tests\query\query-executor.test.mjs:518:      backoffMs: 0
+tests\query\query-executor.test.mjs:537:      templateText: "DELETE FROM purchase_orders WHERE tenant_id = :tenantId",
+tests\query\query-executor.test.mjs:547:      templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId AND hack = :unknownParam",
+tests\query\query-executor.test.mjs:731:test("query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE", () => {
+tests\query\query-executor.test.mjs:734:    "DATASOURCE_UNAVAILABLE"
+tests\query\query-executor.test.mjs:738:    "DATASOURCE_UNAVAILABLE"
+tests\query\query-executor.test.mjs:742:    "QUERY_EXECUTION_ERROR"
+src\registry-config\service.ts:115:    configSnapshotDigest: registry.configSnapshotDigest,
+src\registry-config\service.ts:149:    const configSnapshotDigest = digest({
+src\registry-config\service.ts:181:      configSnapshotDigest,
+src\query-executor\index.ts:45:  tenantId?: string;
+src\query-executor\index.ts:53:  configSnapshot?: ExportRegistryRecord;
+src\query-executor\index.ts:99:    if (registry.configSnapshotDigest !== context.task.configSnapshotDigest) {
+src\query-executor\index.ts:167:      retryCount: context.checkpoint?.retryCount ?? 0,
+src\query-executor\index.ts:170:      backoffMs: 0
+src\query-executor\index.ts:193:      queryTemplateVersion: template.queryTemplateVersion ?? context.task.configSnapshotDigest,
+src\query-executor\index.ts:208:      queryTemplateVersion: template.queryTemplateVersion ?? context.task.configSnapshotDigest,
+src\query-executor\index.ts:227:    requestSnapshot.configSnapshot &&
+src\query-executor\index.ts:228:    requestSnapshot.configSnapshot.configSnapshotDigest === context.task.configSnapshotDigest
+src\query-executor\index.ts:230:    return requestSnapshot.configSnapshot;
+src\query-executor\index.ts:309:    if (!allowed.has(placeholder) && !["tenantId", "orgScope"].includes(placeholder)) {
+src\query-executor\index.ts:351:function buildDataScope(auth: AuthSnapshot): { tenantId: string; orgScope: string[] } {
+src\query-executor\index.ts:352:  const tenantId = requireText(auth.tenantId, "PERMISSION_DENIED");
+src\query-executor\index.ts:362:  return { tenantId, orgScope };
+src\query-executor\index.ts:369:  scope: { tenantId: string; orgScope: string[] };
+src\query-executor\index.ts:382:      if (name === "tenantId") {
+src\query-executor\index.ts:383:        values.push(input.scope.tenantId);
+src\query-executor\index.ts:392:  const dataScopeSql = `tenantId = ? AND orgId IN (${parameterList(input.scope.orgScope.length)})`;
+src\query-executor\index.ts:393:  values.push(input.scope.tenantId, ...input.scope.orgScope);
+src\query-executor\index.ts:428:  scope: { tenantId: string; orgScope: string[] };
+src\query-executor\index.ts:476:      "QUERY_EXECUTION_ERROR",
+src\query-executor\index.ts:773:  return queryError("QUERY_EXECUTION_ERROR", message);
+src\query-executor\index.ts:793:      "DATASOURCE_UNAVAILABLE",
+tests\mock-local\mock-integration-flow.test.mjs:22:        queryParams: { tenantId: "tenant-a", keyword: "月结" },
+tests\mock-local\mock-integration-flow.test.mjs:23:        createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:24:        tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:27:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:32:    assert.equal(created.configSnapshot.taskCode, "EXPORT_TASKS");
+tests\mock-local\mock-integration-flow.test.mjs:41:        queryParams: { tenantId: "tenant-a", keyword: "月结" },
+tests\mock-local\mock-integration-flow.test.mjs:42:        createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:43:        tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:46:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:56:            queryParams: { tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:57:            createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:58:            tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:61:          { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:72:            createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:73:            tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:76:          { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:88:        queryParams: { tenantId: "tenant-b", keyword: "跨租户" },
+tests\mock-local\mock-integration-flow.test.mjs:89:        createdBy: "operator-bob",
+tests\mock-local\mock-integration-flow.test.mjs:90:        tenantId: "tenant-b",
+tests\mock-local\mock-integration-flow.test.mjs:93:      { requestId, operatorId: "operator-bob", tenantId: "tenant-b", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:104:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_VIEW"] }
+tests\mock-local\mock-integration-flow.test.mjs:112:    assert.equal(detail.dataScopeExpression, "tenant_id = :tenantId");
+tests\mock-local\mock-integration-flow.test.mjs:119:        tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:130:        tenantId: "tenant-admin",
+tests\mock-local\mock-integration-flow.test.mjs:145:          { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_VIEW"] }
+tests\mock-local\mock-integration-flow.test.mjs:155:      { requestId, workerId: "worker-1", tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:166:      { requestId, workerId: "worker-1", tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:186:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CANCEL"] }
+tests\mock-local\mock-integration-flow.test.mjs:198:        queryParams: { tenantId: "tenant-a", keyword: "retry" },
+tests\mock-local\mock-integration-flow.test.mjs:199:        createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:200:        tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:203:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:207:      errorCode: "QUERY_EXECUTION_ERROR",
+tests\mock-local\mock-integration-flow.test.mjs:214:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_RETRY"] }
+tests\mock-local\mock-integration-flow.test.mjs:218:    assert.equal(retried.configSnapshot.version, failedTask.configSnapshot.version);
+tests\mock-local\mock-integration-flow.test.mjs:223:          { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_RETRY"] }
+tests\mock-local\mock-integration-flow.test.mjs:232:        queryParams: { tenantId: "tenant-a", keyword: "takeover" },
+tests\mock-local\mock-integration-flow.test.mjs:233:        createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:234:        tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:237:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_CREATE"] }
+tests\mock-local\mock-integration-flow.test.mjs:241:      { requestId, workerId: "worker-1", tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:248:      { requestId, workerId: "worker-2", tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:266:        dataScope: "tenant_id = :tenantId"
+tests\mock-local\mock-integration-flow.test.mjs:288:        dataScope: "tenant_id = :tenantId"
+tests\mock-local\mock-integration-flow.test.mjs:306:            dataScope: "tenant_id = :tenantId"
+tests\mock-local\mock-integration-flow.test.mjs:334:      { requestId, operatorId: "operator-alice", tenantId: "tenant-a", roleCodes: ["EXPORT_DOWNLOAD"] }
+tests\mock-local\mock-integration-flow.test.mjs:347:          { requestId, operatorId: "operator-bob", tenantId: "tenant-b", roleCodes: ["EXPORT_DOWNLOAD"] }
+tests\mock-local\mock-integration-flow.test.mjs:403:            createdBy: "operator-alice",
+tests\mock-local\mock-integration-flow.test.mjs:404:            tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:410:            tenantId: "tenant-a",
+tests\mock-local\mock-integration-flow.test.mjs:442:        dataScopeExpression: "tenant_id = :tenantId",
+tests\mock-local\mock-integration-flow.test.mjs:463:        dataScopeExpression: "tenant_id = :tenantId",
+tests\mock-local\mock-integration-flow.test.mjs:477:        dataScopeExpression: "tenant_id = :tenantId",
+tests\mock-local\mock-integration-flow.test.mjs:528:      const idempotencyKey = `${actor.operatorId}|${actor.tenantId}|${input.taskCode}|${input.clientRequestId}`;
+tests\mock-local\mock-integration-flow.test.mjs:532:        tenantId: input.tenantId
+tests\mock-local\mock-integration-flow.test.mjs:556:        createdBy: input.createdBy,
+tests\mock-local\mock-integration-flow.test.mjs:557:        tenantId: input.tenantId,
+tests\mock-local\mock-integration-flow.test.mjs:563:        configSnapshot: {
+tests\mock-local\mock-integration-flow.test.mjs:586:        tenantId: input.tenantId,
+tests\mock-local\mock-integration-flow.test.mjs:643:        if (filters.createdBy && task.createdBy !== filters.createdBy) {
+tests\mock-local\mock-integration-flow.test.mjs:662:      return task.tenantId === actor.tenantId && task.createdBy === actor.operatorId;
+tests\mock-local\mock-integration-flow.test.mjs:818:        configSnapshotVersion: task.configSnapshot.version
+tests\mock-local\mock-integration-flow.test.mjs:826:        configSnapshot: clone(task.configSnapshot)
+tests\mock-local\mock-integration-flow.test.mjs:897:        createdBy: task.createdBy,
+tests\mock-local\mock-integration-flow.test.mjs:898:        tenantId: task.tenantId
+tests\mock-local\mock-integration-flow.test.mjs:1041:    template.dataScope === "tenant_id = :tenantId";
+src\repositories\export-task.repository.ts:8:  tenantId: string;
+src\repositories\export-task.repository.ts:9:  createdBy: string;
+src\repositories\export-task.repository.ts:14:  configSnapshotDigest: string;
+src\repositories\export-task.repository.ts:24:  tenantId: string;
+src\repositories\export-task.repository.ts:25:  createdBy: string;
+src\repositories\export-task.repository.ts:31:  configSnapshotDigest: string;
+src\repositories\export-task.repository.ts:73:    tenantId: row.tenant_id,
+src\repositories\export-task.repository.ts:74:    createdBy: row.created_by,
+src\repositories\export-task.repository.ts:80:    configSnapshotDigest: row.config_snapshot_digest,
+src\repositories\export-task.repository.ts:102:            tenant_id: input.tenantId,
+src\repositories\export-task.repository.ts:103:            created_by: input.createdBy,
+src\repositories\export-task.repository.ts:109:            config_snapshot_digest: input.configSnapshotDigest,
+src\repositories\export-task.repository.ts:155:      tenantId?: string;
+src\repositories\export-task.repository.ts:156:      createdBy?: string;
+src\repositories\export-task.repository.ts:174:      if (filters.tenantId) {
+src\repositories\export-task.repository.ts:175:        query = query.where("tenant_id", "=", filters.tenantId);
+src\repositories\export-task.repository.ts:177:      if (filters.createdBy) {
+src\repositories\export-task.repository.ts:178:        query = query.where("created_by", "=", filters.createdBy);
+src\cleanup-job\index.ts:120:              : "FILE_CLEANUP_DELETE_ERROR",
+src\cleanup-job\index.ts:157:        error.name = "FILE_CLEANUP_DELETE_ERROR";
+src\sample-purchase-order\index.ts:28:    "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, order_no AS orderNo, order_status AS orderStatus, supplier_name AS supplierName, purchase_org_name AS purchaseOrgName, purchaser_name AS purchaserName, created_at AS createdAt, total_amount AS totalAmount, currency_code AS currency, contact_name AS contactName, contact_phone AS contactPhone FROM purchase_orders_view WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR (order_no LIKE :keyword OR supplier_name LIKE :keyword OR contact_name LIKE :keyword))",
+src\audit-log\auth-context.ts:5:  tenantId: string;
+src\audit-log\auth-context.ts:48:  const tenantId = readHeader(request, "x-tenant-id");
+src\audit-log\auth-context.ts:53:  if (!operatorId || !tenantId || !roleCodes || !orgScope || !requestId) {
+src\audit-log\auth-context.ts:59:    tenantId,
+src\repositories\export-registry.repository.ts:24:  configSnapshotDigest: string;
+src\repositories\export-registry.repository.ts:51:  configSnapshotDigest: string;
+src\repositories\export-registry.repository.ts:100:    configSnapshotDigest: row.config_snapshot_digest,
+src\repositories\export-registry.repository.ts:132:            config_snapshot_digest: input.configSnapshotDigest,
+src\repositories\export-registry.repository.ts:155:            config_snapshot_digest: input.configSnapshotDigest,
+src\repositories\export-registry.repository.ts:164:            config_snapshot_digest: input.configSnapshotDigest,
+src\repositories\export-checkpoint.repository.ts:10:  retryCount: number;
+src\repositories\export-checkpoint.repository.ts:13:  backoffMs: number | null;
+src\repositories\export-checkpoint.repository.ts:28:  backoff_ms: number | null;
+src\repositories\export-checkpoint.repository.ts:36:    retryCount: row.retry_count,
+src\repositories\export-checkpoint.repository.ts:39:    backoffMs: row.backoff_ms
+src\repositories\export-checkpoint.repository.ts:54:          retry_count: input.retryCount,
+src\repositories\export-checkpoint.repository.ts:57:          backoff_ms: input.backoffMs,
+src\repositories\export-checkpoint.repository.ts:65:          retry_count: input.retryCount,
+src\repositories\export-checkpoint.repository.ts:68:          backoff_ms: input.backoffMs,
+src\file-service\index.ts:85:        throw fileError("FILE_VERIFY_ERROR", `object storage put failed: ${response.status}`);
+src\file-service\index.ts:91:        throw fileError("FILE_VERIFY_ERROR", `object storage read failed: ${response.status}`);
+src\file-service\index.ts:103:        throw fileError("FILE_VERIFY_ERROR", `object storage publish failed: ${response.status}`);
+src\file-service\index.ts:124:      throw fileError("EXPORT_RENDER_ERROR", "row count exceeds registry exportMaxRows");
+src\file-service\index.ts:184:      throw fileError("FILE_VERIFY_ERROR", "file checksum verification failed");
+src\file-service\index.ts:279:    queryTemplateVersion: input.input.registry.configSnapshotDigest,
+src\file-service\index.ts:413:  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+src\file-service\index.ts:417:    "FILE_VERIFY_ERROR",
+src\db\schema.ts:86:  backoff_ms: number | null;
+tests\file\export-file-service.test.mjs:141:    dataScopeTemplate: "tenantId = :tenantId",
+tests\file\export-file-service.test.mjs:145:    configSnapshotDigest: "sha256:config-v1",
+tests\file\export-file-service.test.mjs:156:    tenantId: "tenant-001",
+tests\file\export-file-service.test.mjs:157:    createdBy: "u001",
+tests\file\export-file-service.test.mjs:162:    configSnapshotDigest: "sha256:config-v1",
+tests\file\export-file-service.test.mjs:166:      tenantId: "tenant-001",
+tests\file\export-file-service.test.mjs:502:    /FILE_VERIFY_ERROR/
+tests\file\export-file-service.test.mjs:510:test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata", async (t) => {
+tests\file\export-file-service.test.mjs:529:    (error) => error.name === "FILE_VERIFY_ERROR"
+tests\file\export-file-service.test.mjs:538:test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed", async (t) => {
+tests\file\export-file-service.test.mjs:557:    (error) => error.name === "FILE_VERIFY_ERROR"
+tests\file\export-file-service.test.mjs:586:        retryCount: 0,
+tests\file\export-file-service.test.mjs:589:        backoffMs: 0
+tests\file\export-file-service.test.mjs:611:test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+tests\file\export-file-service.test.mjs:632:        retryCount: 0,
+tests\file\export-file-service.test.mjs:635:        backoffMs: 0
+tests\file\export-file-service.test.mjs:653:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+src\scheduler\worker.ts:22:  retryCount: number;
+src\scheduler\worker.ts:25:  backoffMs: number | null;
+src\scheduler\worker.ts:104:    tenantId: row.tenant_id,
+src\scheduler\worker.ts:105:    createdBy: row.created_by,
+src\scheduler\worker.ts:111:    configSnapshotDigest: row.config_snapshot_digest,
+src\scheduler\worker.ts:413:        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+src\scheduler\worker.ts:415:        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+src\scheduler\worker.ts:416:        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+src\scheduler\worker.ts:424:          retryCount,
+src\scheduler\worker.ts:427:          backoffMs,
+src\scheduler\worker.ts:557:      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+src\scheduler\worker.ts:736:    operatorId: input.task.createdBy,
+src\scheduler\worker.ts:759:    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+src\scheduler\worker.ts:763:function calculateBackoffMs(baseMs: number, retryCount: number): number {
+src\scheduler\worker.ts:765:  return normalizedBase * 2 ** Math.max(0, retryCount - 1);
+src\task-api\service.ts:68:    tenantId: task.tenantId,
+src\task-api\service.ts:69:    createdBy: task.createdBy,
+src\task-api\service.ts:75:    configSnapshotDigest: task.configSnapshotDigest,
+src\task-api\service.ts:142:  if (task.tenantId === auth.tenantId && (isExportAdmin(auth) || task.createdBy === auth.operatorId)) {
+src\task-api\service.ts:193:  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+src\task-api\service.ts:194:    return new ApiError(502, "EXPORT_RENDER_ERROR", error.message);
+src\task-api\service.ts:197:  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+src\task-api\service.ts:198:    return new ApiError(500, "FILE_VERIFY_ERROR", error.message, {
+src\task-api\service.ts:203:  return new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+src\task-api\service.ts:211:    throw new ApiError(500, "FILE_VERIFY_ERROR", "streamed file verification failed", {
+src\task-api\service.ts:281:      ? `${auth.tenantId}:${auth.operatorId}:${body.taskCode}:${body.clientRequestId}`
+src\task-api\service.ts:324:      tenantId: auth.tenantId,
+src\task-api\service.ts:325:      createdBy: auth.operatorId,
+src\task-api\service.ts:330:      configSnapshotDigest: registry.configSnapshotDigest,
+src\task-api\service.ts:334:        configSnapshot: {
+src\task-api\service.ts:354:          configSnapshotDigest: registry.configSnapshotDigest
+src\task-api\service.ts:359:        tenantId: auth.tenantId,
+src\task-api\service.ts:385:export async function listExportTasks(auth: AuthContext, query: Record<string, unknown>) {
+src\task-api\service.ts:390:    const createdBy = isExportAdmin(auth)
+src\task-api\service.ts:391:      ? typeof query.createdBy === "string"
+src\task-api\service.ts:392:        ? query.createdBy
+src\task-api\service.ts:399:      tenantId: isExportAdmin(auth) ? undefined : auth.tenantId,
+src\task-api\service.ts:400:      createdBy,
+src\task-api\service.ts:559:        error: new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+src\routes\route-manifest.ts:11:import { handler as listExportTasks } from "./export/tasks/list-export-tasks.handler.ts";
+src\routes\route-manifest.ts:37:    operationId: "listExportTasks",
+src\routes\route-manifest.ts:41:    handler: listExportTasks,
+src\routes\registry.ts:12:import { listExportTasksRoute } from "./export/tasks/list-export-tasks.route.ts";
+src\routes\registry.ts:19:  listExportTasksRoute,
+src\routes\export\tasks\list-export-tasks.handler.ts:2:import { listExportTasks } from "../../../task-api/service.ts";
+src\routes\export\tasks\list-export-tasks.handler.ts:9:    const data = await listExportTasks(auth, context.request.query as Record<string, unknown>);
+src\routes\export\tasks\list-export-tasks.route.ts:4:export const listExportTasksRoute: RouteDefinition = {
+src\routes\export\tasks\list-export-tasks.route.ts:5:  operationId: "listExportTasks",
+src\routes\export\tasks\list-export-tasks.route.ts:8:  handler: createNotImplementedHandler("listExportTasks")
+
+ succeeded in 350ms:
+---
+id: GUIDELINE-RULES-001
+type: guideline
+maturity: draft
+tags: [rules, governance, context]
+applicable_phases: [analysis, plan, implement, review]
+source_references:
+  - docs/doc/1.md
+last_referenced:
+contributors:
+  - codex
+---
+
+# 规则必须短入口、深文档、可验证
+
+## Context
+
+根规则过长会消耗指令预算，孤立深文档又容易不被发现。当前仓库已经有 `AGENTS.md`、`docs/harness/*`、`.agents/rules/*` 和 `.codex/prompts/*` 多层规则面，需要明确分层。
+
+## Guidance
+
+- `AGENTS.md` 只保留每次会话必须遵守的硬约束和深文档索引。
+- 复杂流程写入 `docs/harness/*` 或 `.agents/rules/*`。
+- 执行时必须注入的行为写入 `.codex/prompts/*`。
+- 禁令必须包含替代方案。
+- 能自动检查的规则应进入脚本、schema 或 hook，而不是只靠文字约束。
+
+## Evidence
+
+本条来自 `docs/doc/1.md` 的规则工程分析，初始成熟度为 `draft`。
+
+
+codex
+源码和测试里已经出现了六个缺口对应的修复痕迹，例如 `FILE_VERIFY_ERROR` 映射、批次 retry、`DATASOURCE_UNAVAILABLE` 分支和管理员列表范围。下一步我会跑定向测试确认这些证据是否 fresh；如果有失败，再按失败点做补丁。
+  ✓ 确认 truth source、知识引用和六个 findings 范围
+  → 运行定向验证暴露当前缺口
+  • 按失败点补测试与实现
+  • 运行任务指定完整验证并检查 diff
+  • 整理最终证据和剩余风险
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:contract' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:mock-local' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 858ms:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.4183ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (2.0306ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.6186ms)
+✔ audit action and result literals written by production code stay within OpenAPI public enums (1.4013ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 70.7321
+
+ succeeded in 2847ms:
+
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ docker test data task is queued after release with executable guardrails (0.8561ms)
+✔ docker local test command wires environment setup, seed and validation (0.4714ms)
+✔ verify matrix records docker test data evidence without promoting live validation (0.2085ms)
+✔ local demo entrypoint provisions local dependencies and starts the HTTP service (0.7951ms)
+✔ local demo setup runs migrations and seeds purchase-order demo data (0.2043ms)
+✔ local demo setup rejects local tunnels to non-demo databases before connecting (481.3553ms)
+✔ local demo does not silently seed an inherited external database URL (0.5782ms)
+✔ local demo runbook is explicit about local-only dependencies and API examples (0.3625ms)
+✔ local release rehearsal is declared as mock/local evidence without releasing RELEASE-001 (0.9026ms)
+✔ local release rehearsal script documents local-only preflight and command coverage (0.2885ms)
+✔ local release rehearsal does not auto-enable live object storage smoke writes (0.2204ms)
+✔ release verify self-provisions docker MySQL and local object storage smoke (0.0972ms)
+✔ local release rehearsal can load untracked env files for local MySQL credentials (0.2078ms)
+✔ local release rehearsal evidence is recorded separately from release evidence (0.084ms)
+✔ local release rehearsal result records API DB worker query file and sample coverage without promoting release (0.1195ms)
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.5203ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (0.9678ms)
+✔ mock integration acceptance archives executed local/dev evidence without release promotion (0.5537ms)
+✔ release task uses the local docker mock release gate (0.1859ms)
+▶ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only
+  ✔ registry and create task flow stay in local/dev evidence, not release evidence (1.0998ms)
+  ✔ progress, detail and data scope stay visible only to the right actor (0.3022ms)
+  ✔ worker lease, checkpoint, retry and cancel boundaries stay local (1.1293ms)
+  ✔ query chunking, file publish/download and cleanup invalidation stay in local/dev evidence (0.4833ms)
+  ✔ purchase order sample boundaries and blocked release env remain local/dev evidence (0.2242ms)
+✔ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only (4.2144ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (39.295ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.4256ms)
+✔ test practice matrix task owns the drift guard (0.5874ms)
+✔ each critical test script has a task owner and documented evidence boundary (0.6141ms)
+✔ release gate keeps docker mock evidence separate from external live validation (0.1091ms)
+✔ release gate pins the current OpenAPI lint command (0.0584ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2183.2693
+
+codex
+`test:contract` 和 `test:mock-local` 都已通过，说明公开契约守护和 mock/local evidence 分层目前是绿的。现在运行 `test:docker-local`，它会自举/复用本机 Docker MySQL 和本地对象存储 mock，作为本任务的核心 fresh evidence。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:docker-local' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 156406ms:
+
+> export-platform-service@0.1.0 test:docker-local
+> powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\docker-test-env.ps1 -RunValidation
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:60983 bucket=export-platform-docker-test
+Running: npm run arch:check
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+Running: npm run typecheck
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+Running: npm run test:api
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6872ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (593.346ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1239.0721
+Running: npm run test:db
+
+> export-platform-service@0.1.0 test:db
+> node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs
+
+✔ DB tests require an explicit test database URL (0.6545ms)
+✔ migration exposes durable evidence tables for FR-001/005/007/010/013 (51.4386ms)
+✔ repositories persist registry, task idempotency, lease, checkpoint, file and audit evidence (152.3728ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 675.1532
+Running: npm run test:worker
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8491ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (282.9354ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (264.8385ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (296.9789ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (195.5407ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (236.6385ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (218.0319ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (193.167ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (257.7294ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (267.1962ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (225.0279ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (166.8389ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (156.6113ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (161.5652ms)
+✔ worker integration tests (2925.3245ms)
+ℹ tests 14
+ℹ suites 1
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3442.4781
+Running: npm run test:query
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (1.1264ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (235.4622ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (185.4861ms)
+✔ query executor replays the task config snapshot after the current registry changes (165.9073ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (151.0326ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (174.3784ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (90.9803ms)
+✔ query executor rejects field mappings that do not match selected columns (113.4009ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (115.0879ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.4665ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1773.4813
+Running: npm run test:file
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (0.9491ms)
+✔ production object storage config is required outside injected test adapters (0.2047ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (250.1105ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (205.8016ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (134.1347ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (96.0807ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (115.9205ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (234.5161ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (240.0885ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (236.5347ms)
+✔ cleanup job deletes only published object when temp storage key is null (238.0213ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (236.915ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2570.2988
+Running: npm run test:sample
+
+> export-platform-service@0.1.0 test:sample
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs
+
+▶ sample purchase-order integration tests
+  ✔ sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent (0.7013ms)
+  ✔ sample purchase-order registry contract is registered through the public registry service (237.2662ms)
+  ✔ sample boundary 0 rows completes through the public create and worker chain (408.8958ms)
+  ✔ sample boundary 1 row keeps final file masked and records create/query/file/audit/download evidence (459.2785ms)
+  ✔ sample boundary 20000 rows completes with a single-file package (7474.5104ms)
+  ✔ sample boundary 20001 rows packages ZIP evidence without losing rows (7375.109ms)
+  ✔ sample boundary 100000 rows stays on the default batch path and publishes every row (70698.2254ms)
+  ✔ sample boundary 100001 rows must be rejected under the default export limit (43360.5305ms)
+  ✔ sample masking failure leaves the task failed and does not publish a file (326.9225ms)
+✔ sample purchase-order integration tests (130342.569ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 130873.12
+Running: npm run test:object-storage-live
+
+> export-platform-service@0.1.0 test:object-storage-live
+> node --import tsx scripts/object-storage-live-smoke.mjs
+
+Live object storage smoke passed.
+
+codex
+Docker/local 验证已完整通过，覆盖 API、DB、worker、query、file、sample 和对象存储 smoke；其中 worker/query/file 输出已经直接命中六个 repair finding。最后做指定路径的 `git diff --check`，确认没有空白或格式问题。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 400ms:
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 449ms:
+?? traces/REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3/
+
+当前 checkout 已包含六个 repair finding 的实现和测试，验证全绿；没有需要额外落盘的 tracked patch。
+  ✓ 确认 truth source、知识引用和六个 findings 范围
+  ✓ 运行定向验证暴露当前缺口
+  ✓ 按失败点补测试与实现
+  ✓ 运行任务指定完整验证并检查 diff
+  → 整理最终证据和剩余风险
+codex
+## Requirement IDs
+- FR-004, FR-008, FR-009, FR-010, FR-011, FR-013
+- AC-004, AC-010, AC-011, AC-016, AC-019
+- AC-E004, AC-E005, AC-E012, AC-E013, AC-E020, AC-E024, AC-E026, AC-E027
+
+## Summary
+- 当前 checkout 已包含六个 repair finding 的实现与测试证据；本轮未产生新的 tracked patch。
+- 已用 fresh validation 确认：审计契约、管理员全局历史、配置快照重放、批次 retry、`DATASOURCE_UNAVAILABLE`、文件存储错误映射均通过验证。
+- 未执行 commit：Driver 模板明确禁止 `git add/git commit`，且当前没有 tracked diff。
+
+## Files Changed
+- 无 tracked files changed。
+- `git status --short`: 仅有未跟踪 runtime trace 目录 `traces/REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3/`，本轮未修改。
+
+## Validation
+- `npm run test:contract`: PASS - 4/4 passed
+- `npm run test:mock-local`: PASS - 31/31 passed
+- `npm run test:docker-local`: PASS - arch/typecheck/API/DB/worker/query/file/sample/object-storage smoke 全部通过
+- `git diff --check -- ...`: PASS - 无输出
+
+## Evidence
+- `tests/contract/*.test.mjs`: 审计 action/result 公开枚举守护。
+- `tests/api/export-http-api.test.mjs`: API 创建、历史查询和权限链路。
+- `tests/query/query-executor.test.mjs`: 配置快照重放、datasource adapter 错误分类。
+- `tests/worker/scheduler-worker.test.mjs`: 批次 retry/backoff/retryCount、耗尽失败、`DATASOURCE_UNAVAILABLE` 收口。
+- `tests/file/export-file-service.test.mjs`: put/publish 失败映射 `FILE_VERIFY_ERROR`，不发布可下载元信息。
+- `docs/testing/verify-matrix.md`: 六个 repair finding 的 fresh evidence 边界记录。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run test:docker-local` 覆盖 HTTP、worker、job、DB、file/query 生产边界。
+- `no InMemory/mock as production`: PASS - Docker/local MySQL + 本地 object storage mock 明确为受控 evidence，不声明 live evidence。
+- `feature_impl verification`: PASS - 已运行任务指定验证命令。
+- `forbidden git/task mutation`: PASS - 未修改 `task.json`、`progress.txt`、`traces/`、未执行提交。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in validation reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in boundary compliance - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none: 未发现需要新增归档的可复用经验。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL 与 live OSS/S3 不属于本任务完成条件；本轮证据是 docker/mock/local evidence。
+tokens used
+89,883

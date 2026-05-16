@@ -1,0 +1,61 @@
+SUCCESS: The process with PID 29824 (child process of PID 37392) has been terminated.
+SUCCESS: The process with PID 37392 (child process of PID 27772) has been terminated.
+SUCCESS: The process with PID 27772 (child process of PID 30136) has been terminated.
+SUCCESS: The process with PID 30136 (child process of PID 30824) has been terminated.
+SUCCESS: The process with PID 30824 (child process of PID 37912) has been terminated.
+SUCCESS: The process with PID 37784 (child process of PID 9560) has been terminated.
+SUCCESS: The process with PID 9560 (child process of PID 37668) has been terminated.
+SUCCESS: The process with PID 37668 (child process of PID 36260) has been terminated.
+SUCCESS: The process with PID 36260 (child process of PID 37912) has been terminated.
+SUCCESS: The process with PID 38612 (child process of PID 25780) has been terminated.
+SUCCESS: The process with PID 25780 (child process of PID 22420) has been terminated.
+SUCCESS: The process with PID 22420 (child process of PID 38856) has been terminated.
+SUCCESS: The process with PID 38856 (child process of PID 37912) has been terminated.
+## Requirement IDs
+- FR-004, FR-008, FR-009, FR-010, FR-011, FR-013
+- AC-004, AC-010, AC-011, AC-016, AC-019
+- AC-E004, AC-E005, AC-E012, AC-E013, AC-E020, AC-E024, AC-E026, AC-E027
+
+## Summary
+- 当前 checkout 已包含六个 repair finding 的实现与测试证据；本轮未产生新的 tracked patch。
+- 已用 fresh validation 确认：审计契约、管理员全局历史、配置快照重放、批次 retry、`DATASOURCE_UNAVAILABLE`、文件存储错误映射均通过验证。
+- 未执行 commit：Driver 模板明确禁止 `git add/git commit`，且当前没有 tracked diff。
+
+## Files Changed
+- 无 tracked files changed。
+- `git status --short`: 仅有未跟踪 runtime trace 目录 `traces/REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3/`，本轮未修改。
+
+## Validation
+- `npm run test:contract`: PASS - 4/4 passed
+- `npm run test:mock-local`: PASS - 31/31 passed
+- `npm run test:docker-local`: PASS - arch/typecheck/API/DB/worker/query/file/sample/object-storage smoke 全部通过
+- `git diff --check -- ...`: PASS - 无输出
+
+## Evidence
+- `tests/contract/*.test.mjs`: 审计 action/result 公开枚举守护。
+- `tests/api/export-http-api.test.mjs`: API 创建、历史查询和权限链路。
+- `tests/query/query-executor.test.mjs`: 配置快照重放、datasource adapter 错误分类。
+- `tests/worker/scheduler-worker.test.mjs`: 批次 retry/backoff/retryCount、耗尽失败、`DATASOURCE_UNAVAILABLE` 收口。
+- `tests/file/export-file-service.test.mjs`: put/publish 失败映射 `FILE_VERIFY_ERROR`，不发布可下载元信息。
+- `docs/testing/verify-matrix.md`: 六个 repair finding 的 fresh evidence 边界记录。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - `npm run test:docker-local` 覆盖 HTTP、worker、job、DB、file/query 生产边界。
+- `no InMemory/mock as production`: PASS - Docker/local MySQL + 本地 object storage mock 明确为受控 evidence，不声明 live evidence。
+- `feature_impl verification`: PASS - 已运行任务指定验证命令。
+- `forbidden git/task mutation`: PASS - 未修改 `task.json`、`progress.txt`、`traces/`、未执行提交。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in validation reporting - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in boundary compliance - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none: 未发现需要新增归档的可复用经验。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL 与 live OSS/S3 不属于本任务完成条件；本轮证据是 docker/mock/local evidence。

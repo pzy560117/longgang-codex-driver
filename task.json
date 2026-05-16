@@ -1330,10 +1330,10 @@
                                        ],
                       "passes":  true,
                       "local_release_environment_notes":  [
-                                                             "当前 release gate 使用本机 Docker MySQL；release-verify.ps1 会在 EXPORT_PLATFORM_TEST_DATABASE_URL 缺失时复用或创建 export-platform-mysql-local 容器。",
-                                                             "当前 release gate 使用本地 object storage mock；release-verify.ps1 会启动 scripts/local-object-storage-server.mjs 并显式允许本地 smoke writes。",
-                                                             "该 gate 是本机受控 docker/mock release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。"
-                                                         ],
+                                                              "当前 release gate 使用本机 Docker MySQL；release-verify.ps1 会在 EXPORT_PLATFORM_TEST_DATABASE_URL 缺失时复用或创建 export-platform-mysql-local 容器。",
+                                                              "当前 release gate 使用本地 object storage mock；release-verify.ps1 会启动 scripts/local-object-storage-server.mjs 并显式允许本地 smoke writes。",
+                                                              "该 gate 是本机受控 docker/mock release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。"
+                                                          ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",
                                             "docs/architecture/constraints.md",
@@ -1485,7 +1485,7 @@
                       "dependencies":  [
                                            "DOCKER-TEST-DATA-AUTOMATION-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 必须同时覆盖 AUDIT-CONTRACT-ALIGN-001、TASK-HISTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QUERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-ERROR-001、FILE-STORAGE-ERROR-MAPPING-001",
