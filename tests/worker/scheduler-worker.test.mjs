@@ -83,6 +83,20 @@ async function createTestDatabase(t) {
   return db;
 }
 
+async function createWorkerPurchaseOrderTable(db) {
+  await db.schema.dropTable("purchase_orders").ifExists().execute();
+  await db.schema
+    .createTable("purchase_orders")
+    .addColumn("order_id", "varchar(64)", (column) => column.primaryKey())
+    .addColumn("tenant_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("org_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("owner_operator_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("allowed_role_code", "varchar(128)", (column) => column.notNull())
+    .addColumn("order_no", "varchar(128)", (column) => column.notNull())
+    .addColumn("created_at", "datetime(3)", (column) => column.notNull())
+    .execute();
+}
+
 async function seedRegistry(db, overrides = {}) {
   const now = await getDatabaseTime(db);
   const runId = overrides.runId ?? `${Date.now()}-${process.pid}-${Math.random()}`;
@@ -102,13 +116,24 @@ async function seedRegistry(db, overrides = {}) {
     datasourceCode: "purchase-ro",
     supportedFormats: JSON.stringify(["XLSX"]),
     parameterSchema: JSON.stringify({ type: "object" }),
-    queryTemplate: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
-    fieldMappings: JSON.stringify([{ source: "order_no", target: "Order No" }]),
-    maskingPolicy: JSON.stringify({ fields: [] }),
-    dataScopeTemplate: "tenant_id = :tenantId",
-    cursorField: "order_id",
-    orderBy: "order_id ASC",
-    batchSize: 500,
+    queryTemplate:
+      overrides.queryTemplate ??
+      JSON.stringify({
+        queryTemplateVersion: "worker-default-v1",
+        templateText:
+          "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo FROM purchase_orders WHERE tenant_id = :tenantId",
+        allowedParameters: []
+      }),
+    fieldMappings:
+      overrides.fieldMappings ??
+      JSON.stringify([{ fieldCode: "orderNo", headerName: "Order No", orderNo: 1, exportable: true }]),
+    maskingPolicy: overrides.maskingPolicy ?? JSON.stringify({ rules: {} }),
+    dataScopeTemplate:
+      overrides.dataScopeTemplate ??
+      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
+    cursorField: overrides.cursorField ?? "orderId",
+    orderBy: overrides.orderBy ?? JSON.stringify([{ field: "orderId", direction: "ASC" }]),
+    batchSize: overrides.batchSize ?? 500,
     configSnapshotDigest: "sha256:config-v1",
     parameterSchemaDigest: "sha256:params-v1",
     fieldMappingDigest: "sha256:fields-v1",
@@ -224,6 +249,114 @@ serialTest("multiple workers dispatch only up to the registry concurrency limit 
   );
   assert.equal(audits.every((audit) => audit.requestId === "scheduler:worker-a" || audit.requestId === "scheduler:worker-b"), true);
   assert.ok([100, 200].includes(Number(checkpoint.processed_count)));
+});
+
+serialTest("default scheduler query processor enforces registry dataScopeTemplate before publishing rows", async (t) => {
+  const db = await createTestDatabase(t);
+  await createWorkerPurchaseOrderTable(db);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "query-scope-worker",
+    queryTemplate: JSON.stringify({
+      queryTemplateVersion: "worker-scope-v1",
+      templateText:
+        "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo",
+      allowedParameters: ["createdAtFrom", "createdAtTo"]
+    }),
+    fieldMappings: JSON.stringify([
+      {
+        fieldCode: "orderId",
+        headerName: "Order ID",
+        orderNo: 1,
+        sensitive: false,
+        exportable: true
+      },
+      {
+        fieldCode: "orderNo",
+        headerName: "Order No",
+        orderNo: 2,
+        sensitive: false,
+        exportable: true
+      }
+    ]),
+    maskingPolicy: JSON.stringify({ rules: {} }),
+    dataScopeTemplate:
+      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
+    cursorField: "orderId",
+    orderBy: JSON.stringify([{ field: "orderId", direction: "ASC" }]),
+    batchSize: 10
+  });
+
+  await db
+    .insertInto("purchase_orders")
+    .values([
+      {
+        order_id: "worker-order-001",
+        tenant_id: "tenant-001",
+        org_id: "ORG-001",
+        owner_operator_id: "u001",
+        allowed_role_code: "EXPORT_USER",
+        order_no: "PO-WORKER-001",
+        created_at: now
+      },
+      {
+        order_id: "worker-order-002",
+        tenant_id: "tenant-001",
+        org_id: "ORG-001",
+        owner_operator_id: "u002",
+        allowed_role_code: "EXPORT_USER",
+        order_no: "PO-WORKER-002",
+        created_at: now
+      },
+      {
+        order_id: "worker-order-003",
+        tenant_id: "tenant-001",
+        org_id: "ORG-001",
+        owner_operator_id: "u001",
+        allowed_role_code: "EXPORT_ADMIN",
+        order_no: "PO-WORKER-003",
+        created_at: now
+      }
+    ])
+    .execute();
+  const registryAtCreate = await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode);
+  const taskId = "exp-worker-query-scope";
+  await seedTask(db, {
+    taskId,
+    taskCode,
+    subsystemCode,
+    configSnapshot: registryAtCreate,
+    configSnapshotDigest: registryAtCreate.configSnapshotDigest
+  });
+
+  let publishedRows;
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-query-scope",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService: {
+      async publishRows(input) {
+        publishedRows = input.rows;
+        return { storageKey: "exports/published/query-scope.xlsx" };
+      }
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+  const ready = events.find((event) => event.eventType === "QUERY_READY");
+
+  assert.equal(result.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+  assert.deepEqual(publishedRows, [
+    {
+      "Order ID": "worker-order-001",
+      "Order No": "PO-WORKER-001"
+    }
+  ]);
+  assert.equal(JSON.parse(ready.batchCheckpoint).dataScopeExpression.operatorId, "u001");
 });
 
 serialTest("same worker resumes its own active lease while other workers still cannot acquire an unexpired lease", async (t) => {

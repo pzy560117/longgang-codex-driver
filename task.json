@@ -1858,9 +1858,15 @@
                                         ],
                       "owned_paths":  [
                                           "task.json",
+                                          "contracts/openapi.yaml",
                                           "src/query-executor/",
+                                          "src/sample-purchase-order/",
                                           "tests/query/",
+                                          "tests/contract/",
+                                          "tests/sample/",
                                           "tests/worker/",
+                                          "scripts/docker-test-seed.mjs",
+                                          "scripts/local-demo-setup.mjs",
                                           "docs/testing/verify-matrix.md"
                                       ],
                       "requirement_ids":  [
@@ -1885,7 +1891,7 @@
                                     "补 query 与 worker 测试，覆盖越权数据被阻断、模板参数注入正确和调度执行链路不回退",
                                     "同步 verify-matrix 记录 DATA-SCOPE-TEMPLATE-ENFORCE-001 的 Docker MySQL / query / worker 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor tests/query tests/worker docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "query executor 生产路径会强制使用 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate 约束数据范围",
                                          "tests/query/ 与 tests/worker/ 覆盖数据范围模板、生效参数和越权阻断负向场景",

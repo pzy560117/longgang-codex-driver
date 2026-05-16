@@ -208,3 +208,15 @@ test("public BatchCheckpoint schema exposes progress fields without internal err
   assert.doesNotMatch(checkpointSchema, /\n\s{8}errorCode:\n/);
   assert.doesNotMatch(checkpointSchema, /\n\s{8}errorMessage:\n/);
 });
+
+test("registry dataScopeTemplate example includes all auth scope placeholders", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, example] =
+    openapi.match(/dataScopeTemplate:\s+"([^"]+)"/) ??
+    openapi.match(/dataScopeTemplate:\s*'([^']+)'/) ??
+    [];
+
+  for (const placeholder of [":tenantId", ":operatorId", ":roleCodes", ":orgScope"]) {
+    assert.match(example ?? "", new RegExp(placeholder), `${placeholder} missing from dataScopeTemplate example`);
+  }
+});

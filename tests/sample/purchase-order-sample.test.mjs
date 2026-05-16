@@ -101,6 +101,8 @@ async function createTestDatabase(t) {
     .addColumn("order_id", "varchar(64)", (column) => column.primaryKey())
     .addColumn("tenant_id", "varchar(128)", (column) => column.notNull())
     .addColumn("org_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("owner_operator_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("allowed_role_code", "varchar(128)", (column) => column.notNull())
     .addColumn("order_no", "varchar(128)", (column) => column.notNull())
     .addColumn("order_status", "varchar(64)", (column) => column.notNull())
     .addColumn("supplier_id", "varchar(128)", (column) => column.notNull())
@@ -202,7 +204,8 @@ function createSampleRegistryPayload(overrides = {}) {
           ...contract.maskingPolicy.rules
         }
       },
-    dataScopeTemplate: "tenantId = :tenantId and orgId in (:orgScope)",
+    dataScopeTemplate:
+      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
     cursorField: contract.cursorField,
     orderBy: contract.orderBy.map((item) => ({ ...item })),
     batchSize: overrides.batchSize ?? 500
@@ -224,6 +227,8 @@ async function seedRows(db, count, seed) {
       order_id: `${seed.runId}-order-${sequence}`,
       tenant_id: "tenant-001",
       org_id: index % 2 === 0 ? "ORG-001" : "ORG-002",
+      owner_operator_id: "u001",
+      allowed_role_code: "EXPORT_USER",
       order_no: `${seed.keyword}-${sequence}`,
       order_status: "APPROVED",
       supplier_id: seed.supplierId,

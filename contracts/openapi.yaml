@@ -658,7 +658,7 @@ paths:
                         type: PHONE
                         preservePrefix: 3
                         preserveSuffix: 4
-                  dataScopeTemplate: "tenant_id = :tenantId and org_id in (:orgScope)"
+                  dataScopeTemplate: "tenantId = :tenantId and operatorId = :operatorId and roleCode in (:roleCodes) and orgId in (:orgScope)"
                   cursorField: orderId
                   orderBy:
                     - field: orderId

@@ -69,9 +69,9 @@ async function createTestDatabase(t) {
   });
 
   await runMigrations(db);
+  await db.schema.dropTable("purchase_orders").ifExists().execute();
   await db.schema
     .createTable("purchase_orders")
-    .ifNotExists()
     .addColumn("order_id", "varchar(64)", (column) => column.primaryKey())
     .addColumn("tenant_id", "varchar(128)", (column) => column.notNull())
     .addColumn("org_id", "varchar(128)", (column) => column.notNull())
@@ -79,6 +79,8 @@ async function createTestDatabase(t) {
     .addColumn("order_status", "varchar(64)", (column) => column.notNull())
     .addColumn("supplier_id", "varchar(128)", (column) => column.notNull())
     .addColumn("purchase_org_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("owner_operator_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("allowed_role_code", "varchar(128)", (column) => column.notNull())
     .addColumn("contact_phone", "varchar(64)", (column) => column.notNull())
     .addColumn("keyword_text", "varchar(255)", (column) => column.notNull())
     .addColumn("created_at", "datetime(3)", (column) => column.notNull())
@@ -133,7 +135,7 @@ async function seedRegistry(db, overrides = {}) {
       overrides.queryTemplate ?? {
         queryTemplateVersion: "v1",
         templateText:
-          "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, order_no AS orderNo, order_status AS orderStatus, supplier_id AS supplierId, purchase_org_id AS purchaseOrgId, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
+          "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, order_status AS orderStatus, supplier_id AS supplierId, purchase_org_id AS purchaseOrgId, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:orderStatus IS NULL OR order_status = :orderStatus) AND (:supplierId IS NULL OR supplier_id = :supplierId) AND (:purchaseOrgId IS NULL OR purchase_org_id = :purchaseOrgId) AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
         allowedParameters: [
           "createdAtFrom",
           "createdAtTo",
@@ -186,7 +188,7 @@ async function seedRegistry(db, overrides = {}) {
     ),
     dataScopeTemplate:
       overrides.dataScopeTemplate ??
-      "tenantId = :tenantId and orgId in (:orgScope)",
+      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
     cursorField: "orderId",
     orderBy: JSON.stringify([{ field: "orderId", direction: "ASC" }]),
     batchSize: overrides.batchSize ?? 2,
@@ -250,6 +252,8 @@ async function seedPurchaseOrders(db, now) {
         order_status: "APPROVED",
         supplier_id: "SUP-001",
         purchase_org_id: "PO-001",
+        owner_operator_id: "u001",
+        allowed_role_code: "EXPORT_USER",
         contact_phone: "13812345678",
         keyword_text: "PO-2026 apples",
         created_at: now
@@ -262,6 +266,8 @@ async function seedPurchaseOrders(db, now) {
         order_status: "APPROVED",
         supplier_id: "SUP-001",
         purchase_org_id: "PO-001",
+        owner_operator_id: "u001",
+        allowed_role_code: "EXPORT_USER",
         contact_phone: "13987654321",
         keyword_text: "PO-2026 bananas",
         created_at: now
@@ -274,6 +280,8 @@ async function seedPurchaseOrders(db, now) {
         order_status: "APPROVED",
         supplier_id: "SUP-001",
         purchase_org_id: "PO-001",
+        owner_operator_id: "u999",
+        allowed_role_code: "EXPORT_ADMIN",
         contact_phone: "13700001111",
         keyword_text: "PO-2026 other tenant",
         created_at: now
@@ -338,6 +346,193 @@ test("query executor binds template, enforces data scope, masks sensitive fields
   assert.equal(JSON.parse(events[0].batchCheckpoint).totalCount, 2);
   assert.equal(events[1].datasourceCode, "purchase-ro");
   assert.equal(events[0].queryTemplateVersion, "v1");
+});
+
+test("query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "data-scope-template",
+    queryTemplate: {
+      queryTemplateVersion: "v-scope",
+      templateText:
+        "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo AND (:keyword IS NULL OR keyword_text LIKE :keyword)",
+      allowedParameters: ["createdAtFrom", "createdAtTo", "keyword"]
+    },
+    dataScopeTemplate:
+      "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)"
+  });
+  await seedPurchaseOrders(db, now);
+  await db
+    .insertInto("purchase_orders")
+    .values([
+      {
+        order_id: "order-004",
+        tenant_id: "tenant-001",
+        org_id: "ORG-001",
+        order_no: "PO-2026-004",
+        order_status: "APPROVED",
+        supplier_id: "SUP-001",
+        purchase_org_id: "PO-001",
+        owner_operator_id: "u002",
+        allowed_role_code: "EXPORT_USER",
+        contact_phone: "13600002222",
+        keyword_text: "PO-2026 same org wrong operator",
+        created_at: now
+      },
+      {
+        order_id: "order-005",
+        tenant_id: "tenant-001",
+        org_id: "ORG-001",
+        order_no: "PO-2026-005",
+        order_status: "APPROVED",
+        supplier_id: "SUP-001",
+        purchase_org_id: "PO-001",
+        owner_operator_id: "u001",
+        allowed_role_code: "EXPORT_ADMIN",
+        contact_phone: "13500003333",
+        keyword_text: "PO-2026 same org wrong role",
+        created_at: now
+      }
+    ])
+    .execute();
+  const task = await seedTask(db, {
+    taskId: "exp-query-data-scope-template",
+    taskCode,
+    subsystemCode,
+    requestPayload: {
+      queryParams: {
+        createdAtFrom: "2026-05-01T00:00:00+08:00",
+        createdAtTo: "2026-05-31T23:59:59+08:00",
+        keyword: "PO-2026"
+      }
+    }
+  });
+
+  const processor = createQueryExecutorBatchProcessor();
+  const result = await processor({
+    db,
+    task: {
+      ...task,
+      status: "EXECUTING",
+      lockOwner: "worker-query",
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now
+    },
+    lease: {
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      lockOwner: "worker-query",
+      previousLockOwner: null,
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now,
+      databaseTime: now,
+      takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+    },
+    checkpoint: undefined,
+    requestId: "req-query-data-scope-template"
+  });
+
+  assert.equal(result.outcome, "completed");
+  assert.deepEqual(
+    result.rows.map((row) => row["Order ID"]),
+    ["order-001", "order-002"]
+  );
+
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(task.taskId);
+  const ready = events.find((event) => event.eventType === "QUERY_READY");
+  assert.deepEqual(JSON.parse(ready.batchCheckpoint).dataScopeExpression, {
+    operatorId: "u001",
+    roleCodes: ["EXPORT_USER"],
+    orgScope: ["ORG-001", "ORG-002"],
+    template: "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)"
+  });
+});
+
+test("query executor rejects dataScopeTemplate parameters outside the auth scope contract", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "data-scope-unsafe-param",
+    dataScopeTemplate: "tenantId = :tenantId AND orgId = :createdAtFrom"
+  });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-data-scope-unsafe-param",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-data-scope-unsafe-param"
+      }),
+    /QUERY_TEMPLATE_INVALID/
+  );
+});
+
+test("query executor rejects dataScopeTemplate missing required auth scope placeholders", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "data-scope-missing-auth-placeholders",
+    dataScopeTemplate: "tenantId = :tenantId AND orgId IN (:orgScope)"
+  });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-data-scope-missing-auth-placeholders",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-data-scope-missing-auth-placeholders"
+      }),
+    /QUERY_TEMPLATE_INVALID/
+  );
 });
 
 test("query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount", async (t) => {

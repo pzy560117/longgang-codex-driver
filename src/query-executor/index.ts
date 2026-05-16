@@ -79,6 +79,25 @@ type QueryExecutorResult = SchedulerBatchResult & {
   registry: ExportRegistryRecord;
 };
 
+type DataScope = {
+  tenantId: string;
+  operatorId: string;
+  roleCodes: string[];
+  orgScope: string[];
+};
+
+type CompiledDataScope = {
+  sql: string;
+  values: unknown[];
+  scope: DataScope;
+  expression: {
+    template: string;
+    operatorId: string;
+    roleCodes: string[];
+    orgScope: string[];
+  };
+};
+
 const unsafeKeywordPattern =
   /\b(insert|update|delete|drop|alter|truncate|create|replace|merge|grant|revoke|call|execute)\b/i;
 const placeholderPattern = /:([A-Za-z_][A-Za-z0-9_]*)/g;
@@ -130,12 +149,13 @@ export function createQueryExecutorBatchProcessor() {
     const cursorField = requireText(registry.cursorField, "QUERY_TEMPLATE_INVALID");
     const orderBy = parseOrderBy(registry.orderBy, cursorField);
     const scope = buildDataScope(authSnapshot);
+    const dataScope = compileDataScopeTemplate(registry.dataScopeTemplate, scope);
     const cursorToken = decodeCursorToken(context.checkpoint?.lastCursor ?? null, orderBy);
     const compiled = compileQuery({
       template,
       queryParams,
       authSnapshot,
-      scope,
+      dataScope,
       lastCursor: cursorToken,
       orderBy,
       limit: batchSize + 1
@@ -177,7 +197,7 @@ export function createQueryExecutorBatchProcessor() {
             db: context.db,
             template,
             queryParams,
-            scope,
+            dataScope,
             orderBy,
             batchSize,
             fieldMappings,
@@ -197,7 +217,8 @@ export function createQueryExecutorBatchProcessor() {
         attemptNo: context.lease.attemptNo,
         requestId: context.requestId,
         datasourceCode: registry.datasourceCode,
-        queryTemplateVersion: template.queryTemplateVersion ?? null
+        queryTemplateVersion: template.queryTemplateVersion ?? null,
+        dataScopeExpression: dataScope.expression
       },
       now
     });
@@ -207,7 +228,10 @@ export function createQueryExecutorBatchProcessor() {
       eventType: "QUERY_BATCH_DONE",
       datasourceCode: registry.datasourceCode,
       queryTemplateVersion: template.queryTemplateVersion ?? context.task.configSnapshotDigest,
-      batchCheckpoint: checkpoint,
+      batchCheckpoint: {
+        ...checkpoint,
+        dataScopeExpression: dataScope.expression
+      },
       now: batchEventTime
     });
 
@@ -349,25 +373,87 @@ function parseOrderBy(value: string | null, cursorField: string): Array<{
   return dedupeOrderBy(normalized);
 }
 
-function buildDataScope(auth: AuthSnapshot): { tenantId: string; orgScope: string[] } {
+function buildDataScope(auth: AuthSnapshot): DataScope {
   const tenantId = requireText(auth.tenantId, "PERMISSION_DENIED");
+  const operatorId = requireText(auth.operatorId, "PERMISSION_DENIED");
+  const roleCodes = Array.isArray(auth.roleCodes)
+    ? auth.roleCodes.map((item) => requireText(item, "PERMISSION_DENIED"))
+    : [];
   const orgScope = Array.isArray(auth.orgScope)
     ? auth.orgScope
     : typeof auth.orgScope === "string"
       ? auth.orgScope.split(",").map((item) => item.trim()).filter(Boolean)
       : [];
 
+  if (roleCodes.length === 0) {
+    throw queryError("PERMISSION_DENIED", "auth roleCodes is required");
+  }
   if (orgScope.length === 0) {
     throw queryError("PERMISSION_DENIED", "auth orgScope is required");
   }
-  return { tenantId, orgScope };
+  return { tenantId, operatorId, roleCodes, orgScope };
+}
+
+function compileDataScopeTemplate(value: string | null, scope: DataScope): CompiledDataScope {
+  const template = requireText(value, "QUERY_TEMPLATE_INVALID").trim();
+  if (template.includes(";") || unsafeKeywordPattern.test(template)) {
+    throw queryError("QUERY_TEMPLATE_INVALID", "dataScopeTemplate contains unsafe SQL");
+  }
+  const values: unknown[] = [];
+  const boundPlaceholders = new Set<string>();
+  const sql = template.replace(placeholderPattern, (_match, name: string) => {
+    if (name === "tenantId") {
+      boundPlaceholders.add(name);
+      values.push(scope.tenantId);
+      return "?";
+    }
+    if (name === "operatorId") {
+      boundPlaceholders.add(name);
+      values.push(scope.operatorId);
+      return "?";
+    }
+    if (name === "roleCodes") {
+      boundPlaceholders.add(name);
+      values.push(...scope.roleCodes);
+      return parameterList(scope.roleCodes.length);
+    }
+    if (name === "orgScope") {
+      boundPlaceholders.add(name);
+      values.push(...scope.orgScope);
+      return parameterList(scope.orgScope.length);
+    }
+    throw queryError(
+      "QUERY_TEMPLATE_INVALID",
+      `dataScopeTemplate placeholder ${name} is not allowed`
+    );
+  });
+  for (const requiredPlaceholder of ["tenantId", "operatorId", "roleCodes", "orgScope"]) {
+    if (!boundPlaceholders.has(requiredPlaceholder)) {
+      throw queryError(
+        "QUERY_TEMPLATE_INVALID",
+        `dataScopeTemplate must bind ${requiredPlaceholder}`
+      );
+    }
+  }
+
+  return {
+    sql,
+    values,
+    scope,
+    expression: {
+      template,
+      operatorId: scope.operatorId,
+      roleCodes: scope.roleCodes,
+      orgScope: scope.orgScope
+    }
+  };
 }
 
 function compileQuery(input: {
   template: QueryTemplate;
   queryParams: Record<string, unknown>;
   authSnapshot: AuthSnapshot;
-  scope: { tenantId: string; orgScope: string[] };
+  dataScope: CompiledDataScope;
   lastCursor: CursorToken | null;
   orderBy: OrderByDefinition[];
   limit: number;
@@ -377,11 +463,11 @@ function compileQuery(input: {
     placeholderPattern,
     (_match, name: string) => {
       if (name === "orgScope") {
-        values.push(...input.scope.orgScope);
-        return parameterList(input.scope.orgScope.length);
+        values.push(...input.dataScope.scope.orgScope);
+        return parameterList(input.dataScope.scope.orgScope.length);
       }
       if (name === "tenantId") {
-        values.push(input.scope.tenantId);
+        values.push(input.dataScope.scope.tenantId);
         return "?";
       }
       const value = input.queryParams[name] ?? null;
@@ -390,8 +476,7 @@ function compileQuery(input: {
     }
   );
 
-  const dataScopeSql = `tenantId = ? AND orgId IN (${parameterList(input.scope.orgScope.length)})`;
-  values.push(input.scope.tenantId, ...input.scope.orgScope);
+  values.push(...input.dataScope.values);
 
   const cursorPredicate = buildCursorPredicate(input.orderBy, input.lastCursor);
   values.push(...cursorPredicate.values);
@@ -402,7 +487,7 @@ function compileQuery(input: {
   values.push(input.limit);
 
   return {
-    sqlText: `SELECT * FROM (${sqlText}) AS export_query WHERE ${dataScopeSql}${cursorPredicate.sql} ORDER BY ${orderSql} LIMIT ?`,
+    sqlText: `SELECT * FROM (${sqlText}) AS export_query WHERE (${input.dataScope.sql})${cursorPredicate.sql} ORDER BY ${orderSql} LIMIT ?`,
     values
   };
 }
@@ -426,7 +511,7 @@ async function collectCompletedRows(input: {
   db: Kysely<ExportPlatformDatabase>;
   template: QueryTemplate;
   queryParams: Record<string, unknown>;
-  scope: { tenantId: string; orgScope: string[] };
+  dataScope: CompiledDataScope;
   orderBy: OrderByDefinition[];
   batchSize: number;
   fieldMappings: FieldMapping[];
@@ -442,7 +527,7 @@ async function collectCompletedRows(input: {
       template: input.template,
       queryParams: input.queryParams,
       authSnapshot: {},
-      scope: input.scope,
+      dataScope: input.dataScope,
       lastCursor: cursorToken,
       orderBy: input.orderBy,
       limit: input.batchSize + 1

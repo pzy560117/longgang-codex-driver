@@ -69,6 +69,8 @@ async function ensurePurchaseOrderSeedTable(database) {
     .addColumn("order_id", "varchar(64)", (column) => column.primaryKey())
     .addColumn("tenant_id", "varchar(128)", (column) => column.notNull())
     .addColumn("org_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("owner_operator_id", "varchar(128)", (column) => column.notNull())
+    .addColumn("allowed_role_code", "varchar(128)", (column) => column.notNull())
     .addColumn("order_no", "varchar(128)", (column) => column.notNull())
     .addColumn("order_status", "varchar(64)", (column) => column.notNull())
     .addColumn("supplier_id", "varchar(128)", (column) => column.notNull())
@@ -84,12 +86,17 @@ async function ensurePurchaseOrderSeedTable(database) {
     .addColumn("created_at", "datetime(3)", (column) => column.notNull())
     .execute();
 
+  await ensureColumn(database, "owner_operator_id", "varchar(128) NOT NULL DEFAULT 'u001'");
+  await ensureColumn(database, "allowed_role_code", "varchar(128) NOT NULL DEFAULT 'EXPORT_USER'");
+
   await sql`
     CREATE OR REPLACE VIEW purchase_orders_view AS
     SELECT
       order_id,
       tenant_id,
       org_id,
+      owner_operator_id,
+      allowed_role_code,
       order_no,
       order_status,
       supplier_id,
@@ -105,6 +112,20 @@ async function ensurePurchaseOrderSeedTable(database) {
       created_at
     FROM purchase_orders_sample
   `.execute(database);
+}
+
+async function ensureColumn(database, columnName, definition) {
+  const result = await sql`
+    SELECT COUNT(*) AS column_count
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'purchase_orders_sample'
+      AND COLUMN_NAME = ${columnName}
+  `.execute(database);
+  const count = Number(result.rows[0]?.column_count ?? 0);
+  if (count === 0) {
+    await sql.raw(`ALTER TABLE purchase_orders_sample ADD COLUMN ${columnName} ${definition}`).execute(database);
+  }
 }
 
 async function seedPurchaseOrderRows(database) {
@@ -130,6 +151,8 @@ function createPurchaseOrderRow(sequence, status, supplierId, supplierName, orgI
     order_id: `docker-test-order-${suffix}`,
     tenant_id: "tenant-001",
     org_id: orgId,
+    owner_operator_id: "u001",
+    allowed_role_code: "EXPORT_USER",
     order_no: `DOCKER-PO-${suffix}`,
     order_status: status,
     supplier_id: supplierId,
@@ -176,7 +199,8 @@ async function registerPurchaseOrderExport() {
           ...contract.maskingPolicy.rules
         }
       },
-      dataScopeTemplate: "tenantId = :tenantId and orgId in (:orgScope)",
+      dataScopeTemplate:
+        "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
       cursorField: contract.cursorField,
       orderBy: contract.orderBy.map((item) => ({ ...item })),
       batchSize: 500
