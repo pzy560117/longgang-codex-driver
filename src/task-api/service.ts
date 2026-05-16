@@ -3,13 +3,17 @@ import type { Kysely } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import { createDatabase } from "../db/kysely.ts";
 import {
+  createExportAuditRepository,
   createCheckpointRepository,
   createExportFileRepository,
   createExportRegistryRepository,
   createExportTaskEventRepository,
   createExportTaskRepository,
   getDatabaseTime,
-  type ExportTaskRecord
+  type AuditLogRecord,
+  type CheckpointRecord,
+  type ExportTaskRecord,
+  type TaskEventRecord
 } from "../repositories/index.ts";
 import { appendAudit } from "../audit-log/service.ts";
 import {
@@ -87,6 +91,156 @@ function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {
     failureStage: null,
     lastSuccessStage: null,
     ...extra
+  };
+}
+
+function parseJsonRecord(value: string | null | undefined): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readNonNegativeInteger(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (value < 0) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
+function clampProgressPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
+}
+
+function responseCodeMessage(code: string | null): string | null {
+  switch (code) {
+    case "QUERY_EXECUTION_ERROR":
+      return "query execution error";
+    case "DATASOURCE_UNAVAILABLE":
+      return "datasource unavailable";
+    case "QUERY_TEMPLATE_INVALID":
+      return "query template invalid";
+    case "FIELD_MAPPING_INVALID":
+      return "field mapping invalid";
+    case "MASKING_RULE_ERROR":
+      return "masking rule error";
+    case "EXPORT_RENDER_ERROR":
+      return "export render error";
+    case "FILE_VERIFY_ERROR":
+      return "file verification failed";
+    case "EXPORT_LIMIT_EXCEEDED":
+      return "export limit exceeded";
+    default:
+      return null;
+  }
+}
+
+function resolveTotalCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  events: TaskEventRecord[];
+}): number {
+  const eventTotal = input.events.reduce<number | null>((current, event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const totalCount = readNonNegativeInteger(checkpoint?.totalCount);
+    if (totalCount !== null) {
+      return current === null ? totalCount : Math.max(current, totalCount);
+    }
+    return current;
+  }, null);
+
+  if (eventTotal !== null) {
+    return eventTotal;
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return input.checkpoint?.processedCount ?? 0;
+  }
+
+  return 0;
+}
+
+function resolveProcessedCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  totalCount: number;
+}): number {
+  const checkpointCount = input.checkpoint?.processedCount ?? 0;
+  if (input.totalCount > 0) {
+    return Math.min(checkpointCount, input.totalCount);
+  }
+
+  if (input.task.status === "COMPLETED" && checkpointCount === 0) {
+    return input.totalCount;
+  }
+
+  return checkpointCount;
+}
+
+function resolveProgressPercent(input: {
+  task: ExportTaskRecord;
+  processedCount: number;
+  totalCount: number;
+}): number {
+  if (input.totalCount > 0) {
+    return clampProgressPercent((input.processedCount / input.totalCount) * 100);
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return 100;
+  }
+
+  return 0;
+}
+
+function resolveTaskFailure(audits: AuditLogRecord[]): {
+  errorCode: string | null;
+  errorMessage: string | null;
+} {
+  const failedAudit = audits
+    .filter((audit) => audit.result === "FAILED")
+    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0];
+
+  if (!failedAudit || failedAudit.errorCode === "SUCCESS") {
+    return {
+      errorCode: null,
+      errorMessage: null
+    };
+  }
+
+  return {
+    errorCode: failedAudit.errorCode,
+    errorMessage: responseCodeMessage(failedAudit.errorCode)
+  };
+}
+
+function mapRecentTaskEvent(event: TaskEventRecord) {
+  return {
+    taskId: event.taskId,
+    attemptNo: event.attemptNo,
+    eventType: event.eventType,
+    requestId: event.requestId,
+    datasourceCode: event.datasourceCode,
+    queryTemplateVersion: event.queryTemplateVersion,
+    batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
+    occurredAt: event.occurredAt.toISOString()
   };
 }
 
@@ -458,11 +612,30 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
       throw error;
     }
 
+    const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
     const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
     const checkpoint = await createCheckpointRepository(db).findLatestCheckpoint(
       taskId,
       task.attemptNo
     );
+    const totalCount = resolveTotalCount({
+      task,
+      checkpoint,
+      events
+    });
+    const processedCount = resolveProcessedCount({
+      task,
+      checkpoint,
+      totalCount
+    });
+    const progressPercent = resolveProgressPercent({
+      task,
+      processedCount,
+      totalCount
+    });
+    const failure = task.status === "FAILED"
+      ? resolveTaskFailure(audits)
+      : { errorCode: null, errorMessage: null };
 
     await appendAudit({
       db,
@@ -476,13 +649,13 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
     });
 
     return taskEnvelope(task, {
-      totalCount: null,
-      processedCount: checkpoint?.processedCount ?? 0,
-      progressPercent: 0,
-      errorCode: null,
-      errorMessage: null,
+      totalCount,
+      processedCount,
+      progressPercent,
+      errorCode: failure.errorCode,
+      errorMessage: failure.errorMessage,
       requestId: auth.requestId,
-      events
+      recentEvents: events.map(mapRecentTaskEvent)
     });
   });
 }

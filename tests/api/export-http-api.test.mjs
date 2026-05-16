@@ -8,8 +8,10 @@ import { Kysely, MysqlDialect } from "kysely";
 import { createExportPlatformServer } from "../../src/server.ts";
 import { runMigrations } from "../../src/db/migrator.ts";
 import {
+  createCheckpointRepository,
   createExportAuditRepository,
   createExportFileRepository,
+  createExportTaskEventRepository,
   createExportTaskRepository,
   getDatabaseTime
 } from "../../src/repositories/index.ts";
@@ -267,7 +269,9 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   const objectStorageServer = await createLocalObjectStorageServer(t);
   const app = await createServer(t, objectStorageServer);
   const auditRepository = createExportAuditRepository(db);
+  const checkpointRepository = createCheckpointRepository(db);
   const taskRepository = createExportTaskRepository(db);
+  const eventRepository = createExportTaskEventRepository(db);
   const fileRepository = createExportFileRepository(db);
   const runId = `${Date.now()}-${process.pid}`;
   const taskCode = `purchase-order-export-${runId}`;
@@ -363,6 +367,59 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
 
   const taskId = createTaskResponse.json().data.taskId;
+  const firstDetailNow = await getDatabaseTime(db);
+
+  await checkpointRepository.saveCheckpoint({
+    taskId,
+    attemptNo: 0,
+    lastCursor: "cursor-24",
+    processedCount: 24,
+    filePartNo: 1,
+    retryCount: 0,
+    batchSize: 500,
+    batchRowCount: 24,
+    backoffMs: 0,
+    now: firstDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-ready-${runId}`,
+    taskId,
+    attemptNo: 0,
+    eventType: "QUERY_READY",
+    requestId: `req-worker-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      taskId,
+      attemptNo: 0,
+      requestId: `req-worker-${runId}`,
+      datasourceCode: "purchase-ro",
+      queryTemplateVersion: "v1"
+    }),
+    occurredAt: firstDetailNow,
+    now: firstDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-batch-${runId}`,
+    taskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-24",
+      processedCount: 24,
+      totalCount: 120,
+      filePartNo: 1,
+      retryCount: 0,
+      batchSize: 500,
+      batchRowCount: 24,
+      backoffMs: 0
+    }),
+    occurredAt: new Date(firstDetailNow.getTime() + 1),
+    now: new Date(firstDetailNow.getTime() + 1)
+  });
 
   const detailResponse = await app.inject({
     method: "GET",
@@ -372,6 +429,20 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   assert.equal(detailResponse.statusCode, 200);
   assert.equal(detailResponse.json().data.taskId, taskId);
+  assert.equal(detailResponse.json().data.totalCount, 120);
+  assert.equal(detailResponse.json().data.processedCount, 24);
+  assert.equal(detailResponse.json().data.progressPercent, 20);
+  assert.equal(detailResponse.json().data.errorCode, null);
+  assert.equal(detailResponse.json().data.errorMessage, null);
+  assert.ok(Array.isArray(detailResponse.json().data.recentEvents));
+  assert.equal("events" in detailResponse.json().data, false);
+  assert.equal(detailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+  assert.equal(detailResponse.json().data.recentEvents[0].taskId, taskId);
+  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
+  assert.equal(detailResponse.json().data.recentEvents[0].requestId, `req-worker-${runId}`);
+  assert.equal(detailResponse.json().data.recentEvents[0].datasourceCode, "purchase-ro");
+  assert.equal(detailResponse.json().data.recentEvents[0].queryTemplateVersion, "v1");
+  assert.equal(detailResponse.json().data.recentEvents[0].batchCheckpoint.processedCount, 24);
 
   const listResponse = await app.inject({
     method: "GET",
@@ -402,6 +473,87 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   assert.equal(secondTaskResponse.statusCode, 201);
   const secondTaskId = secondTaskResponse.json().data.taskId;
+  const failedTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-failed-${runId}`),
+    payload: createTaskPayload(taskCode, "client-failed")
+  });
+
+  assert.equal(failedTaskResponse.statusCode, 201);
+  const failedTaskId = failedTaskResponse.json().data.taskId;
+  const failedDetailNow = await getDatabaseTime(db);
+
+  await checkpointRepository.saveCheckpoint({
+    taskId: failedTaskId,
+    attemptNo: 0,
+    lastCursor: "cursor-25",
+    processedCount: 25,
+    filePartNo: 1,
+    retryCount: 2,
+    batchSize: 500,
+    batchRowCount: 25,
+    backoffMs: 0,
+    now: failedDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-failed-batch-${runId}`,
+    taskId: failedTaskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-failed-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-25",
+      processedCount: 25,
+      totalCount: 50,
+      filePartNo: 1,
+      retryCount: 2,
+      batchSize: 500,
+      batchRowCount: 25,
+      backoffMs: 0
+    }),
+    occurredAt: failedDetailNow,
+    now: failedDetailNow
+  });
+  await taskRepository.updateTaskStatus({
+    taskId: failedTaskId,
+    status: "FAILED",
+    now: new Date(failedDetailNow.getTime() + 1)
+  });
+  await auditRepository.appendAuditLog({
+    auditId: `audit-failed-${runId}`,
+    taskId: failedTaskId,
+    attemptNo: 0,
+    taskCode,
+    subsystemCode: "purchase",
+    operatorId: "u001",
+    action: "EXECUTE_FAILED",
+    result: "FAILED",
+    errorCode: "QUERY_EXECUTION_ERROR",
+    requestId: `req-worker-failed-${runId}`,
+    occurredAt: new Date(failedDetailNow.getTime() + 2),
+    now: new Date(failedDetailNow.getTime() + 2)
+  });
+
+  const failedDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${failedTaskId}`,
+    headers: createHeaders(`req-detail-failed-${runId}`)
+  });
+
+  assert.equal(failedDetailResponse.statusCode, 200);
+  assert.equal(failedDetailResponse.json().data.taskId, failedTaskId);
+  assert.equal(failedDetailResponse.json().data.status, "FAILED");
+  assert.equal(failedDetailResponse.json().data.totalCount, 50);
+  assert.equal(failedDetailResponse.json().data.processedCount, 25);
+  assert.equal(failedDetailResponse.json().data.progressPercent, 50);
+  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
+  assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
+  assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+  assert.equal("events" in failedDetailResponse.json().data, false);
 
   const ordinaryListResponse = await app.inject({
     method: "GET",
