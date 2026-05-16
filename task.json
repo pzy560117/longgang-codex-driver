@@ -1381,6 +1381,93 @@
                                          "release 结论不引用旧实现、旧测试或旧 trace",
                                          "架构约束、API、DB、worker、file、sample 证据一致"
                                      ]
+                  },
+                  {
+                      "id":  "DOCKER-TEST-DATA-AUTOMATION-001",
+                      "description":  "自动配置本机 Docker MySQL、测试数据 seed 和一键 docker/mock 验证入口",
+                      "task_kind":  "feature_impl",
+                      "phase":  "test-environment-automation",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91,
+                      "dependencies":  [
+                                           "RELEASE-001"
+                                       ],
+                      "passes":  true,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "runtime=http_service+worker+scheduled_job",
+                                                       "测试环境必须使用本机 Docker MySQL 或显式本机测试 MySQL URL",
+                                                       "测试数据 seed 必须拒绝非本机/非测试数据库 URL",
+                                                       "本任务产出 docker/mock 或 local demo evidence，不产出外部 live evidence"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把本地 Docker MySQL 写成外部生产 MySQL 证据",
+                                                        "禁止把本地 object storage mock 写成 live OSS/S3 证据",
+                                                        "禁止用内存 repository 或 fixture repository 替代 MySQL 验证",
+                                                        "禁止绕过现有 migration/repository/service 直接伪造完成状态"
+                                                    ],
+                      "context_files":  [
+                                            "plans/features/docker-test-data-automation.plan.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "package.json",
+                                            "scripts/local-demo.ps1",
+                                            "scripts/local-demo-setup.mjs",
+                                            "scripts/release-verify.ps1"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "package.json",
+                                          "scripts/docker-test-env.ps1",
+                                          "scripts/docker-test-seed.mjs",
+                                          "docs/testing/docker-test-data-runbook.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "tests/mock-local/docker-test-data-plan.test.mjs"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "scripts/docker-test-env.ps1",
+                                                 "scripts/docker-test-seed.mjs",
+                                                 "docs/testing/docker-test-data-runbook.md",
+                                                 "tests/mock-local/docker-test-data-plan.test.mjs"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "提供 test:docker-local，一键检查或启动 Docker Desktop、复用或创建本机 Docker MySQL，并启动本地 object storage mock",
+                                    "提供 docker-test-seed.mjs，复用现有 migration 和 registry service seed purchase-order-export 测试数据，并拒绝非本机/非测试数据库 URL",
+                                    "把 docker/local evidence 边界同步到 verify-matrix 和 runbook，明确不是 live evidence",
+                                    "新增 mock-local 守护测试，防止 package script、task、runbook 和 evidence 映射漂移"
+                                ],
+                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts docs/testing tests/mock-local plans/features/docker-test-data-automation.plan.md",
+                      "acceptance":  [
+                                         "一条命令可完成 Docker daemon preflight、Docker MySQL 创建或复用、migration、seed 和主验证入口",
+                                         "seed 后覆盖 purchase-order-export registry、purchase_orders_sample / purchase_orders_view 测试数据和公开服务链路验证",
+                                         "Docker daemon 未启动时输出明确 BLOCKED - 需要人工介入，并给出启动 Docker Desktop 后重试命令",
+                                         "verify-matrix 记录该任务只提供 docker/local 测试环境证据，不替代 live OSS/S3 或外部生产 MySQL 验证"
+                                     ]
                   }
               ]
 }

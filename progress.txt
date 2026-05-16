@@ -1208,3 +1208,20 @@
 
 ### 备注：
 - 该结论是本机受控 docker/mock release evidence，不声明外部生产 MySQL 或外部 live OSS/S3 已验证。
+
+## [2026-05-16] - Task: DOCKER-TEST-DATA-AUTOMATION-001 自动配置本机 Docker MySQL、测试数据 seed 和一键 docker/mock 验证入口
+
+### 完成的工作：
+- 新增 `scripts/docker-test-env.ps1`，支持自动检查或启动 Docker Desktop、创建/复用本机 Docker MySQL、启动本地 object storage mock，并在 `-RunValidation` 下运行主链路验证。
+- 新增 `scripts/docker-test-seed.mjs`，复用现有 migration 与 registry service，幂等 seed `purchase-order-export`、`purchase_orders_sample` 和 `purchase_orders_view`。
+- 新增 `npm run test:docker-local`、`docs/testing/docker-test-data-runbook.md` 和 `tests/mock-local/docker-test-data-plan.test.mjs`，并同步 `docs/testing/verify-matrix.md` 与 `task.json`。
+
+### 测试结果：
+- RED：`npm run test:mock-local -- --test-name-pattern="docker"` 先失败，失败点为缺少 `DOCKER-TEST-DATA-AUTOMATION-001`、`test:docker-local`、脚本和验证矩阵映射。
+- `npm run test:docker-local` 通过，覆盖 Docker MySQL、migration、seed、API、DB、worker、query、file、sample 和 object-storage smoke。
+
+### 审查结果：
+- 本任务只产出 docker/mock 或 local demo evidence，不声明外部生产 MySQL 或 live OSS/S3 已验证。
+
+### 备注：
+- 后续若要验证真实外部依赖，应另开 live validation task。

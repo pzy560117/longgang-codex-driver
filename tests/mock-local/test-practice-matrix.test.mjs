@@ -103,6 +103,12 @@ const practiceMappings = [
     script: "demo:local",
     tasks: ["LOCAL-DEMO-001"],
     boundary: /不是 release evidence/u
+  },
+  {
+    label: "Docker test data automation",
+    script: "test:docker-local",
+    tasks: ["DOCKER-TEST-DATA-AUTOMATION-001"],
+    boundary: /不是 live evidence/u
   }
 ];
 
