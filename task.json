@@ -1805,7 +1805,7 @@
                                     "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
                                     "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
                                 ],
-                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
                       "acceptance":  [
                                          "真实 renderer 抛错时生产 file-service/worker 路径按 EXPORT_RENDER_ERROR 收口",
                                          "object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口，既有测试不回退",
