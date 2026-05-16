@@ -1519,3 +1519,31 @@
 
 ### 备注：
 - 请先修复代码质量或测试缺口，再重新运行 driver。
+## [2026-05-16 19:00] - Task: TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 修复任务详情进度与失败字段响应契约，覆盖 FR-002 / AC-002
+
+### 完成的工作：
+- Codex 已产生改动。
+
+### 测试结果：
+- 测试失败，退出码 1。
+
+### 审查结果：
+- Stage 1: PASS - 审查通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 禁止标记 passes=true，请人工查看 trace。
+## [2026-05-16 19:02] - Task: TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 修复任务详情进度与失败字段响应契约，覆盖 FR-002 / AC-002
+
+### 完成的工作：
+- Codex 已完成实现并通过测试，但 Stage 2 审查未通过。
+
+### 测试结果：
+- 测试命令通过。
+
+### 审查结果：
+- Stage 1: PASS - 审查通过。
+- Stage 2: FAIL - 审查未通过。
+
+### 备注：
+- 请先修复代码质量或测试缺口，再重新运行 driver。

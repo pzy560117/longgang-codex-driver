@@ -47,6 +47,12 @@ function parseExportTaskDetailSchemaBlock() {
   return block;
 }
 
+function parseBatchCheckpointSchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/BatchCheckpoint:\s*\n([\s\S]*?)\n\s{4}AuditEvent:/) ?? [];
+  return block;
+}
+
 function parseYamlListFromBlock(block, key) {
   const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
   return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
@@ -177,4 +183,26 @@ test("runtime public response and task event allow-lists match OpenAPI enums", (
   for (const eventType of parseTaskEventTypeEnum()) {
     assert.match(publicEnums, new RegExp(`"${eventType}"`), `${eventType} missing in runtime event allow-list`);
   }
+});
+
+test("public BatchCheckpoint schema exposes progress fields without internal error fields", () => {
+  const checkpointSchema = parseBatchCheckpointSchemaBlock();
+
+  assert.doesNotMatch(checkpointSchema, /\n\s{6}required:\n/);
+
+  for (const field of [
+    "lastCursor",
+    "processedCount",
+    "totalCount",
+    "filePartNo",
+    "retryCount",
+    "batchSize",
+    "batchRowCount",
+    "backoffMs"
+  ]) {
+    assert.match(checkpointSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a public property`);
+  }
+
+  assert.doesNotMatch(checkpointSchema, /\n\s{8}errorCode:\n/);
+  assert.doesNotMatch(checkpointSchema, /\n\s{8}errorMessage:\n/);
 });

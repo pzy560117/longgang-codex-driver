@@ -460,6 +460,8 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(detailResponse.json().data.recentEvents[0].datasourceCode, "purchase-ro");
   assert.equal(detailResponse.json().data.recentEvents[0].queryTemplateVersion, "v1");
   assert.equal(detailResponse.json().data.recentEvents[0].batchCheckpoint.processedCount, 24);
+  assert.equal("errorCode" in detailResponse.json().data.recentEvents[0].batchCheckpoint, false);
+  assert.equal("errorMessage" in detailResponse.json().data.recentEvents[0].batchCheckpoint, false);
 
   const listResponse = await app.inject({
     method: "GET",
@@ -477,6 +479,12 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     listResponse.json().data.items.find((item) => item.taskId === taskId).fileFormat,
     "XLSX"
   );
+  const listedTask = listResponse.json().data.items.find((item) => item.taskId === taskId);
+  assert.equal(listedTask.totalCount, 0);
+  assert.equal(listedTask.processedCount, 0);
+  assert.equal(listedTask.progressPercent, 0);
+  assert.deepEqual(listedTask.recentEvents, []);
+  assert.equal("events" in listedTask, false);
 
   const secondTaskResponse = await app.inject({
     method: "POST",
@@ -637,6 +645,14 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
     "QUERY_BATCH_DONE"
   );
+  assert.equal(
+    "errorCode" in eventOnlyFailedDetailResponse.json().data.recentEvents[0].batchCheckpoint,
+    false
+  );
+  assert.equal(
+    "errorMessage" in eventOnlyFailedDetailResponse.json().data.recentEvents[0].batchCheckpoint,
+    false
+  );
   assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
 
   const internalFailureTaskResponse = await app.inject({
@@ -712,6 +728,10 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.deepEqual(
     internalFailureDetailResponse.json().data.recentEvents.map((event) => event.eventType),
     ["QUERY_BATCH_DONE"]
+  );
+  assert.doesNotMatch(
+    JSON.stringify(internalFailureDetailResponse.json().data.recentEvents),
+    /UnexpectedQueryVendorError/
   );
   assert.equal("events" in internalFailureDetailResponse.json().data, false);
 

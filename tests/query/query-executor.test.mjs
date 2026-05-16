@@ -335,6 +335,7 @@ test("query executor binds template, enforces data scope, masks sensitive fields
     events.map((event) => event.eventType),
     ["QUERY_BATCH_DONE", "QUERY_READY"]
   );
+  assert.equal(JSON.parse(events[0].batchCheckpoint).totalCount, 2);
   assert.equal(events[1].datasourceCode, "purchase-ro");
   assert.equal(events[0].queryTemplateVersion, "v1");
 });

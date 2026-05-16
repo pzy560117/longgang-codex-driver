@@ -160,16 +160,17 @@ export function createQueryExecutorBatchProcessor() {
     const lastCursor = limitedRows.length
       ? encodeCursorToken(createCursorToken(limitedRows[limitedRows.length - 1], orderBy))
       : context.checkpoint?.lastCursor ?? null;
+    const outcome = rawRows.length <= batchSize ? "completed" : "continue";
     const checkpoint = {
       lastCursor,
       processedCount,
+      ...(outcome === "completed" ? { totalCount: processedCount } : {}),
       filePartNo: context.checkpoint?.filePartNo ?? 1,
       retryCount: context.checkpoint?.retryCount ?? 0,
       batchSize,
       batchRowCount: mappedRows.length,
       backoffMs: 0
     };
-    const outcome = rawRows.length <= batchSize ? "completed" : "continue";
     const rows =
       outcome === "completed" && (context.checkpoint?.processedCount ?? 0) > 0
         ? await collectCompletedRows({

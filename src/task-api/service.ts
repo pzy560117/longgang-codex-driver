@@ -87,13 +87,14 @@ function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {
     leaseRenewedAt: task.leaseRenewedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
-    totalCount: null,
+    totalCount: 0,
     processedCount: 0,
     progressPercent: 0,
     errorCode: null,
     errorMessage: null,
     failureStage: null,
     lastSuccessStage: null,
+    recentEvents: [],
     ...extra
   };
 }
@@ -273,6 +274,35 @@ function resolveTaskFailure(
   };
 }
 
+function publicBatchCheckpoint(value: string | null | undefined): Record<string, unknown> | null {
+  const checkpoint = parseJsonRecord(value);
+  if (!checkpoint) {
+    return null;
+  }
+
+  const allowedFields = [
+    "lastCursor",
+    "processedCount",
+    "totalCount",
+    "filePartNo",
+    "retryCount",
+    "batchSize",
+    "batchRowCount",
+    "backoffMs",
+    "attemptNo",
+    "lockOwner",
+    "lockExpireAt",
+    "leaseRenewedAt",
+    "databaseTime",
+    "takeoverRule"
+  ];
+  return Object.fromEntries(
+    allowedFields
+      .filter((field) => Object.hasOwn(checkpoint, field))
+      .map((field) => [field, checkpoint[field]])
+  );
+}
+
 function mapRecentTaskEvent(event: TaskEventRecord) {
   return {
     taskId: event.taskId,
@@ -281,7 +311,7 @@ function mapRecentTaskEvent(event: TaskEventRecord) {
     requestId: event.requestId,
     datasourceCode: event.datasourceCode,
     queryTemplateVersion: event.queryTemplateVersion,
-    batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
+    batchCheckpoint: publicBatchCheckpoint(event.batchCheckpoint),
     occurredAt: event.occurredAt.toISOString()
   };
 }

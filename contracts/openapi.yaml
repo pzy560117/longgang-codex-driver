@@ -1777,18 +1777,16 @@ components:
           enum: [ASC, DESC]
     BatchCheckpoint:
       type: object
-      required:
-        - attemptNo
-        - lockOwner
-        - lockExpireAt
-        - leaseRenewedAt
-        - databaseTime
       properties:
         lastCursor:
           type: string
         processedCount:
           type: integer
           format: int64
+        totalCount:
+          type: integer
+          format: int64
+          minimum: 0
         filePartNo:
           type: integer
         attemptNo:
