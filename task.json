@@ -2348,7 +2348,7 @@
                       "dependencies":  [
                                            "REGISTRY-CONTRACT-VALIDATION-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 / CREATE-TASK-REGISTRY-GUARD-001：创建任务入队前校验 registry supportedFormats 和 parameterSchema",

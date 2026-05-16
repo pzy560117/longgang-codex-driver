@@ -1,0 +1,61 @@
+SUCCESS: The process with PID 20420 (child process of PID 8668) has been terminated.
+SUCCESS: The process with PID 7600 (child process of PID 33512) has been terminated.
+SUCCESS: The process with PID 33512 (child process of PID 12300) has been terminated.
+SUCCESS: The process with PID 30696 (child process of PID 32508) has been terminated.
+SUCCESS: The process with PID 32508 (child process of PID 27480) has been terminated.
+SUCCESS: The process with PID 27480 (child process of PID 30408) has been terminated.
+SUCCESS: The process with PID 30408 (child process of PID 12300) has been terminated.
+SUCCESS: The process with PID 15776 (child process of PID 16572) has been terminated.
+SUCCESS: The process with PID 16572 (child process of PID 27748) has been terminated.
+SUCCESS: The process with PID 27748 (child process of PID 1836) has been terminated.
+SUCCESS: The process with PID 1836 (child process of PID 29092) has been terminated.
+SUCCESS: The process with PID 29092 (child process of PID 12300) has been terminated.
+## Requirement IDs
+- FR-001
+- FR-008
+- FR-014
+- AC-001
+- AC-008
+- AC-017
+- AC-E021
+
+## Summary
+- 复核后发现本任务实现已在当前基线中存在，最近相关提交为 `bcfee57 fix(task-api): preserve idempotent replay past registry guard`。
+- 已验证创建任务在 `createPendingTask` 前执行 registry `supportedFormats` 与 `parameterSchema` guard，非法请求不会创建 `PENDING` task，也不会写入幂等记录。
+- 本轮没有产生 tracked diff；未执行 commit，因为 Driver Context 明确禁止 `git add` / `git commit` / `git push`，且无可提交改动。
+
+## Files Changed
+- 无 tracked 文件改动。
+
+## Validation
+- `npm run arch:check; ... npm run test:api; ... npm run test:contract; ... git diff --check ...`: PASS
+- `test:api`: PASS，6/6
+- `test:contract`: PASS，15/15
+- `git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- [service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:221): `assertCreateTaskRegistryGuards`
+- [service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:800): guard 位于 `createPendingTask` 前
+- [export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:1858): 非法 `fileFormat` / `queryParams` 不入队测试
+- [openapi-route-mapping.contract.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/contract/openapi-route-mapping.contract.test.mjs:372): contract guard 顺序守护
+- [verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:45): 本任务证据边界记录
+
+## Architecture Constraints
+- `independent_microservice / HTTP + DB production path`: PASS - API + MySQL 集成测试通过
+- `禁止 InMemory/mock repository 冒充生产路径`: PASS - 验证使用 Docker MySQL 环境
+- `feature_impl 必须运行 arch:check + affected tests + diff check`: PASS - 任务指定命令完整通过
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有未跟踪 `traces/CREATE-TASK-REGISTRY-GUARD-001-*` 运行产物；按任务边界未修改 `traces/`。
+- 未自动提交，原因是本轮无 tracked diff 且 Driver Context 明确禁止提交命令。

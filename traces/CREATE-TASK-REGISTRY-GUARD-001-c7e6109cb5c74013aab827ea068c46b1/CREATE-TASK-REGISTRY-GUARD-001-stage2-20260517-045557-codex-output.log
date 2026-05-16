@@ -1,0 +1,34 @@
+SUCCESS: The process with PID 33924 (child process of PID 29932) has been terminated.
+SUCCESS: The process with PID 29932 (child process of PID 11540) has been terminated.
+SUCCESS: The process with PID 11540 (child process of PID 29480) has been terminated.
+SUCCESS: The process with PID 29480 (child process of PID 30492) has been terminated.
+SUCCESS: The process with PID 34016 (child process of PID 32180) has been terminated.
+SUCCESS: The process with PID 32180 (child process of PID 30184) has been terminated.
+SUCCESS: The process with PID 30184 (child process of PID 32800) has been terminated.
+SUCCESS: The process with PID 32800 (child process of PID 24928) has been terminated.
+SUCCESS: The process with PID 24928 (child process of PID 30492) has been terminated.
+SUCCESS: The process with PID 6292 (child process of PID 8044) has been terminated.
+SUCCESS: The process with PID 8044 (child process of PID 16512) has been terminated.
+SUCCESS: The process with PID 16512 (child process of PID 32388) has been terminated.
+SUCCESS: The process with PID 32388 (child process of PID 30492) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| CREATE-TASK-REGISTRY-GUARD-001-S2-F001 | HIGH | test_gap | backend | `src/task-api/service.ts:753` 先执行 `assertCreateTaskRegistryGuards`，`src/task-api/service.ts:774-786` 之后才计算并查询幂等记录；但 `contracts/openapi.yaml:289` 声明相同 digest 的 idempotent replay 返回既有任务，`contracts/openapi.yaml:1521` 声明 idempotency scope 是 stable success-response evidence。现有新增测试 `tests/api/export-http-api.test.mjs:1858-1959` 只覆盖非法请求不入队，既有 replay 测试 `tests/api/export-http-api.test.mjs:789-798` 只覆盖 registry 未变化场景。 | 将 `requestDigest` / `idempotencyScope` 计算和已有幂等记录查询移动到 registry format/schema guard 之前；只有未命中幂等记录的新任务才执行 registry guard，并确保 guard 仍在 `createPendingTask` 前。补 API 回归测试：先成功创建任务，再更新 registry 使原请求在当前 schema/format 下不再合法，使用相同 `clientRequestId` 和相同 payload 重放应返回 `200`、`idempotencyHit=true`、同一 `taskId`，且不新增失败审计或新任务。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'; npm run test:contract; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md` |
+
+## Verification
+
+- 已检查命令: 任务给定完整验证命令。
+- 结果摘要: 命令退出码 `0`；`arch:check` 通过；`test:api` 5/5 通过；`test:contract` 15/15 通过；`git diff --check` 无 whitespace error，仅 CRLF warning。
+- 代码审查结果: 验证命令未覆盖 registry 配置变更后的幂等重放路径，存在契约稳定性回归风险。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| CREATE-TASK-REGISTRY-GUARD-001-S2-F001 | backend | backend-worker | 1 | Yes |

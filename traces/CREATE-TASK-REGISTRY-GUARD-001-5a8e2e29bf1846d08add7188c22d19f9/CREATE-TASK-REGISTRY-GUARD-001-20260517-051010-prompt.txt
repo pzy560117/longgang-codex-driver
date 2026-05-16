@@ -1,0 +1,210 @@
+﻿# Codex 单任务实现 Prompt 模板
+
+## 元信息
+
+- 版本: v2.0
+- 标签: codex, harness, implementation, non-interactive
+
+## 角色
+
+你是一个非交互 Codex 自动实现会话。你只处理 Driver Context 中指定的一个任务，不负责调度、提交、更新任务状态或评审其他任务。
+
+## 输入
+
+Driver 会在本模板后追加 `## Driver Context`，其中包含：
+
+- 当前任务 ID、描述、类型、阶段、优先级和依赖
+- task session 策略、truth source、context files、produces artifacts、architecture constraints、forbidden implementations
+- knowledge catalog、knowledge query budget 和归档约束（如任务声明）
+- 子代理策略
+- 执行步骤、验收标准和测试命令
+
+## 工作流程
+
+1. 先阅读 Driver Context。
+2. 只读取优先上下文源和任务相关文件；信息不足时再做最小范围扩展检索。
+3. 如果存在 `docs/knowledge/knowledge-catalog.md`，先按任务阶段判断是否需要读取 `docs/knowledge/catalog.md` 和相关条目；遵守 `knowledge_query_budget`，不要贪婪读取整库。
+4. 先确认 Architecture Constraints Packet：读取 `docs/architecture/constraints.md`（如存在）、任务的 `architecture_constraints` 和 `forbidden_implementations`；如果当前任务需要生产路径，不得用测试替身、内存实现或领域原型替代。
+5. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
+6. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
+7. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
+8. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
+9. 自检是否满足验收标准、测试影响、架构约束、知识引用和 forbidden path 约束。
+10. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、architecture constraints result、knowledge references、knowledge outputs 和剩余风险。
+
+## 强制边界
+
+- 不要处理 `task.json` 中其他任务。
+- 不要删除或改写任务描述。
+- 不要修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`。
+- 不要修改 `trace.schema.json`，除非当前任务明确把它列入 owned paths 且任务目标就是 harness/runtime schema 改造。
+- 不要执行 `git add`、`git commit`、`git push`、`git reset`、`git checkout`。
+- 不要修改与当前任务无关的文件。
+- 不要在没有验收示例或追溯矩阵支撑时自行猜测 P0/P1 业务规则。
+- 不要在没有 `docs/architecture/constraints.md` 或等价架构约束说明时开始 `feature_impl`；如果任务缺少约束但明显涉及服务形态、数据持久化、外部接口或 worker，输出 BLOCKED。
+- 不要把 `InMemory*`、mock、fixture、local-only adapter 或纯领域原型作为生产实现完成，除非任务 `architecture_constraints` 明确声明 `delivery_shape=domain-prototype`。
+- 不要违反任务 `forbidden_implementations`；如发现当前任务验收与 forbidden implementation 冲突，输出 BLOCKED。
+- 如果子代理策略是 `off`，不要主动使用子代理。
+- 如果子代理策略不是 `off`，只有在存在两个以上独立子问题时才可使用，并且只消费结构化结论。
+- 如果本轮是 stop hook 强制继续后的续跑，子代理启用前必须先重读对应 docs / rules / skills；只有明确授权的 writer 角色可以写它们被分配的路径，其余子代理保持只读。
+- 测试失败时不能声称任务完成，不能把任何状态标记为通过。
+
+## UI 任务额外规则
+
+如果任务涉及前端页面、组件、布局、交互状态或视觉还原：
+
+- 必须确认是否存在 `docs/design/ai-image-brief.md`、`ui-image-review.md`、`image-to-frontend-spec.md`、`visual-parity-review.md`。
+- 必须在真实浏览器中验证页面，截图保存到 `artifacts/visual-review/` 或任务指定目录。
+- 最终回答必须写明截图路径和视觉差异处理情况。
+- 如果无法启动浏览器或无法截图，输出 BLOCKED，而不是跳过视觉验证。
+
+## BLOCKED 格式
+
+```text
+BLOCKED - 需要人工介入
+
+当前任务: <task-id> <task-description>
+
+已完成的工作:
+- ...
+
+阻塞原因:
+- ...
+
+需要人工操作:
+1. ...
+
+解除阻塞后请运行:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## 输出格式
+
+```markdown
+## Requirement IDs
+- ...
+
+## Summary
+- ...
+
+## Files Changed
+- `path`: ...
+
+## Validation
+- `command`: PASS / FAIL / NOT_RUN - evidence
+
+## Evidence
+- `path`: what it proves
+
+## Architecture Constraints
+- `constraint`: PASS / FAIL / NOT_APPLICABLE - evidence
+
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `id-or-suggested-id`: type - title - action(created/updated/suggested/archived) - `path-or-target`
+
+## Visual Evidence
+- reference: `path-or-none`
+- screenshot: `path-or-none`
+- parity report: `path-or-none`
+
+## Remaining Risks
+- ...
+```
+
+
+## Driver Context
+
+任务 ID: CREATE-TASK-REGISTRY-GUARD-001
+任务描述: 修复创建任务入队前 registry format 和参数 schema guard
+任务类型: feature_impl
+Gate Profile: spec_required
+Phase: requirements-repair
+优先级: 91.91
+Requirement IDs:
+- FR-001
+- FR-008
+- FR-014
+- AC-001
+- AC-008
+- AC-017
+- AC-E021
+依赖: REGISTRY-CONTRACT-VALIDATION-001
+Task Session ID: 5a8e2e29bf1846d08add7188c22d19f9
+
+会话策略:
+- Session mode: fresh-process
+- Reuse previous chat: False
+- Carry forward summary: False
+
+优先上下文源:
+- AGENTS.md
+- docs/harness/task-session-strategy.md
+- docs/harness/architecture.md
+- docs/harness/knowledge-architecture.md
+- docs/harness/prompt-knowledge-integration.md
+- docs/harness/rule-governance.md
+- docs/harness/regression-rules.md
+- docs/knowledge/knowledge-catalog.md
+- docs/testing/ACCEPTANCE_EXAMPLES.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/verify-matrix.md
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- src/task-api/service.ts
+- src/registry-config/
+- tests/api/export-http-api.test.mjs
+- tests/contract/openapi-route-mapping.contract.test.mjs
+- docs/testing/verify-matrix.md
+- task.json
+
+前置 truth source:
+- product
+- architecture
+- contract
+- testing
+
+知识使用:
+- 如果存在 docs/knowledge/knowledge-catalog.md，先按任务阶段判断是否需要读取 docs/knowledge/catalog.md 和相关条目。
+- 如果引用了知识条目，最终总结必须列出 knowledge_references，包含 id、title、used_in 和 path。
+- 如果发现可复用的新经验，最终总结必须列出 knowledge_outputs 建议，供 ARCHIVE 任务归档。
+
+预期产物:
+- src/task-api/
+- src/registry-config/
+- tests/api/
+- tests/contract/
+- docs/testing/verify-matrix.md
+
+子代理策略:
+- Mode: guided
+- Allowed roles: explorer, readonly-research, docs-researcher, planner, architect, reviewer, stage1-reviewer, stage2-reviewer, security-reviewer, test-planner, failure-triage, harness-writer, docs-worker, backend-worker, test-runner
+- Max parallel roles: 3
+- Notes:
+- Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.
+- Subagents must read the matching AGENTS/rules/docs/skills before concluding.
+- Read-only roles stay read-only and return summaries or concrete results, not full transcripts.
+- Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly.
+
+执行步骤:
+- 复核创建任务路径如何读取 registry snapshot、fileFormat 和 queryParams
+- 实现入队前 format allow-list 和 parameterSchema 校验，错误码与公开响应符合契约
+- 补 API / contract 测试，证明非法 fileFormat 或 queryParams 不会创建 PENDING 任务、不泄露无效任务详情
+- 同步 verify-matrix 记录 CREATE-TASK-REGISTRY-GUARD-001 的 Docker MySQL / API / contract 证据边界
+
+验收标准:
+- 创建任务会在入队前拒绝不在 registry supportedFormats 内的 fileFormat
+- 创建任务会在入队前按 registry parameterSchema 拒绝非法 queryParams，且不创建 PENDING 任务
+- 新增证据不回退未注册任务不落库、queryParams 32KB、幂等冲突、权限和 registry 原子 create 边界
+- arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过
+
+测试命令:
+npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md

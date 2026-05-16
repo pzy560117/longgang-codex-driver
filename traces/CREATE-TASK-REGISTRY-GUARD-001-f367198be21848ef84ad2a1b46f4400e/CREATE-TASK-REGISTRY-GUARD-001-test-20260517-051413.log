@@ -1,0 +1,54 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:57832 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.8116ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1879.6632ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (251.6552ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (130.5841ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (126.443ms)
+✔ create task idempotent replay returns existing task after registry guard changes (129.7128ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3191.296
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.1221ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.5454ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4255ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.0466ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2517ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.8024ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.6865ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3888ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.3261ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4977ms)
+✔ protected operations declare trusted auth context signature proof (0.6709ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.5962ms)
+✔ create task contract guard is implemented before PENDING enqueue (0.6534ms)
+✔ registry required fields and nested registry contract required fields stay aligned with production validation (1.7491ms)
+✔ registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields (0.5141ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 80.2506

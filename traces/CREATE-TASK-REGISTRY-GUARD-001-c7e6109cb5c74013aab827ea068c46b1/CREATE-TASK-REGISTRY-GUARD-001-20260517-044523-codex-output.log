@@ -1,0 +1,63 @@
+SUCCESS: The process with PID 2944 (child process of PID 23360) has been terminated.
+SUCCESS: The process with PID 23360 (child process of PID 30120) has been terminated.
+SUCCESS: The process with PID 30120 (child process of PID 8716) has been terminated.
+SUCCESS: The process with PID 8716 (child process of PID 5104) has been terminated.
+SUCCESS: The process with PID 5104 (child process of PID 27960) has been terminated.
+SUCCESS: The process with PID 2084 (child process of PID 26184) has been terminated.
+SUCCESS: The process with PID 26184 (child process of PID 20412) has been terminated.
+SUCCESS: The process with PID 20412 (child process of PID 29604) has been terminated.
+SUCCESS: The process with PID 29604 (child process of PID 27960) has been terminated.
+SUCCESS: The process with PID 19244 (child process of PID 32760) has been terminated.
+SUCCESS: The process with PID 32760 (child process of PID 27424) has been terminated.
+SUCCESS: The process with PID 27424 (child process of PID 31376) has been terminated.
+SUCCESS: The process with PID 31376 (child process of PID 27960) has been terminated.
+## Requirement IDs
+- FR-001, FR-008, FR-014
+- AC-001, AC-008, AC-017, AC-E021
+
+## Summary
+- 已在创建任务入队前增加 registry guard：读取 registry snapshot 后先校验 `supportedFormats` 与 `parameterSchema`，再进入幂等查询和 `createPendingTask`。
+- 非法 `fileFormat`、缺失必填 `queryParams`、未声明参数、类型不匹配都会返回公开 `QUERY_TEMPLATE_INVALID`，写入 CREATE 失败审计，不创建 PENDING 任务和幂等记录。
+- 已补 API / contract 测试与 verify matrix 证据边界。未执行 commit，因为本轮 Driver 模板强制禁止 `git add/git commit`。
+
+## Files Changed
+- [service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:127): 创建任务前 registry format/schema guard
+- [export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:1858): API 集成负向用例
+- [openapi-route-mapping.contract.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/contract/openapi-route-mapping.contract.test.mjs:363): contract/static guard
+- [openapi.yaml](E:/2026/alpha-project/longgang-codex-driver/contracts/openapi.yaml:310): create task 错误状态映射
+- [verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:45): 本任务证据边界
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run arch:check`: PASS
+- Docker MySQL `npm run test:api`: PASS, 5/5
+- `npm run test:contract`: PASS, 15/15
+- `git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md`: PASS
+- `git diff --check -- contracts/openapi.yaml`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明非法 format/schema 请求不会入队、不会写幂等记录、不泄露 `taskId/status`
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 guard 在 `createPendingTask` 前执行且契约错误码映射不漂移
+- `docs/testing/verify-matrix.md`: 记录 Docker MySQL / API / contract evidence 边界
+
+## Architecture Constraints
+- `independent_microservice/http_service`: PASS - 生产 HTTP + service + MySQL 路径测试通过
+- `Data Boundary`: PASS - 未使用 InMemory/mock repository 冒充生产路径
+- `forbidden_implementations`: PASS - guard 位于真实 task-api 生产路径
+- `subagent_policy`: PASS - 未启用子代理，当前任务不需要两个以上独立子问题
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in 实现输出证据字段 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in verify matrix/contract guard 边界 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `none`: 本轮无新增可复用知识条目建议
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL、live datasource、live OSS/S3 不在本任务证据声明范围。
+- 工作区仍有既存未跟踪 trace 目录：`traces/CREATE-TASK-REGISTRY-GUARD-001-c7e6109cb5c74013aab827ea068c46b1/`，本轮未修改。

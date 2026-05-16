@@ -1,0 +1,23 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+无 Stage 1 阻塞问题。
+
+## Verdict
+
+- PASS
+
+核验依据：
+- `task.json` 已包含 `required_truth_sources`、`architecture_constraints`、`forbidden_implementations` 和架构验证型 `test_command`。
+- `src/task-api/service.ts` 在 `createPendingTask` 前执行 registry `supportedFormats` 与 `parameterSchema` guard。
+- `tests/api/export-http-api.test.mjs` 覆盖非法 `fileFormat`、缺必填参数、未声明参数、类型错误、32KB 边界、不落库、不写 idempotency 记录。
+- 已运行并通过：`npm run arch:check`、Docker MySQL 下 `npm run test:api`、`npm run test:contract`、`git diff --check`。`git diff --check` 仅有 CRLF 提示，无 whitespace error。
+
+非 UI 任务，设计稿、浏览器截图、视觉还原闸门不适用。`docs/knowledge/` 存在，但当前任务未声明 `required_truth_sources=knowledge`，阶段也不是 `archive`，不构成缺口。
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

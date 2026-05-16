@@ -1,0 +1,175 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: CREATE-TASK-REGISTRY-GUARD-001
+- 描述: 修复创建任务入队前 registry format 和参数 schema guard
+- Requirement IDs:
+- FR-001
+- FR-008
+- FR-014
+- AC-001
+- AC-008
+- AC-017
+- AC-E021
+- 测试命令: npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- src/task-api/service.ts
+- src/registry-config/
+- tests/api/export-http-api.test.mjs
+- tests/contract/openapi-route-mapping.contract.test.mjs
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:53466 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.7114ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1872.6693ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (272.357ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (134.5532ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (134.5617ms)
+✔ create task idempotent replay returns existing task after registry guard changes (131.5057ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3275.771
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.4882ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.6094ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5486ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (3.1494ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.6077ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.8462ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.7514ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3939ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.3256ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4831ms)
+✔ protected operations declare trusted auth context signature proof (0.5546ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.4754ms)
+✔ create task contract guard is implemented before PENDING enqueue (0.6426ms)
+✔ registry required fields and nested registry contract required fields stay aligned with production validation (1.7085ms)
+✔ registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields (0.506ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 87.2405
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
