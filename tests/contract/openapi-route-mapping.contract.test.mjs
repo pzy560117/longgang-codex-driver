@@ -220,3 +220,23 @@ test("registry dataScopeTemplate example includes all auth scope placeholders", 
     assert.match(example ?? "", new RegExp(placeholder), `${placeholder} missing from dataScopeTemplate example`);
   }
 });
+
+test("download operation declares signed URL callback parameters and signature failures", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+
+  for (const parameter of [
+    "expiresAt",
+    "signatureAlgorithm",
+    "signature",
+    "operatorId",
+    "tenantId",
+    "roleCodes",
+    "orgScope",
+    "requestId"
+  ]) {
+    assert.match(openapi, new RegExp(`name: ${parameter}\\r?\\n`), `${parameter} callback parameter missing`);
+  }
+  assert.match(openapi, /"#\/components\/responses\/SignatureRejected"/);
+  assert.match(openapi, /- SIGNATURE_INVALID/);
+  assert.match(openapi, /- SIGNATURE_EXPIRED/);
+});

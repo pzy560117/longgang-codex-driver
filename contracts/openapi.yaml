@@ -442,6 +442,48 @@ paths:
           schema:
             $ref: "#/components/schemas/DeliveryMode"
             default: SIGNED_URL
+        - name: expiresAt
+          in: query
+          description: Signed URL callback expiry. Required only when the signed download URL calls back into this operation.
+          schema:
+            type: string
+            format: date-time
+        - name: signatureAlgorithm
+          in: query
+          description: Signed URL callback signature algorithm.
+          schema:
+            type: string
+            enum: [HMAC-SHA256]
+        - name: signature
+          in: query
+          description: HMAC signature for signed URL callback parameters.
+          schema:
+            type: string
+        - name: operatorId
+          in: query
+          description: Operator captured when the signed URL was issued for audit attribution.
+          schema:
+            type: string
+        - name: tenantId
+          in: query
+          description: Tenant captured when the signed URL was issued for audit attribution.
+          schema:
+            type: string
+        - name: roleCodes
+          in: query
+          description: Comma-separated roles captured when the signed URL was issued.
+          schema:
+            type: string
+        - name: orgScope
+          in: query
+          description: Organization scope captured when the signed URL was issued.
+          schema:
+            type: string
+        - name: requestId
+          in: query
+          description: Request id captured when the signed URL was issued for audit correlation.
+          schema:
+            type: string
       responses:
         "200":
           description: Signed URL response or file stream.
@@ -492,7 +534,7 @@ paths:
         "401":
           $ref: "#/components/responses/AuthContextMissing"
         "403":
-          $ref: "#/components/responses/PermissionDenied"
+          $ref: "#/components/responses/SignatureRejected"
         "404":
           $ref: "#/components/responses/TaskNotFound"
         "410":
@@ -503,6 +545,9 @@ paths:
           $ref: "#/components/responses/ExportRenderError"
       x-contract-errorResponses:
         - FILE_NOT_READY
+        - PERMISSION_DENIED
+        - SIGNATURE_INVALID
+        - SIGNATURE_EXPIRED
         - FILE_VERIFY_ERROR
         - EXPORT_RENDER_ERROR
         - INTERNAL_ERROR
@@ -955,6 +1000,28 @@ components:
               value:
                 code: PERMISSION_DENIED
                 message: permission denied
+                data: null
+    SignatureRejected:
+      description: Download is denied because permission or signed URL verification failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            denied:
+              value:
+                code: PERMISSION_DENIED
+                message: permission denied
+                data: null
+            invalidSignature:
+              value:
+                code: SIGNATURE_INVALID
+                message: download signature is invalid
+                data: null
+            expiredSignature:
+              value:
+                code: SIGNATURE_EXPIRED
+                message: download signature expired
                 data: null
     TaskNotFound:
       description: Task not found or invisible to current operator.
