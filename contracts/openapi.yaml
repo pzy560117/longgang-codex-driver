@@ -24,6 +24,9 @@ security:
     RoleCodes: []
     OrgScope: []
     RequestId: []
+    AuthContextSignature: []
+    AuthContextIssuedAt: []
+    AuthContextSignatureAlgorithm: []
 x-contract-implementation-trace:
   description: |
     CONTRACT-REVIEW-001 requires every public operation to stay traceable to
@@ -225,6 +228,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
       requestBody:
         required: true
         content:
@@ -316,6 +322,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - name: taskCode
           in: query
           schema:
@@ -383,6 +392,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskId"
       responses:
         "200":
@@ -437,6 +449,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskId"
         - name: mode
           in: query
@@ -567,6 +582,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskId"
       requestBody:
         required: false
@@ -606,6 +624,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskId"
       requestBody:
         required: false
@@ -643,6 +664,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
       requestBody:
         required: true
         content:
@@ -743,6 +767,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - name: taskCode
           in: query
           schema:
@@ -792,6 +819,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskCode"
       responses:
         "200":
@@ -819,6 +849,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskCode"
       requestBody:
         required: true
@@ -859,6 +892,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskCode"
       responses:
         "200":
@@ -886,6 +922,9 @@ paths:
         - $ref: "#/components/parameters/XRoleCodes"
         - $ref: "#/components/parameters/XOrgScope"
         - $ref: "#/components/parameters/XRequestId"
+        - $ref: "#/components/parameters/XAuthContextSignature"
+        - $ref: "#/components/parameters/XAuthContextIssuedAt"
+        - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
         - $ref: "#/components/parameters/TaskCode"
       responses:
         "200":
@@ -929,6 +968,21 @@ components:
       in: header
       name: X-Request-Id
       description: Request id used by audit logs and task events.
+    AuthContextSignature:
+      type: apiKey
+      in: header
+      name: X-Auth-Context-Signature
+      description: HMAC-SHA256 proof that the ingress authenticated the auth context headers.
+    AuthContextIssuedAt:
+      type: apiKey
+      in: header
+      name: X-Auth-Context-Issued-At
+      description: Timestamp included in the auth context HMAC proof.
+    AuthContextSignatureAlgorithm:
+      type: apiKey
+      in: header
+      name: X-Auth-Context-Signature-Algorithm
+      description: Auth context signature algorithm. Current value must be HMAC-SHA256.
   parameters:
     XOperatorId:
       name: X-Operator-Id
@@ -965,6 +1019,29 @@ components:
       schema:
         type: string
       description: Upstream request id used by audit logs and task events.
+    XAuthContextSignature:
+      name: X-Auth-Context-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+      description: HMAC-SHA256 proof that the ingress authenticated the auth context headers. No nonce or replay-deduplication store is part of this contract; identical signed headers may be replayed within the accepted freshness window.
+    XAuthContextIssuedAt:
+      name: X-Auth-Context-Issued-At
+      in: header
+      required: true
+      schema:
+        type: string
+        format: date-time
+      description: Timestamp included in the auth context HMAC proof. freshness boundary only: issuedAt must be no more than 5 minutes in the future and no older than 10 minutes relative to server time.
+    XAuthContextSignatureAlgorithm:
+      name: X-Auth-Context-Signature-Algorithm
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [HMAC-SHA256]
+      description: Auth context signature algorithm.
     TaskId:
       name: taskId
       in: path
@@ -979,7 +1056,7 @@ components:
         type: string
   responses:
     AuthContextMissing:
-      description: Required auth context is missing or malformed.
+      description: Required auth context is missing, malformed, outside the trusted freshness boundary, or lacks trusted ingress proof.
       content:
         application/json:
           schema:

@@ -247,6 +247,31 @@ test("download operation declares signed URL callback parameters and signature f
   assert.match(openapi, /- SIGNATURE_EXPIRED/);
 });
 
+test("protected operations declare trusted auth context signature proof", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const operationIds = parseOpenApiOperationIds();
+  const signatureRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextSignature"/g)]
+    .length;
+  const issuedAtRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextIssuedAt"/g)]
+    .length;
+  const algorithmRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextSignatureAlgorithm"/g)]
+    .length;
+
+  assert.match(openapi, /XAuthContextSignature:/);
+  assert.match(openapi, /name: X-Auth-Context-Signature/);
+  assert.match(openapi, /XAuthContextIssuedAt:/);
+  assert.match(openapi, /name: X-Auth-Context-Issued-At/);
+  assert.match(openapi, /XAuthContextSignatureAlgorithm:/);
+  assert.match(openapi, /name: X-Auth-Context-Signature-Algorithm/);
+  assert.match(openapi, /HMAC-SHA256 proof that the ingress authenticated the auth context headers/);
+  assert.match(openapi, /freshness boundary only: issuedAt must be no more than 5 minutes in the future and no older than 10 minutes relative to server time/);
+  assert.match(openapi, /No nonce or replay-deduplication store is part of this contract; identical signed headers may be replayed within the accepted freshness window/);
+  assert.match(openapi, /Required auth context is missing, malformed, outside the trusted freshness boundary, or lacks trusted ingress proof\./);
+  assert.equal(signatureRefCount, operationIds.length);
+  assert.equal(issuedAtRefCount, operationIds.length);
+  assert.equal(algorithmRefCount, operationIds.length);
+});
+
 test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
   const operationBlock = parseCreateExportTaskOperationBlock();

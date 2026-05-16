@@ -16,7 +16,8 @@ import {
   getDatabaseTime
 } from "../../src/repositories/index.ts";
 
-const downloadSigningSecret = `test-only-${randomUUID()}`;
+const downloadSigningSecret = `test-only-download-${randomUUID()}`;
+const authContextSigningSecret = `test-only-auth-${randomUUID()}`;
 
 function getTestDatabaseUrl() {
   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
@@ -36,6 +37,8 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
   const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   const previousDownloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  const previousAuthContextSigningSecret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+  const previousRegistryAdminTenantIds = process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT =
     objectStorageConfig.endpoint ?? "https://oss.example.test";
@@ -43,6 +46,10 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
     objectStorageConfig.bucket ?? "export-platform-test";
   process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
     objectStorageConfig.signingSecret ?? downloadSigningSecret;
+  process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET =
+    objectStorageConfig.authContextSigningSecret ?? authContextSigningSecret;
+  process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS =
+    objectStorageConfig.registryAdminTenantIds ?? "tenant-001";
 
   return () => {
     if (previousDatabaseUrl === undefined) {
@@ -67,6 +74,18 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
       delete process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
     } else {
       process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = previousDownloadSigningSecret;
+    }
+
+    if (previousAuthContextSigningSecret === undefined) {
+      delete process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+    } else {
+      process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET = previousAuthContextSigningSecret;
+    }
+
+    if (previousRegistryAdminTenantIds === undefined) {
+      delete process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
+    } else {
+      process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS = previousRegistryAdminTenantIds;
     }
   };
 }
@@ -98,14 +117,32 @@ async function createServer(t, objectStorageConfig) {
 }
 
 function createHeaders(requestId, overrides = {}) {
-  return {
+  const headers = {
     "content-type": "application/json",
     "x-operator-id": overrides.operatorId ?? "u001",
     "x-tenant-id": overrides.tenantId ?? "tenant-001",
     "x-role-codes": overrides.roleCodes ?? "EXPORT_ADMIN",
-    "x-org-scope": "ORG-001",
-    "x-request-id": requestId
+    "x-org-scope": overrides.orgScope ?? "ORG-001",
+    "x-request-id": requestId,
+    "x-auth-context-issued-at": overrides.issuedAt ?? new Date().toISOString(),
+    "x-auth-context-signature-algorithm": "HMAC-SHA256"
   };
+  headers["x-auth-context-signature"] =
+    overrides.signature ?? signAuthContextHeaders(headers, overrides.secret);
+  return headers;
+}
+
+function signAuthContextHeaders(headers, secret = authContextSigningSecret) {
+  return createHmac("sha256", secret)
+    .update([
+      headers["x-operator-id"],
+      headers["x-tenant-id"],
+      headers["x-role-codes"],
+      headers["x-org-scope"],
+      headers["x-request-id"],
+      headers["x-auth-context-issued-at"]
+    ].join("\n"))
+    .digest("hex");
 }
 
 function createRegistryPayload(taskCode) {
@@ -872,8 +909,9 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     })
   });
 
-  assert.equal(crossTenantListResponse.statusCode, 200);
-  assert.ok(crossTenantListResponse.json().data.items.some((item) => item.taskId === taskId));
+  assert.equal(crossTenantListResponse.statusCode, 403);
+  assert.equal(crossTenantListResponse.json().code, "PERMISSION_DENIED");
+  assert.doesNotMatch(JSON.stringify(crossTenantListResponse.json()), new RegExp(taskId));
 
   const crossTenantDetailResponse = await app.inject({
     method: "GET",
@@ -1134,6 +1172,220 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
   const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
   assert.equal(forgedInvalidAudits.length, 0);
+});
+
+test("trusted ingress proof is required before auth headers can grant admin or tenant context", async (t) => {
+  const db = await createTestDatabase(t);
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+  const app = await createServer(t, objectStorageServer);
+  const runId = `${Date.now()}-${process.pid}-auth-boundary`;
+  const taskCode = `purchase-order-auth-boundary-${runId}`;
+
+  const unsignedAdminHeaders = createHeaders(`req-auth-boundary-unsigned-${runId}`);
+  delete unsignedAdminHeaders["x-auth-context-signature"];
+  const unsignedRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: unsignedAdminHeaders,
+    payload: createRegistryPayload(taskCode)
+  });
+
+  assert.equal(unsignedRegistryResponse.statusCode, 401);
+  assert.equal(unsignedRegistryResponse.json().code, "AUTH_CONTEXT_MISSING");
+  const unsignedAudits = await auditLogsByRequestId(db, `req-auth-boundary-unsigned-${runId}`);
+  assert.ok(unsignedAudits.length >= 1);
+  assert.equal(unsignedAudits[0].result, "FAILED");
+  assert.equal(unsignedAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+
+  const forgedAdminHeaders = createHeaders(`req-auth-boundary-forged-admin-${runId}`, {
+    operatorId: "attacker",
+    tenantId: "tenant-999",
+    roleCodes: "EXPORT_ADMIN"
+  });
+  forgedAdminHeaders["x-auth-context-signature"] = signAuthContextHeaders({
+    ...forgedAdminHeaders,
+    "x-role-codes": "EXPORT_USER"
+  });
+  const forgedAdminResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: forgedAdminHeaders,
+    payload: createRegistryPayload(`${taskCode}-forged`)
+  });
+
+  assert.equal(forgedAdminResponse.statusCode, 401);
+  assert.equal(forgedAdminResponse.json().code, "AUTH_CONTEXT_MISSING");
+  const forgedAdminAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-forged-admin-${runId}`
+  );
+  assert.ok(forgedAdminAudits.length >= 1);
+  assert.equal(forgedAdminAudits[0].result, "FAILED");
+  assert.equal(forgedAdminAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+
+  const emptyRolesHeaders = createHeaders(`req-auth-boundary-empty-roles-${runId}`, {
+    roleCodes: " , "
+  });
+  const emptyRolesResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: emptyRolesHeaders,
+    payload: createRegistryPayload(`${taskCode}-empty-roles`)
+  });
+
+  assert.equal(emptyRolesResponse.statusCode, 401);
+  assert.equal(emptyRolesResponse.json().code, "AUTH_CONTEXT_MISSING");
+  const emptyRolesAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-empty-roles-${runId}`
+  );
+  assert.ok(emptyRolesAudits.length >= 1);
+  assert.equal(emptyRolesAudits[0].result, "FAILED");
+  assert.equal(emptyRolesAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+
+  const validRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-auth-boundary-registry-${runId}`),
+    payload: createRegistryPayload(taskCode)
+  });
+  assert.equal(validRegistryResponse.statusCode, 201);
+
+  const expiredHeaders = createHeaders(`req-auth-boundary-expired-${runId}`, {
+    issuedAt: new Date(Date.now() - 10 * 60 * 1000 - 1_000).toISOString()
+  });
+  const expiredResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: expiredHeaders
+  });
+  assert.equal(expiredResponse.statusCode, 401);
+  assert.equal(expiredResponse.json().code, "AUTH_CONTEXT_MISSING");
+  const expiredAudits = await auditLogsByRequestId(db, `req-auth-boundary-expired-${runId}`);
+  assert.ok(expiredAudits.length >= 1);
+  assert.equal(expiredAudits[0].result, "FAILED");
+  assert.equal(expiredAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+
+  const futureHeaders = createHeaders(`req-auth-boundary-future-${runId}`, {
+    issuedAt: new Date(Date.now() + 5 * 60 * 1000 + 1_000).toISOString()
+  });
+  const futureResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: futureHeaders
+  });
+  assert.equal(futureResponse.statusCode, 401);
+  assert.equal(futureResponse.json().code, "AUTH_CONTEXT_MISSING");
+  const futureAudits = await auditLogsByRequestId(db, `req-auth-boundary-future-${runId}`);
+  assert.ok(futureAudits.length >= 1);
+  assert.equal(futureAudits[0].result, "FAILED");
+  assert.equal(futureAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+
+  const replayHeaders = createHeaders(`req-auth-boundary-replay-${runId}`);
+  const replayFirstResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: replayHeaders
+  });
+  assert.equal(replayFirstResponse.statusCode, 200);
+  const replaySecondResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: replayHeaders
+  });
+  assert.equal(replaySecondResponse.statusCode, 200);
+  assert.deepEqual(replaySecondResponse.json(), replayFirstResponse.json());
+
+  const createTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-auth-boundary-create-${runId}`, {
+      roleCodes: "EXPORT_USER"
+    }),
+    payload: createTaskPayload(taskCode, "client-auth-boundary")
+  });
+  assert.equal(createTaskResponse.statusCode, 201);
+  const taskId = createTaskResponse.json().data.taskId;
+
+  const crossTenantDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}`,
+    headers: createHeaders(`req-auth-boundary-cross-tenant-detail-${runId}`, {
+      tenantId: "tenant-002",
+      roleCodes: "EXPORT_ADMIN"
+    })
+  });
+  assert.equal(crossTenantDetailResponse.statusCode, 403);
+  assert.equal(crossTenantDetailResponse.json().code, "PERMISSION_DENIED");
+
+  const crossTenantListResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,
+    headers: createHeaders(`req-auth-boundary-cross-tenant-list-${runId}`, {
+      tenantId: "tenant-002",
+      roleCodes: "EXPORT_ADMIN"
+    })
+  });
+  assert.equal(crossTenantListResponse.statusCode, 403);
+  assert.equal(crossTenantListResponse.json().code, "PERMISSION_DENIED");
+  assert.doesNotMatch(JSON.stringify(crossTenantListResponse.json()), new RegExp(taskId));
+
+  const crossTenantDownloadResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}/download`,
+    headers: createHeaders(`req-auth-boundary-cross-tenant-download-${runId}`, {
+      tenantId: "tenant-002",
+      roleCodes: "EXPORT_ADMIN"
+    })
+  });
+  assert.equal(crossTenantDownloadResponse.statusCode, 403);
+  assert.equal(crossTenantDownloadResponse.json().code, "PERMISSION_DENIED");
+  assert.doesNotMatch(JSON.stringify(crossTenantDownloadResponse.json()), new RegExp(taskId));
+
+  const crossTenantRegistryResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-auth-boundary-cross-tenant-registry-${runId}`, {
+      operatorId: "tenant-002-admin",
+      tenantId: "tenant-002",
+      roleCodes: "EXPORT_ADMIN"
+    })
+  });
+  assert.equal(crossTenantRegistryResponse.statusCode, 403);
+  assert.equal(crossTenantRegistryResponse.json().code, "PERMISSION_DENIED");
+  assert.doesNotMatch(JSON.stringify(crossTenantRegistryResponse.json()), new RegExp(taskCode));
+
+  const deniedAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-cross-tenant-detail-${runId}`
+  );
+  assert.equal(deniedAudits.length, 1);
+  assert.equal(deniedAudits[0].result, "FAILED");
+  assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
+
+  const crossTenantListAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-cross-tenant-list-${runId}`
+  );
+  assert.equal(crossTenantListAudits.length, 1);
+  assert.equal(crossTenantListAudits[0].result, "FAILED");
+  assert.equal(crossTenantListAudits[0].error_code, "PERMISSION_DENIED");
+
+  const crossTenantDownloadAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-cross-tenant-download-${runId}`
+  );
+  assert.equal(crossTenantDownloadAudits.length, 1);
+  assert.equal(crossTenantDownloadAudits[0].result, "FAILED");
+  assert.equal(crossTenantDownloadAudits[0].error_code, "PERMISSION_DENIED");
+
+  const crossTenantRegistryAudits = await auditLogsByRequestId(
+    db,
+    `req-auth-boundary-cross-tenant-registry-${runId}`
+  );
+  assert.equal(crossTenantRegistryAudits.length, 1);
+  assert.equal(crossTenantRegistryAudits[0].result, "FAILED");
+  assert.equal(crossTenantRegistryAudits[0].error_code, "PERMISSION_DENIED");
 });
 
 test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
