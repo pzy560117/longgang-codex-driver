@@ -1,0 +1,58 @@
+SUCCESS: The process with PID 31952 (child process of PID 29136) has been terminated.
+SUCCESS: The process with PID 29136 (child process of PID 26392) has been terminated.
+SUCCESS: The process with PID 26392 (child process of PID 31636) has been terminated.
+SUCCESS: The process with PID 31636 (child process of PID 32616) has been terminated.
+SUCCESS: The process with PID 27904 (child process of PID 30008) has been terminated.
+SUCCESS: The process with PID 30964 (child process of PID 31572) has been terminated.
+SUCCESS: The process with PID 31572 (child process of PID 32616) has been terminated.
+SUCCESS: The process with PID 27016 (child process of PID 31748) has been terminated.
+SUCCESS: The process with PID 31748 (child process of PID 13280) has been terminated.
+SUCCESS: The process with PID 13280 (child process of PID 8184) has been terminated.
+SUCCESS: The process with PID 8184 (child process of PID 32448) has been terminated.
+SUCCESS: The process with PID 32448 (child process of PID 32616) has been terminated.
+## Requirement IDs
+- AC-004, AC-007, AC-009, AC-E002, AC-E023, RCR-P0-005
+
+## Summary
+- 补齐 API 验收证据：未注册任务创建不落库、历史查询 `status + subsystemCode` 组合筛选、registry get/list/update/重复 `taskCode`/未授权配置操作。
+- 补齐 query executor 游标负向证据：缺失/空 cursor、重复或非递增 cursor、checkpoint 缺少 cursor 字段。
+- 最小实现修复：HTTP `POST /api/export/registries` 对重复 `taskCode` 返回 `REGISTRY_CONFLICT`；内部 seed/upsert 和 `PUT` update 仍保留 upsert 语义。
+
+## Files Changed
+- [src/registry-config/service.ts](E:/2026/alpha-project/longgang-codex-driver/src/registry-config/service.ts:140): 增加可选 `rejectExistingOnCreate` 冲突检查。
+- [src/routes/export/registries/create-export-registry.handler.ts](E:/2026/alpha-project/longgang-codex-driver/src/routes/export/registries/create-export-registry.handler.ts:10): HTTP create 启用重复 taskCode 冲突语义。
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:431): 补 P0 API 证据。
+- [tests/query/query-executor.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/query/query-executor.test.mjs:727): 补 cursor 负向测试。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:43): 记录本任务 Docker MySQL/API/query evidence 边界。
+
+## Validation
+- RED: `npm run test:api` - FAIL as expected，重复 registry create 断言 `201 !== 409`。
+- `npm run arch:check`: PASS - Architecture check passed.
+- Docker MySQL `npm run test:api`: PASS - 4/4 passed.
+- Docker MySQL `npm run test:query`: PASS - 16/16 passed.
+- `git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md`: PASS，只有 LF/CRLF warning，无 whitespace error。
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: API P0 缺口证据。
+- `tests/query/query-executor.test.mjs`: cursor 负向收口证据。
+- `docs/testing/verify-matrix.md`: 本任务 evidence 边界说明。
+
+## Architecture Constraints
+- `independent_microservice / HTTP + MySQL`: PASS - API/query 均跑 Docker MySQL。
+- `no InMemory/mock repository as production`: PASS - 未引入内存生产实现。
+- `forbidden repair regression`: PASS - 未改认证可信边界、下载签名 URL、queryParams 32KB、dataScopeTemplate 边界。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 本轮模板禁止 `git add/commit/push`，所以未提交。
+- 工作区仍有会话开始前已存在的 trace 运行产物状态，我未纳入本任务改动。

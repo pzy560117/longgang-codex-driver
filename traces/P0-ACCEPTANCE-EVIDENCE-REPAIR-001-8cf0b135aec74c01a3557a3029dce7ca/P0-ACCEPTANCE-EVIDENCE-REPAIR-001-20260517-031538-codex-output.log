@@ -1,0 +1,60 @@
+SUCCESS: The process with PID 32536 (child process of PID 30172) has been terminated.
+SUCCESS: The process with PID 30172 (child process of PID 22524) has been terminated.
+SUCCESS: The process with PID 22524 (child process of PID 23356) has been terminated.
+SUCCESS: The process with PID 23356 (child process of PID 29088) has been terminated.
+SUCCESS: The process with PID 29088 (child process of PID 22836) has been terminated.
+SUCCESS: The process with PID 6624 (child process of PID 26424) has been terminated.
+SUCCESS: The process with PID 26424 (child process of PID 13736) has been terminated.
+SUCCESS: The process with PID 2248 (child process of PID 22836) has been terminated.
+SUCCESS: The process with PID 28208 (child process of PID 27800) has been terminated.
+SUCCESS: The process with PID 27800 (child process of PID 31952) has been terminated.
+SUCCESS: The process with PID 31952 (child process of PID 29424) has been terminated.
+## Requirement IDs
+- AC-004
+- AC-007
+- AC-009
+- AC-E002
+- AC-E023
+- RCR-P0-005
+
+## Summary
+- 当前任务要求的 P0 验收证据已存在于当前工作区，验证通过后未发现需要补的实现差异。
+- 未修改 `task.json`、`progress.txt`、`traces/` 或任务外文件。
+- 未执行 commit：本任务模板明确禁止 `git add` / `git commit`，且本轮没有任务路径 diff。
+
+## Files Changed
+- 无：本轮未写入文件。
+
+## Validation
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- `docker-test-env.ps1 + npm run test:api + npm run test:query`: PASS - API 4/4，通过；query 17/17，通过。
+- `git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md`: PASS - 无 whitespace error。
+
+## Evidence
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:418): API 生产 HTTP + MySQL 路径覆盖 registry/task 主流程。
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:438): 未注册 `taskCode` 返回 `TASK_NOT_REGISTERED` 且不落任务。
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:470): 重复 registry `taskCode` 返回 `REGISTRY_CONFLICT`。
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:883): 历史查询覆盖 `status=PENDING&subsystemCode=purchase`。
+- [tests/query/query-executor.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/query/query-executor.test.mjs:727): 缺失/null cursor 负向测试。
+- [tests/query/query-executor.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/query/query-executor.test.mjs:775): 重复 cursor 负向测试。
+- [tests/query/query-executor.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/query/query-executor.test.mjs:823): 非递增 cursor 负向测试。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:43): P0 验收证据边界已记录。
+
+## Architecture Constraints
+- `independent_microservice / HTTP + MySQL production path`: PASS - `arch:check` 通过，API 测试走 Fastify + MySQL。
+- `Test double policy`: PASS - Docker MySQL API/query evidence；未以内存实现冒充生产路径。
+- `Forbidden implementations`: PASS - 本轮无生产代码改动，验证未回退权限、签名 URL、queryParams 32KB 或 dataScopeTemplate 边界。
+
+## Knowledge References
+- 无：仅读取知识目录与 catalog，未引用具体知识条目作为实现依据。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有既有 `traces/` 未跟踪/修改运行产物；本轮按任务边界未处理它们。

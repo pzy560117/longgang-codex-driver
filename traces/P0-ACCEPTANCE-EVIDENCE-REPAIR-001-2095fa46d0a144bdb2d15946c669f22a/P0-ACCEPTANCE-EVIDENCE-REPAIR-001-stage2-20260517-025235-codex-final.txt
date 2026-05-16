@@ -1,0 +1,33 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F001 | HIGH | test_gap | backend | `contracts/openapi.yaml:841` 声明 `PUT /export/registries/{taskCode}` 可返回 `404 TaskNotRegistered`；但 `src/registry-config/service.ts:140` 复用 `upsertExportRegistry`，更新路径传入 `taskCodeOverride` 后直接调用 repository；`src/repositories/export-registry.repository.ts:108`、`:136` 使用 `insert ... onDuplicateKeyUpdate`，所以 PUT 不存在的 registry 会创建新记录并返回 200。`tests/api/export-http-api.test.mjs:526` 只覆盖已存在 registry 更新，缺少 missing-update 负向契约。 | 拆分 create/update repository 语义：POST 使用 insert-only，重复 key 映射 `REGISTRY_CONFLICT`；PUT 使用 update-only 或先在同一事务内确认存在，不存在返回 `TASK_NOT_REGISTERED` 并写失败审计。新增 API 测试断言 PUT missing registry 返回 404、无新增 `export_registries`、写 `REGISTRY_UPDATE` 失败审计。 | `npm run test:api` |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F002 | MEDIUM | maintainability | backend | `src/registry-config/service.ts:159` 对 create duplicate 先 `findRegistryByTaskCode`，随后 `src/repositories/export-registry.repository.ts:136` 仍执行 `onDuplicateKeyUpdate`。串行重复测试在 `tests/api/export-http-api.test.mjs:460` 覆盖，但并发重复 POST 可能双双越过预查，其中一个覆盖配置而不是稳定返回 `REGISTRY_CONFLICT`。 | 将 create 路径改为原子 insert-only，并捕获 MySQL duplicate key 统一转 `REGISTRY_CONFLICT` + audit；保留 seed/internal upsert 为独立方法。可补一个并发 POST 同 taskCode 测试，至少断言只有一个 201，另一个 409，最终配置不被第二个 payload 覆盖。 | `npm run test:api` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md`
+  - `rg` 静态核查 registry/create/update/query cursor 相关路径
+  - `npm run typecheck`
+  - `npm run arch:check`
+  - `git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md`
+- 结果摘要:
+  - `typecheck` 通过。
+  - `arch:check` 通过。
+  - scoped `git diff --check` 通过。
+  - Driver 提供的完整测试命令退出码为 0，摘要显示 `test:api` 4/4、`test:query` 16/16 通过。
+  - 但测试未覆盖 registry update missing 负向契约和 create duplicate 并发一致性。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F001 | backend | backend-worker | 1 | true |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F002 | backend | backend-worker | 1 | false |

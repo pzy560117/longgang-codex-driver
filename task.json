@@ -2176,7 +2176,7 @@
                                            "QUERY-PARAMS-SIZE-LIMIT-001",
                                            "AUTH-CONTEXT-TRUST-BOUNDARY-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 / RCR-P0-005：补齐 history status/subsystemCode、registry update/get/list/重复 taskCode/未授权配置操作、未注册创建不落任务、游标缺失/重复/非递增负向 query 证据，并仅补必要实现缺口",

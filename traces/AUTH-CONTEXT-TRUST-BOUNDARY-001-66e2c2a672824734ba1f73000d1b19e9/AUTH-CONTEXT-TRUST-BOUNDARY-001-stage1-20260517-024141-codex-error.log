@@ -355,16 +355,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Lint
         run: npm run lint
-        
+
       - name: Type Check
         run: npm run type-check
-        
+
       - name: Test
         run: npm run test
-        
+
       - name: Build
         run: npm run build
 ```
@@ -5691,7 +5691,7 @@ exec
    3: import { createDatabase } from "../db/kysely.ts";
    4: import { getDatabaseTime } from "../repositories/index.ts";
    5: import { appendAudit } from "./service.ts";
-   6: 
+   6:
    7: export type AuthContext = {
    8:   operatorId: string;
    9:   tenantId: string;
@@ -5699,10 +5699,10 @@ exec
   11:   orgScope: string;
   12:   requestId: string;
   13: };
-  14: 
+  14:
   15: const AUTH_CONTEXT_MAX_AGE_MS = 5 * 60 * 1000;
   16: const AUTH_CONTEXT_CLOCK_SKEW_MS = 5 * 60 * 1000;
-  17: 
+  17:
   18: export class ApiError extends Error {
   19:   constructor(
   20:     public readonly statusCode: number,
@@ -5713,44 +5713,44 @@ exec
   25:     super(message);
   26:   }
   27: }
-  28: 
+  28:
   29: export function hasRole(auth: AuthContext, roleCode: string): boolean {
   30:   return auth.roleCodes.includes(roleCode);
   31: }
-  32: 
+  32:
   33: export function isExportAdmin(auth: AuthContext): boolean {
   34:   return hasRole(auth, "EXPORT_ADMIN");
   35: }
-  36: 
+  36:
   37: export function isTrustedRegistryAdminTenant(auth: AuthContext): boolean {
   38:   const raw = process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
   39:   if (!raw || raw.trim() === "*") {
   40:     return !process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET || raw?.trim() === "*";
   41:   }
-  42: 
+  42:
   43:   return raw
   44:     .split(",")
   45:     .map((tenantId) => tenantId.trim())
   46:     .filter(Boolean)
   47:     .includes(auth.tenantId);
   48: }
-  49: 
+  49:
   50: export function assertExportPermission(auth: AuthContext, allowedRoles: string[]): void {
   51:   if (allowedRoles.some((roleCode) => hasRole(auth, roleCode))) {
   52:     return;
   53:   }
-  54: 
+  54:
   55:   throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission", {
   56:     operatorId: auth.operatorId,
   57:     requiredRoles: allowedRoles
   58:   });
   59: }
-  60: 
+  60:
   61: function readHeader(request: FastifyRequest, name: string): string | undefined {
   62:   const value = request.headers[name.toLowerCase()];
   63:   return Array.isArray(value) ? value[0] : value;
   64: }
-  65: 
+  65:
   66: function readRequiredHeader(request: FastifyRequest, name: string): string {
   67:   const value = readHeader(request, name)?.trim();
   68:   if (!value) {
@@ -5758,12 +5758,12 @@ exec
   70:   }
   71:   return value;
   72: }
-  73: 
+  73:
   74: function readOptionalHeader(request: FastifyRequest, name: string): string | undefined {
   75:   const value = readHeader(request, name)?.trim();
   76:   return value || undefined;
   77: }
-  78: 
+  78:
   79: function requireAuthContextSigningSecret(): string {
   80:   const secret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
   81:   if (!secret) {
@@ -5771,7 +5771,7 @@ exec
   83:   }
   84:   return secret;
   85: }
-  86: 
+  86:
   87: function createAuthContextSignature(input: {
   88:   operatorId: string;
   89:   tenantId: string;
@@ -5792,7 +5792,7 @@ exec
  104:     ].join("\n"))
  105:     .digest("hex");
  106: }
- 107: 
+ 107:
  108: function assertValidSignature(value: string, expected: string): void {
  109:   const signature = Buffer.from(value, "hex");
  110:   const expectedSignature = Buffer.from(expected, "hex");
@@ -5800,13 +5800,13 @@ exec
  112:     throw new ApiError(401, "AUTH_CONTEXT_MISSING", "auth context missing");
  113:   }
  114: }
- 115: 
+ 115:
  116: function assertValidAuthField(name: string, value: string): void {
  117:   if (value.length > 128) {
  118:     throw new ApiError(401, "AUTH_CONTEXT_MISSING", `${name} is invalid`);
  119:   }
  120: }
- 121: 
+ 121:
  122: function parseIssuedAt(value: string): number {
  123:   const issuedAtTime = Date.parse(value);
  124:   if (!Number.isFinite(issuedAtTime)) {
@@ -5814,16 +5814,16 @@ exec
  126:   }
  127:   return issuedAtTime;
  128: }
- 129: 
+ 129:
  130: function assertAuthContextFreshness(issuedAtTime: number, now = Date.now()): void {
  131:   const oldestAcceptedIssuedAt = now - AUTH_CONTEXT_MAX_AGE_MS - AUTH_CONTEXT_CLOCK_SKEW_MS;
  132:   const newestAcceptedIssuedAt = now + AUTH_CONTEXT_CLOCK_SKEW_MS;
- 133: 
+ 133:
  134:   if (issuedAtTime < oldestAcceptedIssuedAt || issuedAtTime > newestAcceptedIssuedAt) {
  135:     throw new ApiError(401, "AUTH_CONTEXT_MISSING", "auth context missing");
  136:   }
  137: }
- 138: 
+ 138:
  139: async function auditAuthContextFailure(
  140:   request: FastifyRequest,
  141:   action: string,
@@ -5833,7 +5833,7 @@ exec
  145:   if (!requestId) {
  146:     return;
  147:   }
- 148: 
+ 148:
  149:   const db = createDatabase();
  150:   try {
  151:     const now = await getDatabaseTime(db);
@@ -5861,7 +5861,7 @@ exec
  173:     await db.destroy();
  174:   }
  175: }
- 176: 
+ 176:
  177: function readAuthContext(request: FastifyRequest): AuthContext {
  178:   const operatorId = readRequiredHeader(request, "x-operator-id");
  179:   const tenantId = readRequiredHeader(request, "x-tenant-id");
@@ -5873,7 +5873,7 @@ exec
  185:   const signature = readRequiredHeader(request, "x-auth-context-signature");
  186:   const roleCodes = roleCodesHeader.split(",").map((role) => role.trim()).filter(Boolean);
  187:   const issuedAtTime = parseIssuedAt(issuedAt);
- 188: 
+ 188:
  189:   for (const [name, value] of [
  190:     ["operatorId", operatorId],
  191:     ["tenantId", tenantId],
@@ -5883,13 +5883,13 @@ exec
  195:   ] as const) {
  196:     assertValidAuthField(name, value);
  197:   }
- 198: 
+ 198:
  199:   if (roleCodes.length === 0 || signatureAlgorithm !== "HMAC-SHA256") {
  200:     throw new ApiError(401, "AUTH_CONTEXT_MISSING", "auth context missing");
  201:   }
- 202: 
+ 202:
  203:   assertAuthContextFreshness(issuedAtTime);
- 204: 
+ 204:
  205:   assertValidSignature(
  206:     signature,
  207:     createAuthContextSignature({
@@ -5902,7 +5902,7 @@ exec
  214:       secret: requireAuthContextSigningSecret()
  215:     })
  216:   );
- 217: 
+ 217:
  218:   return {
  219:     operatorId,
  220:     tenantId,
@@ -5911,7 +5911,7 @@ exec
  223:     requestId
  224:   };
  225: }
- 226: 
+ 226:
  227: export async function requireAuthContext(
  228:   request: FastifyRequest,
  229:   action = "AUTH_CONTEXT"
@@ -6341,3 +6341,2764 @@ src/routes\export\registries\list-export-registries.handler.ts:8:    const auth 
 
 codex
 我已经确认该 `feature_impl` 任务本身携带了 `architecture_constraints`、`forbidden_implementations` 和包含 `arch:check`、Docker API、contract、`git diff --check` 的验证命令。现在重点看实现有没有把每个公开 handler 接到可信上下文校验，以及负向测试是否覆盖验收里的伪造/缺字段/跨租户路径。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\api\\export-http-api.test.mjs' | ForEach-Object { "'$i++; if ($i -ge 110 -and $i -le 155) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\api\\export-http-api.test.mjs' | ForEach-Object { "'$i++; if ($i -ge 1170 -and $i -le 1392) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\contract\\openapi-route-mapping.contract.test.mjs' | ForEach-Object { "'$i++; if ($i -ge 90 -and $i -le 115) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 245 -and $i -le 272) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\routes\\export\\tasks\\download-export-task.handler.ts' | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 353ms:
+  90:           .filter(Boolean)
+  91:       )
+  92:     )
+  93:   };
+  94: }
+  95:
+  96: test("OpenAPI operationIds are represented by route manifest entries", () => {
+  97:   assert.deepEqual(
+  98:     new Set(parseRouteManifestOperationIds()),
+  99:     new Set(parseOpenApiOperationIds())
+ 100:   );
+ 101: });
+ 102:
+ 103: test("OpenAPI handlers are production handlers with service and DB repository evidence", () => {
+ 104:   for (const handlerPath of parseHandlerPaths()) {
+ 105:     const handler = readFileSync(handlerPath, "utf8");
+ 106:     assert.doesNotMatch(handler, /createScaffoldHandler|createNotImplementedHandler/);
+ 107:     assert.match(handler, /requireAuthContext/);
+ 108:     assert.match(handler, /sendSuccess/);
+ 109:   }
+ 110:
+ 111:   const taskService = readFileSync("src/task-api/service.ts", "utf8");
+ 112:   const registryService = readFileSync("src/registry-config/service.ts", "utf8");
+ 113:   const auditService = readFileSync("src/audit-log/service.ts", "utf8");
+ 114:
+ 115:   assert.match(taskService, /createExportTaskRepository/);
+ 245:   assert.match(openapi, /"#\/components\/responses\/SignatureRejected"/);
+ 246:   assert.match(openapi, /- SIGNATURE_INVALID/);
+ 247:   assert.match(openapi, /- SIGNATURE_EXPIRED/);
+ 248: });
+ 249:
+ 250: test("protected operations declare trusted auth context signature proof", () => {
+ 251:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+ 252:   const operationIds = parseOpenApiOperationIds();
+ 253:   const signatureRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextSignature"/g)]
+ 254:     .length;
+ 255:   const issuedAtRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextIssuedAt"/g)]
+ 256:     .length;
+ 257:   const algorithmRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextSignatureAlgorithm"/g)]
+ 258:     .length;
+ 259:
+ 260:   assert.match(openapi, /XAuthContextSignature:/);
+ 261:   assert.match(openapi, /name: X-Auth-Context-Signature/);
+ 262:   assert.match(openapi, /XAuthContextIssuedAt:/);
+ 263:   assert.match(openapi, /name: X-Auth-Context-Issued-At/);
+ 264:   assert.match(openapi, /XAuthContextSignatureAlgorithm:/);
+ 265:   assert.match(openapi, /name: X-Auth-Context-Signature-Algorithm/);
+ 266:   assert.match(openapi, /HMAC-SHA256 proof that the ingress authenticated the auth context headers/);
+ 267:   assert.match(openapi, /freshness boundary only: issuedAt must be no more than 5 minutes in the future and no older than 10 minutes relative to server time/);
+ 268:   assert.match(openapi, /No nonce or replay-deduplication store is part of this contract; identical signed headers may be replayed within the accepted freshness window/);
+ 269:   assert.match(openapi, /Required auth context is missing, malformed, outside the trusted freshness boundary, or lacks trusted ingress proof\./);
+ 270:   assert.equal(signatureRefCount, operationIds.length);
+ 271:   assert.equal(issuedAtRefCount, operationIds.length);
+ 272:   assert.equal(algorithmRefCount, operationIds.length);
+
+ succeeded in 412ms:
+ 110:
+ 111:   t.after(async () => {
+ 112:     restoreEnv();
+ 113:     await app.close();
+ 114:   });
+ 115:
+ 116:   return app;
+ 117: }
+ 118:
+ 119: function createHeaders(requestId, overrides = {}) {
+ 120:   const headers = {
+ 121:     "content-type": "application/json",
+ 122:     "x-operator-id": overrides.operatorId ?? "u001",
+ 123:     "x-tenant-id": overrides.tenantId ?? "tenant-001",
+ 124:     "x-role-codes": overrides.roleCodes ?? "EXPORT_ADMIN",
+ 125:     "x-org-scope": overrides.orgScope ?? "ORG-001",
+ 126:     "x-request-id": requestId,
+ 127:     "x-auth-context-issued-at": overrides.issuedAt ?? new Date().toISOString(),
+ 128:     "x-auth-context-signature-algorithm": "HMAC-SHA256"
+ 129:   };
+ 130:   headers["x-auth-context-signature"] =
+ 131:     overrides.signature ?? signAuthContextHeaders(headers, overrides.secret);
+ 132:   return headers;
+ 133: }
+ 134:
+ 135: function signAuthContextHeaders(headers, secret = authContextSigningSecret) {
+ 136:   return createHmac("sha256", secret)
+ 137:     .update([
+ 138:       headers["x-operator-id"],
+ 139:       headers["x-tenant-id"],
+ 140:       headers["x-role-codes"],
+ 141:       headers["x-org-scope"],
+ 142:       headers["x-request-id"],
+ 143:       headers["x-auth-context-issued-at"]
+ 144:     ].join("\n"))
+ 145:     .digest("hex");
+ 146: }
+ 147:
+ 148: function createRegistryPayload(taskCode) {
+ 149:   return {
+ 150:     taskCode,
+ 151:     subsystemCode: "purchase",
+ 152:     displayName: "Purchase Order Export",
+ 153:     enabled: true,
+ 154:     concurrencyLimit: 2,
+ 155:     fileRetentionDays: 7,
+
+ succeeded in 351ms:
+   1: import { requireAuthContext } from "../../../audit-log/auth-context.ts";
+   2: import { downloadExportTask, downloadSignedExportTask } from "../../../task-api/service.ts";
+   3: import { sendError, sendSuccess } from "../../respond.ts";
+   4: import type { RouteHandler } from "../../types.ts";
+   5:
+   6: export const handler: RouteHandler = async (context, response) => {
+   7:   try {
+   8:     const query = context.request.query as Record<string, unknown>;
+   9:     const hasSignedDownloadQuery =
+  10:       typeof query.signature === "string" ||
+  11:       typeof query.expiresAt === "string" ||
+  12:       typeof query.signatureAlgorithm === "string";
+  13:     const data = hasSignedDownloadQuery
+  14:       ? await downloadSignedExportTask(context.params.taskId, query)
+  15:       : await downloadExportTask(
+  16:           await requireAuthContext(context.request, "DOWNLOAD"),
+  17:           context.params.taskId,
+  18:           typeof query.mode === "string" ? query.mode : undefined
+  19:         );
+  20:
+  21:     if (data.deliveryMode === "STREAM") {
+  22:       response
+  23:         .code(200)
+  24:         .type("application/octet-stream")
+  25:         .header("content-disposition", `attachment; filename="${data.fileName.replace(/"/g, '\\"')}"`)
+  26:         .header("x-export-file-name", data.fileName)
+  27:         .header("x-export-file-size", String(data.fileSize))
+  28:         .header("x-export-checksum", data.checksum)
+  29:         .header("x-export-checksum-algorithm", data.checksumAlgorithm)
+  30:         .header("x-export-attempt-no", String(data.attemptNo))
+  31:         .send(data.body);
+  32:       return;
+  33:     }
+  34:
+  35:     sendSuccess(response, 200, data);
+  36:   } catch (error) {
+  37:     await sendError(response, error);
+  38:   }
+  39: };
+
+ succeeded in 423ms:
+1170:   assert.equal(signedDeniedAudits.length, 1);
+1171:   assert.equal(signedDeniedAudits[0].result, "FAILED");
+1172:   assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
+1173:   const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
+1174:   assert.equal(forgedInvalidAudits.length, 0);
+1175: });
+1176:
+1177: test("trusted ingress proof is required before auth headers can grant admin or tenant context", async (t) => {
+1178:   const db = await createTestDatabase(t);
+1179:   const objectStorageServer = await createLocalObjectStorageServer(t);
+1180:   const app = await createServer(t, objectStorageServer);
+1181:   const runId = `${Date.now()}-${process.pid}-auth-boundary`;
+1182:   const taskCode = `purchase-order-auth-boundary-${runId}`;
+1183:
+1184:   const unsignedAdminHeaders = createHeaders(`req-auth-boundary-unsigned-${runId}`);
+1185:   delete unsignedAdminHeaders["x-auth-context-signature"];
+1186:   const unsignedRegistryResponse = await app.inject({
+1187:     method: "POST",
+1188:     url: "/api/export/registries",
+1189:     headers: unsignedAdminHeaders,
+1190:     payload: createRegistryPayload(taskCode)
+1191:   });
+1192:
+1193:   assert.equal(unsignedRegistryResponse.statusCode, 401);
+1194:   assert.equal(unsignedRegistryResponse.json().code, "AUTH_CONTEXT_MISSING");
+1195:   const unsignedAudits = await auditLogsByRequestId(db, `req-auth-boundary-unsigned-${runId}`);
+1196:   assert.ok(unsignedAudits.length >= 1);
+1197:   assert.equal(unsignedAudits[0].result, "FAILED");
+1198:   assert.equal(unsignedAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+1199:
+1200:   const forgedAdminHeaders = createHeaders(`req-auth-boundary-forged-admin-${runId}`, {
+1201:     operatorId: "attacker",
+1202:     tenantId: "tenant-999",
+1203:     roleCodes: "EXPORT_ADMIN"
+1204:   });
+1205:   forgedAdminHeaders["x-auth-context-signature"] = signAuthContextHeaders({
+1206:     ...forgedAdminHeaders,
+1207:     "x-role-codes": "EXPORT_USER"
+1208:   });
+1209:   const forgedAdminResponse = await app.inject({
+1210:     method: "POST",
+1211:     url: "/api/export/registries",
+1212:     headers: forgedAdminHeaders,
+1213:     payload: createRegistryPayload(`${taskCode}-forged`)
+1214:   });
+1215:
+1216:   assert.equal(forgedAdminResponse.statusCode, 401);
+1217:   assert.equal(forgedAdminResponse.json().code, "AUTH_CONTEXT_MISSING");
+1218:   const forgedAdminAudits = await auditLogsByRequestId(
+1219:     db,
+1220:     `req-auth-boundary-forged-admin-${runId}`
+1221:   );
+1222:   assert.ok(forgedAdminAudits.length >= 1);
+1223:   assert.equal(forgedAdminAudits[0].result, "FAILED");
+1224:   assert.equal(forgedAdminAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+1225:
+1226:   const emptyRolesHeaders = createHeaders(`req-auth-boundary-empty-roles-${runId}`, {
+1227:     roleCodes: " , "
+1228:   });
+1229:   const emptyRolesResponse = await app.inject({
+1230:     method: "POST",
+1231:     url: "/api/export/registries",
+1232:     headers: emptyRolesHeaders,
+1233:     payload: createRegistryPayload(`${taskCode}-empty-roles`)
+1234:   });
+1235:
+1236:   assert.equal(emptyRolesResponse.statusCode, 401);
+1237:   assert.equal(emptyRolesResponse.json().code, "AUTH_CONTEXT_MISSING");
+1238:   const emptyRolesAudits = await auditLogsByRequestId(
+1239:     db,
+1240:     `req-auth-boundary-empty-roles-${runId}`
+1241:   );
+1242:   assert.ok(emptyRolesAudits.length >= 1);
+1243:   assert.equal(emptyRolesAudits[0].result, "FAILED");
+1244:   assert.equal(emptyRolesAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+1245:
+1246:   const validRegistryResponse = await app.inject({
+1247:     method: "POST",
+1248:     url: "/api/export/registries",
+1249:     headers: createHeaders(`req-auth-boundary-registry-${runId}`),
+1250:     payload: createRegistryPayload(taskCode)
+1251:   });
+1252:   assert.equal(validRegistryResponse.statusCode, 201);
+1253:
+1254:   const expiredHeaders = createHeaders(`req-auth-boundary-expired-${runId}`, {
+1255:     issuedAt: new Date(Date.now() - 10 * 60 * 1000 - 1_000).toISOString()
+1256:   });
+1257:   const expiredResponse = await app.inject({
+1258:     method: "GET",
+1259:     url: `/api/export/registries/${taskCode}`,
+1260:     headers: expiredHeaders
+1261:   });
+1262:   assert.equal(expiredResponse.statusCode, 401);
+1263:   assert.equal(expiredResponse.json().code, "AUTH_CONTEXT_MISSING");
+1264:   const expiredAudits = await auditLogsByRequestId(db, `req-auth-boundary-expired-${runId}`);
+1265:   assert.ok(expiredAudits.length >= 1);
+1266:   assert.equal(expiredAudits[0].result, "FAILED");
+1267:   assert.equal(expiredAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+1268:
+1269:   const futureHeaders = createHeaders(`req-auth-boundary-future-${runId}`, {
+1270:     issuedAt: new Date(Date.now() + 5 * 60 * 1000 + 1_000).toISOString()
+1271:   });
+1272:   const futureResponse = await app.inject({
+1273:     method: "GET",
+1274:     url: `/api/export/registries/${taskCode}`,
+1275:     headers: futureHeaders
+1276:   });
+1277:   assert.equal(futureResponse.statusCode, 401);
+1278:   assert.equal(futureResponse.json().code, "AUTH_CONTEXT_MISSING");
+1279:   const futureAudits = await auditLogsByRequestId(db, `req-auth-boundary-future-${runId}`);
+1280:   assert.ok(futureAudits.length >= 1);
+1281:   assert.equal(futureAudits[0].result, "FAILED");
+1282:   assert.equal(futureAudits[0].error_code, "AUTH_CONTEXT_MISSING");
+1283:
+1284:   const replayHeaders = createHeaders(`req-auth-boundary-replay-${runId}`);
+1285:   const replayFirstResponse = await app.inject({
+1286:     method: "GET",
+1287:     url: `/api/export/registries/${taskCode}`,
+1288:     headers: replayHeaders
+1289:   });
+1290:   assert.equal(replayFirstResponse.statusCode, 200);
+1291:   const replaySecondResponse = await app.inject({
+1292:     method: "GET",
+1293:     url: `/api/export/registries/${taskCode}`,
+1294:     headers: replayHeaders
+1295:   });
+1296:   assert.equal(replaySecondResponse.statusCode, 200);
+1297:   assert.deepEqual(replaySecondResponse.json(), replayFirstResponse.json());
+1298:
+1299:   const createTaskResponse = await app.inject({
+1300:     method: "POST",
+1301:     url: "/api/export/tasks",
+1302:     headers: createHeaders(`req-auth-boundary-create-${runId}`, {
+1303:       roleCodes: "EXPORT_USER"
+1304:     }),
+1305:     payload: createTaskPayload(taskCode, "client-auth-boundary")
+1306:   });
+1307:   assert.equal(createTaskResponse.statusCode, 201);
+1308:   const taskId = createTaskResponse.json().data.taskId;
+1309:
+1310:   const crossTenantDetailResponse = await app.inject({
+1311:     method: "GET",
+1312:     url: `/api/export/tasks/${taskId}`,
+1313:     headers: createHeaders(`req-auth-boundary-cross-tenant-detail-${runId}`, {
+1314:       tenantId: "tenant-002",
+1315:       roleCodes: "EXPORT_ADMIN"
+1316:     })
+1317:   });
+1318:   assert.equal(crossTenantDetailResponse.statusCode, 403);
+1319:   assert.equal(crossTenantDetailResponse.json().code, "PERMISSION_DENIED");
+1320:
+1321:   const crossTenantListResponse = await app.inject({
+1322:     method: "GET",
+1323:     url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,
+1324:     headers: createHeaders(`req-auth-boundary-cross-tenant-list-${runId}`, {
+1325:       tenantId: "tenant-002",
+1326:       roleCodes: "EXPORT_ADMIN"
+1327:     })
+1328:   });
+1329:   assert.equal(crossTenantListResponse.statusCode, 403);
+1330:   assert.equal(crossTenantListResponse.json().code, "PERMISSION_DENIED");
+1331:   assert.doesNotMatch(JSON.stringify(crossTenantListResponse.json()), new RegExp(taskId));
+1332:
+1333:   const crossTenantDownloadResponse = await app.inject({
+1334:     method: "GET",
+1335:     url: `/api/export/tasks/${taskId}/download`,
+1336:     headers: createHeaders(`req-auth-boundary-cross-tenant-download-${runId}`, {
+1337:       tenantId: "tenant-002",
+1338:       roleCodes: "EXPORT_ADMIN"
+1339:     })
+1340:   });
+1341:   assert.equal(crossTenantDownloadResponse.statusCode, 403);
+1342:   assert.equal(crossTenantDownloadResponse.json().code, "PERMISSION_DENIED");
+1343:   assert.doesNotMatch(JSON.stringify(crossTenantDownloadResponse.json()), new RegExp(taskId));
+1344:
+1345:   const crossTenantRegistryResponse = await app.inject({
+1346:     method: "GET",
+1347:     url: `/api/export/registries/${taskCode}`,
+1348:     headers: createHeaders(`req-auth-boundary-cross-tenant-registry-${runId}`, {
+1349:       operatorId: "tenant-002-admin",
+1350:       tenantId: "tenant-002",
+1351:       roleCodes: "EXPORT_ADMIN"
+1352:     })
+1353:   });
+1354:   assert.equal(crossTenantRegistryResponse.statusCode, 403);
+1355:   assert.equal(crossTenantRegistryResponse.json().code, "PERMISSION_DENIED");
+1356:   assert.doesNotMatch(JSON.stringify(crossTenantRegistryResponse.json()), new RegExp(taskCode));
+1357:
+1358:   const deniedAudits = await auditLogsByRequestId(
+1359:     db,
+1360:     `req-auth-boundary-cross-tenant-detail-${runId}`
+1361:   );
+1362:   assert.equal(deniedAudits.length, 1);
+1363:   assert.equal(deniedAudits[0].result, "FAILED");
+1364:   assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
+1365:
+1366:   const crossTenantListAudits = await auditLogsByRequestId(
+1367:     db,
+1368:     `req-auth-boundary-cross-tenant-list-${runId}`
+1369:   );
+1370:   assert.equal(crossTenantListAudits.length, 1);
+1371:   assert.equal(crossTenantListAudits[0].result, "FAILED");
+1372:   assert.equal(crossTenantListAudits[0].error_code, "PERMISSION_DENIED");
+1373:
+1374:   const crossTenantDownloadAudits = await auditLogsByRequestId(
+1375:     db,
+1376:     `req-auth-boundary-cross-tenant-download-${runId}`
+1377:   );
+1378:   assert.equal(crossTenantDownloadAudits.length, 1);
+1379:   assert.equal(crossTenantDownloadAudits[0].result, "FAILED");
+1380:   assert.equal(crossTenantDownloadAudits[0].error_code, "PERMISSION_DENIED");
+1381:
+1382:   const crossTenantRegistryAudits = await auditLogsByRequestId(
+1383:     db,
+1384:     `req-auth-boundary-cross-tenant-registry-${runId}`
+1385:   );
+1386:   assert.equal(crossTenantRegistryAudits.length, 1);
+1387:   assert.equal(crossTenantRegistryAudits[0].result, "FAILED");
+1388:   assert.equal(crossTenantRegistryAudits[0].error_code, "PERMISSION_DENIED");
+1389: });
+1390:
+1391: test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
+1392:   const db = await createTestDatabase(t);
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'contracts\\openapi.yaml' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 35) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 438 -and $i -le 555) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 960 -and $i -le 1048) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\task-api\\service.ts' | ForEach-Object { "'$i++; if ($i -ge 400 -and $i -le 430) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 1018 -and $i -le 1148) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\registry-config\\service.ts' | ForEach-Object { "'$i++; if ($i -ge 70 -and $i -le 110) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 220 -and $i -le 286) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "InMemory|mock repository|fixture|AUTH_CONTEXT_SIGNING_SECRET|test-only|secret" src tests contracts docs/testing docs/product docs/architecture task.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 463ms:
+   1: openapi: 3.0.3
+   2: info:
+   3:   title: Export Platform API Contract
+   4:   version: 1.0.0
+   5:   license:
+   6:     name: Internal
+   7:     url: https://example.invalid/internal-license
+   8:   description: |
+   9:     CONTRACT-001 defines the public API contract for FEAT-EXPORT-PLATFORM-001.
+  10:     The API consumes authentication context from upstream services and exposes
+  11:     only official task statuses: PENDING, EXECUTING, COMPLETED, FAILED,
+  12:     CANCELED, EXPIRED.
+  13: servers:
+  14:   - url: /api
+  15:     description: Relative platform API base path
+  16: tags:
+  17:   - name: ExportTasks
+  18:     description: Task creation, detail, history, download, cancel and retry APIs.
+  19:   - name: ExportRegistries
+  20:     description: Export task registry, enable/disable and configuration APIs.
+  21: security:
+  22:   - OperatorId: []
+  23:     TenantId: []
+  24:     RoleCodes: []
+  25:     OrgScope: []
+  26:     RequestId: []
+  27:     AuthContextSignature: []
+  28:     AuthContextIssuedAt: []
+  29:     AuthContextSignatureAlgorithm: []
+  30: x-contract-implementation-trace:
+  31:   description: |
+  32:     CONTRACT-REVIEW-001 requires every public operation to stay traceable to
+  33:     later HTTP handler, persistence, worker, audit, file and test obligations.
+  34:     Paths below are the current TASK-API-HTTP-001 implementation evidence.
+  35:   operations:
+ 438:   /export/tasks/{taskId}/download:
+ 439:     get:
+ 440:       tags: [ExportTasks]
+ 441:       summary: Download exported file
+ 442:       description: |
+ 443:         The default mode returns a signed URL and file metadata. Stream delivery
+ 444:         is represented by application/octet-stream and equivalent metadata headers.
+ 445:       operationId: downloadExportTask
+ 446:       parameters:
+ 447:         - $ref: "#/components/parameters/XOperatorId"
+ 448:         - $ref: "#/components/parameters/XTenantId"
+ 449:         - $ref: "#/components/parameters/XRoleCodes"
+ 450:         - $ref: "#/components/parameters/XOrgScope"
+ 451:         - $ref: "#/components/parameters/XRequestId"
+ 452:         - $ref: "#/components/parameters/XAuthContextSignature"
+ 453:         - $ref: "#/components/parameters/XAuthContextIssuedAt"
+ 454:         - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
+ 455:         - $ref: "#/components/parameters/TaskId"
+ 456:         - name: mode
+ 457:           in: query
+ 458:           schema:
+ 459:             $ref: "#/components/schemas/DeliveryMode"
+ 460:             default: SIGNED_URL
+ 461:         - name: expiresAt
+ 462:           in: query
+ 463:           description: Signed URL callback expiry. Required only when the signed download URL calls back into this operation.
+ 464:           schema:
+ 465:             type: string
+ 466:             format: date-time
+ 467:         - name: signatureAlgorithm
+ 468:           in: query
+ 469:           description: Signed URL callback signature algorithm.
+ 470:           schema:
+ 471:             type: string
+ 472:             enum: [HMAC-SHA256]
+ 473:         - name: signature
+ 474:           in: query
+ 475:           description: HMAC signature for signed URL callback parameters.
+ 476:           schema:
+ 477:             type: string
+ 478:         - name: operatorId
+ 479:           in: query
+ 480:           description: Operator captured when the signed URL was issued for audit attribution.
+ 481:           schema:
+ 482:             type: string
+ 483:         - name: tenantId
+ 484:           in: query
+ 485:           description: Tenant captured when the signed URL was issued for audit attribution.
+ 486:           schema:
+ 487:             type: string
+ 488:         - name: roleCodes
+ 489:           in: query
+ 490:           description: Comma-separated roles captured when the signed URL was issued.
+ 491:           schema:
+ 492:             type: string
+ 493:         - name: orgScope
+ 494:           in: query
+ 495:           description: Organization scope captured when the signed URL was issued.
+ 496:           schema:
+ 497:             type: string
+ 498:         - name: requestId
+ 499:           in: query
+ 500:           description: Request id captured when the signed URL was issued for audit correlation.
+ 501:           schema:
+ 502:             type: string
+ 503:       responses:
+ 504:         "200":
+ 505:           description: Signed URL response or file stream.
+ 506:           headers:
+ 507:             X-Export-File-Name:
+ 508:               schema:
+ 509:                 type: string
+ 510:             X-Export-File-Size:
+ 511:               schema:
+ 512:                 type: integer
+ 513:                 format: int64
+ 514:             X-Export-Checksum:
+ 515:               schema:
+ 516:                 type: string
+ 517:             X-Export-Checksum-Algorithm:
+ 518:               schema:
+ 519:                 type: string
+ 520:                 enum: [SHA-256]
+ 521:             X-Export-Attempt-No:
+ 522:               schema:
+ 523:                 type: integer
+ 524:           content:
+ 525:             application/json:
+ 526:               schema:
+ 527:                 $ref: "#/components/schemas/DownloadResponseEnvelope"
+ 528:               examples:
+ 529:                 signedUrl:
+ 530:                   value:
+ 531:                     code: SUCCESS
+ 532:                     message: success
+ 533:                     data:
+ 534:                       deliveryMode: SIGNED_URL
+ 535:                       downloadUrl: "https://oss.example.com/signed-url"
+ 536:                       expiresAt: "2026-05-13T10:10:00+08:00"
+ 537:                       fileName: purchase-order-export-20260513.zip
+ 538:                       fileSize: 1048576
+ 539:                       contentType: application/zip
+ 540:                       checksum: sha256:file-checksum
+ 541:                       checksumAlgorithm: SHA-256
+ 542:                       storageKey: exports/purchase/purchase-order-export/20260513/exp_20260513_000001/1/purchase-order-export-20260513.zip
+ 543:                       attemptNo: 1
+ 544:             application/octet-stream:
+ 545:               schema:
+ 546:                 type: string
+ 547:                 format: binary
+ 548:         "400":
+ 549:           $ref: "#/components/responses/FileNotReady"
+ 550:         "401":
+ 551:           $ref: "#/components/responses/AuthContextMissing"
+ 552:         "403":
+ 553:           $ref: "#/components/responses/SignatureRejected"
+ 554:         "404":
+ 555:           $ref: "#/components/responses/TaskNotFound"
+ 960:       description: Comma-separated role codes forwarded by gateway or caller.
+ 961:     OrgScope:
+ 962:       type: apiKey
+ 963:       in: header
+ 964:       name: X-Org-Scope
+ 965:       description: Organization scope forwarded by gateway or caller.
+ 966:     RequestId:
+ 967:       type: apiKey
+ 968:       in: header
+ 969:       name: X-Request-Id
+ 970:       description: Request id used by audit logs and task events.
+ 971:     AuthContextSignature:
+ 972:       type: apiKey
+ 973:       in: header
+ 974:       name: X-Auth-Context-Signature
+ 975:       description: HMAC-SHA256 proof that the ingress authenticated the auth context headers.
+ 976:     AuthContextIssuedAt:
+ 977:       type: apiKey
+ 978:       in: header
+ 979:       name: X-Auth-Context-Issued-At
+ 980:       description: Timestamp included in the auth context HMAC proof.
+ 981:     AuthContextSignatureAlgorithm:
+ 982:       type: apiKey
+ 983:       in: header
+ 984:       name: X-Auth-Context-Signature-Algorithm
+ 985:       description: Auth context signature algorithm. Current value must be HMAC-SHA256.
+ 986:   parameters:
+ 987:     XOperatorId:
+ 988:       name: X-Operator-Id
+ 989:       in: header
+ 990:       required: true
+ 991:       schema:
+ 992:         type: string
+ 993:       description: Authenticated operator id.
+ 994:     XTenantId:
+ 995:       name: X-Tenant-Id
+ 996:       in: header
+ 997:       required: true
+ 998:       schema:
+ 999:         type: string
+1000:       description: Tenant id for task visibility and data scope.
+1001:     XRoleCodes:
+1002:       name: X-Role-Codes
+1003:       in: header
+1004:       required: true
+1005:       schema:
+1006:         type: string
+1007:       description: Comma-separated role codes.
+1008:     XOrgScope:
+1009:       name: X-Org-Scope
+1010:       in: header
+1011:       required: true
+1012:       schema:
+1013:         type: string
+1014:       description: Organization scope expression or encoded scope list.
+1015:     XRequestId:
+1016:       name: X-Request-Id
+1017:       in: header
+1018:       required: true
+1019:       schema:
+1020:         type: string
+1021:       description: Upstream request id used by audit logs and task events.
+1022:     XAuthContextSignature:
+1023:       name: X-Auth-Context-Signature
+1024:       in: header
+1025:       required: true
+1026:       schema:
+1027:         type: string
+1028:       description: HMAC-SHA256 proof that the ingress authenticated the auth context headers. No nonce or replay-deduplication store is part of this contract; identical signed headers may be replayed within the accepted freshness window.
+1029:     XAuthContextIssuedAt:
+1030:       name: X-Auth-Context-Issued-At
+1031:       in: header
+1032:       required: true
+1033:       schema:
+1034:         type: string
+1035:         format: date-time
+1036:       description: Timestamp included in the auth context HMAC proof. freshness boundary only: issuedAt must be no more than 5 minutes in the future and no older than 10 minutes relative to server time.
+1037:     XAuthContextSignatureAlgorithm:
+1038:       name: X-Auth-Context-Signature-Algorithm
+1039:       in: header
+1040:       required: true
+1041:       schema:
+1042:         type: string
+1043:         enum: [HMAC-SHA256]
+1044:       description: Auth context signature algorithm.
+1045:     TaskId:
+1046:       name: taskId
+1047:       in: path
+1048:       required: true
+
+warning: in-process app-server event stream lagged; dropped 85 events
+ succeeded in 435ms:
+ 400: }
+ 401:
+ 402: function parsePositiveInteger(value: unknown, fallback: number): number {
+ 403:   if (typeof value !== "string" && typeof value !== "number") {
+ 404:     return fallback;
+ 405:   }
+ 406:
+ 407:   const parsed = Number(value);
+ 408:   if (!Number.isInteger(parsed) || parsed <= 0) {
+ 409:     return fallback;
+ 410:   }
+ 411:
+ 412:   return parsed;
+ 413: }
+ 414:
+ 415: function assertTaskVisible(auth: AuthContext, task: ExportTaskRecord): void {
+ 416:   if (task.tenantId === auth.tenantId && (isExportAdmin(auth) || task.createdBy === auth.operatorId)) {
+ 417:     return;
+ 418:   }
+ 419:
+ 420:   throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task");
+ 421: }
+ 422:
+ 423: async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) => Promise<T>) {
+ 424:   const db = createDatabase();
+ 425:   try {
+ 426:     return await operation(db);
+ 427:   } finally {
+ 428:     await db.destroy();
+ 429:   }
+ 430: }
+1018: export async function downloadSignedExportTask(
+1019:   taskId: string,
+1020:   query: SignedDownloadQuery
+1021: ): Promise<DownloadStreamResponse> {
+1022:   return withDatabase(async (db) => {
+1023:     const now = await getDatabaseTime(db);
+1024:     const expiresAt = readSignedQueryText(query.expiresAt);
+1025:     const signature = readSignedQueryText(query.signature);
+1026:     const untrustedOperatorId = readSignedQueryText(query.operatorId);
+1027:     const untrustedTenantId = readSignedQueryText(query.tenantId);
+1028:     const untrustedRoleCodes = readSignedQueryText(query.roleCodes) ?? "";
+1029:     const untrustedOrgScope = readSignedQueryText(query.orgScope);
+1030:     const untrustedRequestId = readSignedQueryText(query.requestId);
+1031:     const systemAuth: AuthContext = {
+1032:       operatorId: "signed-download",
+1033:       tenantId: "",
+1034:       roleCodes: [],
+1035:       orgScope: "",
+1036:       requestId: `signed-download-${randomUUID()}`
+1037:     };
+1038:     const task = await createExportTaskRepository(db).findTaskById(taskId);
+1039:     const file = task
+1040:       ? await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo)
+1041:       : null;
+1042:
+1043:     const unverifiedAuditBase = {
+1044:       db,
+1045:       auth: systemAuth,
+1046:       action: "DOWNLOAD",
+1047:       now,
+1048:       taskId,
+1049:       attemptNo: task?.attemptNo ?? null,
+1050:       taskCode: task?.taskCode ?? null,
+1051:       subsystemCode: task?.subsystemCode ?? null
+1052:     };
+1053:
+1054:     if (
+1055:       query.signatureAlgorithm !== "HMAC-SHA256" ||
+1056:       !expiresAt ||
+1057:       !signature ||
+1058:       !untrustedOperatorId ||
+1059:       !untrustedTenantId ||
+1060:       !untrustedRequestId
+1061:     ) {
+1062:       return rejectWithAudit({
+1063:         ...unverifiedAuditBase,
+1064:         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+1065:       });
+1066:     }
+1067:     const expiresAtTime = Date.parse(expiresAt);
+1068:     if (!Number.isFinite(expiresAtTime)) {
+1069:       return rejectWithAudit({
+1070:         ...unverifiedAuditBase,
+1071:         error: new ApiError(403, "SIGNATURE_INVALID", "download signature expiry is invalid")
+1072:       });
+1073:     }
+1074:     if (expiresAtTime <= now.getTime()) {
+1075:       return rejectWithAudit({
+1076:         ...unverifiedAuditBase,
+1077:         error: new ApiError(403, "SIGNATURE_EXPIRED", "download signature expired")
+1078:       });
+1079:     }
+1080:     if (!task || !file?.publishedStorageKey) {
+1081:       return rejectWithAudit({
+1082:         ...unverifiedAuditBase,
+1083:         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+1084:       });
+1085:     }
+1086:
+1087:     const expectedSignature = createSignedDownloadSignature({
+1088:       taskId,
+1089:       storageKey: file.publishedStorageKey,
+1090:       expiresAt,
+1091:       operatorId: untrustedOperatorId,
+1092:       tenantId: untrustedTenantId,
+1093:       roleCodes: untrustedRoleCodes,
+1094:       orgScope: untrustedOrgScope ?? "",
+1095:       requestId: untrustedRequestId,
+1096:       secret: requireDownloadSigningSecret()
+1097:     });
+1098:     if (!isValidSignature(signature, expectedSignature)) {
+1099:       return rejectWithAudit({
+1100:         ...unverifiedAuditBase,
+1101:         error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+1102:       });
+1103:     }
+1104:
+1105:     const auth: AuthContext = {
+1106:       operatorId: untrustedOperatorId,
+1107:       tenantId: untrustedTenantId,
+1108:       roleCodes: untrustedRoleCodes.split(",").map((role) => role.trim()).filter(Boolean),
+1109:       orgScope: untrustedOrgScope ?? "",
+1110:       requestId: untrustedRequestId
+1111:     };
+1112:     const verifiedAuditBase = {
+1113:       ...unverifiedAuditBase,
+1114:       auth
+1115:     };
+1116:     if (task.status !== "COMPLETED" || !file.deliveryReadyAt) {
+1117:       return rejectWithAudit({
+1118:         ...verifiedAuditBase,
+1119:         error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
+1120:       });
+1121:     }
+1122:     if (file.expiresAt <= now) {
+1123:       return rejectWithAudit({
+1124:         ...verifiedAuditBase,
+1125:         error: new ApiError(410, "FILE_EXPIRED", "file expired")
+1126:       });
+1127:     }
+1128:     try {
+1129:       assertTaskVisible(auth, task);
+1130:     } catch (error) {
+1131:       if (error instanceof ApiError) {
+1132:         return rejectWithAudit({
+1133:           ...verifiedAuditBase,
+1134:           error
+1135:         });
+1136:       }
+1137:       throw error;
+1138:     }
+1139:
+1140:     const fileService = createExportFileService({ db });
+1141:     try {
+1142:       const body = await fileService.readObject(file.publishedStorageKey);
+1143:       validateStreamBody(file, body);
+1144:       await appendAudit({
+1145:         db,
+1146:         auth,
+1147:         taskId,
+1148:         attemptNo: task.attemptNo,
+
+ succeeded in 372ms:
+task.json:137:                                         "架构约束足以阻止 InMemory 或领域原型冒充生产微服务实现"
+task.json:281:                                                        "禁止生产入口引用 InMemory repository、mock 或 fixture",
+task.json:354:                                    "创建 arch:check，检查 server/worker/job entry、OpenAPI operation 映射和生产入口禁用 InMemory",
+task.json:360:                                         "arch:check 能阻止无生产入口或 InMemory 生产引用",
+task.json:384:                                                       "repository 生产路径不得使用 InMemory"
+task.json:387:                                                        "禁止 InMemory repository 作为生产路径",
+task.json:430:                                         "生产路径不引用 InMemory repository"
+task.json:457:                                                        "禁止用 mock repository 作为 API 验收证据",
+task.json:660:                                                        "禁止用 fixture 或 hard-coded result 作为 query 验收证据",
+task.json:867:                                                        "禁止用小数据 fixture 代替 10 万行边界证据",
+task.json:936:                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS/S3 证据",
+task.json:938:                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+task.json:1016:                                                        "禁止用本地 HTTP object storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS/S3 集成证据",
+task.json:1018:                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+task.json:1101:                                                        "禁止在 src/ 生产路径引入 InMemory、mock 或 fixture repository"
+task.json:1412:                                                        "禁止用内存 repository 或 fixture repository 替代 MySQL 验证",
+task.json:1924:                                                       "如采用 ingress secret/header 以外的签名材料，也不得把密钥或 secret 写入仓库"
+task.json:2091:                                                       "生产入口必须明确上下文来源、签名/secret/allowlist 校验与失败处理；若采用 ingress secret/header 方案，不得把密钥写入仓库",
+task.json:2097:                                                        "禁止把 secret、token、私钥或网关内部配置值写入仓库、trace 或测试快照",
+task.json:2147:                                    "在生产入口实现可信来源校验、最小字段校验、伪造管理员和跨租户上下文拒绝逻辑，且不把 secret 写入仓库",
+task.json:2155:                                         "tests/api/ 与 tests/contract/ 覆盖可信边界负向场景，且仓库内不新增 secret",
+docs/architecture\constraints.md:23:- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+docs/architecture\constraints.md:37:- `InMemory*` 允许范围：unit tests only。
+docs/architecture\constraints.md:44:- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+docs/architecture\constraints.md:58:- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+contracts\README.md:128:- `InMemory*`、mock repository 和 fixture repository 只能进入单元测试路径，不能作为生产边界追踪或完成声明的一部分。
+docs/testing\e2e-plan.md:29:- [ ] 搜索 `mock`、`fixture`、`fake`、`hardcoded`。
+tests\arch-check.test.mjs:151:    EXPORT_PLATFORM_MYSQL_PASSWORD: "secret",
+tests\arch-check.test.mjs:160:    password: "secret",
+tests\arch-check.test.mjs:241:        return "export class InMemoryRepository {}";
+docs/testing\EVIDENCE_PROTOCOL.md:24:- mock-first 相关证据只能标记为 `local/dev evidence`；本地 HTTP object storage adapter、fixture seed、fake 外部数据源都不能覆盖本机 Docker MySQL release evidence，更不能覆盖 live object storage release evidence。
+docs/testing\failure-triage.md:11:| `TEST_BUG` | 断言错误、等待不稳定、fixture 无效或误报 | 测试 | 测试作者 | 原测试代理 |
+tests\api\export-http-api.test.mjs:19:const downloadSigningSecret = `test-only-download-${randomUUID()}`;
+tests\api\export-http-api.test.mjs:20:const authContextSigningSecret = `test-only-auth-${randomUUID()}`;
+tests\api\export-http-api.test.mjs:40:  const previousAuthContextSigningSecret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+tests\api\export-http-api.test.mjs:49:  process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET =
+tests\api\export-http-api.test.mjs:80:      delete process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+tests\api\export-http-api.test.mjs:82:      process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET = previousAuthContextSigningSecret;
+tests\api\export-http-api.test.mjs:131:    overrides.signature ?? signAuthContextHeaders(headers, overrides.secret);
+tests\api\export-http-api.test.mjs:135:function signAuthContextHeaders(headers, secret = authContextSigningSecret) {
+tests\api\export-http-api.test.mjs:136:  return createHmac("sha256", secret)
+tests\api\export-http-api.test.mjs:278:          secret: signingSecret,
+tests\api\export-http-api.test.mjs:344:function signDownloadUrl({ bucket, storageKey, expiresAt, secret }) {
+tests\api\export-http-api.test.mjs:345:  return createHmac("sha256", secret)
+tests\api\export-http-api.test.mjs:350:function verifyDownloadUrl({ bucket, storageKey, expiresAt, signature, secret, now }) {
+tests\api\export-http-api.test.mjs:361:  const expected = signDownloadUrl({ bucket, storageKey, expiresAt, secret });
+tests\api\export-http-api.test.mjs:377:function signPlatformDownloadUrl({ taskId, storageKey, url, secret }) {
+tests\api\export-http-api.test.mjs:378:  return createHmac("sha256", secret)
+tests\api\export-http-api.test.mjs:1061:      secret: downloadSigningSecret
+tests\api\export-http-api.test.mjs:1081:      secret: downloadSigningSecret
+docs/testing\mock-first-release-plan.md:34:- mock-first 可以使用本地 HTTP object storage adapter、fixture seed、受控 fake 外部数据源。
+src\audit-log\auth-context.ts:40:    return !process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET || raw?.trim() === "*";
+src\audit-log\auth-context.ts:80:  const secret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+src\audit-log\auth-context.ts:81:  if (!secret) {
+src\audit-log\auth-context.ts:84:  return secret;
+src\audit-log\auth-context.ts:94:  secret: string;
+src\audit-log\auth-context.ts:96:  return createHmac("sha256", input.secret)
+src\audit-log\auth-context.ts:214:      secret: requireAuthContextSigningSecret()
+tests\file\export-file-service.test.mjs:27:const downloadSigningSecret = `test-only-${randomUUID()}`;
+tests\file\export-file-service.test.mjs:238:          secret: signingSecret,
+tests\file\export-file-service.test.mjs:340:function signDownloadUrl({ bucket, storageKey, expiresAt, secret }) {
+tests\file\export-file-service.test.mjs:341:  return createHmac("sha256", secret)
+tests\file\export-file-service.test.mjs:346:function verifyDownloadUrl({ bucket, storageKey, expiresAt, signature, secret, now }) {
+tests\file\export-file-service.test.mjs:357:  const expected = signDownloadUrl({ bucket, storageKey, expiresAt, secret });
+tests\file\export-file-service.test.mjs:576:        secret: downloadSigningSecret
+src\task-api\service.ts:461:  const secret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+src\task-api\service.ts:462:  if (!secret) {
+src\task-api\service.ts:466:      "download URL signing secret is not configured"
+src\task-api\service.ts:469:  return secret;
+src\task-api\service.ts:485:  secret: string;
+src\task-api\service.ts:487:  return createHmac("sha256", input.secret)
+src\task-api\service.ts:513:  secret: string;
+src\task-api\service.ts:537:      secret: input.secret
+src\task-api\service.ts:980:          secret: requireDownloadSigningSecret()
+src\task-api\service.ts:1096:      secret: requireDownloadSigningSecret()
+docs/testing\verify-matrix.md:42:| AUTH-CONTEXT-TRUST-BOUNDARY-001 | FR-009 / AC-009 / AC-E006 / AC-E016 / RCR-P0-001 | repaired | `npm run test:api` 断言生产 HTTP 入口要求 `X-Auth-Context-Signature` + `X-Auth-Context-Issued-At` + `X-Auth-Context-Signature-Algorithm` HMAC-SHA256 可信 ingress 证明，并对 `issuedAt` 执行 freshness 边界校验：超过 10 分钟陈旧或超过 5 分钟未来均返回 `AUTH_CONTEXT_MISSING` 并写入失败审计；缺少证明、篡改 `EXPORT_ADMIN` 或空角色上下文同样返回 `AUTH_CONTEXT_MISSING`；同一签名在 freshness 窗口内当前允许重放，不做 nonce/replay 去重；跨租户历史/详情/下载/配置访问返回 `PERMISSION_DENIED`、写入失败审计且不泄露任务或配置标识；`npm run test:contract` 守护 OpenAPI 所有公开 operation 声明认证上下文可信证明头与 freshness/重放边界说明 | local/Docker MySQL API + contract evidence；认证上下文签名密钥仅来自进程环境变量 `EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET`，配置管理员租户来自 `EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS`，不写入仓库、trace 或验证文档；当前边界仅覆盖 freshness，不声明外部网关 live evidence，也不声明持久 nonce 防重放能力 |
+docs/testing\verify-matrix.md:150:| 最低检查项 | `src/server.ts`、`src/workers/scheduler-worker.ts`、`src/jobs/cleanup-job.ts` 存在；`contracts/openapi.yaml` 的公开 operation 可映射到 `src/routes/` 的 route/handler；生产入口不得引用 `InMemory*`、mock 或 fixture；`migrations/` 覆盖 task、registry、lease/checkpoint、file metadata、audit log；`src/db/migrator.ts` 和 `src/repositories/index.ts` 存在；`package.json` scripts 包含 `test:contract`、`test:api`、`test:db`、`test:worker`、`test:query`、`test:file`、`test:sample` |
+docs/testing\TEST_DATA_MATRIX.md:11:- 这些条目在历史上曾被称为 fixture 计划说明；当前应按可执行数据入口理解，不表示仓库当前没有业务实现。
+docs/testing\TEST_DATA_MATRIX.md:32:- 每个 P0/P1 场景都应标明所需的 seed 或 fixture 数据。
+docs/testing\TEST_DATA_MATRIX.md:36:- 任何 live object storage smoke 相关 fixture 仅用于外部生产/live 验证，不属于本机受控 release gate。
+src\file-service\index.ts:94:      "BLOCKED - 需要人工介入: download URL signing secret must be configured for signed downloads."
+src\file-service\index.ts:143:          secret: downloadSigningSecret
+src\file-service\index.ts:484:  secret: string;
+src\file-service\index.ts:486:  return createHmac("sha256", input.secret)
+
+ succeeded in 425ms:
+  70:     attemptNo: null,
+  71:     taskCode: input.taskCode ?? null,
+  72:     subsystemCode: input.subsystemCode ?? null,
+  73:     action: input.action,
+  74:     result: "FAILED",
+  75:     errorCode: input.error.code,
+  76:     now: input.now
+  77:   });
+  78:   throw input.error;
+  79: }
+  80:
+  81: async function requireRegistryAdmin(input: {
+  82:   db: Kysely<ExportPlatformDatabase>;
+  83:   auth: AuthContext;
+  84:   action: string;
+  85:   now: Date;
+  86:   taskCode?: string | null;
+  87:   subsystemCode?: string | null;
+  88: }): Promise<void> {
+  89:   try {
+  90:     assertExportPermission(input.auth, ["EXPORT_ADMIN"]);
+  91:   } catch (error) {
+  92:     if (error instanceof ApiError) {
+  93:       return rejectRegistryWithAudit({ ...input, error });
+  94:     }
+  95:     throw error;
+  96:   }
+  97:
+  98:   if (!isTrustedRegistryAdminTenant(input.auth)) {
+  99:     return rejectRegistryWithAudit({
+ 100:       ...input,
+ 101:       error: new ApiError(403, "PERMISSION_DENIED", "operator has no permission")
+ 102:     });
+ 103:   }
+ 104: }
+ 105:
+ 106: function registryEnvelope(registry: ExportRegistryRecord, auth: AuthContext) {
+ 107:   return {
+ 108:     taskCode: registry.taskCode,
+ 109:     subsystemCode: registry.subsystemCode,
+ 110:     displayName: registry.displayName,
+ 220:       now
+ 221:     });
+ 222:
+ 223:     return registryEnvelope(registry, auth);
+ 224:   });
+ 225: }
+ 226:
+ 227: export async function listExportRegistries(auth: AuthContext, query: Record<string, unknown>) {
+ 228:   return withDatabase(async (db) => {
+ 229:     const now = await getDatabaseTime(db);
+ 230:     await requireRegistryAdmin({
+ 231:       db,
+ 232:       auth,
+ 233:       action: "REGISTRY_QUERY",
+ 234:       now
+ 235:     });
+ 236:
+ 237:     const registries = await createExportRegistryRepository(db).listRegistries({
+ 238:       taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
+ 239:       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
+ 240:       enabled:
+ 241:         typeof query.enabled === "string"
+ 242:           ? query.enabled === "true"
+ 243:           : typeof query.enabled === "boolean"
+ 244:             ? query.enabled
+ 245:             : undefined
+ 246:     });
+ 247:
+ 248:     await appendAudit({
+ 249:       db,
+ 250:       auth,
+ 251:       taskId: null,
+ 252:       attemptNo: null,
+ 253:       taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+ 254:       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null,
+ 255:       action: "REGISTRY_QUERY",
+ 256:       now
+ 257:     });
+ 258:
+ 259:     return {
+ 260:       items: registries.map((registry) => registryEnvelope(registry, auth)),
+ 261:       page: 1,
+ 262:       pageSize: registries.length,
+ 263:       total: registries.length
+ 264:     };
+ 265:   });
+ 266: }
+ 267:
+ 268: export async function getExportRegistry(auth: AuthContext, taskCode: string) {
+ 269:   return withDatabase(async (db) => {
+ 270:     const now = await getDatabaseTime(db);
+ 271:     await requireRegistryAdmin({
+ 272:       db,
+ 273:       auth,
+ 274:       action: "REGISTRY_DETAIL",
+ 275:       now,
+ 276:       taskCode
+ 277:     });
+ 278:
+ 279:     const registry = await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode);
+ 280:     if (!registry) {
+ 281:       return rejectRegistryWithAudit({
+ 282:         db,
+ 283:         auth,
+ 284:         error: new ApiError(404, "TASK_NOT_REGISTERED", "registry not found"),
+ 285:         action: "REGISTRY_DETAIL",
+ 286:         now,
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'package.json'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\routes\\register-routes.ts' | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }; $i=0; Get-Content '"'src\\routes\\route-manifest.ts' | ForEach-Object { "'$i++; if ($i -le 90) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\server.ts' | ForEach-Object { "'$i++; if ($i -le 120) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'scripts\\arch-check.ts' | ForEach-Object { "'$i++; if ($i -le 260) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 364ms:
+   1: import type { FastifyInstance, FastifyReply } from "fastify";
+   2: import { sendJson } from "../http/types.ts";
+   3: import { OPENAPI_OPERATION_ROUTES, type OperationRoute } from "./route-manifest.ts";
+   4:
+   5: type RouteMatch = {
+   6:   route: OperationRoute;
+   7:   params: Record<string, string>;
+   8: };
+   9:
+  10: function matchPath(pattern: string, actualPath: string): Record<string, string> | undefined {
+  11:   const patternSegments = pattern.split("/").filter(Boolean);
+  12:   const actualSegments = actualPath.split("/").filter(Boolean);
+  13:
+  14:   if (patternSegments.length !== actualSegments.length) {
+  15:     return undefined;
+  16:   }
+  17:
+  18:   const params: Record<string, string> = {};
+  19:   for (let index = 0; index < patternSegments.length; index += 1) {
+  20:     const patternSegment = patternSegments[index];
+  21:     const actualSegment = actualSegments[index];
+  22:     const paramMatch = patternSegment.match(/^\{([^}]+)\}$/);
+  23:
+  24:     if (paramMatch) {
+  25:       params[paramMatch[1]] = decodeURIComponent(actualSegment);
+  26:       continue;
+  27:     }
+  28:
+  29:     if (patternSegment !== actualSegment) {
+  30:       return undefined;
+  31:     }
+  32:   }
+  33:
+  34:   return params;
+  35: }
+  36:
+  37: function findRoute(method: string, pathname: string): RouteMatch | undefined {
+  38:   for (const route of OPENAPI_OPERATION_ROUTES) {
+  39:     if (route.method !== method) {
+  40:       continue;
+  41:     }
+  42:
+  43:     const params = matchPath(route.path, pathname);
+  44:     if (params) {
+  45:       return { route, params };
+  46:     }
+  47:   }
+  48:
+  49:   return undefined;
+  50: }
+  51:
+  52: export async function handleApiRoute(
+  53:   method: string,
+  54:   pathname: string,
+  55:   response: FastifyReply
+  56: ): Promise<boolean> {
+  57:   const routeMatch = findRoute(method, pathname);
+  58:
+  59:   if (!routeMatch) {
+  60:     return false;
+  61:   }
+  62:
+  63:   routeMatch.route.handler(
+  64:     { params: routeMatch.params, request: response.request },
+  65:     response
+  66:   );
+  67:   return true;
+  68: }
+  69:
+  70: export function sendNotFound(response: FastifyReply): void {
+  71:   sendJson(response, 404, {
+  72:     code: "TASK_NOT_FOUND",
+  73:     message: "route not found",
+  74:     data: null
+  75:   });
+  76: }
+  77:
+  78: export function registerRoutes(app: FastifyInstance): void {
+  79:   for (const route of OPENAPI_OPERATION_ROUTES) {
+  80:     const fastifyPath = route.path.replace(/\{([^}]+)\}/g, ":$1");
+  81:     app.route({
+  82:       method: route.method,
+  83:       url: fastifyPath,
+  84:       handler: async (request, response) => {
+  85:         await route.handler({ params: request.params as Record<string, string>, request }, response);
+  86:       }
+  87:     });
+  88:   }
+  89: }
+   1: import { handler as createExportRegistry } from "./export/registries/create-export-registry.handler.ts";
+   2: import { handler as disableExportRegistry } from "./export/registries/disable-export-registry.handler.ts";
+   3: import { handler as enableExportRegistry } from "./export/registries/enable-export-registry.handler.ts";
+   4: import { handler as getExportRegistry } from "./export/registries/get-export-registry.handler.ts";
+   5: import { handler as listExportRegistries } from "./export/registries/list-export-registries.handler.ts";
+   6: import { handler as updateExportRegistry } from "./export/registries/update-export-registry.handler.ts";
+   7: import { handler as cancelExportTask } from "./export/tasks/cancel-export-task.handler.ts";
+   8: import { handler as createExportTask } from "./export/tasks/create-export-task.handler.ts";
+   9: import { handler as downloadExportTask } from "./export/tasks/download-export-task.handler.ts";
+  10: import { handler as getExportTask } from "./export/tasks/get-export-task.handler.ts";
+  11: import { handler as listExportTasks } from "./export/tasks/list-export-tasks.handler.ts";
+  12: import { handler as retryExportTask } from "./export/tasks/retry-export-task.handler.ts";
+  13: import type { RouteHandler } from "./types.ts";
+  14:
+  15: export type OperationRoute = {
+  16:   operationId: string;
+  17:   method: "GET" | "POST" | "PUT";
+  18:   path: string;
+  19:   handlerPath: string;
+  20:   handler: RouteHandler;
+  21:   tests: string[];
+  22: };
+  23:
+  24: const routeContractTest = "tests/contract/openapi-route-mapping.contract.test.mjs";
+  25: const httpApiTest = "tests/api/export-http-api.test.mjs";
+  26:
+  27: export const OPENAPI_OPERATION_ROUTES: OperationRoute[] = [
+  28:   {
+  29:     operationId: "createExportTask",
+  30:     method: "POST",
+  31:     path: "/api/export/tasks",
+  32:     handlerPath: "src/routes/export/tasks/create-export-task.handler.ts",
+  33:     handler: createExportTask,
+  34:     tests: [routeContractTest, httpApiTest]
+  35:   },
+  36:   {
+  37:     operationId: "listExportTasks",
+  38:     method: "GET",
+  39:     path: "/api/export/tasks",
+  40:     handlerPath: "src/routes/export/tasks/list-export-tasks.handler.ts",
+  41:     handler: listExportTasks,
+  42:     tests: [routeContractTest, httpApiTest]
+  43:   },
+  44:   {
+  45:     operationId: "getExportTask",
+  46:     method: "GET",
+  47:     path: "/api/export/tasks/{taskId}",
+  48:     handlerPath: "src/routes/export/tasks/get-export-task.handler.ts",
+  49:     handler: getExportTask,
+  50:     tests: [routeContractTest, httpApiTest]
+  51:   },
+  52:   {
+  53:     operationId: "downloadExportTask",
+  54:     method: "GET",
+  55:     path: "/api/export/tasks/{taskId}/download",
+  56:     handlerPath: "src/routes/export/tasks/download-export-task.handler.ts",
+  57:     handler: downloadExportTask,
+  58:     tests: [routeContractTest, httpApiTest]
+  59:   },
+  60:   {
+  61:     operationId: "cancelExportTask",
+  62:     method: "POST",
+  63:     path: "/api/export/tasks/{taskId}/cancel",
+  64:     handlerPath: "src/routes/export/tasks/cancel-export-task.handler.ts",
+  65:     handler: cancelExportTask,
+  66:     tests: [routeContractTest, httpApiTest]
+  67:   },
+  68:   {
+  69:     operationId: "retryExportTask",
+  70:     method: "POST",
+  71:     path: "/api/export/tasks/{taskId}/retry",
+  72:     handlerPath: "src/routes/export/tasks/retry-export-task.handler.ts",
+  73:     handler: retryExportTask,
+  74:     tests: [routeContractTest, httpApiTest]
+  75:   },
+  76:   {
+  77:     operationId: "createExportRegistry",
+  78:     method: "POST",
+  79:     path: "/api/export/registries",
+  80:     handlerPath: "src/routes/export/registries/create-export-registry.handler.ts",
+  81:     handler: createExportRegistry,
+  82:     tests: [routeContractTest, httpApiTest]
+  83:   },
+  84:   {
+  85:     operationId: "listExportRegistries",
+  86:     method: "GET",
+  87:     path: "/api/export/registries",
+  88:     handlerPath: "src/routes/export/registries/list-export-registries.handler.ts",
+  89:     handler: listExportRegistries,
+  90:     tests: [routeContractTest, httpApiTest]
+
+ succeeded in 365ms:
+   1: import Fastify, { type FastifyInstance } from "fastify";
+   2: import { fileURLToPath } from "node:url";
+   3: import { loadConfig, type ExportPlatformConfig } from "./config/env.ts";
+   4: import { registerRoutes } from "./routes/register-routes.ts";
+   5:
+   6: export function createExportPlatformServer(
+   7:   config: ExportPlatformConfig = loadConfig()
+   8: ): FastifyInstance {
+   9:   const app = Fastify({
+  10:     logger: false
+  11:   });
+  12:
+  13:   app.addContentTypeParser(
+  14:     "application/json",
+  15:     { parseAs: "string" },
+  16:     (_request, body, done) => {
+  17:       const text = typeof body === "string" ? body : body.toString("utf8");
+  18:       if (text.trim().length === 0) {
+  19:         done(null, {});
+  20:         return;
+  21:       }
+  22:
+  23:       try {
+  24:         done(null, JSON.parse(text));
+  25:       } catch (error) {
+  26:         done(error as Error, undefined);
+  27:       }
+  28:     }
+  29:   );
+  30:
+  31:   app.get("/health", async () => ({
+  32:     status: "ok",
+  33:     service: config.serviceName,
+  34:     deliveryShape: config.deliveryShape,
+  35:     entries: {
+  36:       http: true,
+  37:       worker: true,
+  38:       cleanupJob: true
+  39:     }
+  40:   }));
+  41:
+  42:   registerRoutes(app);
+  43:
+  44:   app.setNotFoundHandler(async (_request, response) => {
+  45:     response.code(404).send({
+  46:       code: "TASK_NOT_FOUND",
+  47:       message: "route not found",
+  48:       data: null
+  49:     });
+  50:   });
+  51:
+  52:   return app;
+  53: }
+  54:
+  55: export async function startServer(
+  56:   config: ExportPlatformConfig = loadConfig()
+  57: ): Promise<FastifyInstance> {
+  58:   const server = createExportPlatformServer(config);
+  59:   await server.listen({ port: config.port, host: config.host });
+  60:   console.log(
+  61:     JSON.stringify({
+  62:       event: "export-platform.http.started",
+  63:       host: config.host,
+  64:       port: config.port
+  65:     })
+  66:   );
+  67:   return server;
+  68: }
+  69:
+  70: if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  71:   startServer().catch((error) => {
+  72:     console.error(error);
+  73:     process.exit(1);
+  74:   });
+  75: }
+
+ succeeded in 368ms:
+   1: import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+   2: import path from "node:path";
+   3: import { fileURLToPath } from "node:url";
+   4: import { OPENAPI_OPERATION_ROUTES } from "../src/routes/route-manifest.ts";
+   5:
+   6: type OpenApiOperation = {
+   7:   operationId: string;
+   8:   method: string;
+   9:   path: string;
+  10: };
+  11:
+  12: const root = process.cwd();
+  13: const requiredFiles = [
+  14:   "src/server.ts",
+  15:   "src/config/env.ts",
+  16:   "src/workers/scheduler-worker.ts",
+  17:   "src/jobs/cleanup-job.ts",
+  18:   "src/routes/register-routes.ts",
+  19:   "src/routes/route-manifest.ts",
+  20:   "src/db/migrator.ts",
+  21:   "src/repositories/index.ts",
+  22:   "migrations/001_initial_export_platform_schema.sql"
+  23: ];
+  24:
+  25: const requiredScripts = [
+  26:   "start",
+  27:   "worker:scheduler",
+  28:   "job:cleanup",
+  29:   "arch:check",
+  30:   "typecheck",
+  31:   "test",
+  32:   "test:contract",
+  33:   "test:api",
+  34:   "test:db",
+  35:   "test:worker",
+  36:   "test:query",
+  37:   "test:file",
+  38:   "test:sample"
+  39: ];
+  40:
+  41: const requiredMigrationMarkers = [
+  42:   "export_tasks",
+  43:   "export_task_idempotency",
+  44:   "export_registries",
+  45:   "export_registry_versions",
+  46:   "export_task_leases",
+  47:   "export_task_checkpoints",
+  48:   "export_task_files",
+  49:   "export_task_events",
+  50:   "export_audit_logs"
+  51: ];
+  52:
+  53: const forbiddenProductionPattern = /\b(InMemory\w*|mock\w*|fixture\w*)\b/i;
+  54: const productionScanRoots = [
+  55:   "src/server.ts",
+  56:   "src/routes/",
+  57:   "src/task-api/",
+  58:   "src/registry-config/",
+  59:   "src/scheduler/",
+  60:   "src/workers/",
+  61:   "src/query-executor/",
+  62:   "src/file-service/",
+  63:   "src/cleanup-job/",
+  64:   "src/jobs/",
+  65:   "src/audit-log/",
+  66:   "src/repositories/",
+  67:   "src/db/"
+  68: ];
+  69:
+  70: function fail(message: string): never {
+  71:   throw new Error(`Architecture check failed: ${message}`);
+  72: }
+  73:
+  74: function read(relativePath: string): string {
+  75:   return readFileSync(path.join(root, relativePath), "utf8");
+  76: }
+  77:
+  78: function requireFile(relativePath: string): void {
+  79:   if (!existsSync(path.join(root, relativePath))) {
+  80:     fail(`missing required file ${relativePath}`);
+  81:   }
+  82: }
+  83:
+  84: function collectTypeScriptFiles(relativePath: string): string[] {
+  85:   const absolutePath = path.join(root, relativePath);
+  86:   if (!existsSync(absolutePath)) {
+  87:     return [];
+  88:   }
+  89:
+  90:   const stat = statSync(absolutePath);
+  91:   if (stat.isFile()) {
+  92:     return relativePath.endsWith(".ts") ? [relativePath] : [];
+  93:   }
+  94:
+  95:   const files: string[] = [];
+  96:   for (const entry of readdirSync(absolutePath)) {
+  97:     files.push(...collectTypeScriptFiles(path.join(relativePath, entry)));
+  98:   }
+  99:   return files;
+ 100: }
+ 101:
+ 102: function parseOpenApiOperations(openapiText: string): OpenApiOperation[] {
+ 103:   const operations: OpenApiOperation[] = [];
+ 104:   let currentPath = "";
+ 105:   let currentMethod = "";
+ 106:
+ 107:   for (const line of openapiText.split(/\r?\n/)) {
+ 108:     const pathMatch = line.match(/^  (\/[^:]+):\s*$/);
+ 109:     if (pathMatch) {
+ 110:       currentPath = pathMatch[1];
+ 111:       currentMethod = "";
+ 112:       continue;
+ 113:     }
+ 114:
+ 115:     const methodMatch = line.match(/^    (get|post|put|delete|patch):\s*$/);
+ 116:     if (methodMatch) {
+ 117:       currentMethod = methodMatch[1].toUpperCase();
+ 118:       continue;
+ 119:     }
+ 120:
+ 121:     const operationMatch = line.match(/^\s+operationId:\s*([A-Za-z0-9_]+)\s*$/);
+ 122:     if (operationMatch && currentPath && currentMethod) {
+ 123:       operations.push({
+ 124:         operationId: operationMatch[1],
+ 125:         method: currentMethod,
+ 126:         path: `/api${currentPath}`
+ 127:       });
+ 128:     }
+ 129:   }
+ 130:
+ 131:   return operations;
+ 132: }
+ 133:
+ 134: function checkPackageScripts(): void {
+ 135:   const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+ 136:   for (const script of requiredScripts) {
+ 137:     if (!packageJson.scripts?.[script]) {
+ 138:       fail(`package.json missing script ${script}`);
+ 139:     }
+ 140:   }
+ 141: }
+ 142:
+ 143: function checkRequiredFiles(): void {
+ 144:   for (const relativePath of requiredFiles) {
+ 145:     requireFile(relativePath);
+ 146:   }
+ 147: }
+ 148:
+ 149: function checkNoForbiddenProductionReferences(): void {
+ 150:   const productionFiles = productionScanRoots.flatMap((scanRoot) =>
+ 151:     collectTypeScriptFiles(scanRoot)
+ 152:   );
+ 153:
+ 154:   checkFilesForForbiddenProductionReferences(productionFiles, read);
+ 155: }
+ 156:
+ 157: function checkFilesForForbiddenProductionReferences(
+ 158:   relativePaths: string[],
+ 159:   readFile: (relativePath: string) => string
+ 160: ): void {
+ 161:   for (const relativePath of relativePaths) {
+ 162:     const content = readFile(relativePath);
+ 163:     if (forbiddenProductionPattern.test(content)) {
+ 164:       fail(`${relativePath} references forbidden test double terminology`);
+ 165:     }
+ 166:   }
+ 167: }
+ 168:
+ 169: function checkOpenApiRouteMapping(): void {
+ 170:   const operations = parseOpenApiOperations(read("contracts/openapi.yaml"));
+ 171:   if (operations.length === 0) {
+ 172:     fail("contracts/openapi.yaml exposes no operationId entries");
+ 173:   }
+ 174:
+ 175:   const routesByOperation = new Map(
+ 176:     OPENAPI_OPERATION_ROUTES.map((route) => [route.operationId, route])
+ 177:   );
+ 178:
+ 179:   for (const operation of operations) {
+ 180:     const route = routesByOperation.get(operation.operationId);
+ 181:     if (!route) {
+ 182:       fail(`missing route mapping for operationId ${operation.operationId}`);
+ 183:     }
+ 184:     if (route.method !== operation.method || route.path !== operation.path) {
+ 185:       fail(
+ 186:         `${operation.operationId} route mismatch: expected ${operation.method} ${operation.path}, got ${route.method} ${route.path}`
+ 187:       );
+ 188:     }
+ 189:     requireFile(route.handlerPath);
+ 190:     if (route.tests.length === 0) {
+ 191:       fail(`${operation.operationId} has no test mapping`);
+ 192:     }
+ 193:     for (const testPath of route.tests) {
+ 194:       requireFile(testPath);
+ 195:     }
+ 196:   }
+ 197: }
+ 198:
+ 199: function checkMigrationCoverage(): void {
+ 200:   const migration = collectMigrationSql().toLowerCase();
+ 201:   for (const marker of requiredMigrationMarkers) {
+ 202:     if (!migration.includes(marker)) {
+ 203:       fail(`migration missing marker ${marker}`);
+ 204:     }
+ 205:   }
+ 206: }
+ 207:
+ 208: function checkSqlMigrationSyntaxGuards(migrationSql: string): void {
+ 209:   if (/,\s*\);/m.test(migrationSql)) {
+ 210:     fail("SQL migration contains a dangling comma before table close");
+ 211:   }
+ 212: }
+ 213:
+ 214: function checkSqlMigrationSyntax(): void {
+ 215:   checkSqlMigrationSyntaxGuards(collectMigrationSql());
+ 216: }
+ 217:
+ 218: function collectMigrationSql(): string {
+ 219:   const migrationDir = path.join(root, "migrations");
+ 220:   return readdirSync(migrationDir)
+ 221:     .filter((fileName) => fileName.endsWith(".sql"))
+ 222:     .sort()
+ 223:     .map((fileName) => read(path.join("migrations", fileName)))
+ 224:     .join("\n");
+ 225: }
+ 226:
+ 227: function getExpectedDatabaseTableNames(): string[] {
+ 228:   return [...requiredMigrationMarkers];
+ 229: }
+ 230:
+ 231: function getProductionScanRoots(): string[] {
+ 232:   return [...productionScanRoots];
+ 233: }
+ 234:
+ 235: function main(): void {
+ 236:   checkRequiredFiles();
+ 237:   checkPackageScripts();
+ 238:   checkOpenApiRouteMapping();
+ 239:   checkNoForbiddenProductionReferences();
+ 240:   checkMigrationCoverage();
+ 241:   checkSqlMigrationSyntax();
+ 242:
+ 243:   console.log("Architecture check passed.");
+ 244: }
+ 245:
+ 246: if (process.argv[1] === fileURLToPath(import.meta.url)) {
+ 247:   main();
+ 248: }
+ 249:
+ 250: export {
+ 251:   checkMigrationCoverage,
+ 252:   checkFilesForForbiddenProductionReferences,
+ 253:   checkNoForbiddenProductionReferences,
+ 254:   checkOpenApiRouteMapping,
+ 255:   checkPackageScripts,
+ 256:   checkRequiredFiles,
+ 257:   checkSqlMigrationSyntaxGuards,
+ 258:   collectMigrationSql,
+ 259:   getExpectedDatabaseTableNames,
+ 260:   getProductionScanRoots,
+
+ succeeded in 383ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\config\\env.ts' | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\api\\export-http-api.test.mjs' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 90) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'docs\\reviews\\requirements-complete-review.findings.json'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\reviews\\requirements-complete-review.md' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 220) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 405ms:
+   1: type ConfigEnv = NodeJS.ProcessEnv;
+   2:
+   3: export type HttpConfig = {
+   4:   host: string;
+   5:   port: number;
+   6: };
+   7:
+   8: export type MysqlConfig = {
+   9:   host: string;
+  10:   port: number;
+  11:   database: string;
+  12:   user: string;
+  13:   password: string;
+  14:   ssl: boolean;
+  15: };
+  16:
+  17: export type SchedulerConfig = {
+  18:   pollIntervalMs: number;
+  19: };
+  20:
+  21: export type CleanupConfig = {
+  22:   pollIntervalMs: number;
+  23: };
+  24:
+  25: export type ExportPlatformConfig = {
+  26:   serviceName: "export-platform";
+  27:   deliveryShape: "independent_microservice";
+  28:   host: string;
+  29:   port: number;
+  30:   http: HttpConfig;
+  31:   databaseUrl?: string;
+  32:   mysql: MysqlConfig;
+  33:   schedulerPollIntervalMs: number;
+  34:   scheduler: SchedulerConfig;
+  35:   cleanupPollIntervalMs: number;
+  36:   cleanup: CleanupConfig;
+  37: };
+  38:
+  39: function readInt(value: string | undefined, fallback: number): number {
+  40:   if (!value) {
+  41:     return fallback;
+  42:   }
+  43:
+  44:   const parsed = Number.parseInt(value, 10);
+  45:   if (!Number.isFinite(parsed) || parsed <= 0) {
+  46:     throw new Error(`Invalid positive integer configuration value: ${value}`);
+  47:   }
+  48:
+  49:   return parsed;
+  50: }
+  51:
+  52: function readBoolean(value: string | undefined, fallback: boolean): boolean {
+  53:   if (!value) {
+  54:     return fallback;
+  55:   }
+  56:
+  57:   switch (value.trim().toLowerCase()) {
+  58:     case "1":
+  59:     case "true":
+  60:     case "yes":
+  61:     case "on":
+  62:       return true;
+  63:     case "0":
+  64:     case "false":
+  65:     case "no":
+  66:     case "off":
+  67:       return false;
+  68:     default:
+  69:       throw new Error(`Invalid boolean configuration value: ${value}`);
+  70:   }
+  71: }
+  72:
+  73: function loadMysqlConfig(env: ConfigEnv): MysqlConfig {
+  74:   const databaseUrl = env.EXPORT_PLATFORM_DATABASE_URL;
+  75:   if (databaseUrl) {
+  76:     const url = new URL(databaseUrl);
+  77:
+  78:     return {
+  79:       host: url.hostname || "127.0.0.1",
+  80:       port: readInt(url.port || undefined, 3306),
+  81:       database: url.pathname.replace(/^\/+/, "") || "export_platform",
+  82:       user: decodeURIComponent(url.username || "root"),
+  83:       password: decodeURIComponent(url.password || ""),
+  84:       ssl: readBoolean(url.searchParams.get("ssl") ?? undefined, false)
+  85:     };
+  86:   }
+  87:
+  88:   return {
+  89:     host: env.EXPORT_PLATFORM_MYSQL_HOST ?? "127.0.0.1",
+  90:     port: readInt(env.EXPORT_PLATFORM_MYSQL_PORT, 3306),
+  91:     database: env.EXPORT_PLATFORM_MYSQL_DATABASE ?? "export_platform",
+  92:     user: env.EXPORT_PLATFORM_MYSQL_USER ?? "root",
+  93:     password: env.EXPORT_PLATFORM_MYSQL_PASSWORD ?? "",
+  94:     ssl: readBoolean(env.EXPORT_PLATFORM_MYSQL_SSL, false)
+  95:   };
+  96: }
+  97:
+  98: export function loadConfig(env: ConfigEnv = process.env): ExportPlatformConfig {
+  99:   const http = {
+ 100:     host: env.EXPORT_PLATFORM_HOST ?? "0.0.0.0",
+ 101:     port: readInt(env.EXPORT_PLATFORM_PORT, 3000)
+ 102:   };
+ 103:   const mysql = loadMysqlConfig(env);
+ 104:   const scheduler = {
+ 105:     pollIntervalMs: readInt(env.EXPORT_PLATFORM_SCHEDULER_POLL_MS, 5000)
+ 106:   };
+ 107:   const cleanup = {
+ 108:     pollIntervalMs: readInt(env.EXPORT_PLATFORM_CLEANUP_POLL_MS, 60000)
+ 109:   };
+ 110:
+ 111:   return {
+ 112:     serviceName: "export-platform",
+ 113:     deliveryShape: "independent_microservice",
+ 114:     host: http.host,
+ 115:     port: http.port,
+ 116:     http,
+ 117:     databaseUrl: env.EXPORT_PLATFORM_DATABASE_URL,
+ 118:     mysql,
+ 119:     schedulerPollIntervalMs: scheduler.pollIntervalMs,
+ 120:     scheduler,
+ 121:     cleanupPollIntervalMs: cleanup.pollIntervalMs,
+ 122:     cleanup
+ 123:   };
+ 124: }
+
+warning: in-process app-server event stream lagged; dropped 168 events
+ succeeded in 373ms:
+{
+  "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+  "verdict": "FAIL",
+  "reviewedAt": "2026-05-16",
+  "truthSources": [
+    "docs/product/prd-lite.md",
+    "docs/product/acceptance-criteria.md",
+    "docs/product/requirement-interface-matrix.md",
+    "docs/product/state-matrix.yaml",
+    "docs/architecture/constraints.md"
+  ],
+  "evidenceSources": [
+    "contracts/openapi.yaml",
+    "src/",
+    "tests/",
+    "docs/testing/TRACEABILITY_MATRIX.md",
+    "docs/testing/ACCEPTANCE_EXAMPLES.md",
+    "docs/testing/verify-matrix.md",
+    "task.json"
+  ],
+  "findings": [
+    {
+      "id": "RCR-P0-001",
+      "severity": "P0",
+      "title": "Auth context trust boundary is not enforced",
+      "requirementIds": ["FR-009", "AC-009", "AC-E006", "AC-E016"],
+      "evidence": [
+        "src/audit-log/auth-context.ts:46-63",
+        "src/audit-log/auth-context.ts:26-27",
+        "src/task-api/service.ts:624-633"
+      ],
+      "risk": "能直连服务的调用方可伪造管理员或跨租户上下文，绕过任务可见性和下载权限。",
+      "suggestedNextTaskId": "AUTH-CONTEXT-TRUST-BOUNDARY-001"
+    },
+    {
+      "id": "RCR-P0-002",
+      "severity": "P0",
+      "title": "query data scope ignores operatorId, roleCodes, and registry dataScopeTemplate",
+      "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-009"],
+      "evidence": [
+        "docs/product/prd-lite.md:data scope business rule",
+        "src/query-executor/index.ts:352-364",
+        "src/query-executor/index.ts:393-405"
+      ],
+      "risk": "同租户同组织内不同操作人或角色的数据隔离无法证明，可能导出越权数据。",
+      "suggestedNextTaskId": "DATA-SCOPE-TEMPLATE-ENFORCE-001"
+    },
+    {
+      "id": "RCR-P0-003",
+      "severity": "P0",
+      "title": "signed URL is not cryptographically signed and uses file retention expiry",
+      "requirementIds": ["FR-003", "FR-009", "AC-003", "AC-009"],
+      "evidence": [
+        "src/file-service/index.ts:117-120",
+        "src/file-service/index.ts:166-168",
+        "src/task-api/service.ts:840"
+      ],
+      "risk": "URL 泄露后可能绕过平台鉴权和下载审计长期访问对象。",
+      "suggestedNextTaskId": "DOWNLOAD-SIGNED-URL-GUARD-001"
+    },
+    {
+      "id": "RCR-P0-004",
+      "severity": "P0",
+      "title": "queryParams 32KB limit is only contracted, not implemented",
+      "requirementIds": ["FR-001", "AC-E009"],
+      "evidence": [
+        "contracts/openapi.yaml:CreateExportTaskRequest.queryParams",
+        "src/task-api/service.ts:451-615",
+        "tests/api/export-http-api.test.mjs:no oversized queryParams assertion"
+      ],
+      "risk": "超长参数可能绕过产品限制进入持久化、审计和后续查询执行链路。",
+      "suggestedNextTaskId": "QUERY-PARAMS-SIZE-LIMIT-001"
+    },
+    {
+      "id": "RCR-P0-005",
+      "severity": "P0",
+      "title": "P0 acceptance evidence is incomplete for history, registry, permission, and cursor negative cases",
+      "requirementIds": ["AC-004", "AC-007", "AC-009", "AC-E002", "AC-E023"],
+      "evidence": [
+        "tests/api/export-http-api.test.mjs:history filters do not explicitly assert status/subsystemCode",
+        "tests/api/export-http-api.test.mjs:registry update/get/list and duplicate taskCode evidence incomplete",
+        "src/task-api/service.ts:483-492",
+        "src/query-executor/index.ts:673"
+      ],
+      "risk": "P0/P1 需求虽有实现入口，但验收证据不足，release 回归无法定位这些边界是否漂移。",
+      "suggestedNextTaskId": "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
+    },
+    {
+      "id": "RCR-P1-001",
+      "severity": "P1",
+      "title": "SQL/template governance is too weak before registry persistence",
+      "requirementIds": ["FR-008", "AC-008", "AC-E011"],
+      "evidence": [
+        "src/registry-config/service.ts:141-186",
+        "src/query-executor/index.ts:300-317",
+        "src/query-executor/index.ts:416-418"
+      ],
+      "risk": "管理员误配或认证边界被绕过时，非法或高成本查询可进入执行阶段。",
+      "suggestedNextTaskId": "QUERY-TEMPLATE-HARDENING-001"
+    },
+    {
+      "id": "RCR-P1-002",
+      "severity": "P1",
+      "title": "public error responses can expose raw internal messages",
+      "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
+      "evidence": [
+        "src/routes/respond.ts:22-25",
+        "src/query-executor/index.ts:793-803",
+        "src/task-api/service.ts:251-254"
+      ],
+      "risk": "数据源地址、SQL 片段、账号、对象存储内部错误等敏感信息可能进入 API 响应或任务详情。",
+      "suggestedNextTaskId": "PUBLIC-ERROR-REDACTION-001"
+    }
+  ],
+  "closedFindings": [
+    {
+      "id": "RCR-001",
+      "status": "closed",
+      "closedBy": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+      "requirementIds": ["FR-002", "AC-002"],
+      "freshEvidence": [
+        "src/task-api/service.ts",
+        "tests/api/export-http-api.test.mjs",
+        "tests/contract/openapi-route-mapping.contract.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-002",
+      "status": "closed",
+      "closedBy": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+      "requirementIds": ["FR-006", "AC-E027"],
+      "freshEvidence": [
+        "src/file-service/index.ts",
+        "tests/file/export-file-service.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
+      "status": "closed",
+      "requirementIds": ["FR-010", "FR-011", "AC-010", "AC-011"],
+      "freshEvidence": [
+        "contracts/openapi.yaml",
+        "tests/contract/openapi-route-mapping.contract.test.mjs",
+        "tests/worker/scheduler-worker.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    }
+  ],
+  "coverage": {
+    "requirements": [
+      { "id": "FR-001", "status": "partially_covered" },
+      { "id": "FR-002", "status": "covered" },
+      { "id": "FR-003", "status": "partially_covered" },
+      { "id": "FR-004", "status": "partially_covered" },
+      { "id": "FR-005", "status": "covered" },
+      { "id": "FR-006", "status": "covered" },
+      { "id": "FR-007", "status": "partially_covered" },
+      { "id": "FR-008", "status": "partially_covered" },
+      { "id": "FR-009", "status": "partially_covered" },
+      { "id": "FR-010", "status": "partially_covered" },
+      { "id": "FR-011", "status": "covered" },
+      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-013", "status": "covered" },
+      { "id": "FR-014", "status": "covered" }
+    ],
+    "acceptance": [
+      { "id": "AC-001", "status": "partially_covered" },
+      { "id": "AC-002", "status": "covered" },
+      { "id": "AC-003", "status": "partially_covered" },
+      { "id": "AC-004", "status": "partially_covered" },
+      { "id": "AC-005", "status": "covered" },
+      { "id": "AC-006", "status": "covered" },
+      { "id": "AC-007", "status": "partially_covered" },
+      { "id": "AC-008", "status": "partially_covered" },
+      { "id": "AC-009", "status": "partially_covered" },
+      { "id": "AC-010", "status": "partially_covered" },
+      { "id": "AC-011", "status": "covered" },
+      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-013", "status": "covered" },
+      { "id": "AC-014", "status": "covered" },
+      { "id": "AC-015", "status": "covered" },
+      { "id": "AC-016", "status": "covered" },
+      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-018", "status": "covered" },
+      { "id": "AC-019", "status": "covered" },
+      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-021", "status": "covered" }
+    ],
+    "exceptions": [
+      { "id": "AC-E001", "status": "covered" },
+      { "id": "AC-E002", "status": "partially_covered" },
+      { "id": "AC-E003", "status": "covered" },
+      { "id": "AC-E004", "status": "covered" },
+      { "id": "AC-E005", "status": "covered" },
+      { "id": "AC-E006", "status": "partially_covered" },
+      { "id": "AC-E007", "status": "covered" },
+      { "id": "AC-E008", "status": "covered" },
+      { "id": "AC-E009", "status": "gap" },
+      { "id": "AC-E010", "status": "covered" },
+      { "id": "AC-E011", "status": "partially_covered" },
+      { "id": "AC-E012", "status": "covered" },
+      { "id": "AC-E013", "status": "covered" },
+      { "id": "AC-E014", "status": "covered" },
+      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E016", "status": "partially_covered" },
+      { "id": "AC-E017", "status": "covered" },
+      { "id": "AC-E018", "status": "covered" },
+      { "id": "AC-E019", "status": "covered" },
+      { "id": "AC-E020", "status": "covered" },
+      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E022", "status": "covered" },
+      { "id": "AC-E023", "status": "partially_covered" },
+      { "id": "AC-E024", "status": "covered" },
+      { "id": "AC-E025", "status": "covered" },
+      { "id": "AC-E026", "status": "covered" },
+      { "id": "AC-E027", "status": "covered" }
+    ]
+  },
+  "evidenceBoundary": {
+    "releaseId": "RELEASE-001",
+    "type": "docker/mock release gate",
+    "notClaimed": [
+      "external production MySQL",
+      "external business datasource live access",
+      "live OSS/S3"
+    ],
+    "notes": [
+      "RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate",
+      "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
+      "当前 findings 不把 local/docker/mock evidence 写成 live evidence"
+    ]
+  },
+  "architectureConstraints": [
+    {
+      "constraint": "truth_source=docs/product/* + docs/architecture/constraints.md",
+      "status": "PASS",
+      "evidence": "review truthSources"
+    },
+    {
+      "constraint": "review_only_no_business_fix",
+      "status": "PASS",
+      "evidence": "only docs/reviews artifacts updated"
+    },
+    {
+      "constraint": "mock/local/docker/live evidence separated",
+      "status": "PASS",
+      "evidence": "evidenceBoundary"
+    },
+    {
+      "constraint": "forbidden_implementations",
+      "status": "FAIL",
+      "evidence": "review found incomplete production boundaries for auth, data scope, signed URL and query parameter limit"
+    }
+  ],
+  "knowledgeReferences": [
+    {
+      "id": "DECISION-HARNESS-001",
+      "title": "Harness 从执行闭环扩展为知识闭环",
+      "usedIn": "review 输出 knowledge references/outputs",
+      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md"
+    },
+    {
+      "id": "GUIDELINE-RULES-001",
+      "title": "规则必须短入口、深文档、可验证",
+      "usedIn": "review 以 truth source 和验证边界给出 findings",
+      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md"
+    }
+  ],
+  "knowledgeOutputs": [
+    {
+      "id": "GUIDELINE-SECURITY-001",
+      "type": "guideline",
+      "title": "认证上下文透传必须有可信来源证明",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md"
+    },
+    {
+      "id": "GUIDELINE-EVIDENCE-001",
+      "type": "guideline",
+      "title": "mock/local/docker/live evidence 分层命名",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
+    },
+    {
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常和安全验收 review",
+      "action": "suggested",
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+    }
+  ],
+  "visualEvidence": {
+    "reference": null,
+    "screenshot": null,
+    "parityReport": null,
+    "reason": "not a UI task"
+  },
+  "remainingRisks": [
+    "Review 产物列出的 P0/P1 findings 未在本任务内修复；后续应拆分进入 repair 队列。",
+    "本任务验证命令不重复执行完整 docker/mock release gate；完整 release evidence 以 docs/testing/verify-matrix.md 中 RELEASE-001 为准。"
+  ]
+}
+
+ succeeded in 384ms:
+   1: # Requirements Complete Review: REQUIREMENTS-COMPLETE-REVIEW-001
+   2:
+   3: Verdict: FAIL
+   4:
+   5: ## Truth Source
+   6:
+   7: - `docs/product/prd-lite.md`
+   8: - `docs/product/acceptance-criteria.md`
+   9: - `docs/product/requirement-interface-matrix.md`
+  10: - `docs/product/state-matrix.yaml`
+  11: - `docs/architecture/constraints.md`
+  12:
+  13: ## Evidence Source
+  14:
+  15: - `contracts/openapi.yaml`
+  16: - `src/`
+  17: - `tests/`
+  18: - `docs/testing/TRACEABILITY_MATRIX.md`
+  19: - `docs/testing/ACCEPTANCE_EXAMPLES.md`
+  20: - `docs/testing/verify-matrix.md`
+  21: - `task.json`
+  22:
+  23: ## Summary
+  24:
+  25: 本轮复审以产品需求和架构约束为基准，逐项核对 FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027。当前结论为 `FAIL`：上一轮 `FR-002 / AC-002` 与 `AC-E027` 缺口已由 repair 任务关闭，但复审发现新的 P0/P1 缺口，主要集中在认证上下文可信边界、查询数据范围、下载签名 URL、32KB 参数限制和若干 P0 验收测试证据不足。
+  26:
+  27: 证据边界保持严格分层：`RELEASE-001` 是本机 Docker MySQL + 本地 object storage mock 的 docker/mock release gate；本 review 不声明外部生产 MySQL、外部业务数据源或 live OSS/S3 已验证。
+  28:
+  29: ## FR Coverage Matrix
+  30:
+  31: | FR ID | Status | Evidence / Notes |
+  32: | --- | --- | --- |
+  33: | FR-001 | partially_covered | 创建、幂等和禁用任务有证据；`queryParams` 32KB 限制缺少生产校验与 API 测试。 |
+  34: | FR-002 | covered | 任务详情进度、失败字段和 `recentEvents` 已由 repair 任务补齐。 |
+  35: | FR-003 | partially_covered | 下载接口和文件元信息有证据；签名 URL 当前只是拼接 `expiresAt`，缺少不可伪造签名与 10 分钟 TTL 证据。 |
+  36: | FR-004 | partially_covered | 历史查询实现支持正式筛选维度；`status/subsystemCode` 筛选组合缺少显式 API 测试，且管理员上下文可信边界缺失。 |
+  37: | FR-005 | covered | MySQL 轮询、DB 抢锁、并发限制、续租和接管由 worker / DB 测试覆盖。 |
+  38: | FR-006 | covered | 空数据、分片、ZIP、阶段事件和 renderer 失败 `EXPORT_RENDER_ERROR` 已覆盖。 |
+  39: | FR-007 | partially_covered | registry 创建、启停和持久化有证据；API update/get/list/唯一性/无权限配置操作测试证据不足。 |
+  40: | FR-008 | partially_covered | 查询模板、字段映射和脱敏主路径有证据；`dataScopeTemplate` 未被执行层强制使用，SQL/模板治理偏弱。 |
+  41: | FR-009 | partially_covered | 权限、可见性和脱敏有局部证据；认证头可伪造、数据范围未覆盖 operator/role/template、签名 URL 不可伪造性不足。 |
+  42: | FR-010 | partially_covered | 审计枚举和事件有证据；公开错误 message 可能透出底层异常原文。 |
+  43: | FR-011 | covered | cleanup 先失效再删除、删除失败保留重试记录已覆盖。 |
+  44: | FR-012 | covered | 取消、重试、非法状态和批次边界收口已覆盖。 |
+  45: | FR-013 | covered | 幂等、attemptNo、配置快照、锁租约和接管已覆盖。 |
+  46: | FR-014 | covered | 采购订单样板注册、字段、脱敏、边界数据和 10 万行证据已覆盖。 |
+  47:
+  48: ## AC Coverage Matrix
+  49:
+  50: | AC ID | Status | Notes |
+  51: | --- | --- | --- |
+  52: | AC-001 | partially_covered | 创建成功证据存在；超长 `queryParams` 未在生产创建路径拦截。 |
+  53: | AC-002 | covered | 详情响应字段 `status/totalCount/processedCount/progressPercent/errorCode/errorMessage/recentEvents` 已覆盖。 |
+  54: | AC-003 | partially_covered | 下载元信息和 guard 有证据；签名 URL 不可伪造性和 10 分钟 TTL 未满足。 |
+  55: | AC-004 | partially_covered | `taskCode/createdBy/fileFormat/createdAtRange` 有测试；`status/subsystemCode` 缺少显式筛选断言。 |
+  56: | AC-005 | covered | 同子系统并发上限、DB 抢锁和多实例互斥有证据。 |
+  57: | AC-006 | covered | 超阈值分片 ZIP、空数据仅表头、文件渲染和阶段事件已覆盖。 |
+  58: | AC-007 | partially_covered | create/enable/disable 有测试；update/get/list/重复 taskCode 的 API 证据不足。 |
+  59: | AC-008 | partially_covered | 查询模板主路径有证据；注册前强校验、数据源 allowlist、`dataScopeTemplate` 执行证据不足。 |
+  60: | AC-009 | partially_covered | 详情/下载 403 有测试；认证上下文可信校验、创建/配置无权限审计、签名 URL 防绕过不足。 |
+  61: | AC-010 | partially_covered | 审计字段和枚举有证据；公开错误信息脱敏边界不足。 |
+  62: | AC-011 | covered | 过期文件先失效再删除，清理失败保留可重试记录。 |
+  63: | AC-012 | covered | PENDING 取消、FAILED 重试、EXECUTING 批次边界收口和非法状态已覆盖。 |
+  64: | AC-013 | covered | 同一 `taskId` 可串联幂等、执行尝试、锁租约和配置快照。 |
+  65: | AC-014 | covered | 相同幂等范围同摘要返回原任务，摘要冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+  66: | AC-015 | covered | worker 抢锁记录 `attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt`。 |
+  67: | AC-016 | covered | 注册配置变更只影响新任务，旧任务和 FAILED 重试沿用原快照。 |
+  68: | AC-017 | covered | 采购订单样板注册包含数据源、参数、模板、字段、脱敏、游标和格式。 |
+  69: | AC-018 | covered | 采购订单样板覆盖 `0/1/20000/20001/100000/100001` 行边界。 |
+  70: | AC-019 | covered | 查询执行上下文、模板版本、数据源编码、批次检查点和审计串联有证据。 |
+  71: | AC-020 | covered | 执行阶段事件有证据；失败渲染另有 `PACKAGE_FAILED` 诊断事件。 |
+  72: | AC-021 | covered | temp object 到 published object、checksum 校验、发布失败阻断下载已覆盖。 |
+  73:
+  74: ## AC-E Coverage Matrix
+  75:
+  76: | AC-E ID | Status | Notes |
+  77: | --- | --- | --- |
+  78: | AC-E001 | covered | 空数据生成仅表头文件并完成。 |
+  79: | AC-E002 | partially_covered | 实现有 `TASK_NOT_REGISTERED` 分支；缺少未注册创建失败且不落任务的 API 测试。 |
+  80: | AC-E003 | covered | 禁用任务返回 `TASK_DISABLED`。 |
+  81: | AC-E004 | covered | 查询短暂失败后按批次重试并最终完成。 |
+  82: | AC-E005 | covered | object storage put/read/publish 失败映射为 `FILE_VERIFY_ERROR`。 |
+  83: | AC-E006 | partially_covered | 403 不泄露任务/文件有局部证据；请求头伪造 admin 的负向验证缺失。 |
+  84: | AC-E007 | covered | 文件过期返回 `FILE_EXPIRED` / 410。 |
+  85: | AC-E008 | covered | 多实例重复抢锁只有一个实例成功执行。 |
+  86: | AC-E009 | gap | `contracts/openapi.yaml` 声明 32KB 限制，但 `src/task-api/service.ts` 创建路径未校验。 |
+  87: | AC-E010 | covered | 超大导出由 query/file/sample 路径拒绝或失败。 |
+  88: | AC-E011 | partially_covered | 执行层会拒绝非法模板；注册落库前模板治理和 allowlist 不足。 |
+  89: | AC-E012 | covered | 数据源连接/凭证类错误收口为 `DATASOURCE_UNAVAILABLE`。 |
+  90: | AC-E013 | covered | 查询执行失败按 retry 策略处理，最终失败为 `QUERY_EXECUTION_ERROR`。 |
+  91: | AC-E014 | covered | 字段映射不合法收口为 `FIELD_MAPPING_INVALID`。 |
+  92: | AC-E015 | covered | 非法或重复重试请求返回非法状态错误。 |
+  93: | AC-E016 | partially_covered | 缺少最小字段会 401；但认证上下文来源可信性未验证。 |
+  94: | AC-E017 | covered | 文件校验值不匹配拒绝交付并进入失败处置链路。 |
+  95: | AC-E018 | covered | 幂等键冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+  96: | AC-E019 | covered | 锁租约过期后接管延续当前 `attemptNo` 并从 checkpoint 继续。 |
+  97: | AC-E020 | covered | 查询批次重试耗尽后任务 `FAILED + QUERY_EXECUTION_ERROR`。 |
+  98: | AC-E021 | covered | 超过 100000 行默认上限时拒绝或失败，并记录审计。 |
+  99: | AC-E022 | covered | 采购订单敏感字段未脱敏时失败为 `MASKING_RULE_ERROR`。 |
+ 100: | AC-E023 | partially_covered | 实现有游标缺失/重复/非递增 guard；缺少对应负向 query 测试。 |
+ 101: | AC-E024 | covered | 任务执行沿用创建时快照，不静默放宽字段或阈值。 |
+ 102: | AC-E025 | covered | 批次字段、顺序或脱敏校验失败会停止写入并收口错误码。 |
+ 103: | AC-E026 | covered | 发布前校验失败不生成下载地址，错误码为 `FILE_VERIFY_ERROR`。 |
+ 104: | AC-E027 | covered | XLSX/ZIP renderer 失败收口为 `EXPORT_RENDER_ERROR`，记录摘要和失败原因。 |
+ 105:
+ 106: ## Findings
+ 107:
+ 108: ### RCR-P0-001: Auth context trust boundary is not enforced
+ 109:
+ 110: - Severity: P0
+ 111: - Requirement IDs: `FR-009`, `AC-009`, `AC-E006`, `AC-E016`
+ 112: - Evidence:
+ 113:   - `src/audit-log/auth-context.ts:46-63` 直接从 `x-operator-id`、`x-tenant-id`、`x-role-codes`、`x-org-scope`、`x-request-id` 构造认证上下文。
+ 114:   - `src/audit-log/auth-context.ts:26-27` 将请求头中的 `EXPORT_ADMIN` 作为管理员判断。
+ 115:   - `src/task-api/service.ts:624-633` 管理员历史查询可不受租户过滤。
+ 116: - Risk: 能直连服务的调用方可伪造管理员或跨租户上下文，绕过任务可见性和下载权限。
+ 117: - Suggested next task id: `AUTH-CONTEXT-TRUST-BOUNDARY-001`
+ 118:
+ 119: ### RCR-P0-002: query data scope ignores operatorId, roleCodes, and registry dataScopeTemplate
+ 120:
+ 121: - Severity: P0
+ 122: - Requirement IDs: `FR-008`, `FR-009`, `AC-008`, `AC-009`
+ 123: - Evidence:
+ 124:   - `docs/product/prd-lite.md` 要求查询叠加 `tenantId`、`operatorId`、`roleCodes`、`orgScope` 数据范围约束。
+ 125:   - `src/query-executor/index.ts:352-364` 只构造 `tenantId + orgScope`。
+ 126:   - `src/query-executor/index.ts:393-405` 硬编码 `tenantId = ? AND orgId IN (...)`，未使用 registry `dataScopeTemplate`。
+ 127: - Risk: 同租户同组织内不同操作人或角色的数据隔离无法证明，可能导出越权数据。
+ 128: - Suggested next task id: `DATA-SCOPE-TEMPLATE-ENFORCE-001`
+ 129:
+ 130: ### RCR-P0-003: signed URL is not cryptographically signed and uses file retention expiry
+ 131:
+ 132: - Severity: P0
+ 133: - Requirement IDs: `FR-003`, `FR-009`, `AC-003`, `AC-009`
+ 134: - Evidence:
+ 135:   - `src/file-service/index.ts:117-120` 的 `createDownloadUrl` 只追加 `expiresAt` 查询参数，没有签名。
+ 136:   - `src/file-service/index.ts:166-168` 文件 `expiresAt` 是保留期过期时间。
+ 137:   - `src/task-api/service.ts:840` 下载接口用文件保留期 `file.expiresAt` 创建下载 URL，而不是 10 分钟签名 URL TTL。
+ 138: - Risk: URL 泄露后可能绕过平台鉴权和下载审计长期访问对象。
+ 139: - Suggested next task id: `DOWNLOAD-SIGNED-URL-GUARD-001`
+ 140:
+ 141: ### RCR-P0-004: queryParams 32KB limit is only contracted, not implemented
+ 142:
+ 143: - Severity: P0
+ 144: - Requirement IDs: `FR-001`, `AC-E009`
+ 145: - Evidence:
+ 146:   - `contracts/openapi.yaml` 声明 `queryParams` 不得超过 32768 bytes，错误码为 `QUERY_PARAMS_TOO_LARGE`。
+ 147:   - `src/task-api/service.ts:451-615` 创建任务路径计算 digest 并落库，但未检查序列化后的 `queryParams` 字节数。
+ 148:   - `tests/api/export-http-api.test.mjs` 未覆盖超长 `queryParams` 创建失败。
+ 149: - Risk: 超长参数可能绕过产品限制进入持久化、审计和后续查询执行链路。
+ 150: - Suggested next task id: `QUERY-PARAMS-SIZE-LIMIT-001`
+ 151:
+ 152: ### RCR-P0-005: P0 acceptance evidence is incomplete for history, registry, permission, and cursor negative cases
+ 153:
+ 154: - Severity: P0
+ 155: - Requirement IDs: `AC-004`, `AC-007`, `AC-009`, `AC-E002`, `AC-E023`
+ 156: - Evidence:
+ 157:   - `tests/api/export-http-api.test.mjs` 覆盖历史查询的 `taskCode/createdBy/fileFormat/createdAtRange`，未显式断言 `status/subsystemCode` 筛选。
+ 158:   - registry API 有 create/enable/disable 证据，但 update/get/list、重复 taskCode 或配置无权限操作的 API 证据不足。
+ 159:   - `src/task-api/service.ts:483-492` 有未注册任务分支，但 API 测试未断言不落无效任务。
+ 160:   - `src/query-executor/index.ts:673` 有游标重复/非递增 guard，但 query 测试未覆盖缺失/重复/非递增游标负向数据。
+ 161: - Risk: P0/P1 需求虽有实现入口，但验收证据不足，release 回归无法定位这些边界是否漂移。
+ 162: - Suggested next task id: `P0-ACCEPTANCE-EVIDENCE-REPAIR-001`
+ 163:
+ 164: ### RCR-P1-001: SQL/template governance is too weak before registry persistence
+ 165:
+ 166: - Severity: P1
+ 167: - Requirement IDs: `FR-008`, `AC-008`, `AC-E011`
+ 168: - Evidence:
+ 169:   - `src/registry-config/service.ts:141-186` 在 upsert 时保存 `datasourceCode/queryTemplate/dataScopeTemplate`，未见 datasource allowlist、AST/table allowlist 或函数治理。
+ 170:   - `src/query-executor/index.ts:300-317` 只在执行层做 SELECT/unsafe token/placeholder 校验。
+ 171:   - `src/query-executor/index.ts:416-418` 使用 `CompiledQuery.raw` 执行拼装 SQL。
+ 172: - Risk: 管理员误配或认证边界被绕过时，非法或高成本查询可进入执行阶段。
+ 173: - Suggested next task id: `QUERY-TEMPLATE-HARDENING-001`
+ 174:
+ 175: ### RCR-P1-002: public error responses can expose raw internal messages
+ 176:
+ 177: - Severity: P1
+ 178: - Requirement IDs: `FR-010`, `AC-010`, `AC-E012`, `AC-E013`
+ 179: - Evidence:
+ 180:   - `src/routes/respond.ts:22-25` 对未知错误直接返回 `error.message`。
+ 181:   - `src/query-executor/index.ts:793-803` 将底层 datasource / query 错误 message 包装到公开错误。
+ 182:   - `src/task-api/service.ts:251-254` 任务详情可能从 checkpoint 读取公开 `errorMessage`。
+ 183: - Risk: 数据源地址、SQL 片段、账号、对象存储内部错误等敏感信息可能进入 API 响应或任务详情。
+ 184: - Suggested next task id: `PUBLIC-ERROR-REDACTION-001`
+ 185:
+ 186: ## Closed Findings
+ 187:
+ 188: | Finding / Task | Status | Fresh evidence |
+ 189: | --- | --- | --- |
+ 190: | `RCR-001` / `TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` | closed | `tests/api/export-http-api.test.mjs` 覆盖 PENDING、checkpoint、FAILED 详情；`tests/contract/openapi-route-mapping.contract.test.mjs` 守护 schema。 |
+ 191: | `RCR-002` / `FILE-RENDER-ERROR-CONTRACT-REPAIR-001` | closed | `tests/file/export-file-service.test.mjs` 覆盖 XLSX/ZIP renderer 失败、`PACKAGE_FAILED` 事件、scheduler 最终 `FAILED + EXPORT_RENDER_ERROR` 审计。 |
+ 192: | `CLEANUP-AUDIT-ERROR-CODE-ALIGN-001` | closed | cleanup 删除失败写入 `CLEANUP_FAILED / FAILED / FILE_CLEANUP_DELETE_ERROR`，且 ResponseCode 已公开。 |
+ 193:
+ 194: ## Evidence Boundary
+ 195:
+ 196: - `RELEASE-001`: docker/mock release gate；依赖本机 Docker MySQL + 本地 object storage mock。
+ 197: - `npm run test:mock-local`: local/dev 守护；不能替代 API/DB/worker/query/file/sample 或 release gate。
+ 198: - `npm run test:file` 中 env-backed local HTTP adapter 只证明生产等价协议链路，不等于外部 live OSS/S3。
+ 199: - 外部生产 MySQL、外部业务只读库和 live OSS/S3 不属于当前 release gate；后续如要声明 live evidence，必须另开专项验证任务。
+ 200:
+ 201: ## Architecture Constraints
+ 202:
+ 203: - `truth_source=docs/product/* + docs/architecture/constraints.md`: PASS - 本 review 以上述文件作为判定基线。
+ 204: - `review_only_no_business_fix`: PASS - 本任务只更新 review 产物，不修改业务实现、任务状态、trace 或 progress。
+ 205: - `mock/local/docker/live evidence separated`: PASS - 完成结论限定为 local/Docker/mock，未升级为 live。
+ 206: - `forbidden_implementations`: FAIL - 当前没有 InMemory/mock 冒充生产路径，但若声称 P0 权限、数据范围、签名 URL 已完成，会违反“不得把不完整生产边界伪装成完成”的约束。
+ 207:
+ 208: ## Knowledge References
+ 209:
+ 210: - `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: review 输出 knowledge references/outputs - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+ 211: - `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: review 以 truth source 和验证边界给出 findings - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+ 212:
+ 213: ## Knowledge Outputs
+ 214:
+ 215: - `GUIDELINE-SECURITY-001`: guideline - 认证上下文透传必须有可信来源证明 - suggested - `docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md`
+ 216: - `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+ 217: - `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常和安全验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+ 218:
+ 219: ## Remaining Risks
+ 220:
+
+ succeeded in 460ms:
+   1: import assert from "node:assert/strict";
+   2: import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+   3: import { once } from "node:events";
+   4: import http from "node:http";
+   5: import test from "node:test";
+   6: import mysql from "mysql2";
+   7: import { Kysely, MysqlDialect } from "kysely";
+   8: import { createExportPlatformServer } from "../../src/server.ts";
+   9: import { runMigrations } from "../../src/db/migrator.ts";
+  10: import {
+  11:   createCheckpointRepository,
+  12:   createExportAuditRepository,
+  13:   createExportFileRepository,
+  14:   createExportTaskEventRepository,
+  15:   createExportTaskRepository,
+  16:   getDatabaseTime
+  17: } from "../../src/repositories/index.ts";
+  18:
+  19: const downloadSigningSecret = `test-only-download-${randomUUID()}`;
+  20: const authContextSigningSecret = `test-only-auth-${randomUUID()}`;
+  21:
+  22: function getTestDatabaseUrl() {
+  23:   const databaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
+  24:
+  25:   if (!databaseUrl) {
+  26:     throw new Error(
+  27:       "BLOCKED - 需要人工介入: tests/api requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL."
+  28:     );
+  29:   }
+  30:
+  31:   return databaseUrl;
+  32: }
+  33:
+  34: function withTestDatabaseEnv(objectStorageConfig = {}) {
+  35:   const databaseUrl = getTestDatabaseUrl();
+  36:   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
+  37:   const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  38:   const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  39:   const previousDownloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  40:   const previousAuthContextSigningSecret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+  41:   const previousRegistryAdminTenantIds = process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
+  42:   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
+  43:   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT =
+  44:     objectStorageConfig.endpoint ?? "https://oss.example.test";
+  45:   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET =
+  46:     objectStorageConfig.bucket ?? "export-platform-test";
+  47:   process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
+  48:     objectStorageConfig.signingSecret ?? downloadSigningSecret;
+  49:   process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET =
+  50:     objectStorageConfig.authContextSigningSecret ?? authContextSigningSecret;
+  51:   process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS =
+  52:     objectStorageConfig.registryAdminTenantIds ?? "tenant-001";
+  53:
+  54:   return () => {
+  55:     if (previousDatabaseUrl === undefined) {
+  56:       delete process.env.EXPORT_PLATFORM_DATABASE_URL;
+  57:     } else {
+  58:       process.env.EXPORT_PLATFORM_DATABASE_URL = previousDatabaseUrl;
+  59:     }
+  60:
+  61:     if (previousObjectStorageEndpoint === undefined) {
+  62:       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+  63:     } else {
+  64:       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = previousObjectStorageEndpoint;
+  65:     }
+  66:
+  67:     if (previousObjectStorageBucket === undefined) {
+  68:       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  69:     } else {
+  70:       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = previousObjectStorageBucket;
+  71:     }
+  72:
+  73:     if (previousDownloadSigningSecret === undefined) {
+  74:       delete process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  75:     } else {
+  76:       process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = previousDownloadSigningSecret;
+  77:     }
+  78:
+  79:     if (previousAuthContextSigningSecret === undefined) {
+  80:       delete process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+  81:     } else {
+  82:       process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET = previousAuthContextSigningSecret;
+  83:     }
+  84:
+  85:     if (previousRegistryAdminTenantIds === undefined) {
+  86:       delete process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
+  87:     } else {
+  88:       process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS = previousRegistryAdminTenantIds;
+  89:     }
+  90:   };
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\product\\acceptance-criteria.md' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 55) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\product\\state-matrix.yaml' | ForEach-Object { "'$i++; if ($i -ge 60 -and $i -le 85) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 170 -and $i -le 238) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\testing\\ACCEPTANCE_EXAMPLES.md' | ForEach-Object { "'$i++; if ($i -ge 65 -and $i -le 82) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\testing\\TRACEABILITY_MATRIX.md' | ForEach-Object { "'$i++; if ($i -ge 14 -and $i -le 19) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 403ms:
+   1: # Acceptance Criteria：统一导出平台
+   2:
+   3: > 本文件是仓库正式验收入口。当前范围以后端平台能力为准，不包含新前端页面。
+   4:
+   5: ## 1. 功能验收
+   6:
+   7: | AC ID | 关联需求 | 验收标准 | 优先级 |
+   8: | --- | --- | --- | --- |
+   9: | AC-001 | FR-001 | 认证通过且 `taskCode` 已注册启用时，调用创建任务接口可在 1 秒内返回全局唯一 `taskId`，任务状态为 `PENDING`。 | P0 |
+  10: | AC-002 | FR-002 | 可查询任务状态、总数、已处理数、进度和错误信息。 | P0 |
+  11: | AC-003 | FR-003 | COMPLETED 且未过期时可下载文件；签名 URL 模式返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式模式返回文件流和等价文件元信息；文件记录包含 `storageKey`、`checksum`、`checksumAlgorithm` 和 `attemptNo`。 | P0 |
+  12: | AC-004 | FR-004 | 可按 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 分页查询历史任务；普通用户仅看本人任务，管理员按权限看全局。测试文档若出现更细筛选项，必须回填到产品真相源或标记为假设。 | P0 |
+  13: | AC-005 | FR-005 | 多实例调度时，同一子系统的执行数不超过配置值。 | P0 |
+  14: | AC-006 | FR-006 | 超过单文件阈值时自动分片并打包，空数据生成仅表头文件。 | P0 |
+  15: | AC-007 | FR-007 | 导出任务注册信息可创建、更新、查询、启停和配置同步；`taskCode` 唯一，并可配置并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。 | P0 |
+  16: | AC-008 | FR-008 | 注册配置声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段和支持格式后，平台无需改核心代码即可按集中查询口径执行对应导出任务；非法模板、未注册字段、未声明参数或不允许的数据源不得进入执行。 | P0 |
+  17: | AC-009 | FR-009 | 无权限创建或下载时返回 403，并记录审计。 | P0 |
+  18: | AC-010 | FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。 | P0 |
+  19: | AC-011 | FR-011 | 过期文件先被标记为不可下载，再清理对象存储文件；下载返回失效结果，清理失败保留可重试记录。 | P1 |
+  20: | AC-012 | FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 仅通过内部 `cancelRequested=true` 做批次边界收口并最终置为 `CANCELED`，不返回 `cancel_requested` 状态；非法状态返回 `INVALID_TASK_STATE`。 | P1 |
+  21: | AC-013 | FR-013 | 创建任务、执行尝试、DB 锁租约和配置快照证据可通过同一 `taskId` 串联，并能区分幂等命中、锁续租、锁接管和快照沿用场景。 | P0 |
+  22: | AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+  23: | AC-015 | FR-013/FR-005 | worker 抢锁成功后记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和配置快照；锁租约默认 5 分钟并按批次续租，过期锁只能由一个实例重新抢占。 | P0 |
+  24: | AC-016 | FR-013/FR-007 | 注册配置变更只影响新创建任务；已创建任务和失败重试沿用原任务配置快照，审计可追溯到快照版本或摘要。 | P0 |
+  25: | AC-017 | FR-014 | 采购订单样板以 `purchase-order-export` / `purchase` 注册启用后，平台可按创建时间范围、订单状态、供应商、采购组织和关键词创建导出任务；注册配置包含只读数据源、参数 schema、查询模板、字段顺序、敏感字段、脱敏策略、游标字段和支持格式。 | P0 |
+  26: | AC-018 | FR-014 | 采购订单样板在 `0/1/20000/20001/100000/100001` 行边界下分别验证空数据仅表头、单文件、分片 ZIP、默认 10 万行压测和超过最大导出量处置。 | P0 |
+  27: | AC-019 | FR-008/FR-010/FR-013 | 查询执行请求包含任务快照、执行尝试上下文、查询模板版本、数据源编码和批次检查点，平台可在任务日志、审计日志和失败证据中串联。 | P0 |
+  28: | AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+  29: | AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+  30:
+  31: ## 2. 异常验收
+  32:
+  33: | AC ID | 场景 | 预期行为 |
+  34: | --- | --- | --- |
+  35: | AC-E001 | 空数据 | 生成仅表头文件，任务完成。 |
+  36: | AC-E002 | 任务未注册 | 创建失败，不落无效任务。 |
+  37: | AC-E003 | 任务禁用 | 返回 `TASK_DISABLED`。 |
+  38: | AC-E004 | 查询执行短暂失败后重试成功 | 按批次重试策略处理，任务最终完成并记录重试次数。 |
+  39: | AC-E005 | OSS 上传失败 | 任务置为 `FAILED`，错误码收口为 `FILE_VERIFY_ERROR`，并记录对象存储写入失败原因和临时对象定位或清理记录。 |
+  40: | AC-E006 | 权限不足 | 返回 403，不泄露文件和任务详情。 |
+  41: | AC-E007 | 文件过期 | 返回 410 或等价失效结果。 |
+  42: | AC-E008 | 多实例重复抢锁 | 只有一个实例成功执行。 |
+  43: | AC-E009 | 请求参数过长 | 超过限制返回 400。 |
+  44: | AC-E010 | 超大导出 | 按配置拒绝或进入更严格控制流。 |
+  45: | AC-E011 | 查询模板不存在或不合法 | 任务置为 `FAILED`，错误码为 `QUERY_TEMPLATE_INVALID`。 |
+  46: | AC-E012 | 数据源不可用或凭证不可用 | 任务置为 `FAILED`，错误码为 `DATASOURCE_UNAVAILABLE`。 |
+  47: | AC-E013 | 查询执行失败 | 按批次重试策略处理；最终失败时任务置为 `FAILED`，错误码为 `QUERY_EXECUTION_ERROR`。 |
+  48: | AC-E014 | 字段映射不合法 | 任务置为 `FAILED`，错误码为 `FIELD_MAPPING_INVALID`。 |
+  49: | AC-E015 | 非法或重复重试请求 | PENDING/EXECUTING 任务返回非法状态错误且不得派发执行；FAILED 任务同一时刻只能有一个活跃执行尝试。 |
+  50: | AC-E016 | 认证上下文缺少最小字段 | 创建、查询、下载或配置操作返回权限错误或参数错误，并记录 `requestId` 和失败原因。 |
+  51: | AC-E017 | 文件校验值不匹配 | 下载前拒绝交付文件，任务或文件引用进入失败处置链路，并记录审计。 |
+  52: | AC-E018 | 幂等键冲突 | 相同幂等范围下参数摘要不同，创建接口返回 `IDEMPOTENCY_CONFLICT`，不得创建新任务。 |
+  53: | AC-E019 | DB 锁租约过期 | 其他实例只能在租约过期后重新抢锁；锁接管延续当前 `attemptNo` 并从批次检查点继续，FAILED 重试才递增 `attemptNo`，同时保留原锁持有者证据。 |
+  54: | AC-E020 | 查询批次重试耗尽 | 批次按策略重试后仍失败，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR` 并记录重试次数。 |
+  55: | AC-E021 | 超过默认最大导出量 | 预估或精确总量统计结果超过 100000 行且注册配置未放开时，拒绝创建或进入更严格控制流，并记录审计。 |
+
+ succeeded in 395ms:
+  65: - 证据目标: 模板版本、参数摘要、字段映射摘要、批次检查点。
+  66:
+  67: ### AE-009 权限、数据范围和脱敏
+  68:
+  69: - 关联需求: FR-009
+  70: - 正向示例: 给定认证上下文完整，当创建、查询、下载或执行查询，则平台按 `operatorId`、`tenantId`、`roleCodes`、`orgScope` 施加权限和数据范围。
+  71: - 负向示例: 给定权限不足、认证字段缺失或脱敏失败，则拒绝操作或任务失败，并记录审计。
+  72: - 证据目标: 403 响应、dataScopeExpression、脱敏校验证据。
+  73:
+  74: ### AE-010 审计与事件追踪
+  75:
+  76: - 关联需求: FR-010
+  77: - 正向示例: 给定任务完整执行，当查看审计和事件日志，则 CREATE、DISPATCH、EXECUTE、DOWNLOAD、CANCEL、RETRY 等动作可按 `requestId` 串联。
+  78: - 负向示例: 给定失败任务，必须记录错误码、失败阶段和上一成功阶段。
+  79: - 证据目标: 审计日志、任务事件日志、failure triage。
+  80:
+  81: ### AE-011 过期清理
+  82:
+
+ succeeded in 446ms:
+  60:           - "调用方提供 clientRequestId 时按 tenantId、operatorId、taskCode、clientRequestId 做幂等"
+  61:           - "相同幂等范围和相同参数摘要时返回原 taskId"
+  62:           - "记录 requestDigest 和 configSnapshotDigest"
+  63:         acceptance_refs: ["AC-001", "AC-013", "AC-014"]
+  64:       conflict:
+  65:         required: true
+  66:         description: "相同幂等范围下参数摘要不同"
+  67:         expected_system_behavior:
+  68:           - "返回 IDEMPOTENCY_CONFLICT"
+  69:           - "不得创建新任务"
+  70:         acceptance_refs: ["AC-014", "AC-E018"]
+  71:       permission_denied:
+  72:         required: true
+  73:         description: "无创建权限"
+  74:         expected_system_behavior:
+  75:           - "返回 403"
+  76:           - "记录审计"
+  77:         acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+  78:       not_registered:
+  79:         required: true
+  80:         description: "taskCode 未注册"
+  81:         expected_system_behavior:
+  82:           - "创建失败"
+  83:           - "不落无效任务"
+  84:         acceptance_refs: ["AC-E002"]
+  85:       disabled:
+ 170:         expected_system_behavior:
+ 171:           - "返回 410"
+ 172:         acceptance_refs: ["AC-E007"]
+ 173:       permission_denied:
+ 174:         required: true
+ 175:         description: "无下载权限"
+ 176:         expected_system_behavior:
+ 177:           - "返回 403"
+ 178:         acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+ 179:   - capability_id: "api-004"
+ 180:     title: "查询任务历史"
+ 181:     route: "GET /api/export/tasks"
+ 182:     related_requirements: ["FR-004", "FR-009", "FR-010"]
+ 183:     states:
+ 184:       default:
+ 185:         required: true
+ 186:         description: "可按正式筛选维度返回历史任务"
+ 187:         expected_system_behavior:
+ 188:           - "返回分页结果"
+ 189:           - "支持 taskCode、status、createdBy、createdAtRange、fileFormat、subsystemCode 筛选"
+ 190:           - "普通用户仅见本人任务"
+ 191:           - "管理员可见全局任务"
+ 192:           - "权限判断依赖 operatorId、tenantId、roleCodes、orgScope、requestId"
+ 193:         acceptance_refs: ["AC-004", "AC-009"]
+ 194:       empty:
+ 195:         required: true
+ 196:         description: "无历史任务"
+ 197:         expected_system_behavior:
+ 198:           - "返回空分页"
+ 199:         acceptance_refs: ["AC-004"]
+ 200:       permission_denied:
+ 201:         required: true
+ 202:         description: "无权查看全局历史"
+ 203:         expected_system_behavior:
+ 204:           - "返回 403"
+ 205:         acceptance_refs: ["AC-009", "AC-E006"]
+ 206:   - capability_id: "api-007"
+ 207:     title: "注册 / 启停 / 配置"
+ 208:     route: "registry/config APIs"
+ 209:     related_requirements: ["FR-007", "FR-008", "FR-010", "FR-013"]
+ 210:     states:
+ 211:       default:
+ 212:         required: true
+ 213:         description: "注册成功且启停状态、配置同步生效"
+ 214:         expected_system_behavior:
+ 215:           - "taskCode 唯一"
+ 216:           - "enabled 状态可切换"
+ 217:           - "支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略"
+ 218:           - "支持数据源、参数 schema、查询模板、字段映射和脱敏策略配置"
+ 219:           - "配置变更只影响新创建任务，已创建任务沿用 configSnapshotDigest"
+ 220:         acceptance_refs: ["AC-007", "AC-008", "AC-010", "AC-016"]
+ 221:       disabled:
+ 222:         required: true
+ 223:         description: "任务注册或启停后处于禁用"
+ 224:         expected_system_behavior:
+ 225:           - "创建阶段返回 TASK_DISABLED"
+ 226:         acceptance_refs: ["AC-E003"]
+ 227:       permission_denied:
+ 228:         required: true
+ 229:         description: "无权操作注册或配置"
+ 230:         expected_system_behavior:
+ 231:           - "返回 403"
+ 232:         acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+ 233:   - capability_id: "api-005/api-006"
+ 234:     title: "取消 / 重试"
+ 235:     route: "POST /api/export/tasks/{taskId}/cancel and retry"
+ 236:     related_requirements: ["FR-012", "FR-010"]
+ 237:     states:
+ 238:       default:
+
+ succeeded in 446ms:
+  14: | FR-006 | 超过单文件阈值时自动分片并打包；空数据生成仅表头文件；执行链路必须保留关键阶段事件 | 无前端页面；worker / file service | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-006`、`AC-020`、`state-matrix.yaml` | 分片、打包和空数据分支是回归高发点 |
+  15: | FR-007 | 注册导出任务必须可创建、更新、查询、启停，并支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略 | registry/config APIs | default / disabled / permission_denied | registry/config APIs | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`page-inventory.md`、`requirement-interface-matrix.md` | 配置同步和启停状态最容易与任务快照冲突 |
+  16: | FR-008 | 注册配置必须声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段、排序规则、批大小、行数阈值、保留期和支持格式；不得执行原始 SQL | registry/config + datasource/query template | default / invalid_template / datasource_unavailable / query_execution_error / field_mapping_invalid / masking_rule_error | 集中查询契约 | contract / backend / query / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 契约漂移会直接变成越权或错误导出 |
+  17: | FR-009 | 平台必须消费认证上下文，执行任务可见性、操作权限、下载权限和查询数据范围约束；字段脱敏必须按注册策略执行 | auth + data scope + masking + download guard | permission_denied / masking_error | 认证上下文契约、数据范围契约 | contract / backend / api / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`requirement-interface-matrix.md` | 认证上下文字段缺失或脱敏失败会导致高风险泄露 |
+  18: | FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志必须包含任务、操作、结果、错误码、请求和时间信息 | audit log + task event log | all | 审计契约、任务事件契约 | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-010`、`AC-019`、`AC-020` | 没有审计链路就无法证明真实交付 |
+  19: | FR-011 | 过期文件先标记为不可下载，再清理对象存储文件；清理失败必须保留可重试记录 | cleanup job | EXPIRED | cleanup job 契约 | contract / scheduler / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-011`、`state-matrix.yaml` | 清理顺序错误会导致误删或继续可下载 |
+
+codex
+实现证据显示：所有公开 route manifest 都映射到生产 handler，handler 调用 `requireAuthContext`；认证上下文从 HMAC 签名、算法、时间戳和最小字段校验后生成，跨租户任务/配置访问由 service 层拒绝并写审计。接下来我会快速跑静态架构与契约验证，并读取已有 test trace，确认证据链没有断点。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run arch:check' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:contract' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'traces\\AUTH-CONTEXT-TRUST-BOUNDARY-001-d0d933dfd4c3431c9da7a0b01f29351c\\AUTH-CONTEXT-TRUST-BOUNDARY-001-test-20260517-022432.log' -ErrorAction SilentlyContinue" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 396ms:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:52273 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.7065ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (941.8384ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (179.9424ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (120.4386ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1876.0564
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9447ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4606ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3846ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.8935ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2108ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4399ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.554ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3284ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2812ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4358ms)
+✔ protected operations declare trusted auth context signature proof (0.4185ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.3694ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 68.0529
+warning: in the working copy of 'contracts/openapi.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/audit-log/auth-context.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/create-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/disable-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/enable-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/get-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/list-export-registries.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/registries/update-export-registry.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/cancel-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/create-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/download-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/get-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/list-export-tasks.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/export/tasks/retry-export-task.handler.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/respond.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/task-api/service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/api/export-http-api.test.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/contract/openapi-route-mapping.contract.test.mjs', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 459ms:
+ succeeded in 833ms:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9027ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3248ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3956ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.015ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2176ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4502ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5804ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3443ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2892ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4398ms)
+✔ protected operations declare trusted auth context signature proof (0.4692ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.412ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74.9737
+
+ succeeded in 1505ms:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\task-api\\service.ts' | ForEach-Object { "'$i++; if ($i -ge 742 -and $i -le 790) { '"'{0,4}: {1}' -f "'$i, $_ }; if ($i -ge 877 -and $i -le 920) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 371ms:
+ 742: export async function listExportTasks(auth: AuthContext, query: Record<string, unknown>) {
+ 743:   return withDatabase(async (db) => {
+ 744:     const now = await getDatabaseTime(db);
+ 745:     if (isExportAdmin(auth) && !isTrustedRegistryAdminTenant(auth)) {
+ 746:       return rejectWithAudit({
+ 747:         db,
+ 748:         auth,
+ 749:         error: new ApiError(403, "PERMISSION_DENIED", "operator has no permission"),
+ 750:         action: "QUERY_HISTORY",
+ 751:         now,
+ 752:         taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+ 753:         subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null
+ 754:       });
+ 755:     }
+ 756:     const page = parsePositiveInteger(query.page, 1);
+ 757:     const pageSize = Math.min(parsePositiveInteger(query.pageSize, 50), 100);
+ 758:     const createdBy = isExportAdmin(auth)
+ 759:       ? typeof query.createdBy === "string"
+ 760:         ? query.createdBy
+ 761:         : undefined
+ 762:       : auth.operatorId;
+ 763:     const tasks = await createExportTaskRepository(db).listTasks({
+ 764:       taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
+ 765:       status: typeof query.status === "string" ? query.status : undefined,
+ 766:       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
+ 767:       tenantId: auth.tenantId,
+ 768:       createdBy,
+ 769:       fileFormat: typeof query.fileFormat === "string" ? query.fileFormat : undefined,
+ 770:       createdAtFrom: parseDateFilter(query.createdAtFrom),
+ 771:       createdAtTo: parseDateFilter(query.createdAtTo),
+ 772:       limit: pageSize,
+ 773:       offset: (page - 1) * pageSize
+ 774:     });
+ 775:
+ 776:     await appendAudit({
+ 777:       db,
+ 778:       auth,
+ 779:       taskId: null,
+ 780:       attemptNo: null,
+ 781:       taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+ 782:       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null,
+ 783:       action: "QUERY_HISTORY",
+ 784:       now
+ 785:     });
+ 786:
+ 787:     return {
+ 788:       items: tasks.map((task) => taskEnvelope(task, { requestId: auth.requestId })),
+ 789:       page,
+ 790:       pageSize,
+ 877: export async function downloadExportTask(
+ 878:   auth: AuthContext,
+ 879:   taskId: string,
+ 880:   requestedMode?: string
+ 881: ): Promise<DownloadSignedUrlResponse | DownloadStreamResponse> {
+ 882:   return withDatabase(async (db) => {
+ 883:     const now = await getDatabaseTime(db);
+ 884:     const deliveryMode = resolveDownloadMode(requestedMode);
+ 885:     const task = await createExportTaskRepository(db).findTaskById(taskId);
+ 886:     if (!task) {
+ 887:       return rejectWithAudit({
+ 888:         db,
+ 889:         auth,
+ 890:         error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+ 891:         action: "DOWNLOAD",
+ 892:         now,
+ 893:         taskId
+ 894:       });
+ 895:     }
+ 896:     try {
+ 897:       assertTaskVisible(auth, task);
+ 898:     } catch (error) {
+ 899:       if (error instanceof ApiError) {
+ 900:         return rejectWithAudit({
+ 901:           db,
+ 902:           auth,
+ 903:           error,
+ 904:           action: "DOWNLOAD",
+ 905:           now,
+ 906:           taskId,
+ 907:           attemptNo: task.attemptNo,
+ 908:           taskCode: task.taskCode,
+ 909:           subsystemCode: task.subsystemCode
+ 910:         });
+ 911:       }
+ 912:       throw error;
+ 913:     }
+ 914:
+ 915:     const file = await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo);
+ 916:     if (task.status !== "COMPLETED" || !file || !file.publishedStorageKey || !file.deliveryReadyAt) {
+ 917:       return rejectWithAudit({
+ 918:         db,
+ 919:         auth,
+ 920:         error: new ApiError(400, "FILE_NOT_READY", "file is not ready"),
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'traces\\AUTH-CONTEXT-TRUST-BOUNDARY-001-d0d933dfd4c3431c9da7a0b01f29351c\\AUTH-CONTEXT-TRUST-BOUNDARY-001-stage1-20260517-022049-codex-final.txt' -ErrorAction SilentlyContinue" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 348ms:
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | - | - |
+
+## Verdict
+
+- PASS
+
+复验已完成：`npm run arch:check` 通过；Docker MySQL 环境下 `npm run test:api` 4/4 通过；`npm run test:contract` 12/12 通过；`git diff --check` 通过，仅有 CRLF 提示。当前任务不是 UI 任务，视觉还原闸门不适用。
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | - | - |
+
+## Verdict
+
+- PASS
+
+复核要点：`AUTH-CONTEXT-TRUST-BOUNDARY-001` 已携带架构约束、禁止实现和生产形态验证命令；实现通过 HMAC 签名、时间 freshness、最小字段和签名算法校验建立可信 ingress 边界；API/contract 测试覆盖缺少可信证明、伪造 `EXPORT_ADMIN`、空角色、过期/未来签名、跨租户详情/历史/下载/配置拒绝与失败审计。
+
+已复验：`npm run arch:check` 通过，`npm run test:contract` 12/12 通过，`git diff --check` 通过；另有任务 trace 显示 Docker MySQL 下 `npm run test:api` 4/4 通过。当前不是 UI 任务，视觉还原闸门不适用。
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |
+tokens used
+120,148

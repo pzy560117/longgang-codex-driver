@@ -1,0 +1,54 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:51049 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.7257ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1223.3595ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (263.4776ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (132.202ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2281.586
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.803ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (308.06ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (231.7627ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (204.8849ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (182.4007ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (255.3313ms)
+✔ query executor replays the task config snapshot after the current registry changes (251.4112ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (223.6307ms)
+✔ query executor rejects rows with missing or null cursor values (189.7651ms)
+✔ query executor rejects duplicate cursor values (178.5283ms)
+✔ query executor rejects non-increasing cursor values without duplicates (180.3188ms)
+✔ query executor rejects checkpoints missing required cursor fields (189.6985ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (352.833ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (184.408ms)
+✔ query executor rejects field mappings that do not match selected columns (184.795ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (191.1693ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.4062ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3816.4148

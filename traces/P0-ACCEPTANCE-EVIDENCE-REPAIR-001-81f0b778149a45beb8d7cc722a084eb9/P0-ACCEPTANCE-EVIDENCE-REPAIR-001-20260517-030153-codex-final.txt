@@ -1,0 +1,49 @@
+## Requirement IDs
+- AC-004
+- AC-007
+- AC-009
+- AC-E002
+- AC-E023
+- RCR-P0-005
+
+## Summary
+- 本轮检查发现任务要求的实现、API 证据、query 负向测试和 verify-matrix 记录已经存在于当前代码基线中，因此没有再改动源码/测试/文档。
+- 已按 Driver Context 运行完整指定验证命令，全部通过。
+- 按本轮模板硬约束，未执行 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无本轮新增变更。
+- 当前受控范围 `task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md` 无 diff。
+
+## Validation
+- `npm run arch:check`: PASS - `Architecture check passed.`
+- Docker MySQL 环境初始化: PASS - `export-platform-mysql-local` at `127.0.0.1:33306/export_platform_test`
+- `npm run test:api`: PASS - 4/4 passed
+- `npm run test:query`: PASS - 16/16 passed
+- `git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖未注册 `taskCode` 不落库、registry get/list/update/重复 taskCode/未授权、历史 `status + subsystemCode` 筛选与权限边界。
+- `tests/query/query-executor.test.mjs`: 覆盖 cursor 缺失、重复/非递增、checkpoint 缺少 cursor 字段负向场景。
+- `docs/testing/verify-matrix.md`: 已记录 `P0-ACCEPTANCE-EVIDENCE-REPAIR-001` 的 Docker MySQL / API / query 证据边界。
+
+## Architecture Constraints
+- `independent_microservice + http_service`: PASS - `npm run arch:check`
+- `production repository uses MySQL boundary`: PASS - Docker MySQL 下 API/query 测试通过
+- `no InMemory/mock repository as production path`: PASS - `arch:check` 通过
+- `forbidden_implementations`: PASS - 未回退权限、签名 URL、queryParams 32KB 或 dataScopeTemplate 边界
+
+## Knowledge References
+- `none`: 本轮只读取 catalog 判断阶段需要，未引用具体知识条目。
+
+## Knowledge Outputs
+- `none`: 未发现需要新增归档的可复用经验。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有既有 `traces/` 脏状态，不属于本任务允许修改范围，本轮未清理。
+- 当前证据边界是本机/Docker MySQL + 本地 mock，不声明外部生产 MySQL、live datasource 或 live OSS/S3。

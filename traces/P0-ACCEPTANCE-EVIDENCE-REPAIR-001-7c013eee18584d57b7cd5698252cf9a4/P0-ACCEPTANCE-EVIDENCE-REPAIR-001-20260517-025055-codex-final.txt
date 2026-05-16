@@ -1,0 +1,49 @@
+## Requirement IDs
+- AC-004
+- AC-007
+- AC-009
+- AC-E002
+- AC-E023
+- RCR-P0-005
+
+## Summary
+- 已核对当前仓库：本任务要求的 API/query 证据已存在，未发现需要新增的实现差异。
+- 本轮未修改源码、测试或文档；仅执行任务指定验证。
+- 遵守 Driver 边界，未执行 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无本轮文件改动。
+- 已核对相关路径：`src/task-api/`、`src/registry-config/`、`src/query-executor/`、`tests/api/`、`tests/query/`、`docs/testing/verify-matrix.md`
+
+## Validation
+- `npm run arch:check; ... npm run test:api; npm run test:query; ... git diff --check ...`: PASS
+  - `arch:check`: PASS
+  - Docker MySQL test env: PASS
+  - `test:api`: PASS, 4/4
+  - `test:query`: PASS, 16/16
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖未注册创建不落库、历史 `status + subsystemCode`、registry get/list/update/重复/未授权配置操作。
+- `tests/query/query-executor.test.mjs`: 覆盖缺失/空 cursor、重复或非递增 cursor、checkpoint 缺失 cursor 字段。
+- `docs/testing/verify-matrix.md`: 已记录 P0-ACCEPTANCE-EVIDENCE-REPAIR-001 的 Docker MySQL / API / query 证据边界。
+
+## Architecture Constraints
+- `production_path`: PASS - API/query 测试走 Fastify + MySQL / query executor 生产路径。
+- `test_double_policy`: PASS - 未用 InMemory/mock repository 冒充生产完成。
+- `forbidden_implementations`: PASS - 未回退权限、签名 URL、queryParams 32KB 或 dataScopeTemplate 边界。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前工作区仍有既有 `traces/` 运行产物改动/未跟踪文件；本任务强制边界要求不处理 trace。
+- 本轮证据边界仍是本机/Docker MySQL，不声明外部生产 MySQL 或 live datasource evidence。

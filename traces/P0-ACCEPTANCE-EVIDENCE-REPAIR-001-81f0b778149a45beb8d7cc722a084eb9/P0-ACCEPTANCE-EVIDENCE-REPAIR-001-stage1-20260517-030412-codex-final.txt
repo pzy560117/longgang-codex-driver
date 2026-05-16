@@ -1,0 +1,19 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:12` 要求历史查询覆盖 `status/subsystemCode`；`tests/api/export-http-api.test.mjs:795` 在创建不同状态/子系统对照任务前执行筛选断言，当前测试即使实现忽略 `status` 或 `subsystemCode` 也可能通过。 | 在 API 测试中先构造可区分数据：例如 `purchase + PENDING`、`purchase + FAILED`、另一个 `subsystemCode + PENDING`，再用 `status=PENDING&subsystemCode=purchase` 查询并断言只返回目标集合。 | `npm run test:api` |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S1-F002 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:57` 与任务验收要求 query 测试覆盖游标缺失、重复、非递增；`tests/query/query-executor.test.mjs:775` 只用 `order_status AS orderId` 覆盖重复游标，未见独立的“非递增但非重复”游标负向证据。 | 新增独立 query 负向用例，构造非重复但按声明 `orderBy` 非递增的 cursor token 序列，并断言收口为 `QUERY_EXECUTION_ERROR`。不要把重复 cursor 用例同时当作非递增证据。 | `npm run test:query` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S1-F001 | backend | backend-worker | 1 | yes |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S1-F002 | backend | backend-worker | 1 | yes |
+
+备注：`npm run arch:check` 已通过。`git diff --check` 当前因 `traces/` 下既有 error log 尾随空白失败；按本 Stage 1 Prompt 的忽略项，未把 trace 状态作为失败项。

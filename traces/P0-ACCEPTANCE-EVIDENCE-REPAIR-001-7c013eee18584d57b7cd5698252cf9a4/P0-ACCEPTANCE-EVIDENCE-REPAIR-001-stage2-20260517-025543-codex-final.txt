@@ -1,0 +1,30 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F001 | HIGH | security | backend | `src/registry-config/service.ts:159` 先 `findRegistryByTaskCode` 再调用 `repository.upsertRegistry`；`src/repositories/export-registry.repository.ts:108` 的 `upsertRegistry` 在主键冲突时执行 `onDuplicateKeyUpdate`。两个并发 `POST /api/export/registries` 可同时通过存在性检查，后到请求会走 duplicate update，导致 create 语义下静默覆盖 registry config，而不是稳定返回 `REGISTRY_CONFLICT`。现有 `tests/api/export-http-api.test.mjs:460` 只覆盖顺序重复请求。 | 为 HTTP create 增加原子 create 路径：新增 repository `insertRegistry` 或 `createRegistry({ rejectExisting: true })`，使用纯 insert，捕获 MySQL duplicate key 映射为 `ApiError(409, "REGISTRY_CONFLICT")` 并写失败审计；保留 update/seed 的 upsert 路径。补并发或仓储级测试，断言同一 `taskCode` 只能一个 201，另一个 409，且原 registry 内容不被第二个 create payload 覆盖。 | `npm run typecheck; npm run test:contract; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api; npm run test:query'` |
+
+## Verification
+
+- 已检查命令:
+  - `git show --stat --name-only HEAD`
+  - `git show -- src/registry-config/service.ts src/routes/export/registries/create-export-registry.handler.ts tests/api/export-http-api.test.mjs tests/query/query-executor.test.mjs docs/testing/verify-matrix.md`
+  - `rg -n "upsertExportRegistry|upsertRegistry|REGISTRY_CONFLICT" src tests contracts docs/testing/verify-matrix.md`
+  - `npm run typecheck`
+  - `npm run test:contract`
+  - 已核对 trace: `traces/P0-ACCEPTANCE-EVIDENCE-REPAIR-001-7c013eee18584d57b7cd5698252cf9a4/P0-ACCEPTANCE-EVIDENCE-REPAIR-001-test-20260517-025543.log`
+- 结果摘要:
+  - 提供的任务验证 `arch:check`、Docker MySQL `test:api`、`test:query` 退出码为 0。
+  - 我补跑的 `typecheck` 通过。
+  - 我补跑的 `test:contract` 通过，12/12 pass。
+  - 仍存在 create registry 冲突处理的 TOCTOU 质量/安全问题，当前测试没有覆盖并发重复创建导致的静默覆盖风险。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| P0-ACCEPTANCE-EVIDENCE-REPAIR-001-S2-F001 | backend | backend-worker | 1 | true |
