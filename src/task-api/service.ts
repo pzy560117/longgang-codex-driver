@@ -75,8 +75,36 @@ type SignedDownloadQuery = {
   requestId?: unknown;
 };
 
+const QUERY_PARAMS_MAX_BYTES = 32768;
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  return `{${Object.keys(value as Record<string, unknown>)
+    .sort()
+    .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
+    .join(",")}}`;
+}
+
+function assertQueryParamsSize(value: unknown): void {
+  const bytes = Buffer.byteLength(canonicalJson(value), "utf8");
+  if (bytes > QUERY_PARAMS_MAX_BYTES) {
+    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+      queryParamsBytes: bytes,
+      queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
+    });
+  }
+}
+
 function digest(value: unknown): string {
-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
 
 function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {}) {
@@ -569,6 +597,8 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
         "taskCode, subsystemCode and fileFormat are required"
       );
     }
+
+    assertQueryParamsSize(body.queryParams ?? null);
 
     const registries = createExportRegistryRepository(db);
     const tasks = createExportTaskRepository(db);

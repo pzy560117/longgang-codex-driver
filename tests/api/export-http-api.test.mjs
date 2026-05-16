@@ -173,6 +173,29 @@ function createTaskPayload(taskCode, clientRequestId = "client-001") {
   };
 }
 
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`;
+}
+
+function createQueryParamsWithCanonicalSize(size) {
+  const prefix = Buffer.byteLength('{"payload":"', "utf8");
+  const suffix = Buffer.byteLength('"}', "utf8");
+  return {
+    payload: "x".repeat(size - prefix - suffix)
+  };
+}
+
 async function auditLogsByRequestId(db, requestId) {
   return db
     .selectFrom("export_audit_logs")
@@ -1111,4 +1134,122 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
   const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
   assert.equal(forgedInvalidAudits.length, 0);
+});
+
+test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
+  const db = await createTestDatabase(t);
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+  const app = await createServer(t, objectStorageServer);
+  const taskRepository = createExportTaskRepository(db);
+  const runId = `${Date.now()}-${process.pid}-query-size`;
+  const taskCode = `purchase-order-query-size-${runId}`;
+
+  const createRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-registry-query-size-${runId}`),
+    payload: {
+      ...createRegistryPayload(taskCode),
+      parameterSchema: {
+        type: "object",
+        properties: {
+          payload: { type: "string" }
+        },
+        required: ["payload"]
+      },
+      queryTemplate: {
+        queryTemplateVersion: "v1",
+        templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+        allowedParameters: ["payload"]
+      }
+    }
+  });
+
+  assert.equal(createRegistryResponse.statusCode, 201);
+
+  const boundaryQueryParams = createQueryParamsWithCanonicalSize(32768);
+  assert.equal(Buffer.byteLength(canonicalJson(boundaryQueryParams), "utf8"), 32768);
+  const boundaryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-query-size-boundary-${runId}`),
+    payload: {
+      ...createTaskPayload(taskCode, "client-query-size-boundary"),
+      queryParams: boundaryQueryParams
+    }
+  });
+
+  assert.equal(boundaryResponse.statusCode, 201);
+  assert.equal(boundaryResponse.json().code, "SUCCESS");
+
+  const canonicalOrderCreateResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-query-size-canonical-create-${runId}`),
+    payload: {
+      ...createTaskPayload(taskCode, "client-query-size-canonical"),
+      queryParams: {
+        z: ["last", { b: 2, a: 1 }],
+        a: "first",
+        payload: "tiny"
+      }
+    }
+  });
+
+  assert.equal(canonicalOrderCreateResponse.statusCode, 201);
+  const canonicalOrderReplayResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-query-size-canonical-replay-${runId}`),
+    payload: {
+      ...createTaskPayload(taskCode, "client-query-size-canonical"),
+      queryParams: {
+        payload: "tiny",
+        a: "first",
+        z: ["last", { a: 1, b: 2 }]
+      }
+    }
+  });
+
+  assert.equal(canonicalOrderReplayResponse.statusCode, 200);
+  assert.equal(
+    canonicalOrderReplayResponse.json().data.taskId,
+    canonicalOrderCreateResponse.json().data.taskId
+  );
+  assert.equal(
+    canonicalOrderReplayResponse.json().data.requestDigest,
+    canonicalOrderCreateResponse.json().data.requestDigest
+  );
+
+  const oversizedQueryParams = createQueryParamsWithCanonicalSize(32769);
+  assert.equal(Buffer.byteLength(canonicalJson(oversizedQueryParams), "utf8"), 32769);
+  const oversizedResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-query-size-oversized-${runId}`),
+    payload: {
+      ...createTaskPayload(taskCode, "client-query-size-oversized"),
+      queryParams: oversizedQueryParams
+    }
+  });
+
+  assert.equal(oversizedResponse.statusCode, 400);
+  assert.equal(oversizedResponse.json().code, "QUERY_PARAMS_TOO_LARGE");
+  assert.equal(oversizedResponse.json().data.queryParamsMaxBytes, 32768);
+  assert.equal(oversizedResponse.json().data.queryParamsBytes, 32769);
+
+  const oversizedTasks = await db
+    .selectFrom("export_tasks")
+    .select("task_id")
+    .where("task_code", "=", taskCode)
+    .where("client_request_id", "=", "client-query-size-oversized")
+    .execute();
+  assert.equal(oversizedTasks.length, 0);
+
+  const oversizedIdempotencyScope =
+    `tenant-001:u001:${taskCode}:client-query-size-oversized`;
+  assert.equal(await taskRepository.findByIdempotencyScope(oversizedIdempotencyScope), undefined);
+
+  const oversizedAudits = await auditLogsByRequestId(db, `req-query-size-oversized-${runId}`);
+  assert.equal(oversizedAudits.length, 0);
 });

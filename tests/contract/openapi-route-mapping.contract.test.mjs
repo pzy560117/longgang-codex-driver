@@ -53,6 +53,12 @@ function parseBatchCheckpointSchemaBlock() {
   return block;
 }
 
+function parseCreateExportTaskOperationBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/operationId: createExportTask\n([\s\S]*?)\n\s{4}get:/) ?? [];
+  return block;
+}
+
 function parseYamlListFromBlock(block, key) {
   const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
   return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
@@ -239,4 +245,15 @@ test("download operation declares signed URL callback parameters and signature f
   assert.match(openapi, /"#\/components\/responses\/SignatureRejected"/);
   assert.match(openapi, /- SIGNATURE_INVALID/);
   assert.match(openapi, /- SIGNATURE_EXPIRED/);
+});
+
+test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const operationBlock = parseCreateExportTaskOperationBlock();
+
+  assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
+  assert.match(operationBlock, /- QUERY_PARAMS_TOO_LARGE/);
+  assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
+  assert.match(openapi, /queryParamsTooLarge:/);
+  assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
 });

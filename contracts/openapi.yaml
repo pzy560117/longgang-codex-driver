@@ -248,6 +248,7 @@ paths:
                     keyword: PO-2026
       x-contract-errorResponses:
         - TASK_DISABLED
+        - QUERY_PARAMS_TOO_LARGE
         - EXPORT_LIMIT_EXCEEDED
         - QUERY_TEMPLATE_INVALID
         - DATASOURCE_UNAVAILABLE
