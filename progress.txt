@@ -1673,3 +1673,17 @@
 
 ### 备注：
 - 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-17 00:00] - Task: DATA-SCOPE-TEMPLATE-ENFORCE-001 强制查询执行叠加 operatorId、roleCodes 和 dataScopeTemplate 数据范围约束
+
+### 完成的工作：
+- Codex 会话未完成。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 未进入 Stage 1 审查。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- Codex 输出包含失败或 BLOCKED，请人工查看。
