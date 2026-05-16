@@ -60,6 +60,17 @@ type FilePart = {
   rows: Record<string, unknown>[];
 };
 
+type RenderInputSummary = {
+  taskId: string;
+  taskCode: string;
+  attemptNo: number;
+  fileName: string;
+  format: string;
+  totalRowCount: number;
+  partCount: number;
+  singleFileMaxRows: number;
+};
+
 const checksumAlgorithm = "SHA-256";
 const signedUrlExpiresMinutes = 10;
 
@@ -130,9 +141,23 @@ export function createExportFileService(options: ExportFileServiceOptions) {
     const contentType = packageFileName.endsWith(".zip")
       ? "application/zip"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    const body = await renderFileBody(parts, packageFileName, {
+    const renderInputSummary = {
+      taskId: input.task.taskId,
+      taskCode: input.task.taskCode,
+      attemptNo: input.attemptNo,
+      fileName: packageFileName,
+      format: contentType === "application/zip" ? "ZIP" : input.task.fileFormat,
       totalRowCount: input.rows.length,
+      partCount: parts.length,
       singleFileMaxRows
+    };
+    const body = await renderFileBody({
+      events,
+      input,
+      parts,
+      packageFileName,
+      summary: renderInputSummary,
+      now
     });
     const checksum = createChecksum(body);
     const storagePrefix = buildStoragePrefix(input.task, input.attemptNo, now);
@@ -317,22 +342,33 @@ function buildStoragePrefix(task: ExportTaskRecord, attemptNo: number, now: Date
   return `exports/${task.subsystemCode}/${task.taskCode}/${datePart}/${task.taskId}/${attemptNo}`;
 }
 
-async function renderFileBody(
-  parts: FilePart[],
-  packageFileName: string,
-  summary: {
-    totalRowCount: number;
-    singleFileMaxRows: number;
-  }
-): Promise<Buffer> {
-  void summary;
+async function renderFileBody(input: {
+  events: ReturnType<typeof createExportTaskEventRepository>;
+  input: PublishRowsInput;
+  parts: FilePart[];
+  packageFileName: string;
+  summary: RenderInputSummary;
+  now: Date;
+}): Promise<Buffer> {
   try {
     return await renderExportPackage({
-      packageFileName,
-      parts
+      packageFileName: input.packageFileName,
+      parts: input.parts
     });
   } catch (error) {
-    throw toExportRenderError(error, "export package render failed");
+    const renderError = toExportRenderError(error, "export package render failed");
+    await appendFileEvent({
+      events: input.events,
+      input: input.input,
+      eventType: "PACKAGE_FAILED",
+      now: input.now,
+      checkpoint: {
+        errorCode: "EXPORT_RENDER_ERROR",
+        failureReason: sanitizeFailureReason(renderError.message),
+        renderInputSummary: input.summary
+      }
+    });
+    throw renderError;
   }
 }
 
@@ -431,4 +467,8 @@ function toExportRenderError(error: unknown, fallbackMessage: string): Error {
     "EXPORT_RENDER_ERROR",
     error instanceof Error ? error.message : fallbackMessage
   );
+}
+
+function sanitizeFailureReason(message: string): string {
+  return message.replace(/\s+/g, " ").trim().slice(0, 500);
 }

@@ -198,7 +198,9 @@ test("public BatchCheckpoint schema exposes progress fields without internal err
     "retryCount",
     "batchSize",
     "batchRowCount",
-    "backoffMs"
+    "backoffMs",
+    "renderInputSummary",
+    "failureReason"
   ]) {
     assert.match(checkpointSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a public property`);
   }

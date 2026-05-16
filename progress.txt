@@ -1561,3 +1561,17 @@
 
 ### 备注：
 - 可继续运行 driver 处理下一个任务。
+## [2026-05-16 19:29] - Task: FILE-RENDER-ERROR-CONTRACT-REPAIR-001 修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据
+
+### 完成的工作：
+- Codex 已完成实现，但 Stage 1 审查未通过。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: FAIL - 审查未通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。

@@ -587,9 +587,25 @@ test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object stora
   );
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(task.taskId);
+  const failedEvent = events.find((event) => event.eventType === "PACKAGE_FAILED");
+  const checkpoint = JSON.parse(failedEvent.batchCheckpoint);
+
   assert.equal(metadata, undefined);
   assert.equal(storage.writes.length, 0);
   assert.equal(storage.publishes.length, 0);
+  assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
+  assert.match(checkpoint.failureReason, /circular/i);
+  assert.deepEqual(checkpoint.renderInputSummary, {
+    taskId: task.taskId,
+    taskCode: task.taskCode,
+    attemptNo: 0,
+    fileName: `${task.taskCode}-${task.taskId}-attempt-0.xlsx`,
+    format: "XLSX",
+    totalRowCount: 1,
+    partCount: 1,
+    singleFileMaxRows: 20000
+  });
 });
 
 test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
@@ -620,9 +636,25 @@ test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storag
   );
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(task.taskId);
+  const failedEvent = events.find((event) => event.eventType === "PACKAGE_FAILED");
+  const checkpoint = JSON.parse(failedEvent.batchCheckpoint);
+
   assert.equal(metadata, undefined);
   assert.equal(storage.writes.length, 0);
   assert.equal(storage.publishes.length, 0);
+  assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
+  assert.match(checkpoint.failureReason, /circular/i);
+  assert.deepEqual(checkpoint.renderInputSummary, {
+    taskId: task.taskId,
+    taskCode: task.taskCode,
+    attemptNo: 0,
+    fileName: `${task.taskCode}-${task.taskId}-attempt-0.zip`,
+    format: "ZIP",
+    totalRowCount: 3,
+    partCount: 2,
+    singleFileMaxRows: 2
+  });
 });
 
 test("scheduler publishes file metadata before marking a completed batch as COMPLETED", async (t) => {
@@ -753,10 +785,19 @@ test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR au
     .selectAll()
     .where("task_id", "=", task.taskId)
     .execute();
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(task.taskId);
+  const failedEvent = events.find((event) => event.eventType === "PACKAGE_FAILED");
+  const checkpoint = JSON.parse(failedEvent.batchCheckpoint);
 
   assert.equal(result.failed, 1);
   assert.equal(failed.status, "FAILED");
   assert.equal(storage.writes.length, 0);
+  assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
+  assert.match(checkpoint.failureReason, /circular/i);
+  assert.equal(checkpoint.renderInputSummary.taskId, task.taskId);
+  assert.equal(checkpoint.renderInputSummary.attemptNo, 0);
+  assert.equal(checkpoint.renderInputSummary.totalRowCount, 1);
+  assert.equal(checkpoint.renderInputSummary.partCount, 1);
   assert.ok(
     audits.some(
       (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
