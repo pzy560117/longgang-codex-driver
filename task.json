@@ -2298,7 +2298,8 @@
                                           "task.json",
                                           "plans/features/requirements-complete-review.plan.md",
                                           "docs/reviews/requirements-complete-review.md",
-                                          "docs/reviews/requirements-complete-review.findings.json"
+                                          "docs/reviews/requirements-complete-review.findings.json",
+                                          "tests/mock-local/review-artifact-consistency.test.mjs"
                                       ],
                       "requirement_ids":  [
                                               "FR-001",
@@ -2318,7 +2319,8 @@
                                           ],
                       "produces_artifacts":  [
                                                  "docs/reviews/requirements-complete-review.md",
-                                                 "docs/reviews/requirements-complete-review.findings.json"
+                                                 "docs/reviews/requirements-complete-review.findings.json",
+                                                 "tests/mock-local/review-artifact-consistency.test.mjs"
                                              ],
                       "execution":  {
                                         "mode":  "single"
@@ -2329,7 +2331,7 @@
                                     "输出 PASS / PASS_WITH_GAPS / FAIL 总结、覆盖矩阵和 P0/P1 findings",
                                     "为未覆盖缺口生成建议后续 task id，不直接修改业务实现"
                                 ],
-                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md",
+                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing tests/mock-local plans/features/requirements-complete-review.plan.md",
                       "acceptance":  [
                                          "review 明确以 docs/product/* 和 docs/architecture/constraints.md 为 truth source",
                                          "FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定",

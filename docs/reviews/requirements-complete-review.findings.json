@@ -11,31 +11,93 @@
   ],
   "evidenceSources": [
     "contracts/openapi.yaml",
-    "src/audit-log/auth-context.ts",
-    "src/task-api/service.ts",
-    "src/query-executor/index.ts",
-    "src/file-service/index.ts",
-    "src/registry-config/service.ts",
-    "tests/api/export-http-api.test.mjs",
-    "tests/query/query-executor.test.mjs",
-    "tests/file/export-file-service.test.mjs",
-    "tests/contract/openapi-route-mapping.contract.test.mjs",
+    "src/",
+    "tests/",
     "docs/testing/ACCEPTANCE_EXAMPLES.md",
     "docs/testing/TRACEABILITY_MATRIX.md",
-    "docs/testing/verify-matrix.md"
+    "docs/testing/verify-matrix.md",
+    "task.json"
   ],
   "findings": [
     {
+      "id": "REGISTRY-CONTRACT-VALIDATION-001",
+      "severity": "P0",
+      "title": "registry persistence accepts incomplete contract payloads",
+      "requirementIds": ["FR-007", "FR-008", "AC-007", "AC-008", "AC-E011", "AC-E014", "AC-E024"],
+      "evidence": ["contracts/openapi.yaml", "src/registry-config/service.ts"],
+      "risk": "Incomplete registry configs can be persisted and enabled, then fail later in worker/query instead of being rejected before execution.",
+      "suggestedNextTaskId": "REGISTRY-CONTRACT-VALIDATION-001"
+    },
+    {
+      "id": "CREATE-TASK-REGISTRY-GUARD-001",
+      "severity": "P0",
+      "title": "create task does not guard file format and query params against registry contract before enqueue",
+      "requirementIds": ["FR-001", "FR-008", "FR-014", "AC-001", "AC-008", "AC-017", "AC-E021"],
+      "evidence": ["src/task-api/service.ts", "contracts/openapi.yaml"],
+      "risk": "Invalid tasks can enter the queue and produce false-positive creation success.",
+      "suggestedNextTaskId": "CREATE-TASK-REGISTRY-GUARD-001"
+    },
+    {
+      "id": "DATASOURCE-ADAPTER-BOUNDARY-001",
+      "severity": "P0",
+      "title": "datasourceCode is not backed by a separate readonly datasource adapter",
+      "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-019", "AC-E012"],
+      "evidence": ["docs/product/prd-lite.md", "docs/architecture/constraints.md", "src/query-executor/index.ts"],
+      "risk": "The system cannot prove business readonly datasource isolation, datasource credential failure mapping, or platform/business data boundary.",
+      "suggestedNextTaskId": "DATASOURCE-ADAPTER-BOUNDARY-001"
+    },
+    {
+      "id": "CREATE-TASK-LATENCY-EVIDENCE-001",
+      "severity": "P1",
+      "title": "create task one-second response SLA lacks explicit evidence",
+      "requirementIds": ["FR-001", "AC-001"],
+      "evidence": ["docs/product/acceptance-criteria.md", "docs/testing/ACCEPTANCE_EXAMPLES.md", "tests/api/export-http-api.test.mjs", "docs/testing/verify-matrix.md"],
+      "risk": "Future synchronous work or slow queries in creation path may violate SLA without regression signal.",
+      "suggestedNextTaskId": "CREATE-TASK-LATENCY-EVIDENCE-001"
+    },
+    {
+      "id": "HISTORY-PAGINATION-TOTAL-001",
+      "severity": "P1",
+      "title": "task history total reflects page size instead of filtered total",
+      "requirementIds": ["FR-004", "AC-004"],
+      "evidence": ["src/task-api/service.ts", "src/repositories/export-task.repository.ts"],
+      "risk": "Clients cannot know the real filtered total and may mis-handle multi-page history.",
+      "suggestedNextTaskId": "HISTORY-PAGINATION-TOTAL-001"
+    },
+    {
+      "id": "TASK-CANCEL-ATOMICITY-001",
+      "severity": "P1",
+      "title": "cancel status update lacks state and attempt atomicity",
+      "requirementIds": ["FR-012", "AC-012", "AC-E015"],
+      "evidence": ["src/task-api/service.ts", "src/repositories/export-task.repository.ts"],
+      "risk": "A worker status transition between read and update can be overwritten by cancel, corrupting state and audit consistency.",
+      "suggestedNextTaskId": "TASK-CANCEL-ATOMICITY-001"
+    },
+    {
+      "id": "DEFAULTS-ALIGNMENT-001",
+      "severity": "P1",
+      "title": "runtime defaults drift from product defaults",
+      "requirementIds": ["FR-011", "AC-011", "AC-E004", "AC-E020"],
+      "evidence": ["docs/product/state-matrix.yaml", "docs/product/prd-lite.md", "src/scheduler/worker.ts", "src/registry-config/service.ts"],
+      "risk": "Runtime defaults drift from product defaults, causing premature failures or early expiration.",
+      "suggestedNextTaskId": "DEFAULTS-ALIGNMENT-001"
+    },
+    {
+      "id": "SAMPLE-CONTRACT-GENERIC-VALIDATION-001",
+      "severity": "P1",
+      "title": "purchase-order sample validation is coupled into the generic query executor",
+      "requirementIds": ["FR-014", "AC-017", "AC-018"],
+      "evidence": ["docs/architecture/constraints.md", "src/query-executor/index.ts", "src/sample-purchase-order/index.ts"],
+      "risk": "The sample proves a special-case assertion path, not a generic registry/query contract that future subsystems inherit.",
+      "suggestedNextTaskId": "SAMPLE-CONTRACT-GENERIC-VALIDATION-001"
+    },
+    {
       "id": "QUERY-TEMPLATE-HARDENING-001",
       "severity": "P1",
-      "title": "registry persistence still needs stronger datasource/table/function governance",
+      "title": "registry-time query template governance remains weak",
       "requirementIds": ["FR-008", "AC-008", "AC-E011"],
-      "evidence": [
-        "src/registry-config/service.ts",
-        "src/query-executor/index.ts",
-        "docs/testing/verify-matrix.md"
-      ],
-      "risk": "注册持久化前的 datasource/table/function 治理仍偏弱，执行层校验不足以单独证明所有误配置都被前置拦截；当前 fresh evidence 只能证明执行边界已收口，不能替代注册治理前置化。",
+      "evidence": ["src/registry-config/service.ts", "src/query-executor/index.ts", "docs/testing/verify-matrix.md"],
+      "risk": "datasource/table/function governance is still mostly execution-time, not registry-time.",
       "suggestedNextTaskId": "QUERY-TEMPLATE-HARDENING-001"
     },
     {
@@ -43,14 +105,8 @@
       "severity": "P1",
       "title": "public error responses can still leak underlying messages",
       "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
-      "evidence": [
-        "src/routes/respond.ts",
-        "src/query-executor/index.ts",
-        "src/task-api/service.ts",
-        "src/file-service/index.ts",
-        "docs/testing/verify-matrix.md"
-      ],
-      "risk": "公开错误响应和失败详情仍可能透出底层 message，尤其 task-api、file-service、query-executor 和 respond.ts fallback 路径；当前 fresh evidence 只证明错误收口仍需继续压缩对外文本，不代表完全脱敏。",
+      "evidence": ["src/routes/respond.ts", "src/query-executor/index.ts", "src/task-api/service.ts", "src/file-service/index.ts"],
+      "risk": "Public responses and task failure details may expose internal datasource, SQL or object-storage messages.",
       "suggestedNextTaskId": "PUBLIC-ERROR-REDACTION-001"
     }
   ],
@@ -60,155 +116,122 @@
       "status": "closed",
       "closedBy": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
       "requirementIds": ["FR-002", "AC-002"],
-      "freshEvidence": [
-        "tests/api/export-http-api.test.mjs",
-        "tests/contract/openapi-route-mapping.contract.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["tests/api/export-http-api.test.mjs", "tests/contract/openapi-route-mapping.contract.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-002",
       "status": "closed",
       "closedBy": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
       "requirementIds": ["FR-006", "AC-E027"],
-      "freshEvidence": [
-        "tests/file/export-file-service.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["tests/file/export-file-service.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
       "status": "closed",
       "requirementIds": ["FR-010", "FR-011", "AC-010", "AC-011"],
-      "freshEvidence": [
-        "contracts/openapi.yaml",
-        "tests/worker/scheduler-worker.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["contracts/openapi.yaml", "tests/worker/scheduler-worker.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-P0-001",
       "status": "closed",
       "closedBy": "AUTH-CONTEXT-TRUST-BOUNDARY-001",
       "requirementIds": ["FR-009", "AC-009", "AC-E006", "AC-E016"],
-      "freshEvidence": [
-        "src/audit-log/auth-context.ts",
-        "tests/api/export-http-api.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["src/audit-log/auth-context.ts", "tests/api/export-http-api.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-P0-002",
       "status": "closed",
       "closedBy": "DATA-SCOPE-TEMPLATE-ENFORCE-001",
       "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-009"],
-      "freshEvidence": [
-        "src/query-executor/index.ts",
-        "tests/query/query-executor.test.mjs",
-        "tests/worker/scheduler-worker.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["src/query-executor/index.ts", "tests/query/query-executor.test.mjs", "tests/worker/scheduler-worker.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-P0-003",
       "status": "closed",
       "closedBy": "DOWNLOAD-SIGNED-URL-GUARD-001",
       "requirementIds": ["FR-003", "FR-009", "AC-003", "AC-009"],
-      "freshEvidence": [
-        "src/file-service/index.ts",
-        "tests/file/export-file-service.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["src/file-service/index.ts", "tests/file/export-file-service.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-P0-004",
       "status": "closed",
       "closedBy": "QUERY-PARAMS-SIZE-LIMIT-001",
       "requirementIds": ["FR-001", "AC-E009"],
-      "freshEvidence": [
-        "src/task-api/service.ts",
-        "tests/api/export-http-api.test.mjs",
-        "tests/contract/openapi-route-mapping.contract.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["src/task-api/service.ts", "tests/api/export-http-api.test.mjs", "tests/contract/openapi-route-mapping.contract.test.mjs", "docs/testing/verify-matrix.md"]
     },
     {
       "id": "RCR-P0-005",
       "status": "closed",
       "closedBy": "P0-ACCEPTANCE-EVIDENCE-REPAIR-001",
       "requirementIds": ["AC-004", "AC-007", "AC-009", "AC-E002", "AC-E023"],
-      "freshEvidence": [
-        "tests/api/export-http-api.test.mjs",
-        "tests/query/query-executor.test.mjs",
-        "docs/testing/verify-matrix.md"
-      ]
+      "freshEvidence": ["tests/api/export-http-api.test.mjs", "tests/query/query-executor.test.mjs", "docs/testing/verify-matrix.md"]
     }
   ],
   "coverage": {
     "requirements": [
-      { "id": "FR-001", "status": "covered" },
+      { "id": "FR-001", "status": "partially_covered" },
       { "id": "FR-002", "status": "covered" },
       { "id": "FR-003", "status": "covered" },
-      { "id": "FR-004", "status": "covered" },
+      { "id": "FR-004", "status": "partially_covered" },
       { "id": "FR-005", "status": "covered" },
       { "id": "FR-006", "status": "covered" },
-      { "id": "FR-007", "status": "covered" },
-      { "id": "FR-008", "status": "covered" },
+      { "id": "FR-007", "status": "partially_covered" },
+      { "id": "FR-008", "status": "partially_covered" },
       { "id": "FR-009", "status": "covered" },
-      { "id": "FR-010", "status": "covered" },
-      { "id": "FR-011", "status": "covered" },
-      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-010", "status": "partially_covered" },
+      { "id": "FR-011", "status": "partially_covered" },
+      { "id": "FR-012", "status": "partially_covered" },
       { "id": "FR-013", "status": "covered" },
-      { "id": "FR-014", "status": "covered" }
+      { "id": "FR-014", "status": "partially_covered" }
     ],
     "acceptance": [
-      { "id": "AC-001", "status": "covered" },
+      { "id": "AC-001", "status": "partially_covered" },
       { "id": "AC-002", "status": "covered" },
       { "id": "AC-003", "status": "covered" },
-      { "id": "AC-004", "status": "covered" },
+      { "id": "AC-004", "status": "partially_covered" },
       { "id": "AC-005", "status": "covered" },
       { "id": "AC-006", "status": "covered" },
-      { "id": "AC-007", "status": "covered" },
-      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-007", "status": "partially_covered" },
+      { "id": "AC-008", "status": "partially_covered" },
       { "id": "AC-009", "status": "covered" },
-      { "id": "AC-010", "status": "covered" },
-      { "id": "AC-011", "status": "covered" },
-      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-010", "status": "partially_covered" },
+      { "id": "AC-011", "status": "partially_covered" },
+      { "id": "AC-012", "status": "partially_covered" },
       { "id": "AC-013", "status": "covered" },
       { "id": "AC-014", "status": "covered" },
       { "id": "AC-015", "status": "covered" },
       { "id": "AC-016", "status": "covered" },
-      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-017", "status": "partially_covered" },
       { "id": "AC-018", "status": "covered" },
-      { "id": "AC-019", "status": "covered" },
-      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-019", "status": "partially_covered" },
+      { "id": "AC-020", "status": "partially_covered" },
       { "id": "AC-021", "status": "covered" }
     ],
     "exceptions": [
       { "id": "AC-E001", "status": "covered" },
       { "id": "AC-E002", "status": "covered" },
       { "id": "AC-E003", "status": "covered" },
-      { "id": "AC-E004", "status": "covered" },
+      { "id": "AC-E004", "status": "partially_covered" },
       { "id": "AC-E005", "status": "covered" },
       { "id": "AC-E006", "status": "covered" },
       { "id": "AC-E007", "status": "covered" },
       { "id": "AC-E008", "status": "covered" },
       { "id": "AC-E009", "status": "covered" },
       { "id": "AC-E010", "status": "covered" },
-      { "id": "AC-E011", "status": "covered" },
-      { "id": "AC-E012", "status": "covered" },
-      { "id": "AC-E013", "status": "covered" },
-      { "id": "AC-E014", "status": "covered" },
-      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E011", "status": "partially_covered" },
+      { "id": "AC-E012", "status": "partially_covered" },
+      { "id": "AC-E013", "status": "partially_covered" },
+      { "id": "AC-E014", "status": "partially_covered" },
+      { "id": "AC-E015", "status": "partially_covered" },
       { "id": "AC-E016", "status": "covered" },
       { "id": "AC-E017", "status": "covered" },
       { "id": "AC-E018", "status": "covered" },
       { "id": "AC-E019", "status": "covered" },
-      { "id": "AC-E020", "status": "covered" },
-      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E020", "status": "partially_covered" },
+      { "id": "AC-E021", "status": "partially_covered" },
       { "id": "AC-E022", "status": "covered" },
       { "id": "AC-E023", "status": "covered" },
-      { "id": "AC-E024", "status": "covered" },
+      { "id": "AC-E024", "status": "partially_covered" },
       { "id": "AC-E025", "status": "covered" },
       { "id": "AC-E026", "status": "covered" },
       { "id": "AC-E027", "status": "covered" }
@@ -217,15 +240,10 @@
   "evidenceBoundary": {
     "releaseId": "RELEASE-001",
     "type": "docker/mock release gate",
-    "notClaimed": [
-      "external production MySQL",
-      "external business datasource live access",
-      "live OSS/S3"
-    ],
+    "notClaimed": ["external production MySQL", "external business datasource live access", "live OSS/S3"],
     "notes": [
-      "RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate",
-      "docs/testing/verify-matrix.md 中的 REQUIREMENTS-GAP-REPAIR-001、P0-ACCEPTANCE-EVIDENCE-REPAIR-001 和 RELEASE-001 snapshot 均明确把边界限定在 local/Docker/mock",
-      "当前 covered 判定不等于 live evidence"
+      "Current review does not promote local/Docker/mock evidence to live evidence.",
+      "Repaired findings remain closed, but new production-boundary gaps make the overall verdict FAIL."
     ]
   },
   "architectureConstraints": [
@@ -237,7 +255,7 @@
     {
       "constraint": "review_only_no_business_fix",
       "status": "PASS",
-      "evidence": "only docs/reviews artifacts updated"
+      "evidence": "review artifacts and mock-local test helper only"
     },
     {
       "constraint": "mock/local/docker/live evidence separated",
@@ -247,31 +265,24 @@
     {
       "constraint": "forbidden_implementations",
       "status": "PASS",
-      "evidence": "review task did not turn local/docker/mock evidence into live evidence or rewrite production code"
+      "evidence": "production-boundary gaps around registry validation, create guard, datasource adapter and sample coupling remain recorded as follow-up findings instead of being marked complete"
     }
   ],
   "knowledgeReferences": [
     {
       "id": "DECISION-HARNESS-001",
       "title": "Harness 从执行闭环扩展为知识闭环",
-      "usedIn": "review 输出 knowledge references/outputs",
+      "usedIn": "review output",
       "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md"
     },
     {
       "id": "GUIDELINE-RULES-001",
       "title": "规则必须短入口、深文档、可验证",
-      "usedIn": "review 以 truth source 和验证边界给出 findings",
+      "usedIn": "review evidence boundaries",
       "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md"
     }
   ],
   "knowledgeOutputs": [
-    {
-      "id": "GUIDELINE-SECURITY-001",
-      "type": "guideline",
-      "title": "认证上下文透传必须有可信来源证明",
-      "action": "suggested",
-      "target": "docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md"
-    },
     {
       "id": "GUIDELINE-EVIDENCE-001",
       "type": "guideline",
@@ -280,11 +291,11 @@
       "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
     },
     {
-      "id": "PITFALL-REVIEW-001",
+      "id": "PITFALL-REVIEW-002",
       "type": "pitfall",
-      "title": "release gate 通过不能替代逐项异常和安全验收 review",
+      "title": "repaired findings 关闭后仍需重新 review 新生产边界缺口",
       "action": "suggested",
-      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-002.md"
     }
   ],
   "visualEvidence": {
@@ -294,8 +305,8 @@
     "reason": "not a UI task"
   },
   "remainingRisks": [
-    "两个 P1 gap 仍需后续 repair：QUERY-TEMPLATE-HARDENING-001 和 PUBLIC-ERROR-REDACTION-001。",
-    "本 review 的 covered 判定严格限定在 local / Docker / mock / contract / local-dev evidence 边界内，不声明 live evidence。",
-    "RELEASE-001 之外的外部生产 MySQL、外部业务数据源和 live OSS/S3 仍然未声明。"
+    "P0 gaps: REGISTRY-CONTRACT-VALIDATION-001, CREATE-TASK-REGISTRY-GUARD-001, DATASOURCE-ADAPTER-BOUNDARY-001.",
+    "P1 gaps: CREATE-TASK-LATENCY-EVIDENCE-001, HISTORY-PAGINATION-TOTAL-001, TASK-CANCEL-ATOMICITY-001, DEFAULTS-ALIGNMENT-001, SAMPLE-CONTRACT-GENERIC-VALIDATION-001, QUERY-TEMPLATE-HARDENING-001, PUBLIC-ERROR-REDACTION-001.",
+    "Current task does not repair business implementation."
   ]
 }

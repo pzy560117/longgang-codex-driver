@@ -173,15 +173,19 @@ function decodeStorageKey(segments) {
 async function withObjectStorageEnv(config, callback) {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const originalSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
 
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
+  process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
+    "mock-local-download-signing-secret";
 
   try {
     return await callback();
   } finally {
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT", originalEndpoint);
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", originalBucket);
+    restoreEnv("EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET", originalSigningSecret);
   }
 }
 
