@@ -1,7 +1,7 @@
 {
   "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
-  "verdict": "FAIL",
-  "reviewedAt": "2026-05-16",
+  "verdict": "PASS_WITH_GAPS",
+  "reviewedAt": "2026-05-17",
   "truthSources": [
     "docs/product/prd-lite.md",
     "docs/product/acceptance-criteria.md",
@@ -11,104 +11,46 @@
   ],
   "evidenceSources": [
     "contracts/openapi.yaml",
-    "src/",
-    "tests/",
-    "docs/testing/TRACEABILITY_MATRIX.md",
+    "src/audit-log/auth-context.ts",
+    "src/task-api/service.ts",
+    "src/query-executor/index.ts",
+    "src/file-service/index.ts",
+    "src/registry-config/service.ts",
+    "tests/api/export-http-api.test.mjs",
+    "tests/query/query-executor.test.mjs",
+    "tests/file/export-file-service.test.mjs",
+    "tests/contract/openapi-route-mapping.contract.test.mjs",
     "docs/testing/ACCEPTANCE_EXAMPLES.md",
-    "docs/testing/verify-matrix.md",
-    "task.json"
+    "docs/testing/TRACEABILITY_MATRIX.md",
+    "docs/testing/verify-matrix.md"
   ],
   "findings": [
     {
-      "id": "RCR-P0-001",
-      "severity": "P0",
-      "title": "Auth context trust boundary is not enforced",
-      "requirementIds": ["FR-009", "AC-009", "AC-E006", "AC-E016"],
-      "evidence": [
-        "src/audit-log/auth-context.ts:46-63",
-        "src/audit-log/auth-context.ts:26-27",
-        "src/task-api/service.ts:624-633"
-      ],
-      "risk": "能直连服务的调用方可伪造管理员或跨租户上下文，绕过任务可见性和下载权限。",
-      "suggestedNextTaskId": "AUTH-CONTEXT-TRUST-BOUNDARY-001"
-    },
-    {
-      "id": "RCR-P0-002",
-      "severity": "P0",
-      "title": "query data scope ignores operatorId, roleCodes, and registry dataScopeTemplate",
-      "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-009"],
-      "evidence": [
-        "docs/product/prd-lite.md:data scope business rule",
-        "src/query-executor/index.ts:352-364",
-        "src/query-executor/index.ts:393-405"
-      ],
-      "risk": "同租户同组织内不同操作人或角色的数据隔离无法证明，可能导出越权数据。",
-      "suggestedNextTaskId": "DATA-SCOPE-TEMPLATE-ENFORCE-001"
-    },
-    {
-      "id": "RCR-P0-003",
-      "severity": "P0",
-      "title": "signed URL is not cryptographically signed and uses file retention expiry",
-      "requirementIds": ["FR-003", "FR-009", "AC-003", "AC-009"],
-      "evidence": [
-        "src/file-service/index.ts:117-120",
-        "src/file-service/index.ts:166-168",
-        "src/task-api/service.ts:840"
-      ],
-      "risk": "URL 泄露后可能绕过平台鉴权和下载审计长期访问对象。",
-      "suggestedNextTaskId": "DOWNLOAD-SIGNED-URL-GUARD-001"
-    },
-    {
-      "id": "RCR-P0-004",
-      "severity": "P0",
-      "title": "queryParams 32KB limit is only contracted, not implemented",
-      "requirementIds": ["FR-001", "AC-E009"],
-      "evidence": [
-        "contracts/openapi.yaml:CreateExportTaskRequest.queryParams",
-        "src/task-api/service.ts:451-615",
-        "tests/api/export-http-api.test.mjs:no oversized queryParams assertion"
-      ],
-      "risk": "超长参数可能绕过产品限制进入持久化、审计和后续查询执行链路。",
-      "suggestedNextTaskId": "QUERY-PARAMS-SIZE-LIMIT-001"
-    },
-    {
-      "id": "RCR-P0-005",
-      "severity": "P0",
-      "title": "P0 acceptance evidence is incomplete for history, registry, permission, and cursor negative cases",
-      "requirementIds": ["AC-004", "AC-007", "AC-009", "AC-E002", "AC-E023"],
-      "evidence": [
-        "tests/api/export-http-api.test.mjs:history filters do not explicitly assert status/subsystemCode",
-        "tests/api/export-http-api.test.mjs:registry update/get/list and duplicate taskCode evidence incomplete",
-        "src/task-api/service.ts:483-492",
-        "src/query-executor/index.ts:673"
-      ],
-      "risk": "P0/P1 需求虽有实现入口，但验收证据不足，release 回归无法定位这些边界是否漂移。",
-      "suggestedNextTaskId": "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
-    },
-    {
-      "id": "RCR-P1-001",
+      "id": "QUERY-TEMPLATE-HARDENING-001",
       "severity": "P1",
-      "title": "SQL/template governance is too weak before registry persistence",
+      "title": "registry persistence still needs stronger datasource/table/function governance",
       "requirementIds": ["FR-008", "AC-008", "AC-E011"],
       "evidence": [
-        "src/registry-config/service.ts:141-186",
-        "src/query-executor/index.ts:300-317",
-        "src/query-executor/index.ts:416-418"
+        "src/registry-config/service.ts",
+        "src/query-executor/index.ts",
+        "docs/testing/verify-matrix.md"
       ],
-      "risk": "管理员误配或认证边界被绕过时，非法或高成本查询可进入执行阶段。",
+      "risk": "注册持久化前的 datasource/table/function 治理仍偏弱，执行层校验不足以单独证明所有误配置都被前置拦截；当前 fresh evidence 只能证明执行边界已收口，不能替代注册治理前置化。",
       "suggestedNextTaskId": "QUERY-TEMPLATE-HARDENING-001"
     },
     {
-      "id": "RCR-P1-002",
+      "id": "PUBLIC-ERROR-REDACTION-001",
       "severity": "P1",
-      "title": "public error responses can expose raw internal messages",
+      "title": "public error responses can still leak underlying messages",
       "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
       "evidence": [
-        "src/routes/respond.ts:22-25",
-        "src/query-executor/index.ts:793-803",
-        "src/task-api/service.ts:251-254"
+        "src/routes/respond.ts",
+        "src/query-executor/index.ts",
+        "src/task-api/service.ts",
+        "src/file-service/index.ts",
+        "docs/testing/verify-matrix.md"
       ],
-      "risk": "数据源地址、SQL 片段、账号、对象存储内部错误等敏感信息可能进入 API 响应或任务详情。",
+      "risk": "公开错误响应和失败详情仍可能透出底层 message，尤其 task-api、file-service、query-executor 和 respond.ts fallback 路径；当前 fresh evidence 只证明错误收口仍需继续压缩对外文本，不代表完全脱敏。",
       "suggestedNextTaskId": "PUBLIC-ERROR-REDACTION-001"
     }
   ],
@@ -119,7 +61,6 @@
       "closedBy": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
       "requirementIds": ["FR-002", "AC-002"],
       "freshEvidence": [
-        "src/task-api/service.ts",
         "tests/api/export-http-api.test.mjs",
         "tests/contract/openapi-route-mapping.contract.test.mjs",
         "docs/testing/verify-matrix.md"
@@ -131,7 +72,6 @@
       "closedBy": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
       "requirementIds": ["FR-006", "AC-E027"],
       "freshEvidence": [
-        "src/file-service/index.ts",
         "tests/file/export-file-service.test.mjs",
         "docs/testing/verify-matrix.md"
       ]
@@ -142,40 +82,96 @@
       "requirementIds": ["FR-010", "FR-011", "AC-010", "AC-011"],
       "freshEvidence": [
         "contracts/openapi.yaml",
-        "tests/contract/openapi-route-mapping.contract.test.mjs",
         "tests/worker/scheduler-worker.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-P0-001",
+      "status": "closed",
+      "closedBy": "AUTH-CONTEXT-TRUST-BOUNDARY-001",
+      "requirementIds": ["FR-009", "AC-009", "AC-E006", "AC-E016"],
+      "freshEvidence": [
+        "src/audit-log/auth-context.ts",
+        "tests/api/export-http-api.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-P0-002",
+      "status": "closed",
+      "closedBy": "DATA-SCOPE-TEMPLATE-ENFORCE-001",
+      "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-009"],
+      "freshEvidence": [
+        "src/query-executor/index.ts",
+        "tests/query/query-executor.test.mjs",
+        "tests/worker/scheduler-worker.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-P0-003",
+      "status": "closed",
+      "closedBy": "DOWNLOAD-SIGNED-URL-GUARD-001",
+      "requirementIds": ["FR-003", "FR-009", "AC-003", "AC-009"],
+      "freshEvidence": [
+        "src/file-service/index.ts",
+        "tests/file/export-file-service.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-P0-004",
+      "status": "closed",
+      "closedBy": "QUERY-PARAMS-SIZE-LIMIT-001",
+      "requirementIds": ["FR-001", "AC-E009"],
+      "freshEvidence": [
+        "src/task-api/service.ts",
+        "tests/api/export-http-api.test.mjs",
+        "tests/contract/openapi-route-mapping.contract.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "RCR-P0-005",
+      "status": "closed",
+      "closedBy": "P0-ACCEPTANCE-EVIDENCE-REPAIR-001",
+      "requirementIds": ["AC-004", "AC-007", "AC-009", "AC-E002", "AC-E023"],
+      "freshEvidence": [
+        "tests/api/export-http-api.test.mjs",
+        "tests/query/query-executor.test.mjs",
         "docs/testing/verify-matrix.md"
       ]
     }
   ],
   "coverage": {
     "requirements": [
-      { "id": "FR-001", "status": "partially_covered" },
+      { "id": "FR-001", "status": "covered" },
       { "id": "FR-002", "status": "covered" },
-      { "id": "FR-003", "status": "partially_covered" },
-      { "id": "FR-004", "status": "partially_covered" },
+      { "id": "FR-003", "status": "covered" },
+      { "id": "FR-004", "status": "covered" },
       { "id": "FR-005", "status": "covered" },
       { "id": "FR-006", "status": "covered" },
-      { "id": "FR-007", "status": "partially_covered" },
-      { "id": "FR-008", "status": "partially_covered" },
-      { "id": "FR-009", "status": "partially_covered" },
-      { "id": "FR-010", "status": "partially_covered" },
+      { "id": "FR-007", "status": "covered" },
+      { "id": "FR-008", "status": "covered" },
+      { "id": "FR-009", "status": "covered" },
+      { "id": "FR-010", "status": "covered" },
       { "id": "FR-011", "status": "covered" },
       { "id": "FR-012", "status": "covered" },
       { "id": "FR-013", "status": "covered" },
       { "id": "FR-014", "status": "covered" }
     ],
     "acceptance": [
-      { "id": "AC-001", "status": "partially_covered" },
+      { "id": "AC-001", "status": "covered" },
       { "id": "AC-002", "status": "covered" },
-      { "id": "AC-003", "status": "partially_covered" },
-      { "id": "AC-004", "status": "partially_covered" },
+      { "id": "AC-003", "status": "covered" },
+      { "id": "AC-004", "status": "covered" },
       { "id": "AC-005", "status": "covered" },
       { "id": "AC-006", "status": "covered" },
-      { "id": "AC-007", "status": "partially_covered" },
-      { "id": "AC-008", "status": "partially_covered" },
-      { "id": "AC-009", "status": "partially_covered" },
-      { "id": "AC-010", "status": "partially_covered" },
+      { "id": "AC-007", "status": "covered" },
+      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-009", "status": "covered" },
+      { "id": "AC-010", "status": "covered" },
       { "id": "AC-011", "status": "covered" },
       { "id": "AC-012", "status": "covered" },
       { "id": "AC-013", "status": "covered" },
@@ -190,28 +186,28 @@
     ],
     "exceptions": [
       { "id": "AC-E001", "status": "covered" },
-      { "id": "AC-E002", "status": "partially_covered" },
+      { "id": "AC-E002", "status": "covered" },
       { "id": "AC-E003", "status": "covered" },
       { "id": "AC-E004", "status": "covered" },
       { "id": "AC-E005", "status": "covered" },
-      { "id": "AC-E006", "status": "partially_covered" },
+      { "id": "AC-E006", "status": "covered" },
       { "id": "AC-E007", "status": "covered" },
       { "id": "AC-E008", "status": "covered" },
-      { "id": "AC-E009", "status": "gap" },
+      { "id": "AC-E009", "status": "covered" },
       { "id": "AC-E010", "status": "covered" },
-      { "id": "AC-E011", "status": "partially_covered" },
+      { "id": "AC-E011", "status": "covered" },
       { "id": "AC-E012", "status": "covered" },
       { "id": "AC-E013", "status": "covered" },
       { "id": "AC-E014", "status": "covered" },
       { "id": "AC-E015", "status": "covered" },
-      { "id": "AC-E016", "status": "partially_covered" },
+      { "id": "AC-E016", "status": "covered" },
       { "id": "AC-E017", "status": "covered" },
       { "id": "AC-E018", "status": "covered" },
       { "id": "AC-E019", "status": "covered" },
       { "id": "AC-E020", "status": "covered" },
       { "id": "AC-E021", "status": "covered" },
       { "id": "AC-E022", "status": "covered" },
-      { "id": "AC-E023", "status": "partially_covered" },
+      { "id": "AC-E023", "status": "covered" },
       { "id": "AC-E024", "status": "covered" },
       { "id": "AC-E025", "status": "covered" },
       { "id": "AC-E026", "status": "covered" },
@@ -228,8 +224,8 @@
     ],
     "notes": [
       "RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate",
-      "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
-      "当前 findings 不把 local/docker/mock evidence 写成 live evidence"
+      "docs/testing/verify-matrix.md 中的 REQUIREMENTS-GAP-REPAIR-001、P0-ACCEPTANCE-EVIDENCE-REPAIR-001 和 RELEASE-001 snapshot 均明确把边界限定在 local/Docker/mock",
+      "当前 covered 判定不等于 live evidence"
     ]
   },
   "architectureConstraints": [
@@ -250,8 +246,8 @@
     },
     {
       "constraint": "forbidden_implementations",
-      "status": "FAIL",
-      "evidence": "review found incomplete production boundaries for auth, data scope, signed URL and query parameter limit"
+      "status": "PASS",
+      "evidence": "review task did not turn local/docker/mock evidence into live evidence or rewrite production code"
     }
   ],
   "knowledgeReferences": [
@@ -298,7 +294,8 @@
     "reason": "not a UI task"
   },
   "remainingRisks": [
-    "Review 产物列出的 P0/P1 findings 未在本任务内修复；后续应拆分进入 repair 队列。",
-    "本任务验证命令不重复执行完整 docker/mock release gate；完整 release evidence 以 docs/testing/verify-matrix.md 中 RELEASE-001 为准。"
+    "两个 P1 gap 仍需后续 repair：QUERY-TEMPLATE-HARDENING-001 和 PUBLIC-ERROR-REDACTION-001。",
+    "本 review 的 covered 判定严格限定在 local / Docker / mock / contract / local-dev evidence 边界内，不声明 live evidence。",
+    "RELEASE-001 之外的外部生产 MySQL、外部业务数据源和 live OSS/S3 仍然未声明。"
   ]
 }
