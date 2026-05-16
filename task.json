@@ -1468,6 +1468,87 @@
                                          "Docker daemon 未启动时输出明确 BLOCKED - 需要人工介入，并给出启动 Docker Desktop 后重试命令",
                                          "verify-matrix 记录该任务只提供 docker/local 测试环境证据，不替代 live OSS/S3 或外部生产 MySQL 验证"
                                      ]
+                  },
+                  {
+                      "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
+                      "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
+                      "task_kind":  "review",
+                      "phase":  "requirements-review",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  92,
+                      "dependencies":  [
+                                           "DOCKER-TEST-DATA-AUTOMATION-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "review 必须以 docs/product/* 和 docs/architecture/constraints.md 为 truth source",
+                                                       "review 只输出缺口和后续任务建议，不把未修复缺口伪装成完成",
+                                                       "mock/local/docker/live evidence 必须分开判定"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止直接改写已有 passes:true 任务的历史完成结论",
+                                                        "禁止只因为 release gate 通过就跳过 AC/异常验收逐项检查",
+                                                        "禁止把 docker/mock evidence 写成 live evidence",
+                                                        "禁止在 review 中直接修业务代码后声称 review 完成"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/product/requirement-interface-matrix.md",
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "plans/features/requirements-complete-review.plan.md",
+                                          "docs/reviews/requirements-complete-review.md",
+                                          "docs/reviews/requirements-complete-review.findings.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docs/reviews/requirements-complete-review.md",
+                                                 "docs/reviews/requirements-complete-review.findings.json"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "从产品真相源抽取 FR、AC、异常验收和状态机要求",
+                                    "对照 contracts、src、tests、verify-matrix 和 task.json 做逐项 review",
+                                    "输出 PASS / PASS_WITH_GAPS / FAIL 总结、覆盖矩阵和 P0/P1 findings",
+                                    "为未覆盖缺口生成建议后续 task id，不直接修改业务实现"
+                                ],
+                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md",
+                      "acceptance":  [
+                                         "review 明确以 docs/product/* 和 docs/architecture/constraints.md 为 truth source",
+                                         "FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定",
+                                         "P0/P1 gap 必须包含文件证据、风险说明和建议后续 task id",
+                                         "结论不得把 docker/mock evidence 升级为 live evidence"
+                                     ]
                   }
               ]
 }
