@@ -1,0 +1,64 @@
+## Requirement IDs
+- FR-004, FR-008, FR-009, FR-010, FR-011, FR-013
+- AC-004, AC-010, AC-011, AC-016, AC-019
+- AC-E004, AC-E005, AC-E012, AC-E013, AC-E020, AC-E024, AC-E026, AC-E027
+
+## Summary
+- 修复六个 Stage 1 finding：审计契约漂移、管理员全局历史、配置快照重放、查询批次 retry、数据源不可用分类、文件存储错误映射。
+- 创建任务现在持久化完整 `configSnapshot`；query executor 优先使用任务快照，registry 更新不影响旧任务执行。
+- scheduler 增加批次级 `retryCount/backoffMs` 持久化与耗尽失败收口。
+- 文件 put/publish 失败统一收口为 `FILE_VERIFY_ERROR`。
+- 已更新 `docs/testing/verify-matrix.md` 的 fresh repair evidence 和 evidence 边界。
+
+## Files Changed
+- `src/task-api/service.ts`: 管理员历史查询放开全局范围；创建任务持久化完整配置快照；失败审计 result 对齐 `FAILED`。
+- `src/registry-config/service.ts`: registry 查询审计 action/result 对齐 OpenAPI。
+- `src/query-executor/index.ts`: 快照重放；数据源连接/凭证错误映射 `DATASOURCE_UNAVAILABLE`。
+- `src/scheduler/worker.ts`: 批次 retry/backoff/checkpoint 持久化与耗尽收口。
+- `src/file-service/index.ts`: object storage put/publish 失败映射 `FILE_VERIFY_ERROR`。
+- `src/cleanup-job/index.ts`: cleanup 审计 action 对齐 `EXPIRE_MARK` / `CLEANUP_FAILED`。
+- `tests/api`, `tests/query`, `tests/worker`, `tests/file`, `tests/contract`: 补齐对应回归测试。
+- `docs/testing/verify-matrix.md`: 新增本轮六个 finding 的 fresh evidence。
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed.
+- `npm run typecheck`: PASS.
+- `npm run test:contract`: PASS - 4/4 passed.
+- `npm run test:api`: PASS - 2/2 passed.
+- `npm run test:query`: PASS - 10/10 passed.
+- `npm run test:worker`: PASS - 14/14 passed.
+- `npm run test:file`: PASS - 12/12 passed.
+- `npm run test:mock-local`: PASS - 31/31 passed.
+- `git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md`: PASS.
+- `git diff --check -- src/cleanup-job/index.ts`: PASS.
+
+## Evidence
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: audit action/result 写入值必须属于 OpenAPI 枚举。
+- `tests/api/export-http-api.test.mjs`: 管理员全局历史、普通用户隔离、创建时 config snapshot 落库。
+- `tests/query/query-executor.test.mjs`: registry 更新后旧任务按快照执行；数据源错误分类。
+- `tests/worker/scheduler-worker.test.mjs`: retry/backoff、耗尽失败、`DATASOURCE_UNAVAILABLE` 收口、cleanup 审计。
+- `tests/file/export-file-service.test.mjs`: put/publish 失败 `FILE_VERIFY_ERROR` 与不可下载 metadata。
+- `docs/testing/verify-matrix.md`: 本轮 fresh repair evidence 与 mock/local/docker/live 边界。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker + scheduled_job`: PASS - 未改变入口形态，验证通过 `npm run arch:check`。
+- `production repository boundary`: PASS - 继续使用 MySQL/Kysely repository 和文件 adapter；未引入 `InMemory*` 生产路径。
+- `test double policy`: PASS - 对象存储仅使用 production-equivalent/local mock evidence，未声明 live OSS/S3。
+- `forbidden implementations`: PASS - 未用 mock/fixture repository 冒充生产实现。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: evidence/report boundary - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: truth source and verification boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `git add/commit`：当前 Driver 强制边界明确禁止本轮执行 git add/commit/push。
+- 管理员“按权限看全局”当前按 `EXPORT_ADMIN` 放开历史列表全局；如后续要按 `orgScope` 细分，需要新增任务持久化组织维度。

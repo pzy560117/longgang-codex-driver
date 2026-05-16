@@ -29,6 +29,7 @@ export type SchedulerBatchResult = {
   checkpoint?: SchedulerBatchCheckpoint;
   outcome?: "continue" | "completed";
   rows?: Record<string, unknown>[];
+  registry?: ExportRegistryRecord;
 };
 
 export type SchedulerBatchContext = {
@@ -48,6 +49,8 @@ export type SchedulerWorkerOptions = {
   workerId: string;
   leaseDurationSeconds?: number;
   maxTasksPerPoll?: number;
+  maxQueryBatchRetries?: number;
+  queryBatchBackoffBaseMs?: number;
   batchProcessor?: SchedulerBatchProcessor;
   fileService?: {
     publishRows(input: {
@@ -134,6 +137,8 @@ const defaultBatchProcessor = createQueryExecutorBatchProcessor();
 export function createSchedulerWorker(options: SchedulerWorkerOptions) {
   const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
   const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
+  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 2;
+  const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
   const batchProcessor = options.batchProcessor ?? defaultBatchProcessor;
 
   async function pollAndProcessOnce(): Promise<SchedulerPollResult> {
@@ -189,6 +194,8 @@ export function createSchedulerWorker(options: SchedulerWorkerOptions) {
         lease: acquired.lease,
         requestId,
         leaseDurationSeconds,
+        maxQueryBatchRetries,
+        queryBatchBackoffBaseMs,
         batchProcessor,
         fileService: options.fileService
       });
@@ -373,6 +380,8 @@ async function processAcquiredLease(input: {
   lease: ExportTaskLeaseRecord;
   requestId: string;
   leaseDurationSeconds: number;
+  maxQueryBatchRetries: number;
+  queryBatchBackoffBaseMs: number;
   batchProcessor: SchedulerBatchProcessor;
   fileService?: SchedulerWorkerOptions["fileService"];
 }): Promise<Omit<SchedulerPollResult, "dispatched">> {
@@ -384,21 +393,56 @@ async function processAcquiredLease(input: {
   };
 
   try {
-    const checkpoint = await createCheckpointRepository(input.db).findLatestCheckpoint(
+    const checkpoints = createCheckpointRepository(input.db);
+    const checkpoint = await checkpoints.findLatestCheckpoint(
       input.task.taskId,
       input.lease.attemptNo
     );
-    const batch = await input.batchProcessor({
-      db: input.db,
-      task: input.task,
-      lease: input.lease,
-      checkpoint,
-      requestId: input.requestId
-    });
+    let batch: SchedulerBatchResult;
+    try {
+      batch = await input.batchProcessor({
+        db: input.db,
+        task: input.task,
+        lease: input.lease,
+        checkpoint,
+        requestId: input.requestId
+      });
+    } catch (error) {
+      if (
+        isRetryableBatchError(error) &&
+        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+      ) {
+        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+        const now = await getDatabaseTime(input.db);
+        await checkpoints.saveCheckpoint({
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lastCursor: checkpoint?.lastCursor ?? null,
+          processedCount: checkpoint?.processedCount ?? 0,
+          filePartNo: checkpoint?.filePartNo ?? 1,
+          retryCount,
+          batchSize: checkpoint?.batchSize ?? null,
+          batchRowCount: checkpoint?.batchRowCount ?? 0,
+          backoffMs,
+          now
+        });
+        const renewed = await renewLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        result.renewed = renewed ? 1 : 0;
+        return result;
+      }
+      throw error;
+    }
     const now = await getDatabaseTime(input.db);
 
     if (batch.checkpoint) {
-      await createCheckpointRepository(input.db).saveCheckpoint({
+      await checkpoints.saveCheckpoint({
         taskId: input.task.taskId,
         attemptNo: input.lease.attemptNo,
         ...batch.checkpoint,
@@ -429,9 +473,11 @@ async function processAcquiredLease(input: {
 
     if (batch.outcome === "completed") {
       if (Array.isArray(batch.rows)) {
-        const registry = await createExportRegistryRepository(input.db).findRegistryByTaskCode(
-          input.task.taskCode
-        );
+        const registry =
+          batch.registry ??
+          (await createExportRegistryRepository(input.db).findRegistryByTaskCode(
+            input.task.taskCode
+          ));
         if (!registry) {
           throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
         }
@@ -705,6 +751,18 @@ function leaseLostError(message: string): Error {
 
 function isLeaseLostError(error: unknown): boolean {
   return error instanceof Error && error.name === "WORKER_LEASE_LOST";
+}
+
+function isRetryableBatchError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+  );
+}
+
+function calculateBackoffMs(baseMs: number, retryCount: number): number {
+  const normalizedBase = Number.isInteger(baseMs) && baseMs > 0 ? baseMs : 1000;
+  return normalizedBase * 2 ** Math.max(0, retryCount - 1);
 }
 
 function toUpdatedRowCount(value: bigint | number | undefined): number {

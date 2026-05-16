@@ -82,7 +82,7 @@ export function createCleanupJob(options: CleanupJobOptions) {
           taskCode: candidate.taskCode,
           subsystemCode: candidate.subsystemCode,
           operatorId: candidate.operatorId,
-          action: "CLEANUP_DELETE",
+          action: "EXPIRE_MARK",
           result: "SUCCESS",
           errorCode: "SUCCESS",
           requestId: cleanupRequestId(options.workerId),
@@ -112,7 +112,7 @@ export function createCleanupJob(options: CleanupJobOptions) {
           taskCode: candidate.taskCode,
           subsystemCode: candidate.subsystemCode,
           operatorId: candidate.operatorId,
-          action: "CLEANUP_DELETE",
+          action: "CLEANUP_FAILED",
           result: "FAILED",
           errorCode:
             error instanceof Error && error.name !== "Error"

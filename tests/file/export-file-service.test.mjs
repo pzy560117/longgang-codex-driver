@@ -319,6 +319,9 @@ function createProductionEquivalentObjectStorageAdapter(options = {}) {
     deletes,
     async putObject(input) {
       writes.push(input);
+      if (options.putError) {
+        throw options.putError;
+      }
       objects.set(input.storageKey, Buffer.from(input.body));
     },
     async readObject(storageKey) {
@@ -330,6 +333,9 @@ function createProductionEquivalentObjectStorageAdapter(options = {}) {
     },
     async publishObject(input) {
       publishes.push(input);
+      if (options.publishError) {
+        throw options.publishError;
+      }
       const object = objects.get(input.tempStorageKey);
       if (!object) {
         throw new Error(`missing temp object ${input.tempStorageKey}`);
@@ -501,6 +507,63 @@ test("checksum failure prevents publish and metadata from becoming downloadable"
   assert.equal(storage.publishes.length, 0);
 });
 
+test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    putError: new Error("object storage write unavailable")
+  });
+  const service = createExportFileService({ db, storage });
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-put-failed",
+        rows: [{ "Order No": "PO-001" }]
+      }),
+    (error) => error.name === "FILE_VERIFY_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.publishes.length, 0);
+});
+
+test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    publishError: new Error("object storage publish unavailable")
+  });
+  const service = createExportFileService({ db, storage });
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-publish-failed",
+        rows: [{ "Order No": "PO-001" }]
+      }),
+    (error) => error.name === "FILE_VERIFY_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.publishes.length, 1);
+  assert.match(storage.writes[0].storageKey, /\/tmp\//);
+});
+
 test("scheduler publishes file metadata before marking a completed batch as COMPLETED", async (t) => {
   const db = await createTestDatabase(t);
   const { registry, task } = await seedRegistryAndTask(db, {
@@ -543,6 +606,53 @@ test("scheduler publishes file metadata before marking a completed batch as COMP
   });
   assert.deepEqual(workbook.header, ["Order No"]);
   assert.deepEqual(workbook.rows, [["PO-001"]]);
+});
+
+test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+  const db = await createTestDatabase(t);
+  const { task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    putError: new Error("object storage write unavailable")
+  });
+  const fileService = createExportFileService({ db, storage });
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file-put-failure",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": "PO-001" }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const audits = await db
+    .selectFrom("export_audit_logs")
+    .selectAll()
+    .where("task_id", "=", task.taskId)
+    .execute();
+
+  assert.equal(result.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+    )
+  );
 });
 
 test("cleanup job invalidates expired metadata before deleting object and download is guarded", async (t) => {

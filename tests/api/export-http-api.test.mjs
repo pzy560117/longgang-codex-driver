@@ -300,7 +300,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(disabledTaskResponse.json().code, "TASK_DISABLED");
   const disabledAudits = await auditLogsByRequestId(db, `req-disabled-task-${runId}`);
   assert.equal(disabledAudits.length, 1);
-  assert.equal(disabledAudits[0].result, "FAILURE");
+  assert.equal(disabledAudits[0].result, "FAILED");
   assert.equal(disabledAudits[0].error_code, "TASK_DISABLED");
 
   const enableResponse = await app.inject({
@@ -324,6 +324,13 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(createTaskResponse.json().data.tenantId, "tenant-001");
   assert.equal(createTaskResponse.json().data.createdBy, "u001");
   assert.equal(createTaskResponse.json().data.fileFormat, "XLSX");
+  const createdTask = await taskRepository.findTaskById(createTaskResponse.json().data.taskId);
+  const createdTaskPayload = JSON.parse(createdTask.requestPayload);
+  assert.equal(createdTaskPayload.configSnapshot.taskCode, taskCode);
+  assert.equal(
+    createdTaskPayload.configSnapshot.configSnapshotDigest,
+    createTaskResponse.json().data.configSnapshotDigest
+  );
 
   const replayResponse = await app.inject({
     method: "POST",
@@ -352,7 +359,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(conflictResponse.json().code, "IDEMPOTENCY_CONFLICT");
   const conflictAudits = await auditLogsByRequestId(db, `req-conflict-task-${runId}`);
   assert.equal(conflictAudits.length, 1);
-  assert.equal(conflictAudits[0].result, "FAILURE");
+  assert.equal(conflictAudits[0].result, "FAILED");
   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
 
   const taskId = createTaskResponse.json().data.taskId;
@@ -420,7 +427,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(crossTenantListResponse.statusCode, 200);
-  assert.ok(crossTenantListResponse.json().data.items.every((item) => item.taskId !== taskId));
+  assert.ok(crossTenantListResponse.json().data.items.some((item) => item.taskId === taskId));
 
   const crossTenantDetailResponse = await app.inject({
     method: "GET",
@@ -589,6 +596,6 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.ok(auditLogs.some((log) => log.action === "DOWNLOAD" && log.result === "SUCCESS"));
   const deniedAudits = await auditLogsByRequestId(db, `req-denied-download-${runId}`);
   assert.equal(deniedAudits.length, 1);
-  assert.equal(deniedAudits[0].result, "FAILURE");
+  assert.equal(deniedAudits[0].result, "FAILED");
   assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
 });

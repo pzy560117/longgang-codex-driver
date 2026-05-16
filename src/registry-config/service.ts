@@ -66,7 +66,7 @@ async function rejectRegistryWithAudit(input: {
     taskCode: input.taskCode ?? null,
     subsystemCode: input.subsystemCode ?? null,
     action: input.action,
-    result: "FAILURE",
+    result: "FAILED",
     errorCode: input.error.code,
     now: input.now
   });
@@ -218,7 +218,7 @@ export async function listExportRegistries(auth: AuthContext, query: Record<stri
     await requireRegistryAdmin({
       db,
       auth,
-      action: "REGISTRY_LIST",
+      action: "REGISTRY_QUERY",
       now
     });
 
@@ -231,6 +231,17 @@ export async function listExportRegistries(auth: AuthContext, query: Record<stri
           : typeof query.enabled === "boolean"
             ? query.enabled
             : undefined
+    });
+
+    await appendAudit({
+      db,
+      auth,
+      taskId: null,
+      attemptNo: null,
+      taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+      subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null,
+      action: "REGISTRY_QUERY",
+      now
     });
 
     return {
@@ -264,6 +275,16 @@ export async function getExportRegistry(auth: AuthContext, taskCode: string) {
         taskCode
       });
     }
+    await appendAudit({
+      db,
+      auth,
+      taskId: null,
+      attemptNo: null,
+      taskCode: registry.taskCode,
+      subsystemCode: registry.subsystemCode,
+      action: "REGISTRY_DETAIL",
+      now
+    });
     return registryEnvelope(registry, auth);
   });
 }

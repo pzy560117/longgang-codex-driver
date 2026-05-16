@@ -5,7 +5,8 @@ import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
   createExportRegistryRepository,
   createExportTaskEventRepository,
-  getDatabaseTime
+  getDatabaseTime,
+  type ExportRegistryRecord
 } from "../repositories/index.ts";
 import { assertSamplePurchaseOrderRegistryContract } from "../sample-purchase-order/index.ts";
 import type {
@@ -49,6 +50,7 @@ type AuthSnapshot = {
 
 type RequestSnapshot = {
   queryParams?: Record<string, unknown>;
+  configSnapshot?: ExportRegistryRecord;
 };
 
 type ParameterSchemaDefinition = {
@@ -74,6 +76,7 @@ type CursorToken = {
 
 type QueryExecutorResult = SchedulerBatchResult & {
   rows: Record<string, unknown>[];
+  registry: ExportRegistryRecord;
 };
 
 const unsafeKeywordPattern =
@@ -84,9 +87,11 @@ export function createQueryExecutorBatchProcessor() {
   return async function processQueryBatch(
     context: SchedulerBatchContext
   ): Promise<QueryExecutorResult> {
-    const registry = await createExportRegistryRepository(context.db).findRegistryByTaskCode(
-      context.task.taskCode
+    const requestSnapshot = parseJson<RequestSnapshot>(
+      context.task.requestPayload,
+      "QUERY_TEMPLATE_INVALID"
     );
+    const registry = await resolveTaskRegistrySnapshot(context, requestSnapshot);
     if (!registry) {
       throw queryError("TASK_NOT_REGISTERED", "registry snapshot is not available");
     }
@@ -95,10 +100,6 @@ export function createQueryExecutorBatchProcessor() {
       throw queryError("QUERY_TEMPLATE_INVALID", "task config snapshot does not match registry");
     }
 
-    const requestSnapshot = parseJson<RequestSnapshot>(
-      context.task.requestPayload,
-      "QUERY_TEMPLATE_INVALID"
-    );
     const authSnapshot = parseJson<AuthSnapshot>(
       context.task.authContextPayload,
       "PERMISSION_DENIED"
@@ -212,9 +213,24 @@ export function createQueryExecutorBatchProcessor() {
     return {
       rows,
       checkpoint,
-      outcome
+      outcome,
+      registry
     };
   };
+}
+
+async function resolveTaskRegistrySnapshot(
+  context: SchedulerBatchContext,
+  requestSnapshot: RequestSnapshot
+): Promise<ExportRegistryRecord | undefined> {
+  if (
+    requestSnapshot.configSnapshot &&
+    requestSnapshot.configSnapshot.configSnapshotDigest === context.task.configSnapshotDigest
+  ) {
+    return requestSnapshot.configSnapshot;
+  }
+
+  return createExportRegistryRepository(context.db).findRegistryByTaskCode(context.task.taskCode);
 }
 
 function parseJson<T>(value: string | null | undefined, code: string): T {
@@ -395,10 +411,14 @@ async function executeSelect(
   sqlText: string,
   values: unknown[]
 ): Promise<Record<string, unknown>[]> {
-  const result = await db.executeQuery<Record<string, unknown>>(
-    CompiledQuery.raw(sqlText, values)
-  );
-  return result.rows as Record<string, unknown>[];
+  try {
+    const result = await db.executeQuery<Record<string, unknown>>(
+      CompiledQuery.raw(sqlText, values)
+    );
+    return result.rows as Record<string, unknown>[];
+  } catch (error) {
+    throw mapDatasourceAdapterError(error);
+  }
 }
 
 async function collectCompletedRows(input: {
@@ -751,4 +771,41 @@ function queryError(code: string, message: string): Error {
 
 function queryExecutionError(message: string): Error {
   return queryError("QUERY_EXECUTION_ERROR", message);
+}
+
+export function mapDatasourceAdapterError(error: unknown): Error {
+  const code = readErrorCode(error);
+  if (
+    [
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ENOTFOUND",
+      "ETIMEDOUT",
+      "EHOSTUNREACH",
+      "PROTOCOL_CONNECTION_LOST",
+      "ER_ACCESS_DENIED_ERROR",
+      "ER_DBACCESS_DENIED_ERROR",
+      "ER_ACCESS_DENIED_NO_PASSWORD_ERROR",
+      "ER_CON_COUNT_ERROR"
+    ].includes(code)
+  ) {
+    return queryError(
+      "DATASOURCE_UNAVAILABLE",
+      error instanceof Error ? error.message : "datasource unavailable"
+    );
+  }
+
+  if (error instanceof Error && error.name !== "Error") {
+    return error;
+  }
+
+  return queryExecutionError(error instanceof Error ? error.message : "query execution failed");
+}
+
+function readErrorCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : "";
+  }
+  return "";
 }

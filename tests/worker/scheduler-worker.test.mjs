@@ -651,6 +651,143 @@ serialTest("failed execution is retried only after FAILED and increments attempt
   assert.equal(executing.lockOwner, "worker-b");
 });
 
+serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-ok-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 2,
+    queryBatchBackoffBaseMs: 25,
+    batchProcessor: async () => {
+      calls += 1;
+      if (calls === 1) {
+        const error = new Error("temporary datasource timeout");
+        error.name = "QUERY_EXECUTION_ERROR";
+        throw error;
+      }
+      return {
+        checkpoint: {
+          lastCursor: "order-retry-success",
+          processedCount: 10,
+          filePartNo: 1,
+          retryCount: 1,
+          batchSize: 500,
+          batchRowCount: 10,
+          backoffMs: 25
+        },
+        outcome: "completed",
+        rows: [{ "Order No": "PO-RETRY" }]
+      };
+    },
+    fileService: {
+      async publishRows() {
+        return { storageKey: "exports/published/retry.xlsx" };
+      }
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  const checkpointAfterFailure = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+
+  assert.equal(firstPoll.failed, 0);
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(checkpointAfterFailure.retry_count, 1);
+  assert.equal(checkpointAfterFailure.backoff_ms, 25);
+  assert.equal(secondPoll.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+});
+
+serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-no-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-exhausted",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 1,
+    queryBatchBackoffBaseMs: 50,
+    batchProcessor: async () => {
+      const error = new Error("query still unavailable");
+      error.name = "QUERY_EXECUTION_ERROR";
+      throw error;
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(firstPoll.failed, 0);
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(secondPoll.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.equal(checkpoint.retry_count, 1);
+  assert.equal(checkpoint.backoff_ms, 50);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+});
+
+serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-ds-down-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-datasource-unavailable",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 0,
+    batchProcessor: async () => {
+      const error = new Error("credential unavailable");
+      error.name = "DATASOURCE_UNAVAILABLE";
+      throw error;
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(result.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) =>
+        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+    )
+  );
+});
+
 serialTest("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
@@ -699,7 +836,7 @@ serialTest("cleanup job poll once records task event and audit after successful 
   assert.equal(result.deleted, 1);
   assert.equal(result.retried, 0);
   assert.deepEqual(deletes, ["exports/published/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
-  assert.ok(audits.some((audit) => audit.action === "CLEANUP_DELETE" && audit.result === "SUCCESS"));
+  assert.ok(audits.some((audit) => audit.action === "EXPIRE_MARK" && audit.result === "SUCCESS"));
   assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
   assert.equal(task.taskCode, taskCode);
 });
@@ -752,7 +889,7 @@ serialTest("cleanup job poll once records retry audit and does not mark cleanup 
   assert.equal(result.scanned, 1);
   assert.equal(result.deleted, 0);
   assert.equal(result.retried, 1);
-  assert.ok(audits.some((audit) => audit.action === "CLEANUP_DELETE" && audit.result === "FAILED"));
+  assert.ok(audits.some((audit) => audit.action === "CLEANUP_FAILED" && audit.result === "FAILED"));
   assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_RETRY"));
   assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
   assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");

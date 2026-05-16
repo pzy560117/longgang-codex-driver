@@ -109,7 +109,7 @@ async function rejectWithAudit(input: {
     taskCode: input.taskCode ?? null,
     subsystemCode: input.subsystemCode ?? null,
     action: input.action,
-    result: "FAILURE",
+    result: "FAILED",
     errorCode: input.error.code,
     now: input.now
   });
@@ -330,7 +330,29 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
       configSnapshotDigest: registry.configSnapshotDigest,
       requestPayload: JSON.stringify({
         fileFormat: body.fileFormat,
-        queryParams: body.queryParams ?? null
+        queryParams: body.queryParams ?? null,
+        configSnapshot: {
+          taskCode: registry.taskCode,
+          subsystemCode: registry.subsystemCode,
+          displayName: registry.displayName,
+          enabled: registry.enabled,
+          concurrencyLimit: registry.concurrencyLimit,
+          fileRetentionDays: registry.fileRetentionDays,
+          taskHistoryRetentionDays: registry.taskHistoryRetentionDays,
+          singleFileMaxRows: registry.singleFileMaxRows,
+          exportMaxRows: registry.exportMaxRows,
+          datasourceCode: registry.datasourceCode,
+          supportedFormats: registry.supportedFormats,
+          parameterSchema: registry.parameterSchema,
+          queryTemplate: registry.queryTemplate,
+          fieldMappings: registry.fieldMappings,
+          maskingPolicy: registry.maskingPolicy,
+          dataScopeTemplate: registry.dataScopeTemplate,
+          cursorField: registry.cursorField,
+          orderBy: registry.orderBy,
+          batchSize: registry.batchSize,
+          configSnapshotDigest: registry.configSnapshotDigest
+        }
       }),
       authContextPayload: JSON.stringify({
         operatorId: auth.operatorId,
@@ -374,7 +396,7 @@ export async function listExportTasks(auth: AuthContext, query: Record<string, u
       taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
       status: typeof query.status === "string" ? query.status : undefined,
       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
-      tenantId: auth.tenantId,
+      tenantId: isExportAdmin(auth) ? undefined : auth.tenantId,
       createdBy,
       fileFormat: typeof query.fileFormat === "string" ? query.fileFormat : undefined,
       createdAtFrom: parseDateFilter(query.createdAtFrom),

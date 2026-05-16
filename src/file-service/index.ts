@@ -82,7 +82,7 @@ export function createObjectStorageFromEnv(): ObjectStorage {
         body: toArrayBuffer(input.body)
       });
       if (!response.ok) {
-        throw fileError("EXPORT_RENDER_ERROR", `object storage put failed: ${response.status}`);
+        throw fileError("FILE_VERIFY_ERROR", `object storage put failed: ${response.status}`);
       }
     },
     async readObject(storageKey) {
@@ -100,7 +100,7 @@ export function createObjectStorageFromEnv(): ObjectStorage {
         }
       });
       if (!response.ok) {
-        throw fileError("EXPORT_RENDER_ERROR", `object storage publish failed: ${response.status}`);
+        throw fileError("FILE_VERIFY_ERROR", `object storage publish failed: ${response.status}`);
       }
     },
     async createDownloadUrl(storageKey, expiresAt) {
@@ -157,11 +157,15 @@ export function createExportFileService(options: ExportFileServiceOptions) {
       });
     }
 
-    await storage.putObject({
-      storageKey: tempStorageKey,
-      body,
-      contentType
-    });
+    try {
+      await storage.putObject({
+        storageKey: tempStorageKey,
+        body,
+        contentType
+      });
+    } catch (error) {
+      throw toFileVerifyError(error, "object storage put failed");
+    }
     await appendFileEvent({
       events,
       input,
@@ -196,10 +200,14 @@ export function createExportFileService(options: ExportFileServiceOptions) {
       }
     });
 
-    await storage.publishObject({
-      tempStorageKey,
-      publishedStorageKey
-    });
+    try {
+      await storage.publishObject({
+        tempStorageKey,
+        publishedStorageKey
+      });
+    } catch (error) {
+      throw toFileVerifyError(error, "object storage publish failed");
+    }
     const publishedAt = await getDatabaseTime(options.db);
     const deliveryEventAt = new Date(
       Math.max(publishedAt.getTime(), now.getTime() + parts.length + 3)
@@ -399,4 +407,14 @@ function fileError(code: string, message: string): Error {
   const error = new Error(`${code}: ${message}`);
   error.name = code;
   return error;
+}
+
+function toFileVerifyError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+    return error;
+  }
+  return fileError(
+    "FILE_VERIFY_ERROR",
+    error instanceof Error ? error.message : fallbackMessage
+  );
 }

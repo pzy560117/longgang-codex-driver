@@ -9,7 +9,10 @@ import {
   createExportTaskRepository,
   getDatabaseTime
 } from "../../src/repositories/index.ts";
-import { createQueryExecutorBatchProcessor } from "../../src/query-executor/index.ts";
+import {
+  createQueryExecutorBatchProcessor,
+  mapDatasourceAdapterError
+} from "../../src/query-executor/index.ts";
 
 function parseCursorToken(lastCursor) {
   return JSON.parse(lastCursor);
@@ -400,6 +403,78 @@ test("query executor rebuilds the completed export payload from prior checkpoint
   );
 });
 
+test("query executor replays the task config snapshot after the current registry changes", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "snapshot-v1" });
+  await seedPurchaseOrders(db, now);
+  const snapshot = await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode);
+  const task = await seedTask(db, {
+    taskId: "exp-query-snapshot-replay",
+    taskCode,
+    subsystemCode,
+    requestPayload: {
+      queryParams: {
+        createdAtFrom: "2026-05-01T00:00:00+08:00",
+        createdAtTo: "2026-05-31T23:59:59+08:00",
+        orderStatus: "APPROVED",
+        supplierId: "SUP-001",
+        purchaseOrgId: "PO-001",
+        keyword: "PO-2026"
+      },
+      configSnapshot: snapshot
+    }
+  });
+
+  await seedRegistry(db, {
+    taskCode,
+    subsystemCode,
+    runId: "snapshot-v2",
+    configSnapshotDigest: "sha256:config-v2",
+    fieldMappings: [
+      {
+        fieldCode: "missingFieldFromNewRegistry",
+        headerName: "Broken",
+        fieldType: "STRING",
+        orderNo: 1,
+        sensitive: false,
+        exportable: true
+      }
+    ]
+  });
+
+  const processor = createQueryExecutorBatchProcessor();
+  const result = await processor({
+    db,
+    task: {
+      ...task,
+      status: "EXECUTING",
+      lockOwner: "worker-query",
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now
+    },
+    lease: {
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      lockOwner: "worker-query",
+      previousLockOwner: null,
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now,
+      databaseTime: now,
+      takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+    },
+    checkpoint: undefined,
+    requestId: "req-query-snapshot-replay"
+  });
+
+  assert.equal(result.outcome, "completed");
+  assert.deepEqual(
+    result.rows.map((row) => row["Order ID"]),
+    ["order-001", "order-002"]
+  );
+  assert.equal(result.registry.configSnapshotDigest, "sha256:config-v1");
+});
+
 test("query executor accepts legacy string checkpoint cursors while producing structured cursor tokens", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
@@ -650,5 +725,20 @@ test("query executor enforces exportMaxRows before crossing registry limit", asy
         requestId: "req-limit"
       }),
     /EXPORT_LIMIT_EXCEEDED/
+  );
+});
+
+test("query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE", () => {
+  assert.equal(
+    mapDatasourceAdapterError(Object.assign(new Error("access denied"), { code: "ER_ACCESS_DENIED_ERROR" })).name,
+    "DATASOURCE_UNAVAILABLE"
+  );
+  assert.equal(
+    mapDatasourceAdapterError(Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" })).name,
+    "DATASOURCE_UNAVAILABLE"
+  );
+  assert.equal(
+    mapDatasourceAdapterError(Object.assign(new Error("bad field"), { code: "ER_BAD_FIELD_ERROR" })).name,
+    "QUERY_EXECUTION_ERROR"
   );
 });

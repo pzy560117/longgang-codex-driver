@@ -24,6 +24,17 @@
 | API / DB / worker 集成测试 | FR-001 - FR-014 | available / local-or-docker-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
 | 旧内存实现与旧 trace | FR-001 - FR-014 | removed | 不作为证据 |
 
+## REQUIREMENTS-GAP-REPAIR-001 fresh repair evidence（2026-05-16）
+
+| Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
+| --- | --- | --- | --- | --- |
+| AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+| TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
+| CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+| DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+| FILE-STORAGE-ERROR-MAPPING-001 | FR-003 / FR-006 / AC-E005 / AC-E026 | repaired | `npm run test:file` 覆盖 object storage put/publish 失败均映射为 `FILE_VERIFY_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + FILE_VERIFY_ERROR` | production-equivalent adapter + local/Docker MySQL；不声明 live OSS/S3 |
+
 ## 计划验证入口
 
 | 阶段 | 命令 / 证据 | 最低要求 |

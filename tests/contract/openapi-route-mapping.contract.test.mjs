@@ -17,6 +17,40 @@ function parseHandlerPaths() {
   return [...manifest.matchAll(/handlerPath:\s*"([^"]+)"/g)].map((match) => match[1]);
 }
 
+function parseAuditActionEnum() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/action:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{8}result:/) ?? [];
+  return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+}
+
+function parseAuditResultEnum() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, values] = openapi.match(/result:\s*\n\s+type:\s+string\s*\n\s+enum:\s+\[([^\]]+)\]/) ?? [];
+  return new Set(values.split(",").map((value) => value.trim()));
+}
+
+function sourceAuditLiterals() {
+  const sources = [
+    "src/task-api/service.ts",
+    "src/registry-config/service.ts",
+    "src/scheduler/worker.ts",
+    "src/cleanup-job/index.ts"
+  ].map((path) => readFileSync(path, "utf8"));
+
+  return {
+    actions: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/action:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+      )
+    ),
+    results: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/result:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+      )
+    )
+  };
+}
+
 test("OpenAPI operationIds are represented by route manifest entries", () => {
   assert.deepEqual(
     new Set(parseRouteManifestOperationIds()),
@@ -53,4 +87,19 @@ test("route manifest maps operations to HTTP API integration evidence", () => {
     .length;
 
   assert.equal(apiEvidenceCount, parseOpenApiOperationIds().length);
+});
+
+test("audit action and result literals written by production code stay within OpenAPI public enums", () => {
+  const actionEnum = parseAuditActionEnum();
+  const resultEnum = parseAuditResultEnum();
+  const literals = sourceAuditLiterals();
+
+  assert.deepEqual(
+    [...literals.actions].filter((action) => !actionEnum.has(action)),
+    []
+  );
+  assert.deepEqual(
+    [...literals.results].filter((result) => !resultEnum.has(result)),
+    []
+  );
 });
