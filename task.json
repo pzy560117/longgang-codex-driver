@@ -1814,6 +1814,430 @@
                                      ]
                   },
                   {
+                      "id":  "DATA-SCOPE-TEMPLATE-ENFORCE-001",
+                      "description":  "强制查询执行叠加 operatorId、roleCodes 和 dataScopeTemplate 数据范围约束",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.85,
+                      "dependencies":  [
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 / RCR-P0-002：query executor 必须强制 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate 数据范围约束",
+                                                       "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
+                                                       "生产查询路径必须通过注册配置模板和认证上下文执行数据范围约束，不得以 tenantId + orgScope 的简化条件冒充完成",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只在测试或文档中声明 operatorId、roleCodes、dataScopeTemplate 已生效而不修生产 query executor",
+                                                        "禁止继续硬编码 tenantId = ? AND orgId IN (...) 作为唯一数据范围条件",
+                                                        "禁止绕过 registry dataScopeTemplate 或把调用方原始 SQL 直接拼接进生产查询",
+                                                        "禁止把 mock/local evidence 写成 live datasource 证据"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                            "src/query-executor/index.ts",
+                                            "tests/query/query-executor.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/query-executor/",
+                                          "tests/query/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-008",
+                                              "FR-009",
+                                              "AC-008",
+                                              "AC-009",
+                                              "RCR-P0-002"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/query-executor/",
+                                                 "tests/query/",
+                                                 "tests/worker/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 query executor 当前数据范围条件、registry dataScopeTemplate 契约和 Stage1 finding 的缺口定位",
+                                    "在生产查询路径中强制叠加 operatorId、roleCodes、orgScope 与 dataScopeTemplate 约束，确保仅绑定 schema 允许的参数",
+                                    "补 query 与 worker 测试，覆盖越权数据被阻断、模板参数注入正确和调度执行链路不回退",
+                                    "同步 verify-matrix 记录 DATA-SCOPE-TEMPLATE-ENFORCE-001 的 Docker MySQL / query / worker 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor tests/query tests/worker docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "query executor 生产路径会强制使用 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate 约束数据范围",
+                                         "tests/query/ 与 tests/worker/ 覆盖数据范围模板、生效参数和越权阻断负向场景",
+                                         "arch:check、Docker MySQL 下的 test:query / test:worker 与 git diff --check 全部通过",
+                                         "REQUIREMENTS-COMPLETE-REVIEW-001 仅在本任务通过后由 driver 重新复审"
+                                     ]
+                  },
+                  {
+                      "id":  "DOWNLOAD-SIGNED-URL-GUARD-001",
+                      "description":  "修复下载签名 URL 不可伪造、10 分钟 TTL 与验签/下载审计边界",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.86,
+                      "dependencies":  [
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 / RCR-P0-003：下载 URL 必须是不可伪造签名 URL，并与文件保留期分离，默认 TTL 为 10 分钟",
+                                                       "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
+                                                       "下载交付边界必须包含签名生成、验签校验、权限检查和下载审计，不能仅依赖对象存储保留期 expiresAt",
+                                                       "如采用 ingress secret/header 以外的签名材料，也不得把密钥或 secret 写入仓库"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续只追加 expiresAt 查询参数而没有加密签名或完整性校验",
+                                                        "禁止把文件保留期 expiresAt 当成下载签名 TTL",
+                                                        "禁止只改测试或文档而不修 file-service / task-api 生产下载路径",
+                                                        "禁止把签名密钥、cookie、token 或私钥写入仓库、trace 或 verify 文档"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                            "src/file-service/index.ts",
+                                            "src/task-api/service.ts",
+                                            "tests/file/export-file-service.test.mjs",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/file-service/",
+                                          "src/task-api/",
+                                          "tests/file/",
+                                          "tests/api/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-003",
+                                              "FR-009",
+                                              "AC-003",
+                                              "AC-009",
+                                              "RCR-P0-003"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/file-service/",
+                                                 "src/task-api/",
+                                                 "tests/file/",
+                                                 "tests/api/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核下载 URL 生成、校验与审计链路，识别当前 file retention expiresAt 与签名 TTL 混用点",
+                                    "实现不可伪造签名 URL、10 分钟默认 TTL、验签失败拒绝与下载审计留痕，同时保留流式下载等价权限边界",
+                                    "补 file 与 API 测试，覆盖 TTL、生效签名、伪造签名、过期签名和下载审计负向路径",
+                                    "同步 verify-matrix 记录 DOWNLOAD-SIGNED-URL-GUARD-001 的 Docker MySQL / 本地 object storage mock 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "下载 URL 采用不可伪造签名，默认 TTL 为 10 分钟且与文件保留期分离",
+                                         "验签失败、签名过期或权限不足时下载被拒绝并记录审计，不泄露可复用链接",
+                                         "tests/file/ 与 tests/api/ 覆盖签名 URL 成功与负向路径，且不把密钥写入仓库",
+                                         "arch:check、Docker MySQL 下的 test:file / test:api 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "QUERY-PARAMS-SIZE-LIMIT-001",
+                      "description":  "在创建任务落库前按 canonical JSON UTF-8 bytes 校验 queryParams 32KB 上限",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.87,
+                      "dependencies":  [
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / RCR-P0-004：create API 必须在落库前按 canonical JSON UTF-8 bytes 校验 queryParams <= 32768",
+                                                       "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
+                                                       "超限请求必须返回契约声明的错误结果且不得写入任务、审计或后续执行链路",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止仅以字符串长度、对象键数或近似估算替代 canonical JSON UTF-8 bytes 校验",
+                                                        "禁止先落库再异步补判超长参数",
+                                                        "禁止只改 OpenAPI 或 contract 测试而不修生产 create API 路径",
+                                                        "禁止把超长 queryParams 的失败证据写成 live 环境验收"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                            "contracts/openapi.yaml",
+                                            "src/task-api/service.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/contract/openapi-route-mapping.contract.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/task-api/",
+                                          "contracts/openapi.yaml",
+                                          "tests/api/",
+                                          "tests/contract/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "AC-E009",
+                                              "RCR-P0-004"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "contracts/openapi.yaml",
+                                                 "tests/api/",
+                                                 "tests/contract/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 OpenAPI 对 queryParams 32768 bytes 的契约声明与 create API 当前落库路径",
+                                    "在创建任务生产路径中按 canonical JSON UTF-8 bytes 校验 queryParams 大小，并在落库前拒绝超限请求",
+                                    "补 API 与 contract 测试，覆盖边界值、超限失败、错误码和不落任务断言",
+                                    "同步 verify-matrix 记录 QUERY-PARAMS-SIZE-LIMIT-001 的 Docker MySQL / API / contract 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "create API 在落库前按 canonical JSON UTF-8 bytes 强制校验 queryParams <= 32768",
+                                         "超限请求返回契约声明的错误码且不创建任务、不写入后续执行链路",
+                                         "tests/api/ 与 tests/contract/ 覆盖边界值和超限负向场景",
+                                         "arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "AUTH-CONTEXT-TRUST-BOUNDARY-001",
+                      "description":  "修复可信 ingress 认证上下文边界，阻断请求头伪造管理员或跨租户上下文",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.88,
+                      "dependencies":  [
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 / RCR-P0-001：认证上下文必须建立可信 ingress / header 校验边界，阻断请求头伪造 EXPORT_ADMIN 或跨租户上下文",
+                                                       "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
+                                                       "生产入口必须明确上下文来源、签名/secret/allowlist 校验与失败处理；若采用 ingress secret/header 方案，不得把密钥写入仓库",
+                                                       "必须补 API 与 contract 负向测试，证明缺少可信来源、伪造角色或跨租户上下文会被拒绝并留审计"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续直接信任 x-operator-id、x-tenant-id、x-role-codes、x-org-scope 等请求头作为最终认证上下文",
+                                                        "禁止仅在文档中声明网关可信而不在生产入口实现校验或拒绝策略",
+                                                        "禁止把 secret、token、私钥或网关内部配置值写入仓库、trace 或测试快照",
+                                                        "禁止只补正向测试而缺失伪造管理员、跨租户或缺少最小字段的负向用例"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                            "src/audit-log/auth-context.ts",
+                                            "src/task-api/service.ts",
+                                            "src/routes/",
+                                            "contracts/openapi.yaml",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/contract/openapi-route-mapping.contract.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/audit-log/",
+                                          "src/task-api/",
+                                          "src/routes/",
+                                          "contracts/openapi.yaml",
+                                          "tests/api/",
+                                          "tests/contract/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-009",
+                                              "AC-009",
+                                              "AC-E006",
+                                              "AC-E016",
+                                              "RCR-P0-001"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/audit-log/",
+                                                 "src/task-api/",
+                                                 "src/routes/",
+                                                 "contracts/openapi.yaml",
+                                                 "tests/api/",
+                                                 "tests/contract/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "复核 auth-context 与 route 入口当前如何信任请求头，并界定可信 ingress / context 校验策略",
+                                    "在生产入口实现可信来源校验、最小字段校验、伪造管理员和跨租户上下文拒绝逻辑，且不把 secret 写入仓库",
+                                    "补 API 与 contract 负向测试，覆盖缺少最小字段、伪造 EXPORT_ADMIN、跨租户历史/下载/配置访问被拒绝",
+                                    "同步 verify-matrix 记录 AUTH-CONTEXT-TRUST-BOUNDARY-001 的 Docker MySQL / API / contract 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "生产入口不再直接信任可伪造请求头，伪造 EXPORT_ADMIN 或跨租户上下文会被拒绝并记录审计",
+                                         "认证上下文缺少最小字段或可信来源证明时，请求返回权限/参数错误且不泄露任务或文件信息",
+                                         "tests/api/ 与 tests/contract/ 覆盖可信边界负向场景，且仓库内不新增 secret",
+                                         "arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
+                      "id":  "P0-ACCEPTANCE-EVIDENCE-REPAIR-001",
+                      "description":  "补齐 P0 验收证据缺口并仅修必要实现差异",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.89,
+                      "dependencies":  [
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+                                           "DATA-SCOPE-TEMPLATE-ENFORCE-001",
+                                           "DOWNLOAD-SIGNED-URL-GUARD-001",
+                                           "QUERY-PARAMS-SIZE-LIMIT-001",
+                                           "AUTH-CONTEXT-TRUST-BOUNDARY-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 / RCR-P0-005：补齐 history status/subsystemCode、registry update/get/list/重复 taskCode/未授权配置操作、未注册创建不落任务、游标缺失/重复/非递增负向 query 证据，并仅补必要实现缺口",
+                                                       "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
+                                                       "测试证据必须建立在前四个 repair tasks 修复后的生产路径之上，避免证据先于实现漂移",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只补 verify-matrix 或 review 文档而不提供实际 API/query 测试证据",
+                                                        "禁止为通过测试引入仅测试专用的生产分支或放宽鉴权/数据范围边界",
+                                                        "禁止把未注册创建失败写成成功落库后再清理的补偿逻辑",
+                                                        "禁止把 mock/local evidence 写成 live 回归证据"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                            "src/task-api/service.ts",
+                                            "src/registry-config/",
+                                            "src/query-executor/index.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "tests/query/query-executor.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/task-api/",
+                                          "src/registry-config/",
+                                          "src/query-executor/",
+                                          "tests/api/",
+                                          "tests/query/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "AC-004",
+                                              "AC-007",
+                                              "AC-009",
+                                              "AC-E002",
+                                              "AC-E023",
+                                              "RCR-P0-005"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "src/registry-config/",
+                                                 "src/query-executor/",
+                                                 "tests/api/",
+                                                 "tests/query/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "补历史查询对 status/subsystemCode 组合筛选的 API 断言，并确认管理员/普通用户边界遵循已修复的可信上下文策略",
+                                    "补 registry update/get/list、重复 taskCode 与未授权配置操作的 API 证据；如有必要只修最小实现缺口",
+                                    "补未注册任务创建失败且不落任务断言，以及 query executor 对缺失/重复/非递增游标的负向测试",
+                                    "同步 verify-matrix 记录 P0-ACCEPTANCE-EVIDENCE-REPAIR-001 的 Docker MySQL / API / query 证据边界"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "历史查询对 status/subsystemCode 筛选、registry get/list/update/重复 taskCode/未授权配置、未注册创建不落任务均有 API 证据",
+                                         "query 测试覆盖游标缺失、重复和非递增负向场景，错误收口符合产品真相源",
+                                         "仅补必要实现缺口，不回退前四个 repair task 已修复的权限、签名 URL、参数大小或数据范围边界",
+                                         "arch:check、Docker MySQL 下的 test:api / test:query 与 git diff --check 全部通过"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -1831,7 +2255,12 @@
                                            "REQUIREMENTS-GAP-REPAIR-001",
                                            "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
                                            "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
-                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+                                           "DATA-SCOPE-TEMPLATE-ENFORCE-001",
+                                           "DOWNLOAD-SIGNED-URL-GUARD-001",
+                                           "QUERY-PARAMS-SIZE-LIMIT-001",
+                                           "AUTH-CONTEXT-TRUST-BOUNDARY-001",
+                                           "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [

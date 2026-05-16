@@ -9,65 +9,173 @@
     "docs/product/state-matrix.yaml",
     "docs/architecture/constraints.md"
   ],
+  "evidenceSources": [
+    "contracts/openapi.yaml",
+    "src/",
+    "tests/",
+    "docs/testing/TRACEABILITY_MATRIX.md",
+    "docs/testing/ACCEPTANCE_EXAMPLES.md",
+    "docs/testing/verify-matrix.md",
+    "task.json"
+  ],
   "findings": [
     {
-      "id": "RCR-001",
+      "id": "RCR-P0-001",
       "severity": "P0",
-      "title": "task detail progress/error contract is not implemented to AC-002",
-      "requirementIds": ["FR-002", "AC-002"],
+      "title": "Auth context trust boundary is not enforced",
+      "requirementIds": ["FR-009", "AC-009", "AC-E006", "AC-E016"],
       "evidence": [
-        "docs/product/acceptance-criteria.md:AC-002",
-        "contracts/openapi.yaml:1364-1428",
-        "src/task-api/service.ts:479-485",
-        "tests/api/export-http-api.test.mjs:369-375"
+        "src/audit-log/auth-context.ts:46-63",
+        "src/audit-log/auth-context.ts:26-27",
+        "src/task-api/service.ts:624-633"
       ],
-      "risk": "P0 的任务进度查询只能证明接口存在，不能证明调用方可获得真实总数、进度百分比和失败原因；FR-002 / AC-002 不能声明完全覆盖。",
-      "suggestedNextTaskId": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+      "risk": "能直连服务的调用方可伪造管理员或跨租户上下文，绕过任务可见性和下载权限。",
+      "suggestedNextTaskId": "AUTH-CONTEXT-TRUST-BOUNDARY-001"
+    },
+    {
+      "id": "RCR-P0-002",
+      "severity": "P0",
+      "title": "query data scope ignores operatorId, roleCodes, and registry dataScopeTemplate",
+      "requirementIds": ["FR-008", "FR-009", "AC-008", "AC-009"],
+      "evidence": [
+        "docs/product/prd-lite.md:data scope business rule",
+        "src/query-executor/index.ts:352-364",
+        "src/query-executor/index.ts:393-405"
+      ],
+      "risk": "同租户同组织内不同操作人或角色的数据隔离无法证明，可能导出越权数据。",
+      "suggestedNextTaskId": "DATA-SCOPE-TEMPLATE-ENFORCE-001"
+    },
+    {
+      "id": "RCR-P0-003",
+      "severity": "P0",
+      "title": "signed URL is not cryptographically signed and uses file retention expiry",
+      "requirementIds": ["FR-003", "FR-009", "AC-003", "AC-009"],
+      "evidence": [
+        "src/file-service/index.ts:117-120",
+        "src/file-service/index.ts:166-168",
+        "src/task-api/service.ts:840"
+      ],
+      "risk": "URL 泄露后可能绕过平台鉴权和下载审计长期访问对象。",
+      "suggestedNextTaskId": "DOWNLOAD-SIGNED-URL-GUARD-001"
+    },
+    {
+      "id": "RCR-P0-004",
+      "severity": "P0",
+      "title": "queryParams 32KB limit is only contracted, not implemented",
+      "requirementIds": ["FR-001", "AC-E009"],
+      "evidence": [
+        "contracts/openapi.yaml:CreateExportTaskRequest.queryParams",
+        "src/task-api/service.ts:451-615",
+        "tests/api/export-http-api.test.mjs:no oversized queryParams assertion"
+      ],
+      "risk": "超长参数可能绕过产品限制进入持久化、审计和后续查询执行链路。",
+      "suggestedNextTaskId": "QUERY-PARAMS-SIZE-LIMIT-001"
+    },
+    {
+      "id": "RCR-P0-005",
+      "severity": "P0",
+      "title": "P0 acceptance evidence is incomplete for history, registry, permission, and cursor negative cases",
+      "requirementIds": ["AC-004", "AC-007", "AC-009", "AC-E002", "AC-E023"],
+      "evidence": [
+        "tests/api/export-http-api.test.mjs:history filters do not explicitly assert status/subsystemCode",
+        "tests/api/export-http-api.test.mjs:registry update/get/list and duplicate taskCode evidence incomplete",
+        "src/task-api/service.ts:483-492",
+        "src/query-executor/index.ts:673"
+      ],
+      "risk": "P0/P1 需求虽有实现入口，但验收证据不足，release 回归无法定位这些边界是否漂移。",
+      "suggestedNextTaskId": "P0-ACCEPTANCE-EVIDENCE-REPAIR-001"
+    },
+    {
+      "id": "RCR-P1-001",
+      "severity": "P1",
+      "title": "SQL/template governance is too weak before registry persistence",
+      "requirementIds": ["FR-008", "AC-008", "AC-E011"],
+      "evidence": [
+        "src/registry-config/service.ts:141-186",
+        "src/query-executor/index.ts:300-317",
+        "src/query-executor/index.ts:416-418"
+      ],
+      "risk": "管理员误配或认证边界被绕过时，非法或高成本查询可进入执行阶段。",
+      "suggestedNextTaskId": "QUERY-TEMPLATE-HARDENING-001"
+    },
+    {
+      "id": "RCR-P1-002",
+      "severity": "P1",
+      "title": "public error responses can expose raw internal messages",
+      "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
+      "evidence": [
+        "src/routes/respond.ts:22-25",
+        "src/query-executor/index.ts:793-803",
+        "src/task-api/service.ts:251-254"
+      ],
+      "risk": "数据源地址、SQL 片段、账号、对象存储内部错误等敏感信息可能进入 API 响应或任务详情。",
+      "suggestedNextTaskId": "PUBLIC-ERROR-REDACTION-001"
+    }
+  ],
+  "closedFindings": [
+    {
+      "id": "RCR-001",
+      "status": "closed",
+      "closedBy": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+      "requirementIds": ["FR-002", "AC-002"],
+      "freshEvidence": [
+        "src/task-api/service.ts",
+        "tests/api/export-http-api.test.mjs",
+        "tests/contract/openapi-route-mapping.contract.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
     },
     {
       "id": "RCR-002",
-      "severity": "P1",
-      "title": "XLSX/ZIP render failure is only contracted, not verified by production error mapping",
+      "status": "closed",
+      "closedBy": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
       "requirementIds": ["FR-006", "AC-E027"],
-      "evidence": [
-        "docs/product/acceptance-criteria.md:AC-E027",
-        "contracts/openapi.yaml:1178-1187",
-        "src/file-service/index.ts:133",
-        "src/file-service/index.ts:320-329",
-        "tests/: no EXPORT_RENDER_ERROR implementation-path assertion found"
-      ],
-      "risk": "文件渲染层异常可能被 worker 按默认错误路径收口，而不是产品定义的 EXPORT_RENDER_ERROR；AC-E027 目前只有契约文字，没有 fresh implementation/test evidence。",
-      "suggestedNextTaskId": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+      "freshEvidence": [
+        "src/file-service/index.ts",
+        "tests/file/export-file-service.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
+      "status": "closed",
+      "requirementIds": ["FR-010", "FR-011", "AC-010", "AC-011"],
+      "freshEvidence": [
+        "contracts/openapi.yaml",
+        "tests/contract/openapi-route-mapping.contract.test.mjs",
+        "tests/worker/scheduler-worker.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
     }
   ],
   "coverage": {
     "requirements": [
-      { "id": "FR-001", "status": "covered" },
-      { "id": "FR-002", "status": "partially_covered" },
-      { "id": "FR-003", "status": "covered" },
-      { "id": "FR-004", "status": "covered" },
+      { "id": "FR-001", "status": "partially_covered" },
+      { "id": "FR-002", "status": "covered" },
+      { "id": "FR-003", "status": "partially_covered" },
+      { "id": "FR-004", "status": "partially_covered" },
       { "id": "FR-005", "status": "covered" },
-      { "id": "FR-006", "status": "partially_covered" },
-      { "id": "FR-007", "status": "covered" },
-      { "id": "FR-008", "status": "covered" },
-      { "id": "FR-009", "status": "covered" },
-      { "id": "FR-010", "status": "covered" },
+      { "id": "FR-006", "status": "covered" },
+      { "id": "FR-007", "status": "partially_covered" },
+      { "id": "FR-008", "status": "partially_covered" },
+      { "id": "FR-009", "status": "partially_covered" },
+      { "id": "FR-010", "status": "partially_covered" },
       { "id": "FR-011", "status": "covered" },
       { "id": "FR-012", "status": "covered" },
       { "id": "FR-013", "status": "covered" },
       { "id": "FR-014", "status": "covered" }
     ],
     "acceptance": [
-      { "id": "AC-001", "status": "covered" },
-      { "id": "AC-002", "status": "partially_covered" },
-      { "id": "AC-003", "status": "covered" },
-      { "id": "AC-004", "status": "covered" },
+      { "id": "AC-001", "status": "partially_covered" },
+      { "id": "AC-002", "status": "covered" },
+      { "id": "AC-003", "status": "partially_covered" },
+      { "id": "AC-004", "status": "partially_covered" },
       { "id": "AC-005", "status": "covered" },
       { "id": "AC-006", "status": "covered" },
-      { "id": "AC-007", "status": "covered" },
-      { "id": "AC-008", "status": "covered" },
-      { "id": "AC-009", "status": "covered" },
-      { "id": "AC-010", "status": "covered" },
+      { "id": "AC-007", "status": "partially_covered" },
+      { "id": "AC-008", "status": "partially_covered" },
+      { "id": "AC-009", "status": "partially_covered" },
+      { "id": "AC-010", "status": "partially_covered" },
       { "id": "AC-011", "status": "covered" },
       { "id": "AC-012", "status": "covered" },
       { "id": "AC-013", "status": "covered" },
@@ -82,51 +190,46 @@
     ],
     "exceptions": [
       { "id": "AC-E001", "status": "covered" },
-      { "id": "AC-E002", "status": "covered" },
+      { "id": "AC-E002", "status": "partially_covered" },
       { "id": "AC-E003", "status": "covered" },
       { "id": "AC-E004", "status": "covered" },
       { "id": "AC-E005", "status": "covered" },
-      { "id": "AC-E006", "status": "covered" },
+      { "id": "AC-E006", "status": "partially_covered" },
       { "id": "AC-E007", "status": "covered" },
       { "id": "AC-E008", "status": "covered" },
-      { "id": "AC-E009", "status": "covered" },
+      { "id": "AC-E009", "status": "gap" },
       { "id": "AC-E010", "status": "covered" },
-      { "id": "AC-E011", "status": "covered" },
+      { "id": "AC-E011", "status": "partially_covered" },
       { "id": "AC-E012", "status": "covered" },
       { "id": "AC-E013", "status": "covered" },
       { "id": "AC-E014", "status": "covered" },
       { "id": "AC-E015", "status": "covered" },
-      { "id": "AC-E016", "status": "covered" },
+      { "id": "AC-E016", "status": "partially_covered" },
       { "id": "AC-E017", "status": "covered" },
       { "id": "AC-E018", "status": "covered" },
       { "id": "AC-E019", "status": "covered" },
       { "id": "AC-E020", "status": "covered" },
       { "id": "AC-E021", "status": "covered" },
       { "id": "AC-E022", "status": "covered" },
-      { "id": "AC-E023", "status": "covered" },
+      { "id": "AC-E023", "status": "partially_covered" },
       { "id": "AC-E024", "status": "covered" },
       { "id": "AC-E025", "status": "covered" },
       { "id": "AC-E026", "status": "covered" },
-      { "id": "AC-E027", "status": "gap" }
+      { "id": "AC-E027", "status": "covered" }
     ]
   },
-  "closedPreviousFindings": [
-    "AUDIT-CONTRACT-ALIGN-001",
-    "TASK-HISTORY-ADMIN-SCOPE-001",
-    "CONFIG-SNAPSHOT-REPLAY-001",
-    "QUERY-BATCH-RETRY-001",
-    "DATASOURCE-ADAPTER-ERROR-001",
-    "FILE-STORAGE-ERROR-MAPPING-001",
-    "CLEANUP-AUDIT-ERROR-CODE-001"
-  ],
   "evidenceBoundary": {
     "releaseId": "RELEASE-001",
     "type": "docker/mock release gate",
+    "notClaimed": [
+      "external production MySQL",
+      "external business datasource live access",
+      "live OSS/S3"
+    ],
     "notes": [
       "RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate",
       "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
-      "外部生产 MySQL 不属于当前完成条件",
-      "live OSS/S3 不属于当前完成条件"
+      "当前 findings 不把 local/docker/mock evidence 写成 live evidence"
     ]
   },
   "architectureConstraints": [
@@ -147,8 +250,8 @@
     },
     {
       "constraint": "forbidden_implementations",
-      "status": "PASS",
-      "evidence": "review did not promote InMemory/mock/fixture as production evidence"
+      "status": "FAIL",
+      "evidence": "review found incomplete production boundaries for auth, data scope, signed URL and query parameter limit"
     }
   ],
   "knowledgeReferences": [
@@ -167,11 +270,11 @@
   ],
   "knowledgeOutputs": [
     {
-      "id": "PITFALL-REVIEW-001",
-      "type": "pitfall",
-      "title": "release gate 通过不能替代逐项异常验收 review",
+      "id": "GUIDELINE-SECURITY-001",
+      "type": "guideline",
+      "title": "认证上下文透传必须有可信来源证明",
       "action": "suggested",
-      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+      "target": "docs/knowledge/guidelines/GUIDELINE-SECURITY-001.md"
     },
     {
       "id": "GUIDELINE-EVIDENCE-001",
@@ -181,11 +284,21 @@
       "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
     },
     {
-      "id": "GUIDELINE-CONTRACT-RESPONSE-001",
-      "type": "guideline",
-      "title": "API 测试必须断言 OpenAPI 中的关键响应字段而非只断言状态码/taskId",
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常和安全验收 review",
       "action": "suggested",
-      "target": "docs/knowledge/guidelines/GUIDELINE-CONTRACT-RESPONSE-001.md"
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
     }
+  ],
+  "visualEvidence": {
+    "reference": null,
+    "screenshot": null,
+    "parityReport": null,
+    "reason": "not a UI task"
+  },
+  "remainingRisks": [
+    "Review 产物列出的 P0/P1 findings 未在本任务内修复；后续应拆分进入 repair 队列。",
+    "本任务验证命令不重复执行完整 docker/mock release gate；完整 release evidence 以 docs/testing/verify-matrix.md 中 RELEASE-001 为准。"
   ]
 }
