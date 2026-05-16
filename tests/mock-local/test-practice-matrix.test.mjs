@@ -93,11 +93,18 @@ const practiceMappings = [
     script: "release:local-rehearsal",
     tasks: ["LOCAL-RELEASE-REHEARSAL-001"],
     boundary: /不能替代 `RELEASE-001` docker\/mock release gate/u
+  },
+  {
+    label: "本地 demo",
+    script: "demo:local",
+    tasks: ["LOCAL-DEMO-001"],
+    boundary: /不是 release evidence/u
   }
 ];
 
 test("test practice matrix task owns the drift guard", () => {
   const matrixTask = findTask("TEST-PRACTICE-MATRIX-001");
+  const localDemoTask = findTask("LOCAL-DEMO-001");
   const releaseTask = findTask("RELEASE-001");
 
   assert.equal(matrixTask.passes, true);
@@ -111,6 +118,7 @@ test("test practice matrix task owns the drift guard", () => {
     releaseTask.dependencies.includes("TEST-PRACTICE-MATRIX-001"),
     "release must depend on the test practice mapping task"
   );
+  assert.match(localDemoTask.test_command, /npm run demo:local:smoke/u);
 });
 
 test("each critical test script has a task owner and documented evidence boundary", () => {
@@ -176,6 +184,12 @@ function assertTaskMentionsScript(task, script) {
 
   if (script === "test:object-storage-live" && task.id === "LOCAL-RELEASE-REHEARSAL-001") {
     assert.match(taskText, /object-storage/u);
+    return;
+  }
+
+  if (script === "demo:local") {
+    assert.match(taskText, /demo:local/u);
+    assert.match(taskText, /demo:local:smoke/u);
     return;
   }
 

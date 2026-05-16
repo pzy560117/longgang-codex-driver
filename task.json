@@ -1156,6 +1156,83 @@
                                      ]
                   },
                   {
+                      "id":  "LOCAL-DEMO-001",
+                      "description":  "提供本机 demo 启动入口、seed 数据和 runbook，明确其只作为本地演示证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "local-demo",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  89.6,
+                      "dependencies":  [
+                                           "LOCAL-RELEASE-REHEARSAL-001"
+                                       ],
+                      "passes":  true,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "local demo 必须启动真实 HTTP server、连接本机 Docker MySQL，并使用本地 object storage mock",
+                                                       "local demo 只能产出 local demo / local smoke evidence，不能替代 LOCAL-RELEASE-REHEARSAL-001 或 RELEASE-001",
+                                                       "demo seed 必须拒绝非本机 MySQL URL，避免污染外部数据库"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 demo:local 或 demo:local:smoke 写成 release evidence",
+                                                        "禁止用 demo:local:smoke 替代 API / DB / worker / query / file / sample 全链路验证",
+                                                        "禁止把本地 Docker MySQL 写成外部生产 MySQL 证据",
+                                                        "禁止把本地 object storage mock 写成 live OSS/S3 证据"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md",
+                                            "docs/testing/mock-first-release-plan.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "package.json",
+                                          "scripts/local-demo.ps1",
+                                          "scripts/local-demo-setup.mjs",
+                                          "docs/testing/local-demo-runbook.md",
+                                          "docs/testing/mock-first-release-plan.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "tests/mock-local/local-demo-runbook.test.mjs",
+                                          "task.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-007",
+                                              "FR-009",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "scripts/local-demo.ps1",
+                                                 "scripts/local-demo-setup.mjs",
+                                                 "docs/testing/local-demo-runbook.md",
+                                                 "tests/mock-local/local-demo-runbook.test.mjs"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "提供 demo:local 和 demo:local:smoke package scripts，启动本机 Docker MySQL、本地 object storage mock、migration、seed 和 HTTP server",
+                                    "提供 local-demo runbook，包含健康检查、创建导出任务和查询任务历史示例",
+                                    "把 local demo 证据边界同步到 verify-matrix 和 mock-first-release-plan，明确不是 release evidence"
+                                ],
+                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run demo:local:smoke; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts/local-demo.ps1 scripts/local-demo-setup.mjs docs/testing/local-demo-runbook.md docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md tests/mock-local/local-demo-runbook.test.mjs tests/mock-local/test-practice-matrix.test.mjs",
+                      "acceptance":  [
+                                         "demo:local 可作为人工演示入口，demo:local:smoke 可自动启动服务并验证 GET /health 后退出",
+                                         "local-demo-setup.mjs 自动 migration、注册 purchase-order-export 样板并 seed 本机测试数据，同时拒绝非本机 MySQL URL",
+                                         "local demo 结论只作为本机演示和 smoke evidence，不替代 LOCAL-RELEASE-REHEARSAL-001 或 RELEASE-001"
+                                     ]
+                  },
+                  {
                       "id":  "TEST-PRACTICE-MATRIX-001",
                       "description":  "补齐测试实践到 task 的显式映射，防止 test 脚本、任务 test_command 和验证矩阵漂移",
                       "task_kind":  "feature_impl",
@@ -1169,7 +1246,8 @@
                                                  ],
                       "priority":  89.7,
                       "dependencies":  [
-                                           "LOCAL-RELEASE-REHEARSAL-001"
+                                           "LOCAL-RELEASE-REHEARSAL-001",
+                                           "LOCAL-DEMO-001"
                                        ],
                       "passes":  true,
                       "architecture_constraints":  [

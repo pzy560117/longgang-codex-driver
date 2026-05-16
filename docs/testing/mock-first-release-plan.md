@@ -11,6 +11,7 @@
 - `MOCK-FIRST-001` 已完成，mock-first 当前阶段只保留 local/dev evidence 结论，不再继续推动 release 自动队列。
 - `MOCK-INTEGRATION-001` 是 mock-first 后续的本地联调验收任务，用于补齐 FR-001 至 FR-014 的主流程、失败态和证据归档，不产出 release evidence。
 - `LOCAL-RELEASE-REHEARSAL-001` 是 release 前的 mock/local rehearsal evidence 任务，用本地 MySQL 与本地 object storage mock 先压通 API / DB / worker / query / file / sample 集成命令。
+- `LOCAL-DEMO-001` 是本机演示入口任务，用 `demo:local` / `demo:local:smoke` 启动 Docker MySQL、本地 object storage mock、migration、seed 和 HTTP server；它只产出 local demo / local smoke evidence，不是 release evidence。
 - `RELEASE-001` 已通过 docker/mock release gate。
 - `RELEASE-001` 当前不再挂起于外部哨兵 `REAL-RELEASE-ENV-READY`；release gate 口径已切换为本机受控验证，优先使用本机 Docker MySQL 与本地 object storage mock 进行可执行验证。
 - 已通过的基础 gate 包括 `npm audit`、`npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`Redocly OpenAPI lint`。
@@ -23,6 +24,7 @@
 - `MOCK-INTEGRATION-001` 依赖 `MOCK-FIRST-001`，是 release 前的本地验收归档任务；driver 应先执行它，再考虑 `RELEASE-001`。
 - `LOCAL-RELEASE-REHEARSAL-001` 依赖 `MOCK-INTEGRATION-001`，用于在不接正式 live 依赖的前提下，通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，提前暴露 API / DB / worker / query / file / sample 集成问题。
 - `LOCAL-RELEASE-REHEARSAL-001` 不能作为 `RELEASE-001 PASS` 证据，也不能替代 `RELEASE-001` 的 docker/mock release gate。
+- `LOCAL-DEMO-001` 依赖 `LOCAL-RELEASE-REHEARSAL-001`，用于提供人工演示和低门槛 smoke；`demo:local:smoke` 只验证服务可启动与 `GET /health`，不能替代 rehearsal 或 release gate。
 - `RELEASE-001` 的受控 release gate 现在以本机 Docker MySQL + 本地 object storage mock 为默认验证边界；它只证明本机受控 release 验证可执行，不等于外部生产或 live OSS。
 - 在本机 Docker MySQL 与本地 object storage mock 未准备好前，driver / stop hook / continuation gate 都不应把 `RELEASE-001` 当作当前 runnable task。
 
@@ -49,6 +51,20 @@
 | object storage | 默认本地 mock；显式 env 覆盖只限 local rehearsal；`release-verify.ps1` 会启动本地 object storage mock 并允许 smoke writes | 本地 object storage mock 是当前 docker/mock release gate 的对象存储边界；live OSS/S3 属于后续外部生产验证，不是当前完成条件。 |
 
 若本地 MySQL 或本地 object storage mock 未准备好，`LOCAL-RELEASE-REHEARSAL-001` 必须输出 `BLOCKED - 需要人工介入`，不得把缺失环境写成通过。该任务即使通过，也只能作为 mock/local rehearsal evidence，不能推动 `RELEASE-001` 退出 `BLOCKED`。
+
+## LOCAL-DEMO-001 本机演示边界
+
+本任务状态: passed / local demo evidence。
+
+`npm run demo:local` 用于人工演示统一导出平台 HTTP 服务；`npm run demo:local:smoke` 用同一套本机 Docker MySQL、本地 object storage mock、migration 和 seed 流程启动服务，调用 `GET /health` 后退出。该任务只证明本机演示入口、runbook 示例和基础 smoke 可执行，不证明 API / DB / worker / query / file / sample 全链路通过。
+
+| 验收项 | 预期命令 | Release 边界 |
+| --- | --- | --- |
+| 本地 demo 入口 | `npm run demo:local` | 面向人工演示，会启动长驻 HTTP server；不进入自动 release gate。 |
+| 本地 demo smoke | `npm run demo:local:smoke` | 只验证本机依赖可自举、服务可启动与 `GET /health` 可访问；不是 release evidence。 |
+| demo seed | `node --import tsx scripts/local-demo-setup.mjs` | 只允许本机 MySQL URL，避免污染外部数据库；seed 数据不是生产初始化证据。 |
+
+`LOCAL-DEMO-001` 不能作为 `LOCAL-RELEASE-REHEARSAL-001` 或 `RELEASE-001` 的替代证据；本地 Docker MySQL 不能写成外部生产 MySQL 已验证，本地 object storage mock 不能写成 live OSS/S3 已验证。
 
 ## LOCAL-RELEASE-REHEARSAL-001 本地彩排结果
 
