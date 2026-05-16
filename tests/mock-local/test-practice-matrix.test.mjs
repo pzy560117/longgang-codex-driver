@@ -12,6 +12,10 @@ const verifyMatrix = readFileSync(
   new URL("../../docs/testing/verify-matrix.md", import.meta.url),
   "utf8"
 );
+const releaseVerifyScript = readFileSync(
+  new URL("../../scripts/release-verify.ps1", import.meta.url),
+  "utf8"
+);
 
 const practiceMappings = [
   {
@@ -149,6 +153,11 @@ test("release gate keeps docker mock evidence separate from external live valida
   assert.match(releaseRow, /本机 Docker MySQL \+ 本地 object storage mock/u);
   assert.match(releaseRow, /外部生产 MySQL 或 live OSS\/S3 不属于当前完成条件/u);
   assert.doesNotMatch(releaseRow, /已验证外部 live OSS\/S3/u);
+});
+
+test("release gate pins the current OpenAPI lint command", () => {
+  assert.match(releaseVerifyScript, /@redocly\/cli@2\.30\.6 lint contracts\/openapi\.yaml/u);
+  assert.match(verifyMatrix, /@redocly\/cli@2\.30\.6 lint contracts\/openapi\.yaml/u);
 });
 
 function findTask(taskId) {

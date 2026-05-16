@@ -179,7 +179,7 @@ contracts/
 
 ```powershell
 git diff --check -- contracts docs/testing/verify-matrix.md
-npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml
+npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml
 ```
 
 后续创建 Node 或契约测试工程后，应把 OpenAPI 校验固化为 package script，例如：

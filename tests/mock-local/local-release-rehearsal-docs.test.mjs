@@ -82,6 +82,9 @@ test("local release rehearsal does not auto-enable live object storage smoke wri
 
 test("release verify self-provisions docker MySQL and local object storage smoke", () => {
   assert.match(releaseVerify, /Ensure-DockerMysql/u);
+  assert.match(releaseVerify, /Ensure-DockerDaemon/u);
+  assert.match(releaseVerify, /docker info/u);
+  assert.match(releaseVerify, /Docker daemon is not reachable/u);
   assert.match(releaseVerify, /docker inspect \$ContainerName/u);
   assert.match(releaseVerify, /mysql:8\.4/u);
   assert.match(releaseVerify, /Start-LocalObjectStorage/u);

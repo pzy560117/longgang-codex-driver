@@ -23,11 +23,36 @@ $ObjectStorageErrorLog = $null
 function Invoke-Docker {
   param([string[]]$Arguments)
 
-  $output = & docker @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $output = & docker @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     throw "Docker command failed: docker $($Arguments -join ' ')`n$output"
   }
   return $output
+}
+
+function Ensure-DockerDaemon {
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $output = & docker info 2>&1
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
+    throw "BLOCKED - 需要人工介入: Docker daemon is not reachable. Start Docker Desktop, or set EXPORT_PLATFORM_TEST_DATABASE_URL to a reachable local/Docker MySQL before running release-verify.`n$output"
+  }
 }
 
 function Ensure-DockerMysql {
@@ -44,6 +69,8 @@ function Ensure-DockerMysql {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "BLOCKED - 需要人工介入: release-verify requires Docker when EXPORT_PLATFORM_TEST_DATABASE_URL is not set."
   }
+
+  Ensure-DockerDaemon
 
   & docker inspect $ContainerName *> $null
   if ($LASTEXITCODE -ne 0) {
@@ -152,7 +179,7 @@ try {
     "npm run typecheck",
     "npm run test:contract",
     "npm test",
-    "npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml",
+    "npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml",
     "npm run test:api",
     "npm run test:db",
     "npm run test:worker",

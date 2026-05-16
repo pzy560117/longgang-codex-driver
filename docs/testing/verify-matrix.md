@@ -29,7 +29,7 @@
 | 阶段 | 命令 / 证据 | 最低要求 |
 | --- | --- | --- |
 | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
-| 契约复核 | `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+| 契约复核 | `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
 | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
@@ -74,7 +74,7 @@
 | File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:file`，9/9 passed。 |
 | Sample 样板验证 | FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:sample`，9/9 passed，包含 0/1/20000/20001/100000/100001 行边界。 |
 | Docker/mock object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | PASS / docker-mock-release | `scripts/release-verify.ps1` 启动本地 object storage mock，设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE=true` 后执行 `npm run test:object-storage-live`，smoke passed。该项只声明 docker/mock release evidence，不声明外部 live OSS/S3 已验证。 |
-| 契约 / 基线校验 | FR-001 - FR-014 | 已执行通过 / 本轮前置门槛通过 | 2026-05-15 fresh run 已通过 `npx --yes @redocly/cli@1.34.5 lint contracts/openapi.yaml`；该项只能证明契约和前置校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+| 契约 / 基线校验 | FR-001 - FR-014 | 已执行通过 / 本轮前置门槛通过 | 当前 release gate 使用 `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml`；该项只能证明契约和前置校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
 
 > 结论：`RELEASE-001` 已通过 docker/mock release gate。2026-05-15 22:16 +08:00 前后执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`，脚本自举本机 Docker MySQL 与本地 object storage mock 后完整通过 audit、arch、typecheck、contract、base tests、OpenAPI lint、API、DB、worker、query、file、sample、object-storage smoke 和 scoped `git diff --check`。
 
