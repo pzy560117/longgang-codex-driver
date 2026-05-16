@@ -403,6 +403,9 @@ paths:
                       totalCount: 100000
                       processedCount: 20000
                       progressPercent: 20.0
+                      errorCode: null
+                      errorMessage: null
+                      recentEvents: []
                       fileFormat: ZIP
                       attemptNo: 1
                       requestId: req-20260513-0001
@@ -1239,6 +1242,35 @@ components:
         - REGISTRY_CONFLICT
         - ACTIVE_ATTEMPT_CONFLICT
         - INTERNAL_ERROR
+    NullableResponseCode:
+      type: string
+      nullable: true
+      enum:
+        - SUCCESS
+        - VALIDATION_ERROR
+        - AUTH_CONTEXT_MISSING
+        - PERMISSION_DENIED
+        - TASK_NOT_FOUND
+        - TASK_NOT_REGISTERED
+        - TASK_DISABLED
+        - QUERY_PARAMS_TOO_LARGE
+        - IDEMPOTENCY_CONFLICT
+        - INVALID_TASK_STATE
+        - FILE_EXPIRED
+        - FILE_NOT_READY
+        - FILE_VERIFY_ERROR
+        - FILE_CLEANUP_DELETE_ERROR
+        - QUERY_TEMPLATE_INVALID
+        - DATASOURCE_UNAVAILABLE
+        - QUERY_EXECUTION_ERROR
+        - FIELD_MAPPING_INVALID
+        - MASKING_RULE_ERROR
+        - EXPORT_RENDER_ERROR
+        - EXPORT_LIMIT_EXCEEDED
+        - REGISTRY_CONFLICT
+        - ACTIVE_ATTEMPT_CONFLICT
+        - INTERNAL_ERROR
+        - null
     TaskStatus:
       type: string
       description: Official public task status. Internal cancel flags are not valid values.
@@ -1363,6 +1395,9 @@ components:
         - totalCount
         - processedCount
         - progressPercent
+        - errorCode
+        - errorMessage
+        - recentEvents
         - attemptNo
         - requestId
         - requestDigest
@@ -1397,9 +1432,10 @@ components:
           type: integer
           minimum: 0
         errorCode:
-          $ref: "#/components/schemas/ResponseCode"
+          $ref: "#/components/schemas/NullableResponseCode"
         errorMessage:
           type: string
+          nullable: true
         failureStage:
           type: string
         lastSuccessStage:

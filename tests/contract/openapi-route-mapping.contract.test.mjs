@@ -35,6 +35,17 @@ function parseResponseCodeEnum() {
   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
 }
 
+function parseExportTaskDetailSchemaBlock() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/ExportTaskDetail:\s*\n([\s\S]*?)\n\s{4}ExportTaskPageEnvelope:/) ?? [];
+  return block;
+}
+
+function parseYamlListFromBlock(block, key) {
+  const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
+  return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
+}
+
 function sourceAuditLiterals() {
   const sources = [
     "src/task-api/service.ts",
@@ -126,4 +137,23 @@ test("cleanup failure audit errorCode is a public ResponseCode literal, not raw 
   const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
   assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
   assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+});
+
+test("task detail schema requires public progress, error, and recentEvents fields", () => {
+  const detailSchema = parseExportTaskDetailSchemaBlock();
+  const required = parseYamlListFromBlock(detailSchema, "required");
+
+  for (const field of [
+    "totalCount",
+    "processedCount",
+    "progressPercent",
+    "errorCode",
+    "errorMessage",
+    "recentEvents"
+  ]) {
+    assert.equal(required.has(field), true, `${field} must be required on ExportTaskDetail`);
+    assert.match(detailSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a property`);
+  }
+
+  assert.doesNotMatch(detailSchema, /\n\s{8}events:\n/);
 });

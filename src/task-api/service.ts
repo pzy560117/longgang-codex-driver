@@ -121,6 +121,14 @@ function readNonNegativeInteger(value: unknown): number | null {
   return Math.trunc(value);
 }
 
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  return value;
+}
+
 function clampProgressPercent(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -210,15 +218,42 @@ function resolveProgressPercent(input: {
   return 0;
 }
 
-function resolveTaskFailure(audits: AuditLogRecord[]): {
+function resolveTaskFailure(
+  audits: AuditLogRecord[],
+  events: TaskEventRecord[]
+): {
   errorCode: string | null;
   errorMessage: string | null;
 } {
-  const failedAudit = audits
-    .filter((audit) => audit.result === "FAILED")
-    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0];
+  const auditFailures = audits
+    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
+    .map((audit) => ({
+      occurredAt: audit.occurredAt,
+      errorCode: audit.errorCode,
+      errorMessage: responseCodeMessage(audit.errorCode)
+    }));
 
-  if (!failedAudit || failedAudit.errorCode === "SUCCESS") {
+  const eventFailures = events.flatMap((event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const errorCode = readNonEmptyString(checkpoint?.errorCode);
+    if (!errorCode || errorCode === "SUCCESS") {
+      return [];
+    }
+
+    return [
+      {
+        occurredAt: event.occurredAt,
+        errorCode,
+        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+      }
+    ];
+  });
+
+  const failedRecord = [...auditFailures, ...eventFailures].sort(
+    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
+  )[0];
+
+  if (!failedRecord) {
     return {
       errorCode: null,
       errorMessage: null
@@ -226,8 +261,8 @@ function resolveTaskFailure(audits: AuditLogRecord[]): {
   }
 
   return {
-    errorCode: failedAudit.errorCode,
-    errorMessage: responseCodeMessage(failedAudit.errorCode)
+    errorCode: failedRecord.errorCode,
+    errorMessage: failedRecord.errorMessage
   };
 }
 
@@ -634,7 +669,7 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
       totalCount
     });
     const failure = task.status === "FAILED"
-      ? resolveTaskFailure(audits)
+      ? resolveTaskFailure(audits, events)
       : { errorCode: null, errorMessage: null };
 
     await appendAudit({

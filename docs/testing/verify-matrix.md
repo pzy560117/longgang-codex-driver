@@ -28,6 +28,7 @@
 
 | Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
 | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 | FR-002 / AC-002 | repaired | `npm run test:api` 断言 PENDING 详情、带 checkpoint 详情、FAILED 详情均返回 OpenAPI 声明的 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，并禁止以未声明的 `events` 字段替代；FAILED 详情覆盖失败审计和带 `errorCode/errorMessage` 的最近任务事件兜底。`npm run test:contract` 守护 task detail schema required/properties 与公开契约一致 | local/Docker MySQL + contract；不声明外部 live MySQL |
 | AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
 | TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
 | CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
@@ -120,7 +121,7 @@
 | Req ID | 后续验证类型 | 当前状态 | 证据路径 |
 | --- | --- | --- | --- |
 | FR-001 | contract / API / DB | HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
-| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql；`TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` 补齐 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents` 的契约对齐证据 | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`npm run test:api`、`npm run test:contract` |
 | FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
 | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
 | FR-005 | DB / worker | DB lease repository and worker polling available / local-or-docker-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |

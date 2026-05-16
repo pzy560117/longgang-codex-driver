@@ -367,6 +367,23 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
 
   const taskId = createTaskResponse.json().data.taskId;
+  const pendingDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}`,
+    headers: createHeaders(`req-detail-pending-${runId}`)
+  });
+
+  assert.equal(pendingDetailResponse.statusCode, 200);
+  assert.equal(pendingDetailResponse.json().data.taskId, taskId);
+  assert.equal(pendingDetailResponse.json().data.status, "PENDING");
+  assert.equal(pendingDetailResponse.json().data.totalCount, 0);
+  assert.equal(pendingDetailResponse.json().data.processedCount, 0);
+  assert.equal(pendingDetailResponse.json().data.progressPercent, 0);
+  assert.equal(pendingDetailResponse.json().data.errorCode, null);
+  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
+  assert.deepEqual(pendingDetailResponse.json().data.recentEvents, []);
+  assert.equal("events" in pendingDetailResponse.json().data, false);
+
   const firstDetailNow = await getDatabaseTime(db);
 
   await checkpointRepository.saveCheckpoint({
@@ -554,6 +571,73 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
   assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
   assert.equal("events" in failedDetailResponse.json().data, false);
+
+  const eventOnlyFailedTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-event-failed-${runId}`),
+    payload: createTaskPayload(taskCode, "client-event-failed")
+  });
+
+  assert.equal(eventOnlyFailedTaskResponse.statusCode, 201);
+  const eventOnlyFailedTaskId = eventOnlyFailedTaskResponse.json().data.taskId;
+  const eventOnlyFailedAt = await getDatabaseTime(db);
+  await checkpointRepository.saveCheckpoint({
+    taskId: eventOnlyFailedTaskId,
+    attemptNo: 0,
+    lastCursor: "cursor-10",
+    processedCount: 10,
+    filePartNo: 1,
+    retryCount: 3,
+    batchSize: 500,
+    batchRowCount: 10,
+    backoffMs: 0,
+    now: eventOnlyFailedAt
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-only-failed-${runId}`,
+    taskId: eventOnlyFailedTaskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-event-failed-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-10",
+      processedCount: 10,
+      totalCount: 40,
+      errorCode: "DATASOURCE_UNAVAILABLE",
+      errorMessage: "datasource credentials unavailable"
+    }),
+    occurredAt: eventOnlyFailedAt,
+    now: eventOnlyFailedAt
+  });
+  await taskRepository.updateTaskStatus({
+    taskId: eventOnlyFailedTaskId,
+    status: "FAILED",
+    now: new Date(eventOnlyFailedAt.getTime() + 1)
+  });
+
+  const eventOnlyFailedDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${eventOnlyFailedTaskId}`,
+    headers: createHeaders(`req-detail-event-failed-${runId}`)
+  });
+
+  assert.equal(eventOnlyFailedDetailResponse.statusCode, 200);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.totalCount, 40);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.processedCount, 10);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.progressPercent, 25);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
+  assert.equal(
+    eventOnlyFailedDetailResponse.json().data.errorMessage,
+    "datasource credentials unavailable"
+  );
+  assert.equal(
+    eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
+    "QUERY_BATCH_DONE"
+  );
+  assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
 
   const ordinaryListResponse = await app.inject({
     method: "GET",
