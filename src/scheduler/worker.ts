@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
+import type { ReadonlyDatasourceAdapterProvider } from "../datasource-adapters/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import { createExportFileService } from "../file-service/index.ts";
 import { createQueryExecutorBatchProcessor } from "../query-executor/index.ts";
@@ -39,6 +40,7 @@ export type SchedulerBatchContext = {
   lease: ExportTaskLeaseRecord;
   checkpoint: CheckpointRecord | undefined;
   requestId: string;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
 };
 
 export type SchedulerBatchProcessor = (
@@ -52,6 +54,7 @@ export type SchedulerWorkerOptions = {
   maxTasksPerPoll?: number;
   maxQueryBatchRetries?: number;
   queryBatchBackoffBaseMs?: number;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
   batchProcessor?: SchedulerBatchProcessor;
   fileService?: {
     publishRows(input: {
@@ -136,14 +139,16 @@ async function queryDatabaseTime(db: Kysely<ExportPlatformDatabase>): Promise<Da
   return new Date(row.database_time);
 }
 
-const defaultBatchProcessor = createQueryExecutorBatchProcessor();
-
 export function createSchedulerWorker(options: SchedulerWorkerOptions) {
   const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
   const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
   const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 2;
   const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
-  const batchProcessor = options.batchProcessor ?? defaultBatchProcessor;
+  const batchProcessor =
+    options.batchProcessor ??
+    createQueryExecutorBatchProcessor({
+      datasourceAdapters: options.datasourceAdapters
+    });
 
   async function pollAndProcessOnce(): Promise<SchedulerPollResult> {
     const result: SchedulerPollResult = {
@@ -200,6 +205,7 @@ export function createSchedulerWorker(options: SchedulerWorkerOptions) {
         leaseDurationSeconds,
         maxQueryBatchRetries,
         queryBatchBackoffBaseMs,
+        datasourceAdapters: options.datasourceAdapters,
         batchProcessor,
         fileService: options.fileService
       });
@@ -401,6 +407,7 @@ async function processAcquiredLease(input: {
   leaseDurationSeconds: number;
   maxQueryBatchRetries: number;
   queryBatchBackoffBaseMs: number;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
   batchProcessor: SchedulerBatchProcessor;
   fileService?: SchedulerWorkerOptions["fileService"];
 }): Promise<Omit<SchedulerPollResult, "dispatched">> {
@@ -424,7 +431,8 @@ async function processAcquiredLease(input: {
         task: input.task,
         lease: input.lease,
         checkpoint,
-        requestId: input.requestId
+        requestId: input.requestId,
+        datasourceAdapters: input.datasourceAdapters
       });
     } catch (error) {
       if (

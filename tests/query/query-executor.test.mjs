@@ -13,7 +13,12 @@ import {
   createQueryExecutorBatchProcessor,
   mapDatasourceAdapterError
 } from "../../src/query-executor/index.ts";
+import { createMysqlReadonlyDatasourceAdapter } from "../../src/datasource-adapters/index.ts";
 import { buildValidatedRegistryUpsertInput } from "../../src/registry-config/contract.ts";
+
+function serialTest(name, fn) {
+  return test(name, { concurrency: false }, fn);
+}
 
 const invalidRegistrySeedCases = [
   {
@@ -104,7 +109,7 @@ function getTestDatabaseUrl() {
   return databaseUrl;
 }
 
-test("query tests require an explicit test database URL", () => {
+serialTest("query tests require an explicit test database URL", () => {
   const originalTestDatabaseUrl = process.env.EXPORT_PLATFORM_TEST_DATABASE_URL;
   const originalDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
 
@@ -172,6 +177,23 @@ async function createTestDatabase(t) {
   await db.deleteFrom("purchase_orders").execute();
 
   return db;
+}
+
+function createTestReadonlyDatasourceAdapterProvider() {
+  return {
+    async resolveReadonlyAdapter(datasourceCode) {
+      if (datasourceCode !== "purchase-ro") {
+        return undefined;
+      }
+      return createMysqlReadonlyDatasourceAdapter(getTestDatabaseUrl());
+    }
+  };
+}
+
+function createTestQueryExecutorBatchProcessor() {
+  return createQueryExecutorBatchProcessor({
+    datasourceAdapters: createTestReadonlyDatasourceAdapterProvider()
+  });
 }
 
 async function seedRegistry(db, overrides = {}) {
@@ -287,7 +309,7 @@ async function seedRegistry(db, overrides = {}) {
   return { taskCode, subsystemCode };
 }
 
-test("seed registry uses the same contract validation as production persistence and rejects empty bypass values", async (t) => {
+serialTest("seed registry uses the same contract validation as production persistence and rejects empty bypass values", async (t) => {
   const db = await createTestDatabase(t);
 
   for (const [index, invalidCase] of invalidRegistrySeedCases.entries()) {
@@ -396,7 +418,7 @@ async function seedPurchaseOrders(db, now) {
     .execute();
 }
 
-test("query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE", async (t) => {
+serialTest("query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db);
@@ -407,7 +429,7 @@ test("query executor binds template, enforces data scope, masks sensitive fields
     subsystemCode
   });
 
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
   const result = await processor({
     db,
     task: {
@@ -454,7 +476,219 @@ test("query executor binds template, enforces data scope, masks sensitive fields
   assert.equal(events[0].queryTemplateVersion, "v1");
 });
 
-test("query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows", async (t) => {
+serialTest("query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "adapter-boundary" });
+  const task = await seedTask(db, {
+    taskId: "exp-query-adapter-boundary",
+    taskCode,
+    subsystemCode
+  });
+  const adapterCalls = [];
+  const processor = createQueryExecutorBatchProcessor({
+    datasourceAdapters: {
+      async resolveReadonlyAdapter(datasourceCode) {
+        assert.equal(datasourceCode, "purchase-ro");
+        return {
+          async executeSelect(sqlText, values) {
+            adapterCalls.push({ sqlText, values });
+            return [
+              {
+                orderId: "adapter-order-001",
+                tenantId: "tenant-001",
+                orgId: "ORG-001",
+                operatorId: "u001",
+                roleCode: "EXPORT_USER",
+                orderNo: "PO-ADAPTER-001",
+                contactPhone: "13812345678"
+              }
+            ];
+          }
+        };
+      }
+    }
+  });
+
+  const result = await processor({
+    db,
+    task: {
+      ...task,
+      status: "EXECUTING",
+      lockOwner: "worker-query",
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now
+    },
+    lease: {
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      lockOwner: "worker-query",
+      previousLockOwner: null,
+      lockExpireAt: new Date(now.getTime() + 300000),
+      leaseRenewedAt: now,
+      databaseTime: now,
+      takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+    },
+    checkpoint: undefined,
+    requestId: "req-query-adapter-boundary"
+  });
+
+  assert.equal(result.outcome, "completed");
+  assert.equal(adapterCalls.length, 1);
+  assert.equal(result.rows[0]["Order ID"], "adapter-order-001");
+  assert.equal(result.rows[0]["Contact Phone"], "138****5678");
+});
+
+serialTest("query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "adapter-missing" });
+  const task = await seedTask(db, {
+    taskId: "exp-query-adapter-missing",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor({
+    datasourceAdapters: {
+      async resolveReadonlyAdapter() {
+        return undefined;
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-adapter-missing"
+      }),
+    (error) => {
+      assert.equal(error.name, "DATASOURCE_UNAVAILABLE");
+      assert.match(error.message, /^DATASOURCE_UNAVAILABLE: datasource unavailable$/);
+      return true;
+    }
+  );
+});
+
+serialTest("query executor maps provider failures to DATASOURCE_UNAVAILABLE without leaking adapter details", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "adapter-provider-throws" });
+  const task = await seedTask(db, {
+    taskId: "exp-query-adapter-provider-throws",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor({
+    datasourceAdapters: {
+      async resolveReadonlyAdapter() {
+        throw new RangeError("missing datasource credential password=secret");
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-adapter-provider-throws"
+      }),
+    (error) => {
+      assert.equal(error.name, "DATASOURCE_UNAVAILABLE");
+      assert.equal(error.message, "DATASOURCE_UNAVAILABLE: datasource unavailable");
+      assert.doesNotMatch(error.message, /password|secret|credential/i);
+      return true;
+    }
+  );
+});
+
+serialTest("query executor maps invalid datasource URL failures to DATASOURCE_UNAVAILABLE", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "adapter-invalid-url" });
+  const task = await seedTask(db, {
+    taskId: "exp-query-adapter-invalid-url",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor({
+    datasourceAdapters: {
+      async resolveReadonlyAdapter() {
+        return createMysqlReadonlyDatasourceAdapter("not-a-valid-mysql-url");
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-adapter-invalid-url"
+      }),
+    (error) => {
+      assert.equal(error.name, "DATASOURCE_UNAVAILABLE");
+      assert.equal(error.message, "DATASOURCE_UNAVAILABLE: datasource unavailable");
+      assert.doesNotMatch(error.message, /not-a-valid-mysql-url|Invalid URL/i);
+      return true;
+    }
+  );
+});
+
+serialTest("query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -515,7 +749,7 @@ test("query executor applies registry dataScopeTemplate with operatorId and role
     }
   });
 
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
   const result = await processor({
     db,
     task: {
@@ -555,7 +789,7 @@ test("query executor applies registry dataScopeTemplate with operatorId and role
   });
 });
 
-test("query executor rejects dataScopeTemplate parameters outside the auth scope contract", async (t) => {
+serialTest("query executor rejects dataScopeTemplate parameters outside the auth scope contract", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -568,7 +802,7 @@ test("query executor rejects dataScopeTemplate parameters outside the auth scope
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -598,7 +832,7 @@ test("query executor rejects dataScopeTemplate parameters outside the auth scope
   );
 });
 
-test("query executor rejects dataScopeTemplate missing required auth scope placeholders", async (t) => {
+serialTest("query executor rejects dataScopeTemplate missing required auth scope placeholders", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -611,7 +845,7 @@ test("query executor rejects dataScopeTemplate missing required auth scope place
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -641,7 +875,7 @@ test("query executor rejects dataScopeTemplate missing required auth scope place
   );
 });
 
-test("query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount", async (t) => {
+serialTest("query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
@@ -651,7 +885,7 @@ test("query executor rebuilds the completed export payload from prior checkpoint
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
   const context = {
     db,
     task: {
@@ -705,7 +939,7 @@ test("query executor rebuilds the completed export payload from prior checkpoint
   );
 });
 
-test("query executor replays the task config snapshot after the current registry changes", async (t) => {
+serialTest("query executor replays the task config snapshot after the current registry changes", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "snapshot-v1" });
@@ -745,7 +979,7 @@ test("query executor replays the task config snapshot after the current registry
     ]
   });
 
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
   const result = await processor({
     db,
     task: {
@@ -777,7 +1011,7 @@ test("query executor replays the task config snapshot after the current registry
   assert.equal(result.registry.configSnapshotDigest, "sha256:config-v1");
 });
 
-test("query executor accepts legacy string checkpoint cursors while producing structured cursor tokens", async (t) => {
+serialTest("query executor accepts legacy string checkpoint cursors while producing structured cursor tokens", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
@@ -787,7 +1021,7 @@ test("query executor accepts legacy string checkpoint cursors while producing st
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   const result = await processor({
     db,
@@ -830,7 +1064,7 @@ test("query executor accepts legacy string checkpoint cursors while producing st
   );
 });
 
-test("query executor rejects rows with missing or null cursor values", async (t) => {
+serialTest("query executor rejects rows with missing or null cursor values", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -848,7 +1082,7 @@ test("query executor rejects rows with missing or null cursor values", async (t)
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -878,7 +1112,7 @@ test("query executor rejects rows with missing or null cursor values", async (t)
   );
 });
 
-test("query executor rejects duplicate cursor values", async (t) => {
+serialTest("query executor rejects duplicate cursor values", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -896,7 +1130,7 @@ test("query executor rejects duplicate cursor values", async (t) => {
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -926,7 +1160,7 @@ test("query executor rejects duplicate cursor values", async (t) => {
   );
 });
 
-test("query executor rejects non-increasing cursor values without duplicates", async (t) => {
+serialTest("query executor rejects non-increasing cursor values without duplicates", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -944,7 +1178,7 @@ test("query executor rejects non-increasing cursor values without duplicates", a
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -974,7 +1208,7 @@ test("query executor rejects non-increasing cursor values without duplicates", a
   );
 });
 
-test("query executor rejects checkpoints missing required cursor fields", async (t) => {
+serialTest("query executor rejects checkpoints missing required cursor fields", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, { batchSize: 1 });
@@ -984,7 +1218,7 @@ test("query executor rejects checkpoints missing required cursor fields", async 
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -1029,7 +1263,7 @@ test("query executor rejects checkpoints missing required cursor fields", async 
   );
 });
 
-test("query executor rejects unsafe template forms and undeclared placeholders", async (t) => {
+serialTest("query executor rejects unsafe template forms and undeclared placeholders", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const unsafeTemplates = [
@@ -1060,7 +1294,7 @@ test("query executor rejects unsafe template forms and undeclared placeholders",
       taskCode,
       subsystemCode
     });
-    const processor = createQueryExecutorBatchProcessor();
+    const processor = createTestQueryExecutorBatchProcessor();
 
     await assert.rejects(
       () =>
@@ -1091,7 +1325,7 @@ test("query executor rejects unsafe template forms and undeclared placeholders",
   }
 });
 
-test("seed registry rejects missing masking rules for sensitive exportable fields before persistence", async (t) => {
+serialTest("seed registry rejects missing masking rules for sensitive exportable fields before persistence", async (t) => {
   const db = await createTestDatabase(t);
 
   await assert.rejects(
@@ -1104,7 +1338,7 @@ test("seed registry rejects missing masking rules for sensitive exportable field
   );
 });
 
-test("query executor rejects field mappings that do not match selected columns", async (t) => {
+serialTest("query executor rejects field mappings that do not match selected columns", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -1126,7 +1360,7 @@ test("query executor rejects field mappings that do not match selected columns",
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -1156,7 +1390,7 @@ test("query executor rejects field mappings that do not match selected columns",
   );
 });
 
-test("query executor enforces exportMaxRows before crossing registry limit", async (t) => {
+serialTest("query executor enforces exportMaxRows before crossing registry limit", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -1170,7 +1404,7 @@ test("query executor enforces exportMaxRows before crossing registry limit", asy
     taskCode,
     subsystemCode
   });
-  const processor = createQueryExecutorBatchProcessor();
+  const processor = createTestQueryExecutorBatchProcessor();
 
   await assert.rejects(
     () =>
@@ -1210,7 +1444,19 @@ test("query executor classifies datasource adapter and credential failures as DA
     "DATASOURCE_UNAVAILABLE"
   );
   assert.equal(
-    mapDatasourceAdapterError(Object.assign(new Error("bad field"), { code: "ER_BAD_FIELD_ERROR" })).name,
+    mapDatasourceAdapterError(new TypeError("Invalid URL: mysql://secret")).name,
+    "DATASOURCE_UNAVAILABLE"
+  );
+  assert.equal(
+    mapDatasourceAdapterError(new RangeError("missing password=secret")).message,
+    "DATASOURCE_UNAVAILABLE: datasource unavailable"
+  );
+  const queryError = mapDatasourceAdapterError(
+    Object.assign(new Error("bad field password=secret"), { code: "ER_BAD_FIELD_ERROR" })
+  );
+  assert.equal(
+    queryError.name,
     "QUERY_EXECUTION_ERROR"
   );
+  assert.equal(queryError.message, "QUERY_EXECUTION_ERROR: query execution failed");
 });

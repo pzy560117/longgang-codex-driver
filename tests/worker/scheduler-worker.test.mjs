@@ -13,6 +13,7 @@ import {
 } from "../../src/repositories/index.ts";
 import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
 import { createCleanupJob } from "../../src/cleanup-job/index.ts";
+import { createMysqlReadonlyDatasourceAdapter } from "../../src/datasource-adapters/index.ts";
 
 function serialTest(name, fn) {
   return test(name, { concurrency: false }, fn);
@@ -81,6 +82,17 @@ async function createTestDatabase(t) {
   await db.deleteFrom("export_registry_versions").execute();
   await db.deleteFrom("export_registries").execute();
   return db;
+}
+
+function createTestReadonlyDatasourceAdapterProvider() {
+  return {
+    async resolveReadonlyAdapter(datasourceCode) {
+      if (datasourceCode !== "purchase-ro") {
+        return undefined;
+      }
+      return createMysqlReadonlyDatasourceAdapter(getTestDatabaseUrl());
+    }
+  };
 }
 
 async function createWorkerPurchaseOrderTable(db) {
@@ -335,6 +347,7 @@ serialTest("default scheduler query processor enforces registry dataScopeTemplat
     workerId: "worker-query-scope",
     leaseDurationSeconds: 300,
     maxTasksPerPoll: 1,
+    datasourceAdapters: createTestReadonlyDatasourceAdapterProvider(),
     fileService: {
       async publishRows(input) {
         publishedRows = input.rows;
@@ -357,6 +370,93 @@ serialTest("default scheduler query processor enforces registry dataScopeTemplat
     }
   ]);
   assert.equal(JSON.parse(ready.batchCheckpoint).dataScopeExpression.operatorId, "u001");
+});
+
+serialTest("default scheduler query processor passes the datasource adapter boundary into query executor", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "worker-adapter-boundary",
+    queryTemplate: JSON.stringify({
+      queryTemplateVersion: "worker-adapter-v1",
+      templateText:
+        "SELECT order_id AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo FROM purchase_orders WHERE tenant_id = :tenantId",
+      allowedParameters: []
+    }),
+    fieldMappings: JSON.stringify([
+      {
+        fieldCode: "orderId",
+        headerName: "Order ID",
+        orderNo: 1,
+        sensitive: false,
+        exportable: true
+      },
+      {
+        fieldCode: "orderNo",
+        headerName: "Order No",
+        orderNo: 2,
+        sensitive: false,
+        exportable: true
+      }
+    ]),
+    maskingPolicy: JSON.stringify({ rules: {} }),
+    batchSize: 10
+  });
+  const registryAtCreate = await createExportRegistryRepository(db).findRegistryByTaskCode(taskCode);
+  const taskId = "exp-worker-adapter-boundary";
+  await seedTask(db, {
+    taskId,
+    taskCode,
+    subsystemCode,
+    configSnapshot: registryAtCreate,
+    configSnapshotDigest: registryAtCreate.configSnapshotDigest
+  });
+
+  const adapterCodes = [];
+  let publishedRows;
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-adapter-boundary",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    datasourceAdapters: {
+      async resolveReadonlyAdapter(datasourceCode) {
+        adapterCodes.push(datasourceCode);
+        return {
+          async executeSelect() {
+            return [
+              {
+                orderId: "worker-adapter-order-001",
+                tenantId: "tenant-001",
+                orgId: "ORG-001",
+                operatorId: "u001",
+                roleCode: "EXPORT_USER",
+                orderNo: "PO-WORKER-ADAPTER-001"
+              }
+            ];
+          }
+        };
+      }
+    },
+    fileService: {
+      async publishRows(input) {
+        publishedRows = input.rows;
+        return { storageKey: "exports/published/worker-adapter.xlsx" };
+      }
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+
+  assert.equal(result.completed, 1);
+  assert.equal(task.status, "COMPLETED");
+  assert.deepEqual(adapterCodes, ["purchase-ro"]);
+  assert.deepEqual(publishedRows, [
+    {
+      "Order ID": "worker-adapter-order-001",
+      "Order No": "PO-WORKER-ADAPTER-001"
+    }
+  ]);
 });
 
 serialTest("same worker resumes its own active lease while other workers still cannot acquire an unexpired lease", async (t) => {
@@ -1203,6 +1303,46 @@ serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after
     audits.some(
       (audit) =>
         audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+    )
+  );
+});
+
+serialTest("default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-ds-provider-down-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-datasource-provider-unavailable",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 0,
+    datasourceAdapters: {
+      async resolveReadonlyAdapter() {
+        throw new RangeError("missing datasource credential password=secret");
+      }
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(result.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) =>
+        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+    )
+  );
+  assert.ok(
+    !audits.some(
+      (audit) =>
+        audit.action === "EXECUTE_FAILED" &&
+        /password|secret|credential/i.test(JSON.stringify(audit))
     )
   );
 });

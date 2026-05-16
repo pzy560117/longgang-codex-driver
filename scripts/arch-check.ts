@@ -59,6 +59,7 @@ const productionScanRoots = [
   "src/scheduler/",
   "src/workers/",
   "src/query-executor/",
+  "src/datasource-adapters/",
   "src/file-service/",
   "src/cleanup-job/",
   "src/jobs/",

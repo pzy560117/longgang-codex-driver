@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { type Kysely } from "kysely";
-import { CompiledQuery } from "kysely";
+import {
+  createEnvReadonlyDatasourceAdapterProvider,
+  type ReadonlyDatasourceAdapter,
+  type ReadonlyDatasourceAdapterProvider
+} from "../datasource-adapters/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
   createExportRegistryRepository,
@@ -79,6 +83,10 @@ type QueryExecutorResult = SchedulerBatchResult & {
   registry: ExportRegistryRecord;
 };
 
+type QueryExecutorOptions = {
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
+};
+
 type DataScope = {
   tenantId: string;
   operatorId: string;
@@ -102,7 +110,10 @@ const unsafeKeywordPattern =
   /\b(insert|update|delete|drop|alter|truncate|create|replace|merge|grant|revoke|call|execute)\b/i;
 const placeholderPattern = /:([A-Za-z_][A-Za-z0-9_]*)/g;
 
-export function createQueryExecutorBatchProcessor() {
+export function createQueryExecutorBatchProcessor(options: QueryExecutorOptions = {}) {
+  const datasourceAdapters =
+    options.datasourceAdapters ?? createEnvReadonlyDatasourceAdapterProvider();
+
   return async function processQueryBatch(
     context: SchedulerBatchContext
   ): Promise<QueryExecutorResult> {
@@ -150,6 +161,10 @@ export function createQueryExecutorBatchProcessor() {
     const orderBy = parseOrderBy(registry.orderBy, cursorField);
     const scope = buildDataScope(authSnapshot);
     const dataScope = compileDataScopeTemplate(registry.dataScopeTemplate, scope);
+    const datasourceAdapter = await resolveReadonlyDatasourceAdapter(
+      datasourceAdapters,
+      registry.datasourceCode
+    );
     const cursorToken = decodeCursorToken(context.checkpoint?.lastCursor ?? null, orderBy);
     const compiled = compileQuery({
       template,
@@ -161,7 +176,7 @@ export function createQueryExecutorBatchProcessor() {
       limit: batchSize + 1
     });
 
-    const rawRows = await executeSelect(context.db, compiled.sqlText, compiled.values);
+    const rawRows = await executeSelect(datasourceAdapter, compiled.sqlText, compiled.values);
     const limitedRows = rawRows.slice(0, batchSize);
     validateCursorRows(limitedRows, orderBy, cursorToken);
     const mappedRows = mapRows({
@@ -195,6 +210,7 @@ export function createQueryExecutorBatchProcessor() {
       outcome === "completed" && (context.checkpoint?.processedCount ?? 0) > 0
         ? await collectCompletedRows({
             db: context.db,
+            datasourceAdapter,
             template,
             queryParams,
             dataScope,
@@ -493,15 +509,12 @@ function compileQuery(input: {
 }
 
 async function executeSelect(
-  db: Kysely<ExportPlatformDatabase>,
+  datasourceAdapter: ReadonlyDatasourceAdapter,
   sqlText: string,
   values: unknown[]
 ): Promise<Record<string, unknown>[]> {
   try {
-    const result = await db.executeQuery<Record<string, unknown>>(
-      CompiledQuery.raw(sqlText, values)
-    );
-    return result.rows as Record<string, unknown>[];
+    return await datasourceAdapter.executeSelect(sqlText, values);
   } catch (error) {
     throw mapDatasourceAdapterError(error);
   }
@@ -509,6 +522,7 @@ async function executeSelect(
 
 async function collectCompletedRows(input: {
   db: Kysely<ExportPlatformDatabase>;
+  datasourceAdapter: ReadonlyDatasourceAdapter;
   template: QueryTemplate;
   queryParams: Record<string, unknown>;
   dataScope: CompiledDataScope;
@@ -532,7 +546,7 @@ async function collectCompletedRows(input: {
       orderBy: input.orderBy,
       limit: input.batchSize + 1
     });
-    const rawRows = await executeSelect(input.db, compiled.sqlText, compiled.values);
+    const rawRows = await executeSelect(input.datasourceAdapter, compiled.sqlText, compiled.values);
     const limitedRows = rawRows.slice(0, input.batchSize);
     validateCursorRows(limitedRows, input.orderBy, cursorToken);
 
@@ -565,6 +579,24 @@ async function collectCompletedRows(input: {
   }
 
   return rows;
+}
+
+async function resolveReadonlyDatasourceAdapter(
+  provider: ReadonlyDatasourceAdapterProvider,
+  datasourceCode: string
+): Promise<ReadonlyDatasourceAdapter> {
+  try {
+    const adapter = await provider.resolveReadonlyAdapter(datasourceCode);
+    if (!adapter) {
+      throw queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
+    }
+    return adapter;
+  } catch (error) {
+    if (error instanceof Error && error.name === "DATASOURCE_UNAVAILABLE") {
+      throw queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
+    }
+    throw queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
+  }
 }
 
 function mapRows(input: {
@@ -872,20 +904,23 @@ export function mapDatasourceAdapterError(error: unknown): Error {
       "ER_ACCESS_DENIED_ERROR",
       "ER_DBACCESS_DENIED_ERROR",
       "ER_ACCESS_DENIED_NO_PASSWORD_ERROR",
-      "ER_CON_COUNT_ERROR"
+      "ER_CON_COUNT_ERROR",
+      "ERR_INVALID_ARG_TYPE",
+      "ERR_INVALID_URL"
     ].includes(code)
   ) {
-    return queryError(
-      "DATASOURCE_UNAVAILABLE",
-      error instanceof Error ? error.message : "datasource unavailable"
-    );
+    return queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
   }
 
-  if (error instanceof Error && error.name !== "Error") {
-    return error;
+  if (error instanceof TypeError || error instanceof RangeError) {
+    return queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
   }
 
-  return queryExecutionError(error instanceof Error ? error.message : "query execution failed");
+  if (error instanceof Error && error.name === "DATASOURCE_UNAVAILABLE") {
+    return queryError("DATASOURCE_UNAVAILABLE", "datasource unavailable");
+  }
+
+  return queryExecutionError("query execution failed");
 }
 
 function readErrorCode(error: unknown): string {
