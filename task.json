@@ -2504,6 +2504,12 @@
                       "task_kind":  "feature_impl",
                       "phase":  "requirements-review-repair",
                       "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
                       "priority":  91,
                       "dependencies":  [
                                            "DATASOURCE-ADAPTER-BOUNDARY-001"
@@ -2568,6 +2574,12 @@
                       "task_kind":  "feature_impl",
                       "phase":  "requirements-review-repair",
                       "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
                       "priority":  91,
                       "dependencies":  [
                                            "HISTORY-PAGINATION-TOTAL-001"
@@ -2638,6 +2650,12 @@
                       "task_kind":  "feature_impl",
                       "phase":  "requirements-review-repair",
                       "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
                       "priority":  91,
                       "dependencies":  [
                                            "TASK-CANCEL-ATOMICITY-001"
@@ -2701,6 +2719,12 @@
                       "task_kind":  "feature_impl",
                       "phase":  "requirements-review-repair",
                       "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
                       "priority":  91,
                       "dependencies":  [
                                            "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
