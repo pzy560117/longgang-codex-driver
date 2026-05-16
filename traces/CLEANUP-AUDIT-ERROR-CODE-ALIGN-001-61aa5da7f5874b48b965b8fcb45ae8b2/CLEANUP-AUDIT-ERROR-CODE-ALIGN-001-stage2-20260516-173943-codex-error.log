@@ -2127,3 +2127,1818 @@ warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be repl
 [7m[0m  docs\reviews\requirements-complete-review.findings.json:144:}[0m
 
 
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path docs\\reviews\\requirements-complete-review.md -Pattern \"CLEANUP-AUDIT-ERROR-CODE|FILE_CLEANUP_DELETE_ERROR|resolved|closed|PASS\" -Context 2,3" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw docs\\reviews\\requirements-complete-review.findings.json" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show c764c1a -- docs/reviews/requirements-complete-review.md docs/reviews/requirements-complete-review.findings.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 399ms:
+
+  docs\reviews\requirements-complete-review.md:1:# Requirements Complete Review: REQUIREMENTS
+-COMPLETE-REVIEW-001
+  docs\reviews\requirements-complete-review.md:2:
+> docs\reviews\requirements-complete-review.md:3:Verdict: [7mPASS[0m_WITH_GAPS[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:4:[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:5:## Truth Source[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:6:[0m
+  docs\reviews\requirements-complete-review.md:21:## Summary
+  docs\reviews\requirements-complete-review.md:22:
+> docs\reviews\requirements-complete-review.md:23:本轮复审结论为 `[7mPASS[0m_WITH_GAPS`。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:24:[0m
+> docs\reviews\requirements-complete-review.md:25:原先六个 RCR findings 中，除 `[7mCLEANUP-AUDIT[0m
+[7m-ERROR-CODE[0m-001` 外，其余主漂移均已通过修复证据关闭：[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:26:[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:27:- 审计 action/result 主漂移已修：`src/task-[0m
+[7m[0mapi/service.ts`、`src/registry-config/service.ts` 使用 `FAILED`，registry 查询使用 `REGISTRY_[0m
+[7m[0mQUERY`；cleanup action 使用 `EXPIRE_MARK` / `CLEANUP_FAILED`。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:28:- 管理员历史全局查询已修：`src/task-api/ser[0m
+[7m[0mvice.ts:385-400` 管理员 list 不传 `tenantId`；`tests/api/export-http-api.test.mjs:419-443` 断[0m
+[7m[0m言跨租户管理员 list 可见、detail 仍 403。[0m
+  docs\reviews\requirements-complete-review.md:34:仍有一个 P1 gap：
+  docs\reviews\requirements-complete-review.md:35:
+> docs\reviews\requirements-complete-review.md:36:- `[7mCLEANUP-AUDIT-ERROR-CODE[0m-001`[0m
+> docs\reviews\requirements-complete-review.md:37:- cleanup 失败审计写入 `[7mFILE_CLEANUP_DELETE[0m
+[7m_ERROR[0m`，但 `contracts/openapi.yaml` 的 `ResponseCode` enum 不包含该值，而 `AuditEvent.errorC[0m
+[7m[0mode` 引用的是 `ResponseCode`。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:38:- 当前测试只断言 `CLEANUP_FAILED` + `FAILED[0m
+[7m[0m`，未断言 cleanup audit errorCode 落在公开契约枚举内。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:39:- 这会让 FR-010 / FR-011、AC-010 / AC-011 [0m
+[7m[0m的审计契约边界仍存在 P1 缺口，因此 release gate 不应声明 cleanup 失败路径完全契约一致。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:40:[0m
+  docs\reviews\requirements-complete-review.md:123:- Title: cleanup audit errorCode not fully
+ aligned with public contract
+  docs\reviews\requirements-complete-review.md:124:- Evidence:
+> docs\reviews\requirements-complete-review.md:125:  - `src/cleanup-job/index.ts:115-120` 的 
+cleanup 失败审计写入 `[7mFILE_CLEANUP_DELETE_ERROR[0m`。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:126:  - `contracts/openapi.yaml:1215-1240` 的 [0m
+[7m[0m`ResponseCode` enum 不包含该值。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:127:  - `contracts/openapi.yaml:1785-1832` 的 [0m
+[7m[0m`AuditEvent.errorCode` 引用 `ResponseCode`。[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:128:  - `tests/worker/scheduler-worker.test.mj[0m
+[7m[0ms:1178` 只断言 `CLEANUP_FAILED` + `FAILED`，没有断言 errorCode 属于 OpenAPI enum。[0m
+  docs\reviews\requirements-complete-review.md:129:- Risk: cleanup 失败路径的审计记录可能不符
+合公开审计契约，FR-010/FR-011、AC-010/AC-011 的证据边界仍存在 P1 缺口；release gate 不应把该
+路径声明为完全契约一致。
+> docs\reviews\requirements-complete-review.md:130:- Suggested next task id: `[7mCLEANUP-AUDIT-E[0m
+[7mRROR-CODE[0m-ALIGN-001`[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:131:[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:132:## Evidence Boundary[0m
+[7m[0m  docs\reviews\requirements-complete-review.md:133:[0m
+
+
+ succeeded in 411ms:
+{
+  "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+  "verdict": "PASS_WITH_GAPS",
+  "reviewedAt": "2026-05-16",
+  "truthSources": [
+    "docs/product/prd-lite.md",
+    "docs/product/acceptance-criteria.md",
+    "docs/product/requirement-interface-matrix.md",
+    "docs/product/state-matrix.yaml",
+    "docs/architecture/constraints.md"
+  ],
+  "findings": [
+    {
+      "id": "RCR-001",
+      "severity": "P1",
+      "title": "cleanup audit errorCode not fully aligned with public contract",
+      "evidence": [
+        "src/cleanup-job/index.ts:115-120",
+        "contracts/openapi.yaml:1215-1240",
+        "contracts/openapi.yaml:1785-1832",
+        "tests/worker/scheduler-worker.test.mjs:1178"
+      ],
+      "risk": "cleanup 失败路径的审计记录可能不符合公开审计契约，FR-010/FR-011、AC-010/AC-011 的证据边界仍存在 P1 缺口；release gate 不应把该路径声明为完全契约一致。",
+      "suggestedNextTaskId": "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
+    }
+  ],
+  "coverage": {
+    "requirements": [
+      { "id": "FR-001", "status": "covered" },
+      { "id": "FR-002", "status": "covered" },
+      { "id": "FR-003", "status": "covered" },
+      { "id": "FR-004", "status": "covered" },
+      { "id": "FR-005", "status": "covered" },
+      { "id": "FR-006", "status": "covered" },
+      { "id": "FR-007", "status": "covered" },
+      { "id": "FR-008", "status": "covered" },
+      { "id": "FR-009", "status": "covered" },
+      { "id": "FR-010", "status": "partially_covered" },
+      { "id": "FR-011", "status": "partially_covered" },
+      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-013", "status": "covered" },
+      { "id": "FR-014", "status": "covered" }
+    ],
+    "acceptance": [
+      { "id": "AC-001", "status": "covered" },
+      { "id": "AC-002", "status": "covered" },
+      { "id": "AC-003", "status": "covered" },
+      { "id": "AC-004", "status": "covered" },
+      { "id": "AC-005", "status": "covered" },
+      { "id": "AC-006", "status": "covered" },
+      { "id": "AC-007", "status": "covered" },
+      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-009", "status": "covered" },
+      { "id": "AC-010", "status": "partially_covered" },
+      { "id": "AC-011", "status": "partially_covered" },
+      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-013", "status": "covered" },
+      { "id": "AC-014", "status": "covered" },
+      { "id": "AC-015", "status": "covered" },
+      { "id": "AC-016", "status": "covered" },
+      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-018", "status": "covered" },
+      { "id": "AC-019", "status": "covered" },
+      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-021", "status": "covered" }
+    ],
+    "exceptions": [
+      { "id": "AC-E001", "status": "covered" },
+      { "id": "AC-E002", "status": "covered" },
+      { "id": "AC-E003", "status": "covered" },
+      { "id": "AC-E004", "status": "covered" },
+      { "id": "AC-E005", "status": "covered" },
+      { "id": "AC-E006", "status": "covered" },
+      { "id": "AC-E007", "status": "covered" },
+      { "id": "AC-E008", "status": "covered" },
+      { "id": "AC-E009", "status": "covered" },
+      { "id": "AC-E010", "status": "covered" },
+      { "id": "AC-E011", "status": "covered" },
+      { "id": "AC-E012", "status": "covered" },
+      { "id": "AC-E013", "status": "covered" },
+      { "id": "AC-E014", "status": "covered" },
+      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E016", "status": "covered" },
+      { "id": "AC-E017", "status": "covered" },
+      { "id": "AC-E018", "status": "covered" },
+      { "id": "AC-E019", "status": "covered" },
+      { "id": "AC-E020", "status": "covered" },
+      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E022", "status": "covered" },
+      { "id": "AC-E023", "status": "covered" },
+      { "id": "AC-E024", "status": "covered" },
+      { "id": "AC-E025", "status": "covered" },
+      { "id": "AC-E026", "status": "covered" },
+      { "id": "AC-E027", "status": "covered" }
+    ]
+  },
+  "evidenceBoundary": {
+    "releaseId": "RELEASE-001",
+    "type": "docker/mock release gate",
+    "notes": [
+      "RELEASE-001 已通过",
+      "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
+      "外部生产 MySQL 不属于当前完成条件",
+      "live OSS/S3 不属于当前完成条件"
+    ]
+  },
+  "knowledgeReferences": [
+    {
+      "id": "DECISION-HARNESS-001",
+      "title": "Harness 从执行闭环扩展为知识闭环",
+      "usedIn": "review 输出 knowledge references/outputs",
+      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md"
+    },
+    {
+      "id": "GUIDELINE-RULES-001",
+      "title": "规则必须短入口、深文档、可验证",
+      "usedIn": "review 以 truth source 和验证边界给出 findings",
+      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md"
+    }
+  ],
+  "knowledgeOutputs": [
+    {
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常验收 review",
+      "action": "suggested",
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+    },
+    {
+      "id": "GUIDELINE-EVIDENCE-001",
+      "type": "guideline",
+      "title": "mock/local/docker/live evidence 分层命名",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
+    },
+    {
+      "id": "GUIDELINE-AUDIT-CONTRACT-001",
+      "type": "guideline",
+      "title": "审计 errorCode 必须由契约枚举守护",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-AUDIT-CONTRACT-001.md"
+    }
+  ]
+}
+
+
+ succeeded in 436ms:
+commit c764c1ac6bb1041abbc5ba7b1c7a4a372b2d81e1
+Author: 潘宗友 <panzongyou@v380max.com>
+Date:   Sat May 16 17:28:16 2026 +0800
+
+    fix(contract): align cleanup audit error code
+
+diff --git a/docs/reviews/requirements-complete-review.findings.json b/docs/reviews/requirements-complete-review.findings.json
+index 0e2a16b..858f5f9 100644
+--- a/docs/reviews/requirements-complete-review.findings.json
++++ b/docs/reviews/requirements-complete-review.findings.json
+@@ -1,93 +1,27 @@
+ {
+   "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+-  "verdict": "FAIL",
++  "verdict": "PASS_WITH_GAPS",
+   "reviewedAt": "2026-05-16",
+   "truthSources": [
+     "docs/product/prd-lite.md",
+     "docs/product/acceptance-criteria.md",
+     "docs/product/requirement-interface-matrix.md",
+     "docs/product/state-matrix.yaml",
+-    "docs/architecture/constraints.md",
+-    "contracts/openapi.yaml",
+-    "docs/testing/verify-matrix.md",
+-    "task.json"
++    "docs/architecture/constraints.md"
+   ],
+   "findings": [
+     {
+       "id": "RCR-001",
+-      "severity": "P0",
+-      "title": "audit action/result/errorCode contract drift",
+-      "evidence": [
+-        "docs/product/prd-lite.md",
+-        "contracts/openapi.yaml",
+-        "src/task-api/service.ts",
+-        "src/registry-config/service.ts",
+-        "src/cleanup-job/index.ts",
+-        "tests/worker/scheduler-worker.test.mjs"
+-      ],
+-      "risk": "FR-010/AC-010 的审计契约无法稳定消费，公开契约与真实审计实现不一致，后续查询、归档和联调都会出现口径漂移。",
+-      "suggestedNextTaskId": "AUDIT-CONTRACT-ALIGN-001"
+-    },
+-    {
+-      "id": "RCR-002",
+-      "severity": "P0",
+-      "title": "admin global task history visibility missing",
+-      "evidence": [
+-        "docs/product/acceptance-criteria.md",
+-        "src/task-api/service.ts",
+-        "tests/api/export-http-api.test.mjs"
+-      ],
+-      "risk": "FR-004/AC-004 的管理员全局历史查询合同未实现，跨租户或全局运营场景会被错误过滤；如果产品实际只允许同租户全局，需要回写产品真相源收窄口径。",
+-      "suggestedNextTaskId": "TASK-HISTORY-ADMIN-SCOPE-001"
+-    },
+-    {
+-      "id": "RCR-003",
+-      "severity": "P0",
+-      "title": "config snapshot replay missing",
+-      "evidence": [
+-        "docs/product/acceptance-criteria.md",
+-        "src/task-api/service.ts",
+-        "src/query-executor/index.ts",
+-        "tests/query/query-executor.test.mjs"
+-      ],
+-      "risk": "FR-013/AC-016/AC-E024 的快照隔离无法证明，配置变更可能破坏已创建任务或失败重试的执行口径。",
+-      "suggestedNextTaskId": "CONFIG-SNAPSHOT-REPLAY-001"
+-    },
+-    {
+-      "id": "RCR-004",
+-      "severity": "P0",
+-      "title": "query batch retry policy missing",
+-      "evidence": [
+-        "docs/product/acceptance-criteria.md",
+-        "src/scheduler/worker.ts",
+-        "tests/query/query-executor.test.mjs"
+-      ],
+-      "risk": "短暂数据源/查询失败无法按产品口径重试，FR-008/FR-010/FR-013 的证据不足，批次级恢复能力不可验证。",
+-      "suggestedNextTaskId": "QUERY-BATCH-RETRY-001"
+-    },
+-    {
+-      "id": "RCR-005",
+-      "severity": "P0",
+-      "title": "datasource unavailable execution path missing",
+-      "evidence": [
+-        "contracts/openapi.yaml",
+-        "src/query-executor/index.ts",
+-        "tests/query/query-executor.test.mjs"
+-      ],
+-      "risk": "只读数据源或凭证不可用时无法按 AC-E012 收口，实际可能被误归类为 QUERY_EXECUTION_ERROR，影响 FR-008 的异常合同。",
+-      "suggestedNextTaskId": "DATASOURCE-ADAPTER-ERROR-001"
+-    },
+-    {
+-      "id": "RCR-006",
+       "severity": "P1",
+-      "title": "object storage upload/publish failure error mapping partial",
++      "title": "cleanup audit errorCode not fully aligned with public contract",
+       "evidence": [
+-        "docs/product/acceptance-criteria.md",
+-        "src/file-service/index.ts",
+-        "tests/file/export-file-service.test.mjs"
++        "src/cleanup-job/index.ts:115-120",
++        "contracts/openapi.yaml:1215-1240",
++        "contracts/openapi.yaml:1785-1832",
++        "tests/worker/scheduler-worker.test.mjs:1178"
+       ],
+-      "risk": "文件依赖失败错误码与验收口径不一致，外部调用方会收到不同于产品要求的错误分类。",
+-      "suggestedNextTaskId": "FILE-STORAGE-ERROR-MAPPING-001"
++      "risk": "cleanup 失败路径的审计记录可能不符合公开审计契约，FR-010/FR-011、AC-010/AC-011 的证据边界仍存在 P1 缺口；release gate 不应把该路径声明为完全契约一致。",
++      "suggestedNextTaskId": "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
+     }
+   ],
+   "coverage": {
+@@ -95,38 +29,38 @@
+       { "id": "FR-001", "status": "covered" },
+       { "id": "FR-002", "status": "covered" },
+       { "id": "FR-003", "status": "covered" },
+-      { "id": "FR-004", "status": "partially_covered" },
++      { "id": "FR-004", "status": "covered" },
+       { "id": "FR-005", "status": "covered" },
+       { "id": "FR-006", "status": "covered" },
+       { "id": "FR-007", "status": "covered" },
+-      { "id": "FR-008", "status": "partially_covered" },
+-      { "id": "FR-009", "status": "partially_covered" },
+-      { "id": "FR-010", "status": "gap" },
++      { "id": "FR-008", "status": "covered" },
++      { "id": "FR-009", "status": "covered" },
++      { "id": "FR-010", "status": "partially_covered" },
+       { "id": "FR-011", "status": "partially_covered" },
+       { "id": "FR-012", "status": "covered" },
+-      { "id": "FR-013", "status": "partially_covered" },
++      { "id": "FR-013", "status": "covered" },
+       { "id": "FR-014", "status": "covered" }
+     ],
+     "acceptance": [
+       { "id": "AC-001", "status": "covered" },
+       { "id": "AC-002", "status": "covered" },
+       { "id": "AC-003", "status": "covered" },
+-      { "id": "AC-004", "status": "gap" },
++      { "id": "AC-004", "status": "covered" },
+       { "id": "AC-005", "status": "covered" },
+       { "id": "AC-006", "status": "covered" },
+       { "id": "AC-007", "status": "covered" },
+       { "id": "AC-008", "status": "covered" },
+       { "id": "AC-009", "status": "covered" },
+-      { "id": "AC-010", "status": "gap" },
++      { "id": "AC-010", "status": "partially_covered" },
+       { "id": "AC-011", "status": "partially_covered" },
+       { "id": "AC-012", "status": "covered" },
+       { "id": "AC-013", "status": "covered" },
+       { "id": "AC-014", "status": "covered" },
+       { "id": "AC-015", "status": "covered" },
+-      { "id": "AC-016", "status": "gap" },
++      { "id": "AC-016", "status": "covered" },
+       { "id": "AC-017", "status": "covered" },
+       { "id": "AC-018", "status": "covered" },
+-      { "id": "AC-019", "status": "partially_covered" },
++      { "id": "AC-019", "status": "covered" },
+       { "id": "AC-020", "status": "covered" },
+       { "id": "AC-021", "status": "covered" }
+     ],
+@@ -134,55 +68,54 @@
+       { "id": "AC-E001", "status": "covered" },
+       { "id": "AC-E002", "status": "covered" },
+       { "id": "AC-E003", "status": "covered" },
+-      { "id": "AC-E004", "status": "gap" },
+-      { "id": "AC-E005", "status": "partially_covered" },
++      { "id": "AC-E004", "status": "covered" },
++      { "id": "AC-E005", "status": "covered" },
+       { "id": "AC-E006", "status": "covered" },
+       { "id": "AC-E007", "status": "covered" },
+       { "id": "AC-E008", "status": "covered" },
+       { "id": "AC-E009", "status": "covered" },
+       { "id": "AC-E010", "status": "covered" },
+       { "id": "AC-E011", "status": "covered" },
+-      { "id": "AC-E012", "status": "gap" },
+-      { "id": "AC-E013", "status": "partially_covered" },
++      { "id": "AC-E012", "status": "covered" },
++      { "id": "AC-E013", "status": "covered" },
+       { "id": "AC-E014", "status": "covered" },
+       { "id": "AC-E015", "status": "covered" },
+       { "id": "AC-E016", "status": "covered" },
+       { "id": "AC-E017", "status": "covered" },
+       { "id": "AC-E018", "status": "covered" },
+-      { "id": "AC-E019", "status": "partially_covered" },
+-      { "id": "AC-E020", "status": "gap" },
++      { "id": "AC-E019", "status": "covered" },
++      { "id": "AC-E020", "status": "covered" },
+       { "id": "AC-E021", "status": "covered" },
+-      { "id": "AC-E022", "status": "partially_covered" },
+-      { "id": "AC-E023", "status": "partially_covered" },
+-      { "id": "AC-E024", "status": "gap" },
+-      { "id": "AC-E025", "status": "partially_covered" },
+-      { "id": "AC-E026", "status": "partially_covered" },
+-      { "id": "AC-E027", "status": "partially_covered" }
++      { "id": "AC-E022", "status": "covered" },
++      { "id": "AC-E023", "status": "covered" },
++      { "id": "AC-E024", "status": "covered" },
++      { "id": "AC-E025", "status": "covered" },
++      { "id": "AC-E026", "status": "covered" },
++      { "id": "AC-E027", "status": "covered" }
+     ]
+   },
+   "evidenceBoundary": {
+     "releaseId": "RELEASE-001",
+     "type": "docker/mock release gate",
+     "notes": [
+-      "不得声明外部生产 MySQL 已验证",
+-      "不得声明 live OSS/S3 已验证",
+-      "当前 architecture constraints 中 live evidence 不是完成条件"
++      "RELEASE-001 已通过",
++      "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
++      "外部生产 MySQL 不属于当前完成条件",
++      "live OSS/S3 不属于当前完成条件"
+     ]
+   },
+   "knowledgeReferences": [
+     {
+       "id": "DECISION-HARNESS-001",
+-      "title": "release gate 与逐项异常验收分层",
+-      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md",
+-      "usedIn": "Review boundary",
+-      "note": "release gate 与逐项异常验收必须分层"
++      "title": "Harness 从执行闭环扩展为知识闭环",
++      "usedIn": "review 输出 knowledge references/outputs",
++      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md"
+     },
+     {
+       "id": "GUIDELINE-RULES-001",
+-      "title": "truth source、验证边界和 review 结论必须可追溯",
+-      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md",
+-      "usedIn": "Review boundary",
+-      "note": "truth source、验证边界和 review 结论必须可追溯"
++      "title": "规则必须短入口、深文档、可验证",
++      "usedIn": "review 以 truth source 和验证边界给出 findings",
++      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md"
+     }
+   ],
+   "knowledgeOutputs": [
+@@ -190,19 +123,22 @@
+       "id": "PITFALL-REVIEW-001",
+       "type": "pitfall",
+       "title": "release gate 通过不能替代逐项异常验收 review",
+-      "action": "draft",
+-      "draft": "release gate 通过不能替代逐项异常验收 review",
+-      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md",
+-      "pathOrTarget": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
++      "action": "suggested",
++      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+     },
+     {
+       "id": "GUIDELINE-EVIDENCE-001",
+       "type": "guideline",
+       "title": "mock/local/docker/live evidence 分层命名",
+-      "action": "draft",
+-      "draft": "mock/local/docker/live evidence 分层命名",
+-      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md",
+-      "pathOrTarget": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
++      "action": "suggested",
++      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
++    },
++    {
++      "id": "GUIDELINE-AUDIT-CONTRACT-001",
++      "type": "guideline",
++      "title": "审计 errorCode 必须由契约枚举守护",
++      "action": "suggested",
++      "target": "docs/knowledge/guidelines/GUIDELINE-AUDIT-CONTRACT-001.md"
+     }
+   ]
+ }
+diff --git a/docs/reviews/requirements-complete-review.md b/docs/reviews/requirements-complete-review.md
+index c1b6eb6..3cff9d4 100644
+--- a/docs/reviews/requirements-complete-review.md
++++ b/docs/reviews/requirements-complete-review.md
+@@ -1,180 +1,140 @@
+-# Requirements Complete Review: FEAT-EXPORT-PLATFORM-001
++# Requirements Complete Review: REQUIREMENTS-COMPLETE-REVIEW-001
+ 
+-Verdict: FAIL
++Verdict: PASS_WITH_GAPS
+ 
+ ## Truth Source
+ 
+-- `docs/product/*` 与 `docs/architecture/constraints.md` 是本次 review 的基准。
+-- 其中 `docs/product/prd-lite.md`、`docs/product/acceptance-criteria.md`、`docs/product/requirement-interface-matrix.md`、`docs/product/state-matrix.yaml` 定义产品口径、验收口径、接口映射和状态边界。
+-- `docs/architecture/constraints.md` 定义交付形态、API/worker/DB 边界、测试替身策略和禁止实现。
++- `docs/product/prd-lite.md`
++- `docs/product/acceptance-criteria.md`
++- `docs/product/requirement-interface-matrix.md`
++- `docs/product/state-matrix.yaml`
++- `docs/architecture/constraints.md`
+ 
+-## 总结
++## Evidence Source
+ 
+-当前实现对大部分 FR、AC 和异常验收已有证据，但存在 6 个 P0/P1 缺口，足以导致 Review 结论为 FAIL。
++- `contracts/openapi.yaml`
++- `src/`
++- `tests/`
++- `docs/testing/verify-matrix.md`
++- `task.json`
+ 
+-主要风险集中在：
++## Summary
+ 
+-- 审计 action/result/errorCode 契约漂移，公开契约与真实实现不一致。
+-- 历史查询管理员全局可见性与产品口径不一致。
+-- 任务配置快照只保存 digest，执行时仍依赖当前 registry，无法证明旧任务和失败重试沿用原配置快照。
+-- 查询批次重试策略缺失，短暂失败不能按验收要求进入批次重试成功或重试耗尽链路。
+-- `DATASOURCE_UNAVAILABLE` 的可执行路径缺失，契约有定义但实现与测试证据不足。
+-- 对象存储上传/发布失败的错误映射与验收不一致。
++本轮复审结论为 `PASS_WITH_GAPS`。
+ 
+-## FR 覆盖矩阵
++原先六个 RCR findings 中，除 `CLEANUP-AUDIT-ERROR-CODE-001` 外，其余主漂移均已通过修复证据关闭：
+ 
+-| FR ID | 状态 | 说明 |
++- 审计 action/result 主漂移已修：`src/task-api/service.ts`、`src/registry-config/service.ts` 使用 `FAILED`，registry 查询使用 `REGISTRY_QUERY`；cleanup action 使用 `EXPIRE_MARK` / `CLEANUP_FAILED`。
++- 管理员历史全局查询已修：`src/task-api/service.ts:385-400` 管理员 list 不传 `tenantId`；`tests/api/export-http-api.test.mjs:419-443` 断言跨租户管理员 list 可见、detail 仍 403。
++- 配置快照回放已修：`src/task-api/service.ts:320-356` 创建任务持久化完整 `configSnapshot`；`src/query-executor/index.ts:222-233` 优先使用 task requestPayload 中 snapshot；`tests/query/query-executor.test.mjs:406-476`、`tests/worker/scheduler-worker.test.mjs:515-600` 覆盖 registry 更新/禁用后旧任务仍按创建时快照执行。
++- 查询批次 retry 已修：`src/scheduler/worker.ts:428-455` 写入 `retryCount` / `backoffMs` 并续租；`src/scheduler/worker.ts:773-777` 将 `QUERY_EXECUTION_ERROR` / `DATASOURCE_UNAVAILABLE` 作为可重试批次错误；`tests/worker/scheduler-worker.test.mjs:750-790`、`:816-855`、`:982-1040` 覆盖短暂失败、backoff 和耗尽。
++- 数据源不可用已修：`src/query-executor/index.ts:780-795` 映射连接/凭证类错误为 `DATASOURCE_UNAVAILABLE`；`tests/query/query-executor.test.mjs:731-740` 和 `tests/worker/scheduler-worker.test.mjs:1044-1075` 覆盖 query/worker 收口。
++- 文件 put/publish 失败映射已修：`src/file-service/index.ts:78-105` 和 `:412-420` 将 put/read/publish 映射为 `FILE_VERIFY_ERROR`；`tests/file/export-file-service.test.mjs:510-558`、`:611-655` 覆盖不发布 metadata 与 worker audit `FILE_VERIFY_ERROR`。
++
++仍有一个 P1 gap：
++
++- `CLEANUP-AUDIT-ERROR-CODE-001`
++- cleanup 失败审计写入 `FILE_CLEANUP_DELETE_ERROR`，但 `contracts/openapi.yaml` 的 `ResponseCode` enum 不包含该值，而 `AuditEvent.errorCode` 引用的是 `ResponseCode`。
++- 当前测试只断言 `CLEANUP_FAILED` + `FAILED`，未断言 cleanup audit errorCode 落在公开契约枚举内。
++- 这会让 FR-010 / FR-011、AC-010 / AC-011 的审计契约边界仍存在 P1 缺口，因此 release gate 不应声明 cleanup 失败路径完全契约一致。
++
++## FR Coverage Matrix
++
++| FR ID | Status | Notes |
+ | --- | --- | --- |
+ | FR-001 | covered | 创建任务接口、PENDING 返回和幂等链路已有契约、服务和测试证据。 |
+ | FR-002 | covered | 任务详情/进度查询有 API、服务和测试映射。 |
+ | FR-003 | covered | 下载链路、签名 URL/stream 元信息和文件元数据证据已覆盖。 |
+-| FR-004 | partially_covered | 历史查询筛选维度和同租户权限边界有证据，但管理员全局可见性被 `tenantId` 固定过滤。 |
++| FR-004 | covered | 历史查询筛选维度、同租户权限边界和管理员全局可见性证据已修正。 |
+ | FR-005 | covered | 调度和 DB 锁边界已有 worker / repository / test 证据。 |
+ | FR-006 | covered | 分片、打包和样板批次链路已有证据。 |
+ | FR-007 | covered | 注册、启停和配置链路已有 API / service / repository 证据。 |
+-| FR-008 | partially_covered | 集中查询模板、字段映射和脱敏策略有实现与测试，但数据源不可用/批次重试的证据链不完整。 |
+-| FR-009 | partially_covered | 权限、脱敏和下载保护有覆盖，但审计 result contract drift 影响对外一致性。 |
+-| FR-010 | gap | 审计动作/结果/错误码契约漂移，导致公开审计契约不可稳定消费。 |
+-| FR-011 | partially_covered | cleanup 行为有实现证据，但审计 action/result/errorCode 漂移影响验收稳定性。 |
++| FR-008 | covered | 集中查询模板、字段映射、脱敏策略、数据源不可用与批次重试证据已补齐。 |
++| FR-009 | covered | 权限、脱敏和下载保护有覆盖，审计 result contract 已与实现收敛。 |
++| FR-010 | partially_covered | 审计主漂移已修，但 cleanup 失败路径的 errorCode 仍未与公开契约枚举完全对齐。 |
++| FR-011 | partially_covered | cleanup 行为链路已修正，但 cleanup 失败审计 errorCode 仍有契约缺口。 |
+ | FR-012 | covered | 取消与重试边界、非法状态错误和 worker 收口已有证据。 |
+-| FR-013 | partially_covered | 幂等、执行尝试和 DB 锁租约已有证据，但配置快照沿用只保存 digest，旧任务执行仍依赖当前 registry。 |
++| FR-013 | covered | 幂等、执行尝试和 DB 锁租约已有证据，配置快照回放也已修正。 |
+ | FR-014 | covered | 采购订单样板的集中查询合同、样板链路和压测边界已有证据。 |
+ 
+-## AC 覆盖矩阵
++## AC Coverage Matrix
+ 
+-| AC ID | 状态 | 说明 |
++| AC ID | Status | Notes |
+ | --- | --- | --- |
+ | AC-001 | covered | 创建任务 1 秒返回 taskId、PENDING 状态的证据齐备。 |
+ | AC-002 | covered | 任务状态、总数、已处理数、进度和错误信息可查询。 |
+ | AC-003 | covered | 下载响应、文件元信息和过期前下载保护有证据。 |
+-| AC-004 | gap | 历史分页筛选有证据，但管理员按权限查看全局未按产品口径落实。 |
++| AC-004 | covered | 历史分页筛选与管理员全局查询已按产品口径落实。 |
+ | AC-005 | covered | 同子系统并发控制有 scheduler / lease 证据。 |
+ | AC-006 | covered | 超阈值分片打包和空数据表头文件已覆盖。 |
+ | AC-007 | covered | 注册创建、更新、查询、启停和配置同步已有证据。 |
+ | AC-008 | covered | 集中查询模板、schema、字段映射、脱敏策略和数据源约束有证据。 |
+ | AC-009 | covered | 无权限创建或下载返回 403 并记录审计。 |
+-| AC-010 | gap | 审计日志契约 drift 导致创建、执行、失败、下载、取消、重试的追溯字段不稳定。 |
+-| AC-011 | partially_covered | 过期标记、不可下载和清理失败记录有链路，但结果口径仍受审计 drift 影响。 |
++| AC-010 | partially_covered | 审计日志契约主漂移已修，但 cleanup 失败路径 errorCode 仍未完全对齐。 |
++| AC-011 | partially_covered | 过期标记、不可下载和清理失败记录有链路，但 cleanup 失败审计 errorCode 仍有缺口。 |
+ | AC-012 | covered | PENDING 可取消、FAILED 可重试、EXECUTING 批次边界收口有证据。 |
+ | AC-013 | covered | taskId 串联幂等、执行尝试、锁租约和快照证据可追踪。 |
+ | AC-014 | covered | 幂等范围和参数摘要一致/冲突行为有证据。 |
+ | AC-015 | covered | attemptNo、lockOwner、lockExpireAt 和租约续租证据存在。 |
+-| AC-016 | gap | 当前任务只保存 `configSnapshotDigest`，执行时读取当前 registry 并做 digest 相等校验，无法证明旧任务和失败重试沿用原完整配置快照。 |
++| AC-016 | covered | 创建任务时持久化完整 configSnapshot，旧任务和失败重试沿用创建时快照。 |
+ | AC-017 | covered | 采购订单样板注册与查询条件、字段和格式契约已覆盖。 |
+ | AC-018 | covered | 0/1/20000/20001/100000/100001 边界证据已覆盖。 |
+-| AC-019 | partially_covered | 批次检查点、重试和失败上下文有证据，但批次重试耗尽与短暂失败成功链路不完整。 |
++| AC-019 | covered | 批次检查点、重试和失败上下文有证据，且短暂失败和耗尽链路已补齐。 |
+ | AC-020 | covered | 阶段事件链路可追踪。 |
+ | AC-021 | covered | 临时对象到已发布对象的交付模型和校验失败处置有证据。 |
+ 
+-## AC-E 覆盖矩阵
++## AC-E Coverage Matrix
+ 
+-| AC-E ID | 状态 | 说明 |
++| AC-E ID | Status | Notes |
+ | --- | --- | --- |
+ | AC-E001 | covered | 空数据生成仅表头文件。 |
+ | AC-E002 | covered | 未注册任务创建失败，不落无效任务。 |
+ | AC-E003 | covered | 任务禁用返回 `TASK_DISABLED`。 |
+-| AC-E004 | gap | 短暂失败后重试成功缺少明确 retry loop 证据，当前无法证明按批次重试策略完成。 |
+-| AC-E005 | partially_covered | object storage put/publish 错误被映射为 `EXPORT_RENDER_ERROR`，与验收要求的 `FILE_VERIFY_ERROR` 不一致。 |
++| AC-E004 | covered | 短暂失败后重试成功的批次 retry loop 已有实现和测试证据。 |
++| AC-E005 | covered | object storage put/publish 错误已映射为 `FILE_VERIFY_ERROR`。 |
+ | AC-E006 | covered | 权限不足返回 403。 |
+ | AC-E007 | covered | 文件过期返回 410 或等价失效结果。 |
+ | AC-E008 | covered | 多实例重复抢锁仅一个实例成功执行。 |
+ | AC-E009 | covered | 请求参数过长返回 400。 |
+ | AC-E010 | covered | 超大导出按配置拒绝或进入更严格控制流。 |
+ | AC-E011 | covered | 查询模板不存在或不合法收口为 `QUERY_TEMPLATE_INVALID`。 |
+-| AC-E012 | gap | `DATASOURCE_UNAVAILABLE` 仅有契约定义，缺少 src/tests 可执行路径。 |
+-| AC-E013 | partially_covered | 查询执行失败最终 FAILED / `QUERY_EXECUTION_ERROR` 有证据，但按批次重试策略处理的 retry loop 缺失，与 RCR-002 一致。 |
++| AC-E012 | covered | `DATASOURCE_UNAVAILABLE` 已有契约与可执行路径。 |
++| AC-E013 | covered | 查询执行失败的 retry loop 与耗尽路径已有证据。 |
+ | AC-E014 | covered | 字段映射不合法收口为 `FIELD_MAPPING_INVALID`。 |
+ | AC-E015 | covered | 非法或重复重试请求返回非法状态错误。 |
+ | AC-E016 | covered | 认证上下文缺少最小字段可返回权限/参数错误并记录 requestId。 |
+ | AC-E017 | covered | 文件校验值不匹配拒绝交付并进入失败处置链路。 |
+ | AC-E018 | covered | 幂等键冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+-| AC-E019 | partially_covered | 锁租约过期接管、attemptNo 延续和批次检查点有证据，但失败/重试/接管混合场景的完整链路仍有缺口。 |
+-| AC-E020 | gap | 查询批次重试耗尽无明确 retry loop 和耗尽测试路径。 |
++| AC-E019 | covered | 锁租约过期接管、attemptNo 延续和批次检查点有证据。 |
++| AC-E020 | covered | 查询批次重试耗尽已有明确 retry loop 和耗尽测试路径。 |
+ | AC-E021 | covered | 超过默认最大导出量的拒绝/更严格控制流有证据。 |
+-| AC-E022 | partially_covered | 采购订单样板敏感字段脱敏有覆盖，但审计 drift 影响证据稳定性。 |
+-| AC-E023 | partially_covered | 游标不稳定有查询层测试与契约证据，但批次/重试耗尽场景仍不完整。 |
+-| AC-E024 | gap | 快照冲突现在直接按当前 registry digest 不一致失败，缺少沿用创建时完整配置快照后的冲突判定证据。 |
+-| AC-E025 | partially_covered | 批次字段/顺序/脱敏校验有实现痕迹，但与重试和失败收口的证据不完全。 |
+-| AC-E026 | partially_covered | 文件发布前失败不会生成下载地址，但 put/publish 失败错误码映射为 `EXPORT_RENDER_ERROR`，与产品要求的 `FILE_VERIFY_ERROR` 不一致。 |
+-| AC-E027 | partially_covered | `EXPORT_RENDER_ERROR` 有实现映射，但缺少明确 XLSX/ZIP 渲染失败测试。 |
++| AC-E022 | covered | 采购订单样板敏感字段脱敏有覆盖。 |
++| AC-E023 | covered | 游标不稳定有查询层测试与契约证据。 |
++| AC-E024 | covered | 配置快照沿用创建时完整快照后的冲突判定证据已补齐。 |
++| AC-E025 | covered | 批次字段/顺序/脱敏校验有实现与失败收口证据。 |
++| AC-E026 | covered | 文件发布前失败不会生成下载地址，且错误码映射已与 `FILE_VERIFY_ERROR` 对齐。 |
++| AC-E027 | covered | `EXPORT_RENDER_ERROR` 有实现映射并配套渲染失败测试。 |
+ 
+ ## Findings
+ 
+ ### RCR-001
+ 
+-- Severity: P0
+-- Title: audit action/result/errorCode contract drift
+-- Evidence:
+-  - `docs/product/prd-lite.md` 要求审计动作至少覆盖 `EXPIRE_MARK`、`CLEANUP_FAILED`。
+-  - `contracts/openapi.yaml` 的 `AuditEvent.action` 枚举包含 `REGISTRY_QUERY`、`EXPIRE_MARK`、`CLEANUP_FAILED`，`result` 枚举为 `SUCCESS` / `FAILED` / `ACCEPTED`。
+-  - `src/task-api/service.ts` 与 `src/registry-config/service.ts` 在拒绝审计时写入 `FAILURE`。
+-  - `src/registry-config/service.ts` 使用 `REGISTRY_LIST`。
+-  - `src/cleanup-job/index.ts` 使用 `CLEANUP_DELETE` 与 `FILE_CLEANUP_DELETE_ERROR`。
+-  - `tests/worker/scheduler-worker.test.mjs` 断言 `CLEANUP_DELETE`。
+-- Risk: FR-010 / AC-010 的审计契约无法稳定消费，公开契约与真实审计实现不一致，后续查询、归档和联调都会出现口径漂移。
+-- Suggested next task id: `AUDIT-CONTRACT-ALIGN-001`
+-
+-### RCR-002
+-
+-- Severity: P0
+-- Title: admin global task history visibility missing
+-- Evidence:
+-  - `docs/product/acceptance-criteria.md` 的 `AC-004` 要求普通用户仅看本人任务，管理员按权限查看全局。
+-  - `src/task-api/service.ts:373-383` 的 `listExportTasks()` 固定传入 `tenantId: auth.tenantId`，管理员也无法跨租户查看全局。
+-  - `tests/api/export-http-api.test.mjs:412-423` 明确断言跨租户管理员查询不到其他租户任务。
+-- Risk: FR-004 / AC-004 的管理员全局历史查询合同未实现，跨租户或全局运营场景会被错误过滤；如果产品实际只允许同租户全局，需要回写产品真相源收窄口径。
+-- Suggested next task id: `TASK-HISTORY-ADMIN-SCOPE-001`
+-
+-### RCR-003
+-
+-- Severity: P0
+-- Title: config snapshot replay missing
+-- Evidence:
+-  - `docs/product/acceptance-criteria.md` 的 `AC-016` 要求配置变更只影响新创建任务，已创建任务和失败重试沿用原任务配置快照。
+-  - `src/task-api/service.ts` 创建任务时保存 `configSnapshotDigest`，但未持久化完整 registry/query/mapping/masking 快照。
+-  - `src/query-executor/index.ts:87-96` 执行时读取当前 registry，并在 digest 不一致时直接 `QUERY_TEMPLATE_INVALID`，这更像“发现配置变更后失败”，不是沿用原快照。
+-  - `tests/query/query-executor.test.mjs` 未覆盖“创建后 registry 更新，旧任务/失败重试仍按旧快照执行”的场景。
+-- Risk: FR-013 / AC-016 / AC-E024 的快照隔离无法证明，配置变更可能破坏已创建任务或失败重试的执行口径。
+-- Suggested next task id: `CONFIG-SNAPSHOT-REPLAY-001`
+-
+-### RCR-004
+-
+-- Severity: P0
+-- Title: query batch retry policy missing
+-- Evidence:
+-  - `docs/product/acceptance-criteria.md` 的 `AC-E004`、`AC-E020` 明确要求短暂失败重试成功和批次重试耗尽。
+-  - `src/scheduler/worker.ts` 的 `processAcquiredLease` 在 `catch` 中直接 `markTaskTerminal` 为 `FAILED` 并写 `EXECUTE_FAILED`。
+-  - `tests/query/query-executor.test.mjs` 只覆盖 `retryCount=0` 和错误直接 reject，没有短暂失败重试成功或重试耗尽测试。
+-- Risk: 短暂数据源/查询失败无法按产品口径重试，FR-008 / FR-010 / FR-013 的证据不足，批次级恢复能力不可验证。
+-- Suggested next task id: `QUERY-BATCH-RETRY-001`
+-
+-### RCR-005
+-
+-- Severity: P0
+-- Title: datasource unavailable execution path missing
+-- Evidence:
+-  - `contracts/openapi.yaml` 定义了 `DATASOURCE_UNAVAILABLE`。
+-  - `src/query-executor/index.ts` 没有 `DATASOURCE_UNAVAILABLE` 分支，仅记录 `datasourceCode` 并在 SQL 错误时走 `queryExecutionError`。
+-  - `tests/query/query-executor.test.mjs` 没有 `DATASOURCE_UNAVAILABLE` 场景。
+-- Risk: 只读数据源或凭证不可用时无法按 `AC-E012` 收口，实际可能被误归类为 `QUERY_EXECUTION_ERROR`，影响 FR-008 的异常合同。
+-- Suggested next task id: `DATASOURCE-ADAPTER-ERROR-001`
+-
+-### RCR-006
+-
+ - Severity: P1
+-- Title: object storage upload/publish failure error mapping partial
++- Title: cleanup audit errorCode not fully aligned with public contract
+ - Evidence:
+-  - `docs/product/acceptance-criteria.md` 的 `AC-E005` 要求 OSS 上传失败收口为 `FILE_VERIFY_ERROR`。
+-  - `src/file-service/index.ts` 将 `putObject` / `publishObject` 失败映射为 `EXPORT_RENDER_ERROR`，而 `read` / checksum 失败才映射为 `FILE_VERIFY_ERROR`。
+-  - `tests/file/export-file-service.test.mjs` 只覆盖 checksum `FILE_VERIFY_ERROR`，未覆盖 put/publish 失败映射。
+-- Risk: 文件依赖失败错误码与验收口径不一致，外部调用方会收到不同于产品要求的错误分类。
+-- Suggested next task id: `FILE-STORAGE-ERROR-MAPPING-001`
++  - `src/cleanup-job/index.ts:115-120` 的 cleanup 失败审计写入 `FILE_CLEANUP_DELETE_ERROR`。
++  - `contracts/openapi.yaml:1215-1240` 的 `ResponseCode` enum 不包含该值。
++  - `contracts/openapi.yaml:1785-1832` 的 `AuditEvent.errorCode` 引用 `ResponseCode`。
++  - `tests/worker/scheduler-worker.test.mjs:1178` 只断言 `CLEANUP_FAILED` + `FAILED`，没有断言 errorCode 属于 OpenAPI enum。
++- Risk: cleanup 失败路径的审计记录可能不符合公开审计契约，FR-010/FR-011、AC-010/AC-011 的证据边界仍存在 P1 缺口；release gate 不应把该路径声明为完全契约一致。
++- Suggested next task id: `CLEANUP-AUDIT-ERROR-CODE-ALIGN-001`
+ 
+ ## Evidence Boundary
+ 
+-- `RELEASE-001` 是 docker/mock release gate。
+-- 本次 review 不得声明外部生产 MySQL 或 live OSS/S3 已验证。
+-- `docs/architecture/constraints.md` 已明确当前 release gate 不要求 live evidence，外部 live 验证不属于本次完成条件。
++- `RELEASE-001` 是 docker/mock release gate，已通过。
++- `npm run test:mock-local` 是本任务 test_command 的 local/dev 守护，不替代 docker/mock release gate，也不证明 live。
++- 本次 review 不声明外部生产 MySQL 或 live OSS/S3 已验证。
++- `docs/architecture/constraints.md` 已明确当前 Definition of Done 不要求 live evidence。
+ 
+ ## Knowledge References
+ 
+@@ -183,10 +143,6 @@ Verdict: FAIL
+ 
+ ## Knowledge Outputs
+ 
+-- `PITFALL-REVIEW-001`: draft, “release gate 通过不能替代逐项异常验收 review”, target `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+-- `GUIDELINE-EVIDENCE-001`: draft, “mock/local/docker/live evidence 分层命名”, target `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+-
+-## Remaining Risks
+-
+-- 外部 live MySQL 和 live OSS/S3 不属于当前完成条件。
+-- 真实依赖验证需要另开任务，不能用当前 docker/mock release gate 直接替代。
++- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
++- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
++- `GUIDELINE-AUDIT-CONTRACT-001`: guideline - 审计 errorCode 必须由契约枚举守护 - suggested - `docs/knowledge/guidelines/GUIDELINE-AUDIT-CONTRACT-001.md`
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Select-String -Path task.json -Pattern "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001|architecture_constraints|forbidden_implementations|passes|test_command" -Context 2,8' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show ba5df87 -- task.json docs/testing/verify-matrix.md contracts/openapi.yaml src/cleanup-job/index.ts tests/contract/openapi-route-mapping.contract.test.mjs tests/worker/scheduler-worker.test.mjs | Select-String -Pattern "architecture_constraints|forbidden|FILE_CLEANUP_DELETE_ERROR|UnexpectedStorageVendorError|errorCode" -Context 1,2' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 386ms:
+
+  task.json:99:
+  task.json:100:                                       ],
+> task.json:101:                      "[7mpasses[0m":  true,[0m
+[7m[0m  task.json:102:                      "context_files":  [[0m
+[7m[0m  task.json:103:                                            "AGENTS.md",[0m
+[7m[0m  task.json:104:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:105:                                            "docs/product/requirement-interfa[0m
+[7m[0mce-matrix.md",[0m
+[7m[0m  task.json:106:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:107:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+[7m[0m  task.json:108:                                            "docs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:109:                                            "task.json"[0m
+  task.json:129:                                    "确认当前仓库不再保留旧内存实现、旧测试证
+据和旧 trace 作为完成依据",
+  task.json:130:                                    "复核 Architecture Constraints Packet 是
+否明确 independent_microservice、HTTP API、MySQL、worker、scheduled job、test double policy 
+和 forbidden implementations",
+> task.json:131:                                    "确认后续 feature_impl 任务都携带 [7marchite[0m
+[7mcture_constraints[0m、forbidden_implementations 和能验证生产形态的 test_command"[0m
+[7m[0m  task.json:132:                                ],[0m
+> task.json:133:                      "[7mtest_command[0m":  "git diff --check -- task.json docs/ar[0m
+[7m[0mchitecture/constraints.md docs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:134:                      "acceptance":  [[0m
+> task.json:135:                                         "task.json 已成为 fresh-start 队列，
+不依赖旧 [7mpasses[0m=true 状态",[0m
+[7m[0m  task.json:136:                                         "docs/testing/verify-matrix.md 明确[0m
+[7m[0m当前无实现证据",[0m
+[7m[0m  task.json:137:                                         "架构约束足以阻止 InMemory 或领域原[0m
+[7m[0m型冒充生产微服务实现"[0m
+[7m[0m  task.json:138:                                     ][0m
+[7m[0m  task.json:139:                  },[0m
+[7m[0m  task.json:140:                  {[0m
+[7m[0m  task.json:141:                      "id":  "STACK-ADR-001",[0m
+[7m[0m  task.json:142:                      "description":  "确定独立微服务技术栈、目录结构和架构检[0m
+[7m[0m查命令",[0m
+[7m[0m  task.json:143:                      "task_kind":  "feature_design",[0m
+  task.json:154:                                           "FRESH-INIT-001"
+  task.json:155:                                       ],
+> task.json:156:                      "[7mpasses[0m":  true,[0m
+[7m[0m  task.json:157:                      "context_files":  [[0m
+[7m[0m  task.json:158:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:159:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:160:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+[7m[0m  task.json:161:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:162:                                            "docs/testing/verify-matrix.md"[0m
+[7m[0m  task.json:163:                                        ],[0m
+[7m[0m  task.json:164:                      "owned_paths":  [[0m
+  task.json:187:                                    "把技术栈决策回写到 dev-plan、verify-matr
+ix 和后续任务的 owned_paths 约束"
+  task.json:188:                                ],
+> task.json:189:                      "[7mtest_command[0m":  "git diff --check -- docs/context plan[0m
+[7m[0ms docs/testing/verify-matrix.md task.json",[0m
+[7m[0m  task.json:190:                      "acceptance":  [[0m
+[7m[0m  task.json:191:                                         "技术栈和目录结构能支撑 independent_[0m
+[7m[0mmicroservice",[0m
+[7m[0m  task.json:192:                                         "后续任务不再使用笼统 src/ 或 tests/[0m
+[7m[0m 作为唯一 owned_paths",[0m
+[7m[0m  task.json:193:                                         "后续 feature_impl 的 arch:check 入[0m
+[7m[0m口已定义"[0m
+[7m[0m  task.json:194:                                     ][0m
+[7m[0m  task.json:195:                  },[0m
+[7m[0m  task.json:196:                  {[0m
+[7m[0m  task.json:197:                      "id":  "CONTRACT-REVIEW-001",[0m
+  task.json:210:                                           "STACK-ADR-001"
+  task.json:211:                                       ],
+> task.json:212:                      "[7mpasses[0m":  true,[0m
+[7m[0m  task.json:213:                      "context_files":  [[0m
+[7m[0m  task.json:214:                                            "contracts/README.md",[0m
+[7m[0m  task.json:215:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:216:                                            "docs/product/requirement-interfa[0m
+[7m[0mce-matrix.md",[0m
+[7m[0m  task.json:217:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:218:                                            "docs/testing/verify-matrix.md"[0m
+[7m[0m  task.json:219:                                        ],[0m
+[7m[0m  task.json:220:                      "owned_paths":  [[0m
+  task.json:247:                                    "定义契约 lint 或等价验证命令，不把契约存
+在本身视为实现完成"
+  task.json:248:                                ],
+> task.json:249:                      "[7mtest_command[0m":  "git diff --check -- contracts docs/te[0m
+[7m[0msting/verify-matrix.md",[0m
+[7m[0m  task.json:250:                      "acceptance":  [[0m
+[7m[0m  task.json:251:                                         "OpenAPI 可作为后续 HTTP handler 实[0m
+[7m[0m现输入",[0m
+[7m[0m  task.json:252:                                         "每个公开 operation 都有后续 handler[0m
+[7m[0m 和测试映射要求",[0m
+[7m[0m  task.json:253:                                         "契约验证命令已进入 verify-matrix"[0m
+[7m[0m  task.json:254:                                     ][0m
+[7m[0m  task.json:255:                  },[0m
+[7m[0m  task.json:256:                  {[0m
+[7m[0m  task.json:257:                      "id":  "SERVICE-SCAFFOLD-001",[0m
+  task.json:270:                                           "CONTRACT-REVIEW-001"
+  task.json:271:                                       ],
+> task.json:272:                      "[7mpasses[0m":  true,[0m
+> task.json:273:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:274:                                                       "delivery_shape=indepe[0m
+[7m[0mndent_microservice",[0m
+[7m[0m  task.json:275:                                                       "runtime=http_service+[0m
+[7m[0mworker+scheduled_job",[0m
+[7m[0m  task.json:276:                                                       "production entry 必须[0m
+[7m[0m包含 HTTP server、scheduler worker、cleanup job 或其明确占位",[0m
+[7m[0m  task.json:277:                                                       "feature_impl 必须提供[0m
+[7m[0m arch:check 或等价架构检查"[0m
+[7m[0m  task.json:278:                                                   ],[0m
+> task.json:279:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:280:                                                        "禁止只有 service cla[0m
+[7m[0mss 而没有 server entry 和 route/handler",[0m
+[7m[0m  task.json:281:                                                        "禁止生产入口引用 InM[0m
+[7m[0memory repository、mock 或 fixture",[0m
+[7m[0m  task.json:282:                                                        "禁止只运行 git diff [0m
+[7m[0m--check 声明实现完成"[0m
+[7m[0m  task.json:283:                                                    ],[0m
+[7m[0m  task.json:284:                      "context_files":  [[0m
+[7m[0m  task.json:285:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:286:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:287:                                            "plans/features/export-platform.d[0m
+[7m[0mev-plan.md",[0m
+  task.json:355:                                    "更新 verify-matrix，标记脚手架验证命令和
+后续 DB/API/worker blocked 项"
+  task.json:356:                                ],
+> task.json:357:                      "[7mtest_command[0m":  "npm run typecheck; if ($LASTEXITCODE [0m
+[7m[0m-ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITC[0m
+[7m[0mODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",[0m
+[7m[0m  task.json:358:                      "acceptance":  [[0m
+[7m[0m  task.json:359:                                         "服务可作为独立微服务启动或被测试启[0m
+[7m[0m动",[0m
+[7m[0m  task.json:360:                                         "arch:check 能阻止无生产入口或 InMem[0m
+[7m[0mory 生产引用",[0m
+[7m[0m  task.json:361:                                         "后续 DB、API、worker 任务有明确目录[0m
+[7m[0m和验证入口"[0m
+[7m[0m  task.json:362:                                     ][0m
+[7m[0m  task.json:363:                  },[0m
+[7m[0m  task.json:364:                  {[0m
+[7m[0m  task.json:365:                      "id":  "DB-SCHEMA-001",[0m
+  task.json:378:                                           "SERVICE-SCAFFOLD-001"
+  task.json:379:                                       ],
+> task.json:380:                      "[7mpasses[0m":  true,[0m
+> task.json:381:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:382:                                                       "生产路径使用 MySQL 或[0m
+[7m[0m等价关系型数据库",[0m
+[7m[0m  task.json:383:                                                       "任务、注册配置、锁租[0m
+[7m[0m约、批次检查点、文件元信息、审计日志必须有 schema/migration",[0m
+[7m[0m  task.json:384:                                                       "repository 生产路径不[0m
+[7m[0m得使用 InMemory"[0m
+[7m[0m  task.json:385:                                                   ],[0m
+> task.json:386:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:387:                                                        "禁止 InMemory reposi[0m
+[7m[0mtory 作为生产路径",[0m
+[7m[0m  task.json:388:                                                        "禁止没有 migration [0m
+[7m[0m就声明 DB 持久化完成",[0m
+[7m[0m  task.json:389:                                                        "禁止用本机时间替代数[0m
+[7m[0m据库时间判断锁租约"[0m
+[7m[0m  task.json:390:                                                    ],[0m
+[7m[0m  task.json:391:                      "context_files":  [[0m
+[7m[0m  task.json:392:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:393:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+[7m[0m  task.json:394:                                            "contracts/openapi.yaml",[0m
+  task.json:424:                                    "补齐 migration 与 repository 集成测试"
+  task.json:425:                                ],
+> task.json:426:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:db[0m
+[7m[0m\u0027,\u0027git diff --check\u0027)",[0m
+[7m[0m  task.json:427:                      "acceptance":  [[0m
+[7m[0m  task.json:428:                                         "schema 能覆盖 FR-001/005/007/010/01[0m
+[7m[0m3 的持久化证据",[0m
+[7m[0m  task.json:429:                                         "repository 测试使用真实 DB 或明确 B[0m
+[7m[0mLOCKED",[0m
+[7m[0m  task.json:430:                                         "生产路径不引用 InMemory repository"[0m
+[7m[0m  task.json:431:                                     ][0m
+[7m[0m  task.json:432:                  },[0m
+[7m[0m  task.json:433:                  {[0m
+[7m[0m  task.json:434:                      "id":  "TASK-API-HTTP-001",[0m
+  task.json:447:                                           "DB-SCHEMA-001"
+  task.json:448:                                       ],
+> task.json:449:                      "[7mpasses[0m":  true,[0m
+> task.json:450:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:451:                                                       "每个公开 operation 必[0m
+[7m[0m须有 route/handler、service、DB repository 和测试映射",[0m
+[7m[0m  task.json:452:                                                       "HTTP API 必须消费认证[0m
+[7m[0m上下文",[0m
+[7m[0m  task.json:453:                                                       "幂等、配置快照、权限[0m
+[7m[0m可见性和审计必须走生产持久化边界"[0m
+[7m[0m  task.json:454:                                                   ],[0m
+> task.json:455:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:456:                                                        "禁止只有 service cla[0m
+[7m[0mss 而没有 HTTP handler",[0m
+[7m[0m  task.json:457:                                                        "禁止用 mock reposito[0m
+[7m[0mry 作为 API 验收证据",[0m
+[7m[0m  task.json:458:                                                        "禁止对外暴露内部 can[0m
+[7m[0mcelRequested 状态"[0m
+[7m[0m  task.json:459:                                                    ],[0m
+[7m[0m  task.json:460:                      "context_files":  [[0m
+[7m[0m  task.json:461:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:462:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:463:                                            "docs/product/requirement-interfa[0m
+[7m[0mce-matrix.md",[0m
+  task.json:501:                                    "补齐 OpenAPI operation 到 handler 的契约
+测试和 API 集成测试"
+  task.json:502:                                ],
+> task.json:503:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:co[0m
+[7m[0mntract\u0027,\u0027npm run test:api\u0027,\u0027git diff --check\u0027)",[0m
+[7m[0m  task.json:504:                      "acceptance":  [[0m
+[7m[0m  task.json:505:                                         "FR-001/002/004/007/009/010/012/013 [0m
+[7m[0m有 HTTP 层证据",[0m
+[7m[0m  task.json:506:                                         "handler 与 OpenAPI operation 可追踪[0m
+[7m[0m",[0m
+[7m[0m  task.json:507:                                         "API 验收不依赖内存 repository"[0m
+[7m[0m  task.json:508:                                     ][0m
+[7m[0m  task.json:509:                  },[0m
+[7m[0m  task.json:510:                  {[0m
+[7m[0m  task.json:511:                      "id":  "SCHEDULER-WORKER-001",[0m
+  task.json:524:                                           "TASK-API-HTTP-001"
+  task.json:525:                                       ],
+> task.json:526:                      "[7mpasses[0m":  true,[0m
+> task.json:527:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:528:                                                       "调度方式为 MySQL 轮询[0m
+[7m[0m + DB 抢锁",[0m
+[7m[0m  task.json:529:                                                       "锁时间以数据库时间为[0m
+[7m[0m准",[0m
+[7m[0m  task.json:530:                                                       "租约过期接管延续当前 [0m
+[7m[0mattemptNo，FAILED 重试才递增 attemptNo"[0m
+[7m[0m  task.json:531:                                                   ],[0m
+> task.json:532:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:533:                                                        "禁止用内存锁替代 DB [0m
+[7m[0m租约",[0m
+[7m[0m  task.json:534:                                                        "禁止只有 scheduler c[0m
+[7m[0mlass 而没有 worker entry",[0m
+[7m[0m  task.json:535:                                                        "禁止没有并发抢锁测试[0m
+[7m[0m就声明调度完成"[0m
+[7m[0m  task.json:536:                                                    ],[0m
+[7m[0m  task.json:537:                      "context_files":  [[0m
+[7m[0m  task.json:538:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:539:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+[7m[0m  task.json:540:                                            "contracts/openapi.yaml",[0m
+  task.json:569:                                    "补齐多 worker 抢锁、租约过期、接管继续、
+非法重试和取消边界测试"
+  task.json:570:                                ],
+> task.json:571:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:wo[0m
+[7m[0mrker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",[0m
+[7m[0m  task.json:572:                      "acceptance":  [[0m
+[7m[0m  task.json:573:                                         "worker 生产入口存在且可验证",[0m
+[7m[0m  task.json:574:                                         "DB lease 行为覆盖 FR-005/012/013",[0m
+[7m[0m  task.json:575:                                         "审计证据能串联 taskId、attemptNo、r[0m
+[7m[0mequestId 和 batch checkpoint"[0m
+[7m[0m  task.json:576:                                     ][0m
+[7m[0m  task.json:577:                  },[0m
+[7m[0m  task.json:578:                  {[0m
+[7m[0m  task.json:579:                      "id":  "QUERY-FILE-SAMPLE-PLAN-001",[0m
+  task.json:592:                                           "SCHEDULER-WORKER-001"
+  task.json:593:                                       ],
+> task.json:594:                      "[7mpasses[0m":  true,[0m
+[7m[0m  task.json:595:                      "context_files":  [[0m
+[7m[0m  task.json:596:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:597:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:598:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+[7m[0m  task.json:599:                                            "docs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:600:                                            "task.json"[0m
+[7m[0m  task.json:601:                                        ],[0m
+[7m[0m  task.json:602:                      "owned_paths":  [[0m
+  task.json:623:                      "steps":  [
+  task.json:624:                                    "基于已验证的 API、DB 和 worker 边界拆分 
+query-executor、file-service、cleanup-job 和 sample-purchase-order 任务",
+> task.json:625:                                    "为每个后续 feature_impl 写入 [7marchitectur[0m
+[7me_constraints[0m、forbidden_implementations、owned_paths 和 test_command",[0m
+[7m[0m  task.json:626:                                    "确保后续任务能覆盖集中查询、字段映射、脱[0m
+[7m[0m敏、文件发布、清理和 10 万行样板证据"[0m
+[7m[0m  task.json:627:                                ],[0m
+> task.json:628:                      "[7mtest_command[0m":  "git diff --check -- task.json plans d[0m
+[7m[0mocs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:629:                      "acceptance":  [[0m
+[7m[0m  task.json:630:                                         "query/file/sample 不再与 API 或 sch[0m
+[7m[0meduler 混在一个大任务中",[0m
+[7m[0m  task.json:631:                                         "后续任务具备可验证生产路径",[0m
+[7m[0m  task.json:632:                                         "每个未实现需求都有明确 blocked 或 p[0m
+[7m[0mlanned 证据入口"[0m
+[7m[0m  task.json:633:                                     ][0m
+[7m[0m  task.json:634:                  },[0m
+[7m[0m  task.json:635:                  {[0m
+[7m[0m  task.json:636:                      "id":  "QUERY-EXECUTOR-001",[0m
+  task.json:651:                                           "SCHEDULER-WORKER-001"
+  task.json:652:                                       ],
+> task.json:653:                      "[7mpasses[0m":  true,[0m
+> task.json:654:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:655:                                                       "query executor 必须走[0m
+[7m[0m生产 DB repository 和认证上下文数据范围",[0m
+[7m[0m  task.json:656:                                                       "字段映射、脱敏、批次[0m
+[7m[0m检查点和失败审计必须可追踪到 taskId、attemptNo、requestId",[0m
+[7m[0m  task.json:657:                                                       "批次游标和进度必须写[0m
+[7m[0m入 MySQL，不得只保存在进程内存"[0m
+[7m[0m  task.json:658:                                                   ],[0m
+> task.json:659:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:660:                                                        "禁止用 fixture 或 ha[0m
+[7m[0mrd-coded result 作为 query 验收证据",[0m
+[7m[0m  task.json:661:                                                        "禁止绕过 registry co[0m
+[7m[0mnfig snapshot 执行查询",[0m
+[7m[0m  task.json:662:                                                        "禁止只新增 planned-t[0m
+[7m[0mest 占位脚本就声明完成"[0m
+[7m[0m  task.json:663:                                                    ],[0m
+[7m[0m  task.json:664:                      "context_files":  [[0m
+[7m[0m  task.json:665:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:666:                                            "docs/product/requirement-interfa[0m
+[7m[0mce-matrix.md",[0m
+[7m[0m  task.json:667:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+  task.json:697:                                    "补齐本机/Docker MySQL query 测试、worker
+ 串联测试和失败审计证据"
+  task.json:698:                                ],
+> task.json:699:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:qu[0m
+[7m[0mery\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check [0m
+[7m[0m-- task.json plans docs/testing/verify-matrix.md\u0027)",[0m
+[7m[0m  task.json:700:                      "acceptance":  [[0m
+[7m[0m  task.json:701:                                         "FR-006/008/009 的 query 生产路径有[0m
+[7m[0m本机/Docker MySQL 证据",[0m
+[7m[0m  task.json:702:                                         "字段映射、脱敏和数据范围不依赖测试[0m
+[7m[0m替身",[0m
+[7m[0m  task.json:703:                                         "批次 checkpoint 与 worker attemptNo[0m
+[7m[0m 可追踪"[0m
+[7m[0m  task.json:704:                                     ][0m
+[7m[0m  task.json:705:                  },[0m
+[7m[0m  task.json:706:                  {[0m
+[7m[0m  task.json:707:                      "id":  "FILE-SERVICE-001",[0m
+  task.json:720:                                           "QUERY-EXECUTOR-001"
+  task.json:721:                                       ],
+> task.json:722:                      "[7mpasses[0m":  true,[0m
+> task.json:723:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:724:                                                       "文件交付必须经过 temp[0m
+[7m[0mStorageKey、checksum、publishedStorageKey 和 deliveryReadyAt 状态边界",[0m
+[7m[0m  task.json:725:                                                       "下载元信息必须由 HTTP[0m
+[7m[0m API 读取生产 file metadata repository",[0m
+[7m[0m  task.json:726:                                                       "文件发布失败必须写入[0m
+[7m[0m审计和可重试失败原因"[0m
+[7m[0m  task.json:727:                                                   ],[0m
+> task.json:728:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:729:                                                        "禁止未发布对象可下载[0m
+[7m[0m",[0m
+[7m[0m  task.json:730:                                                        "禁止用本地假路径或内[0m
+[7m[0m存 buffer 伪装对象存储发布证据",[0m
+[7m[0m  task.json:731:                                                        "禁止 file service 兼[0m
+[7m[0m做 cleanup job 删除职责"[0m
+[7m[0m  task.json:732:                                                    ],[0m
+[7m[0m  task.json:733:                      "context_files":  [[0m
+[7m[0m  task.json:734:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:735:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:736:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+  task.json:765:                                    "补齐文件发布、未发布不可下载、checksum 
+失败和 API 下载元信息测试"
+  task.json:766:                                ],
+> task.json:767:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:fi[0m
+[7m[0mle\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- t[0m
+[7m[0mask.json plans docs/testing/verify-matrix.md\u0027)",[0m
+[7m[0m  task.json:768:                      "acceptance":  [[0m
+[7m[0m  task.json:769:                                         "FR-003/006/009 的 file 生产路径有证[0m
+[7m[0m据",[0m
+[7m[0m  task.json:770:                                         "下载只暴露已发布且有权限的文件元信[0m
+[7m[0m息",[0m
+[7m[0m  task.json:771:                                         "对象存储不可用时明确 BLOCKED，不用[0m
+[7m[0m替身冒充 release 证据"[0m
+[7m[0m  task.json:772:                                     ][0m
+[7m[0m  task.json:773:                  },[0m
+[7m[0m  task.json:774:                  {[0m
+[7m[0m  task.json:775:                      "id":  "CLEANUP-JOB-001",[0m
+  task.json:788:                                           "FILE-SERVICE-001"
+  task.json:789:                                       ],
+> task.json:790:                      "[7mpasses[0m":  true,[0m
+> task.json:791:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:792:                                                       "cleanup 必须作为 sche[0m
+[7m[0mduled job entry 运行",[0m
+[7m[0m  task.json:793:                                                       "过期文件必须先失效元[0m
+[7m[0m信息，再删除对象，并记录失败重试证据",[0m
+[7m[0m  task.json:794:                                                       "cleanup 状态必须持久[0m
+[7m[0m化到 MySQL 并可与 file metadata 和 audit 串联"[0m
+[7m[0m  task.json:795:                                                   ],[0m
+> task.json:796:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:797:                                                        "禁止只写 cleanup ser[0m
+[7m[0mvice 而没有 job entry",[0m
+[7m[0m  task.json:798:                                                        "禁止删除对象后才失效[0m
+[7m[0m元信息",[0m
+[7m[0m  task.json:799:                                                        "禁止吞掉对象删除失败[0m
+[7m[0m或不记录重试原因"[0m
+[7m[0m  task.json:800:                                                    ],[0m
+[7m[0m  task.json:801:                      "context_files":  [[0m
+[7m[0m  task.json:802:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:803:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:804:                                            "docs/context/architecture-brief.[0m
+[7m[0mmd",[0m
+  task.json:832:                                    "补齐 cleanup 正常删除、删除失败重试和元
+信息 guard 测试"
+  task.json:833:                                ],
+> task.json:834:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:fi[0m
+[7m[0mle\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -[0m
+[7m[0m- task.json plans docs/testing/verify-matrix.md\u0027)",[0m
+[7m[0m  task.json:835:                      "acceptance":  [[0m
+[7m[0m  task.json:836:                                         "FR-011 的 cleanup job 有生产入口和[0m
+[7m[0m持久化证据",[0m
+[7m[0m  task.json:837:                                         "过期清理遵守先失效后删除",[0m
+[7m[0m  task.json:838:                                         "删除失败可追踪且不会误标 release 完[0m
+[7m[0m成"[0m
+[7m[0m  task.json:839:                                     ][0m
+[7m[0m  task.json:840:                  },[0m
+[7m[0m  task.json:841:                  {[0m
+[7m[0m  task.json:842:                      "id":  "SAMPLE-PURCHASE-ORDER-001",[0m
+  task.json:857:                                           "CLEANUP-JOB-001"
+  task.json:858:                                       ],
+> task.json:859:                      "[7mpasses[0m":  true,[0m
+> task.json:860:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:861:                                                       "采购订单样板必须复用[0m
+[7m[0m标准 registry、query、file、audit 链路",[0m
+[7m[0m  task.json:862:                                                       "样板必须覆盖 0/1/2000[0m
+[7m[0m0/20001/100000/100001 行边界、脱敏和 ZIP 证据",[0m
+[7m[0m  task.json:863:                                                       "压测证据必须记录本机/[0m
+[7m[0mDocker MySQL、测试数据和对象存储边界的成功态和失败态"[0m
+[7m[0m  task.json:864:                                                   ],[0m
+> task.json:865:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:866:                                                        "禁止新增采购订单专用[0m
+[7m[0m外部接口绕过标准链路",[0m
+[7m[0m  task.json:867:                                                        "禁止用小数据 fixture[0m
+[7m[0m 代替 10 万行边界证据",[0m
+[7m[0m  task.json:868:                                                        "禁止本机/Docker MySQ[0m
+[7m[0mL 或对象存储边界不可用时伪造通过"[0m
+[7m[0m  task.json:869:                                                    ],[0m
+[7m[0m  task.json:870:                      "context_files":  [[0m
+[7m[0m  task.json:871:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:872:                                            "docs/product/acceptance-criteria[0m
+[7m[0m.md",[0m
+[7m[0m  task.json:873:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+  task.json:902:                                    "记录本机/Docker MySQL、对象存储边界、成
+功态和失败态证据"
+  task.json:903:                                ],
+> task.json:904:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPolic[0m
+[7m[0my Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sa[0m
+[7m[0mmple\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db[0m
+[7m[0m\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",[0m
+[7m[0m  task.json:905:                      "acceptance":  [[0m
+[7m[0m  task.json:906:                                         "FR-014 有采购订单样板、边界数据和压[0m
+[7m[0m测证据",[0m
+[7m[0m  task.json:907:                                         "样板复用标准链路，不新增特例接口",[0m
+[7m[0m  task.json:908:                                         "release 前 query/file/sample 证据一[0m
+[7m[0m致"[0m
+[7m[0m  task.json:909:                                     ][0m
+[7m[0m  task.json:910:                  },[0m
+[7m[0m  task.json:911:                  {[0m
+[7m[0m  task.json:912:                      "id":  "MOCK-FIRST-001",[0m
+  task.json:925:                                           "SAMPLE-PURCHASE-ORDER-001"
+  task.json:926:                                       ],
+> task.json:927:                      "[7mpasses[0m":  true,[0m
+> task.json:928:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:929:                                                       "delivery_shape=indepe[0m
+[7m[0mndent_microservice",[0m
+[7m[0m  task.json:930:                                                       "mock-first 只能产出 l[0m
+[7m[0mocal/dev evidence，不能替代 RELEASE-001 的 docker/mock release gate",[0m
+[7m[0m  task.json:931:                                                       "mock-first 验证必须保[0m
+[7m[0m持生产入口和生产路径架构检查可执行，不得引入生产代码测试替身",[0m
+[7m[0m  task.json:932:                                                       "RELEASE-001 的通过状[0m
+[7m[0m态只能来自 release-verify.ps1 完整通过后的 docker/mock release evidence"[0m
+[7m[0m  task.json:933:                                                   ],[0m
+> task.json:934:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:935:                                                        "禁止把 mock-first lo[0m
+[7m[0mcal/dev evidence 写成 RELEASE-001 PASS 证据",[0m
+[7m[0m  task.json:936:                                                        "禁止用本地 HTTP obje[0m
+[7m[0mct storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS/[0m
+[7m[0mS3 证据",[0m
+> task.json:937:                                                        "禁止仅凭 mock-first 
+local/dev evidence 修改 RELEASE-001 为 [7mpasses[0m:true",[0m
+[7m[0m  task.json:938:                                                        "禁止在 src/ 生产路径[0m
+[7m[0m引入 InMemory、mock 或 fixture repository"[0m
+[7m[0m  task.json:939:                                                    ],[0m
+[7m[0m  task.json:940:                      "context_files":  [[0m
+[7m[0m  task.json:941:                                            "docs/product/acceptance-criteria[0m
+[7m[0m.md",[0m
+[7m[0m  task.json:942:                                            "docs/architecture/constraints.md[0m
+[7m[0m",[0m
+[7m[0m  task.json:943:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:944:                                            "docs/testing/mock-first-release-[0m
+[7m[0mplan.md",[0m
+[7m[0m  task.json:945:                                            "docs/testing/verify-matrix.md",[0m
+  task.json:982:                                    "把 mock-first 结果明确标记为 local/dev e
+vidence，并记录其不能推动 RELEASE-001 PASS 或替代 docker/mock release gate"
+  task.json:983:                                ],
+> task.json:984:                      "[7mtest_command[0m":  "npm run arch:check; if ($LASTEXITCODE[0m
+[7m[0m -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LAS[0m
+[7m[0mTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- t[0m
+[7m[0mask.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/v[0m
+[7m[0merify-matrix.md",[0m
+[7m[0m  task.json:985:                      "acceptance":  [[0m
+[7m[0m  task.json:986:                                         "FR-001 至 FR-014 均有 mock-first lo[0m
+[7m[0mcal/dev evidence 映射，但结论必须明确不是 RELEASE-001 PASS 证据",[0m
+[7m[0m  task.json:987:                                         "mock-first evidence 不得写成 docker[0m
+[7m[0m/mock release evidence",[0m
+[7m[0m  task.json:988:                                         "RELEASE-001 只有在 release-verify.p[0m
+[7m[0ms1 完整通过后才可标记为 passed"[0m
+[7m[0m  task.json:989:                                     ][0m
+[7m[0m  task.json:990:                  },[0m
+[7m[0m  task.json:991:                  {[0m
+[7m[0m  task.json:992:                      "id":  "MOCK-INTEGRATION-001",[0m
+  task.json:1005:                                           "MOCK-FIRST-001"
+  task.json:1006:                                       ],
+> task.json:1007:                      "[7mpasses[0m":  true,[0m
+> task.json:1008:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1009:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1010:                                                       "mock-first local/dev[0m
+[7m[0m integration acceptance 只能产出本地联调与归档证据，不能替代 RELEASE-001 的 docker/mock relea[0m
+[7m[0mse gate",[0m
+[7m[0m  task.json:1011:                                                       "验收必须覆盖 FR-001 [0m
+[7m[0m至 FR-014 的本地主流程、失败态演练和证据归档口径，并保持生产入口与生产路径架构检查可执行",[0m
+[7m[0m  task.json:1012:                                                       "不得把 local/dev 结[0m
+[7m[0m果回写为 release 通过，RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后的 docker/[0m
+[7m[0mmock release evidence"[0m
+[7m[0m  task.json:1013:                                                   ],[0m
+> task.json:1014:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1015:                                                        "禁止把 mock-first l[0m
+[7m[0mocal/dev integration acceptance 写成 RELEASE-001 PASS 证据",[0m
+[7m[0m  task.json:1016:                                                        "禁止用本地 HTTP obj[0m
+[7m[0mect storage adapter、fixture seed 或 fake 外部数据源冒充 docker/mock release gate 或 live OSS[0m
+[7m[0m/S3 集成证据",[0m
+> task.json:1017:                                                        "禁止仅凭 local/dev 
+integration acceptance 修改 RELEASE-001.[7mpasses[0m",[0m
+[7m[0m  task.json:1018:                                                        "禁止在 src/ 生产路[0m
+[7m[0m径引入 InMemory、mock 或 fixture repository"[0m
+[7m[0m  task.json:1019:                                                    ],[0m
+[7m[0m  task.json:1020:                      "context_files":  [[0m
+[7m[0m  task.json:1021:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1022:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+[7m[0m  task.json:1023:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:1024:                                            "docs/testing/mock-first-release[0m
+[7m[0m-plan.md",[0m
+[7m[0m  task.json:1025:                                            "docs/testing/mock-first-accepta[0m
+[7m[0mnce.md",[0m
+  task.json:1065:                                    "把验收范围、失败态和 release 边界同步到
+ mock-first-acceptance、mock-first-release-plan 和 verify-matrix，明确其不替代 RELEASE-001 的
+ docker/mock release gate"
+  task.json:1066:                                ],
+> task.json:1067:                      "[7mtest_command[0m":  "npm run arch:check; if ($LASTEXITCOD[0m
+[7m[0mE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LA[0m
+[7m[0mSTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- [0m
+[7m[0mtask.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/[0m
+[7m[0mmock-first-acceptance.md docs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:1068:                      "acceptance":  [[0m
+[7m[0m  task.json:1069:                                         "FR-001 至 FR-014 均有 mock-first l[0m
+[7m[0mocal/dev integration acceptance 映射，覆盖主流程、失败态和证据归档口径",[0m
+[7m[0m  task.json:1070:                                         "结论必须明确不是 release evidence[0m
+[7m[0m，且不得替代 RELEASE-001 的 docker/mock release gate",[0m
+[7m[0m  task.json:1071:                                         "RELEASE-001 的通过状态只能来自 rel[0m
+[7m[0mease-verify.ps1 完整通过后的 docker/mock release evidence"[0m
+[7m[0m  task.json:1072:                                     ][0m
+[7m[0m  task.json:1073:                  },[0m
+[7m[0m  task.json:1074:                  {[0m
+[7m[0m  task.json:1075:                      "id":  "LOCAL-RELEASE-REHEARSAL-001",[0m
+  task.json:1088:                                           "MOCK-INTEGRATION-001"
+  task.json:1089:                                       ],
+> task.json:1090:                      "[7mpasses[0m":  true,[0m
+> task.json:1091:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1092:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1093:                                                       "local release rehear[0m
+[7m[0msal 只能产出 mock/local rehearsal evidence，不能替代 RELEASE-001 的 docker/mock release gate"[0m
+[7m[0m,[0m
+[7m[0m  task.json:1094:                                                       "验收必须保持生产 HTT[0m
+[7m[0mP API、DB repository、worker、query、file 和 sample 命令入口可执行",[0m
+[7m[0m  task.json:1095:                                                       "不得把 mock/local re[0m
+[7m[0mhearsal 结果回写为 release 通过，RELEASE-001 的通过状态只能来自 release-verify.ps1 完整通过后[0m
+[7m[0m的 docker/mock release evidence"[0m
+[7m[0m  task.json:1096:                                                   ],[0m
+> task.json:1097:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1098:                                                        "禁止把 local releas[0m
+[7m[0me rehearsal 写成 RELEASE-001 PASS 证据",[0m
+[7m[0m  task.json:1099:                                                        "禁止用本地 rehearsa[0m
+[7m[0ml 结果冒充 RELEASE-001 docker/mock release evidence",[0m
+> task.json:1100:                                                        "禁止仅凭 local rele
+ase rehearsal 修改 RELEASE-001.[7mpasses[0m",[0m
+[7m[0m  task.json:1101:                                                        "禁止在 src/ 生产路[0m
+[7m[0m径引入 InMemory、mock 或 fixture repository"[0m
+[7m[0m  task.json:1102:                                                    ],[0m
+[7m[0m  task.json:1103:                      "context_files":  [[0m
+[7m[0m  task.json:1104:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1105:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+[7m[0m  task.json:1106:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:1107:                                            "docs/testing/mock-first-release[0m
+[7m[0m-plan.md",[0m
+[7m[0m  task.json:1108:                                            "docs/testing/verify-matrix.md",[0m
+  task.json:1149:                                    "把 rehearsal 结果明确标记为 mock/local 
+rehearsal evidence，不能替代 RELEASE-001 的 docker/mock release gate"
+  task.json:1150:                                ],
+> task.json:1151:                      "[7mtest_command[0m":  "npm run release:local-rehearsal",[0m
+[7m[0m  task.json:1152:                      "acceptance":  [[0m
+[7m[0m  task.json:1153:                                         "FR-001 至 FR-014 均可通过本地 rehe[0m
+[7m[0marsal 命令先压通 API、DB、worker、query、file 和 sample 链路，或明确输出 BLOCKED",[0m
+[7m[0m  task.json:1154:                                         "结论必须明确不是 RELEASE-001 PASS [0m
+[7m[0m证据，且不得替代 RELEASE-001 的 docker/mock release gate",[0m
+[7m[0m  task.json:1155:                                         "local rehearsal 不直接决定 RELEASE[0m
+[7m[0m-001 状态，RELEASE-001 通过状态以后续 docker/mock release gate 验证、review 和 commit gate 为[0m
+[7m[0m准"[0m
+[7m[0m  task.json:1156:                                     ][0m
+[7m[0m  task.json:1157:                  },[0m
+[7m[0m  task.json:1158:                  {[0m
+[7m[0m  task.json:1159:                      "id":  "LOCAL-DEMO-001",[0m
+  task.json:1172:                                           "LOCAL-RELEASE-REHEARSAL-001"
+  task.json:1173:                                       ],
+> task.json:1174:                      "[7mpasses[0m":  true,[0m
+> task.json:1175:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1176:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1177:                                                       "local demo 必须启动[0m
+[7m[0m真实 HTTP server、连接本机 Docker MySQL，并使用本地 object storage mock",[0m
+[7m[0m  task.json:1178:                                                       "local demo 只能产出 [0m
+[7m[0mlocal demo / local smoke evidence，不能替代 LOCAL-RELEASE-REHEARSAL-001 或 RELEASE-001",[0m
+[7m[0m  task.json:1179:                                                       "demo seed 必须拒绝非[0m
+[7m[0m本机 MySQL URL，避免污染外部数据库"[0m
+[7m[0m  task.json:1180:                                                   ],[0m
+> task.json:1181:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1182:                                                        "禁止把 demo:local [0m
+[7m[0m或 demo:local:smoke 写成 release evidence",[0m
+[7m[0m  task.json:1183:                                                        "禁止用 demo:local:s[0m
+[7m[0mmoke 替代 API / DB / worker / query / file / sample 全链路验证",[0m
+[7m[0m  task.json:1184:                                                        "禁止把本地 Docker M[0m
+[7m[0mySQL 写成外部生产 MySQL 证据",[0m
+[7m[0m  task.json:1185:                                                        "禁止把本地 object s[0m
+[7m[0mtorage mock 写成 live OSS/S3 证据"[0m
+[7m[0m  task.json:1186:                                                    ],[0m
+[7m[0m  task.json:1187:                      "context_files":  [[0m
+[7m[0m  task.json:1188:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1189:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+  task.json:1226:                                    "把 local demo 证据边界同步到 verify-mat
+rix 和 mock-first-release-plan，明确不是 release evidence"
+  task.json:1227:                                ],
+> task.json:1228:                      "[7mtest_command[0m":  "npm run test:mock-local; if ($LASTEX[0m
+[7m[0mITCODE -ne 0) { exit $LASTEXITCODE }; npm run demo:local:smoke; if ($LASTEXITCODE -ne 0) { ex[0m
+[7m[0mit $LASTEXITCODE }; git diff --check -- task.json package.json scripts/local-demo.ps1 scripts[0m
+[7m[0m/local-demo-setup.mjs docs/testing/local-demo-runbook.md docs/testing/mock-first-release-plan[0m
+[7m[0m.md docs/testing/verify-matrix.md tests/mock-local/local-demo-runbook.test.mjs tests/mock-loc[0m
+[7m[0mal/test-practice-matrix.test.mjs",[0m
+[7m[0m  task.json:1229:                      "acceptance":  [[0m
+[7m[0m  task.json:1230:                                         "demo:local 可作为人工演示入口，dem[0m
+[7m[0mo:local:smoke 可自动启动服务并验证 GET /health 后退出",[0m
+[7m[0m  task.json:1231:                                         "local-demo-setup.mjs 自动 migratio[0m
+[7m[0mn、注册 purchase-order-export 样板并 seed 本机测试数据，同时拒绝非本机 MySQL URL",[0m
+[7m[0m  task.json:1232:                                         "local demo 结论只作为本机演示和 sm[0m
+[7m[0moke evidence，不替代 LOCAL-RELEASE-REHEARSAL-001 或 RELEASE-001"[0m
+[7m[0m  task.json:1233:                                     ][0m
+[7m[0m  task.json:1234:                  },[0m
+[7m[0m  task.json:1235:                  {[0m
+[7m[0m  task.json:1236:                      "id":  "TEST-PRACTICE-MATRIX-001",[0m
+> task.json:1237:                      "description":  "补齐测试实践到 task 的显式映射，防止 
+test 脚本、任务 [7mtest_command[0m 和验证矩阵漂移",[0m
+[7m[0m  task.json:1238:                      "task_kind":  "feature_impl",[0m
+[7m[0m  task.json:1239:                      "phase":  "test-practice-governance",[0m
+[7m[0m  task.json:1240:                      "gate_profile":  "spec_required",[0m
+[7m[0m  task.json:1241:                      "required_truth_sources":  [[0m
+[7m[0m  task.json:1242:                                                     "product",[0m
+[7m[0m  task.json:1243:                                                     "architecture",[0m
+[7m[0m  task.json:1244:                                                     "contract",[0m
+[7m[0m  task.json:1245:                                                     "testing"[0m
+  task.json:1250:                                           "LOCAL-DEMO-001"
+  task.json:1251:                                       ],
+> task.json:1252:                      "[7mpasses[0m":  true,[0m
+> task.json:1253:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1254:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1255:                                                       "测试实践必须显式映射[0m
+[7m[0m到 task id、package script、需求范围、依赖形态和 evidence 边界",[0m
+[7m[0m  task.json:1256:                                                       "mock/local/docker/li[0m
+[7m[0mve evidence 必须在文档和守护测试中区分，不能互相替代",[0m
+[7m[0m  task.json:1257:                                                       "新增或改名 test scri[0m
+[7m[0mpt 时必须同步 task.json、verify-matrix 和守护测试"[0m
+[7m[0m  task.json:1258:                                                   ],[0m
+> task.json:1259:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1260:                                                        "禁止只有 package.js[0m
+[7m[0mon test script 而没有 task 归属",[0m
+> task.json:1261:                                                        "禁止只有 task [7mtest_[0m
+[7mcommand[0m 而没有测试实践矩阵",[0m
+[7m[0m  task.json:1262:                                                        "禁止把 mock-local、[0m
+[7m[0mlocal rehearsal、docker/mock release 或外部 live 验证混写成同一种 evidence",[0m
+[7m[0m  task.json:1263:                                                        "禁止用 RELEASE-001 [0m
+[7m[0m总门禁掩盖单项测试实践缺口"[0m
+[7m[0m  task.json:1264:                                                    ],[0m
+[7m[0m  task.json:1265:                      "context_files":  [[0m
+[7m[0m  task.json:1266:                                            "package.json",[0m
+[7m[0m  task.json:1267:                                            "task.json",[0m
+[7m[0m  task.json:1268:                                            "docs/testing/verify-matrix.md",[0m
+[7m[0m  task.json:1269:                                            "tests/mock-local/"[0m
+  task.json:1299:                      "steps":  [
+  task.json:1300:                                    "在 verify-matrix 中建立测试实践、packag
+e script、task id、需求范围、依赖形态和 evidence 边界的映射表",
+> task.json:1301:                                    "新增守护测试，校验 package scripts、tas
+k [7mtest_command[0m 和测试实践矩阵保持一致",[0m
+[7m[0m  task.json:1302:                                    "确认 RELEASE-001 依赖测试实践矩阵任务，[0m
+[7m[0m避免总门禁绕过单项测试实践归属"[0m
+[7m[0m  task.json:1303:                                ],[0m
+> task.json:1304:                      "[7mtest_command[0m":  "npm run test:mock-local; if ($LASTEX[0m
+[7m[0mITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing/verify-matri[0m
+[7m[0mx.md tests/mock-local/test-practice-matrix.test.mjs",[0m
+[7m[0m  task.json:1305:                      "acceptance":  [[0m
+[7m[0m  task.json:1306:                                         "每个关键 test script 都有明确 task[0m
+[7m[0m id 归属和 evidence 边界",[0m
+[7m[0m  task.json:1307:                                         "verify-matrix 记录 mock/local/dock[0m
+[7m[0mer/live 依赖形态，且不把本地替身冒充外部 live 证据",[0m
+> task.json:1308:                                         "守护测试会在 test script、task [7mtes[0m
+[7mt_command[0m 或文档映射漂移时失败"[0m
+[7m[0m  task.json:1309:                                     ][0m
+[7m[0m  task.json:1310:                  },[0m
+[7m[0m  task.json:1311:                  {[0m
+[7m[0m  task.json:1312:                      "id":  "RELEASE-001",[0m
+[7m[0m  task.json:1313:                      "description":  "执行 fresh-start 微服务实现的 release[0m
+[7m[0m 验证、回归与证据收口",[0m
+[7m[0m  task.json:1314:                      "task_kind":  "release",[0m
+[7m[0m  task.json:1315:                      "phase":  "verify",[0m
+[7m[0m  task.json:1316:                      "gate_profile":  "release_required",[0m
+  task.json:1329:                                           "TEST-PRACTICE-MATRIX-001"
+  task.json:1330:                                       ],
+> task.json:1331:                      "[7mpasses[0m":  true,[0m
+[7m[0m  task.json:1332:                      "local_release_environment_notes":  [[0m
+[7m[0m  task.json:1333:                                                              "当前 release [0m
+[7m[0mgate 使用本机 Docker MySQL；release-verify.ps1 会在 EXPORT_PLATFORM_TEST_DATABASE_URL 缺失时[0m
+[7m[0m复用或创建 export-platform-mysql-local 容器。",[0m
+[7m[0m  task.json:1334:                                                              "当前 release [0m
+[7m[0mgate 使用本地 object storage mock；release-verify.ps1 会启动 scripts/local-object-storage-ser[0m
+[7m[0mver.mjs 并显式允许本地 smoke writes。",[0m
+[7m[0m  task.json:1335:                                                              "该 gate 是本[0m
+[7m[0m机受控 docker/mock release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。"[0m
+[7m[0m  task.json:1336:                                                          ],[0m
+[7m[0m  task.json:1337:                      "context_files":  [[0m
+[7m[0m  task.json:1338:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1339:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+  task.json:1375:                                    "记录通过证据、失败归因、BLOCKED 项和剩
+余风险"
+  task.json:1376:                                ],
+> task.json:1377:                      "[7mtest_command[0m":  "powershell -NoProfile -ExecutionPoli[0m
+[7m[0mcy Bypass -File .\\scripts\\release-verify.ps1",[0m
+[7m[0m  task.json:1378:                      "acceptance":  [[0m
+[7m[0m  task.json:1379:                                         "release-verify.ps1 可在本机自举 Do[0m
+[7m[0mcker MySQL 与本地 object storage mock，并完成当前 docker/mock release gate",[0m
+[7m[0m  task.json:1380:                                         "fresh evidence 覆盖 FR-001 至 FR-0[0m
+[7m[0m14，或有明确 BLOCKED 说明",[0m
+[7m[0m  task.json:1381:                                         "release 结论不引用旧实现、旧测试或[0m
+[7m[0m旧 trace",[0m
+[7m[0m  task.json:1382:                                         "架构约束、API、DB、worker、file、s[0m
+[7m[0mample 证据一致"[0m
+[7m[0m  task.json:1383:                                     ][0m
+[7m[0m  task.json:1384:                  },[0m
+[7m[0m  task.json:1385:                  {[0m
+  task.json:1399:                                           "RELEASE-001"
+  task.json:1400:                                       ],
+> task.json:1401:                      "[7mpasses[0m":  true,[0m
+> task.json:1402:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1403:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1404:                                                       "runtime=http_service[0m
+[7m[0m+worker+scheduled_job",[0m
+[7m[0m  task.json:1405:                                                       "测试环境必须使用本机[0m
+[7m[0m Docker MySQL 或显式本机测试 MySQL URL",[0m
+[7m[0m  task.json:1406:                                                       "测试数据 seed 必须拒[0m
+[7m[0m绝非本机/非测试数据库 URL",[0m
+[7m[0m  task.json:1407:                                                       "本任务产出 docker/mo[0m
+[7m[0mck 或 local demo evidence，不产出外部 live evidence"[0m
+[7m[0m  task.json:1408:                                                   ],[0m
+> task.json:1409:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1410:                                                        "禁止把本地 Docker M[0m
+[7m[0mySQL 写成外部生产 MySQL 证据",[0m
+[7m[0m  task.json:1411:                                                        "禁止把本地 object s[0m
+[7m[0mtorage mock 写成 live OSS/S3 证据",[0m
+[7m[0m  task.json:1412:                                                        "禁止用内存 reposito[0m
+[7m[0mry 或 fixture repository 替代 MySQL 验证",[0m
+[7m[0m  task.json:1413:                                                        "禁止绕过现有 migrat[0m
+[7m[0mion/repository/service 直接伪造完成状态"[0m
+[7m[0m  task.json:1414:                                                    ],[0m
+[7m[0m  task.json:1415:                      "context_files":  [[0m
+[7m[0m  task.json:1416:                                            "plans/features/docker-test-data[0m
+[7m[0m-automation.plan.md",[0m
+[7m[0m  task.json:1417:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+  task.json:1462:                                    "新增 mock-local 守护测试，防止 package 
+script、task、runbook 和 evidence 映射漂移"
+  task.json:1463:                                ],
+> task.json:1464:                      "[7mtest_command[0m":  "npm run test:mock-local; if ($LASTEX[0m
+[7m[0mITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { e[0m
+[7m[0mxit $LASTEXITCODE }; git diff --check -- task.json package.json scripts docs/testing tests/mo[0m
+[7m[0mck-local plans/features/docker-test-data-automation.plan.md",[0m
+[7m[0m  task.json:1465:                      "acceptance":  [[0m
+[7m[0m  task.json:1466:                                         "一条命令可完成 Docker daemon prefl[0m
+[7m[0might、Docker MySQL 创建或复用、migration、seed 和主验证入口",[0m
+[7m[0m  task.json:1467:                                         "seed 后覆盖 purchase-order-export [0m
+[7m[0mregistry、purchase_orders_sample / purchase_orders_view 测试数据和公开服务链路验证",[0m
+[7m[0m  task.json:1468:                                         "Docker daemon 未启动时输出明确 BLO[0m
+[7m[0mCKED - 需要人工介入，并给出启动 Docker Desktop 后重试命令",[0m
+[7m[0m  task.json:1469:                                         "verify-matrix 记录该任务只提供 doc[0m
+[7m[0mker/local 测试环境证据，不替代 live OSS/S3 或外部生产 MySQL 验证"[0m
+[7m[0m  task.json:1470:                                     ][0m
+[7m[0m  task.json:1471:                  },[0m
+[7m[0m  task.json:1472:                  {[0m
+  task.json:1486:                                           "DOCKER-TEST-DATA-AUTOMATION-001"
+  task.json:1487:                                       ],
+> task.json:1488:                      "[7mpasses[0m":  true,[0m
+> task.json:1489:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1490:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1491:                                                       "repair scope 必须同[0m
+[7m[0m时覆盖 AUDIT-CONTRACT-ALIGN-001、TASK-HISTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QU[0m
+[7m[0mERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-ERROR-001、FILE-STORAGE-ERROR-MAPPING-001",[0m
+[7m[0m  task.json:1492:                                                       "修复必须以 docs/prod[0m
+[7m[0muct/*、docs/architecture/constraints.md、contracts/openapi.yaml、docs/reviews/requirements-co[0m
+[7m[0mmplete-review.md 和 Stage 1 findings 为 truth source",[0m
+[7m[0m  task.json:1493:                                                       "必须修复审计契约漂移[0m
+[7m[0m、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射，不得只[0m
+[7m[0m补文档或只补单层测试",[0m
+[7m[0m  task.json:1494:                                                       "query / file / worke[0m
+[7m[0mr 验证必须运行在本机 local 或 Docker MySQL 证据链上；docker/mock 只能作为本机验证依赖，不能写[0m
+[7m[0m成 live evidence"[0m
+[7m[0m  task.json:1495:                                                   ],[0m
+> task.json:1496:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1497:                                                        "禁止把测试改成适配[0m
+[7m[0m当前错误行为而不修实现或契约",[0m
+[7m[0m  task.json:1498:                                                        "禁止降级产品 truth [0m
+[7m[0msource、通过回写需求收窄来规避本轮 findings，除非先新增独立 truth-source 变更任务并获批",[0m
+[7m[0m  task.json:1499:                                                        "禁止把 docker/mock/[0m
+[7m[0mlocal 验证写成外部 live evidence",[0m
+[7m[0m  task.json:1500:                                                        "禁止继续只保存 dige[0m
+[7m[0mst 冒充配置快照重放完成",[0m
+[7m[0m  task.json:1501:                                                        "禁止把 DATASOURCE_U[0m
+[7m[0mNAVAILABLE、FILE_VERIFY_ERROR 或审计 action/result drift 继续收口到通用错误码"[0m
+[7m[0m  task.json:1502:                                                    ],[0m
+[7m[0m  task.json:1503:                      "context_files":  [[0m
+[7m[0m  task.json:1504:                                            "docs/product/prd-lite.md",[0m
+  task.json:1576:                                    "把对象存储 put/publish 失败映射到产品要
+求的文件错误口径并补测试，覆盖 FILE-STORAGE-ERROR-MAPPING-001"
+  task.json:1577:                                ],
+> task.json:1578:                      "[7mtest_command[0m":  "npm run test:contract; if ($LASTEXIT[0m
+[7m[0mCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit [0m
+[7m[0m$LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; [0m
+[7m[0mgit diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/que[0m
+[7m[0mry-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker[0m
+[7m[0m tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 prog[0m
+[7m[0mress.txt",[0m
+[7m[0m  task.json:1579:                      "acceptance":  [[0m
+[7m[0m  task.json:1580:                                         "AUDIT-CONTRACT-ALIGN-001、TASK-HIS[0m
+[7m[0mTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QUERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-E[0m
+[7m[0mRROR-001、FILE-STORAGE-ERROR-MAPPING-001 六个 findings 均有实现与测试证据",[0m
+[7m[0m  task.json:1581:                                         "审计契约、管理员全局历史、配置快照[0m
+[7m[0m重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射不再依赖 review 文档中的已知 gap [0m
+[7m[0m行为",[0m
+[7m[0m  task.json:1582:                                         "验证输出明确区分 mock/local/docker[0m
+[7m[0m/live evidence，且本任务不会把 docker/mock 当作 live evidence",[0m
+[7m[0m  task.json:1583:                                         "REQUIREMENTS-COMPLETE-REVIEW-001 [0m
+[7m[0m下一轮可基于修复后的 fresh evidence 重跑"[0m
+[7m[0m  task.json:1584:                                     ][0m
+[7m[0m  task.json:1585:                  },[0m
+[7m[0m  task.json:1586:                  {[0m
+> task.json:1587:                      "id":  "[7mCLEANUP-AUDIT-ERROR-CODE-ALIGN-001[0m",[0m
+[7m[0m  task.json:1588:                      "description":  "对齐 cleanup 失败审计 errorCode 与公[0m
+[7m[0m开 ResponseCode 契约，并补齐守护测试",[0m
+[7m[0m  task.json:1589:                      "task_kind":  "feature_impl",[0m
+[7m[0m  task.json:1590:                      "phase":  "requirements-repair",[0m
+[7m[0m  task.json:1591:                      "gate_profile":  "spec_required",[0m
+[7m[0m  task.json:1592:                      "required_truth_sources":  [[0m
+[7m[0m  task.json:1593:                                                     "product",[0m
+[7m[0m  task.json:1594:                                                     "architecture",[0m
+[7m[0m  task.json:1595:                                                     "contract",[0m
+  task.json:1600:                                           "REQUIREMENTS-GAP-REPAIR-001"
+  task.json:1601:                                       ],
+> task.json:1602:                      "[7mpasses[0m":  true,[0m
+> task.json:1603:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1604:                                                       "delivery_shape=indep[0m
+[7m[0mendent_microservice",[0m
+[7m[0m  task.json:1605:                                                       "repair scope 只覆盖 [0m
+[7m[0mREQUIREMENTS-COMPLETE-REVIEW-001-S1-F001：cleanup 失败审计 errorCode 必须与公开 ResponseCode [0m
+[7m[0m契约一致",[0m
+[7m[0m  task.json:1606:                                                       "必须以 contracts/ope[0m
+[7m[0mnapi.yaml、src/cleanup-job/index.ts、tests/contract/openapi-route-mapping.contract.test.mjs、[0m
+[7m[0mtests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth s[0m
+[7m[0mource",[0m
+[7m[0m  task.json:1607:                                                       "修复必须同时覆盖公开[0m
+[7m[0m契约枚举、生产审计写入路径、contract 守护测试和 worker cleanup 失败断言",[0m
+> task.json:1608:                                                       "不得修改 REQUIREMENT
+S-COMPLETE-REVIEW-001 的 [7mpasses[0m 结论；完整复审必须在本任务通过后由 driver 重新运行"[0m
+[7m[0m  task.json:1609:                                                   ],[0m
+> task.json:1610:                      "[7mforbidden_implementations[0m":  [[0m
+[7m[0m  task.json:1611:                                                        "禁止把 cleanup 失败[0m
+[7m[0m errorCode 改成未在产品或契约中可解释的通用错误码来规避 finding",[0m
+[7m[0m  task.json:1612:                                                        "禁止只修改 OpenAPI [0m
+[7m[0m而不补 source audit errorCode literal 属于 ResponseCode enum 的契约守护",[0m
+[7m[0m  task.json:1613:                                                        "禁止只修改测试来适[0m
+[7m[0m配当前错误行为而不修契约或实现",[0m
+> task.json:1614:                                                        "禁止把 review 文档
+手工改成 PASS 或手工标记 REQUIREMENTS-COMPLETE-REVIEW-001 [7mpasses[0m=true"[0m
+[7m[0m  task.json:1615:                                                    ],[0m
+[7m[0m  task.json:1616:                      "context_files":  [[0m
+[7m[0m  task.json:1617:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:1618:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1619:                                            "docs/architecture/constraints.m[0m
+[7m[0md",[0m
+[7m[0m  task.json:1620:                                            "contracts/openapi.yaml",[0m
+[7m[0m  task.json:1621:                                            "src/cleanup-job/index.ts",[0m
+[7m[0m  task.json:1622:                                            "tests/contract/openapi-route-ma[0m
+[7m[0mpping.contract.test.mjs",[0m
+  task.json:1659:                                    "同步 verify-matrix 记录该修复的本地 con
+tract / worker 证据边界"
+  task.json:1660:                                ],
+> task.json:1661:                      "[7mtest_command[0m":  "npm run test:contract; if ($LASTEXIT[0m
+[7m[0mCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u[0m
+[7m[0m0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm r[0m
+[7m[0mun test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne [0m
+[7m[0m0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-j[0m
+[7m[0mob tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",[0m
+[7m[0m  task.json:1662:                      "acceptance":  [[0m
+[7m[0m  task.json:1663:                                         "src/cleanup-job/index.ts 写入的 cl[0m
+[7m[0meanup 失败 audit errorCode 必须在 contracts/openapi.yaml components.schemas.ResponseCode enum[0m
+[7m[0m 中公开",[0m
+[7m[0m  task.json:1664:                                         "tests/contract/openapi-route-mappi[0m
+[7m[0mng.contract.test.mjs 能守护生产审计 action/result/errorCode literals 均不漂移出公开枚举",[0m
+[7m[0m  task.json:1665:                                         "tests/worker/scheduler-worker.test[0m
+[7m[0m.mjs 覆盖 cleanup delete 失败时的 CLEANUP_FAILED、FAILED、FILE_CLEANUP_DELETE_ERROR 审计记录"[0m
+[7m[0m,[0m
+[7m[0m  task.json:1666:                                         "REQUIREMENTS-COMPLETE-REVIEW-001 [0m
+[7m[0m可在本任务完成后重新运行，不依赖手工修改 review 结论"[0m
+[7m[0m  task.json:1667:                                     ][0m
+[7m[0m  task.json:1668:                  },[0m
+[7m[0m  task.json:1669:                  {[0m
+  task.json:1683:                                           "DOCKER-TEST-DATA-AUTOMATION-001"
+,
+  task.json:1684:                                           "REQUIREMENTS-GAP-REPAIR-001",
+> task.json:1685:                                           "[7mCLEANUP-AUDIT-ERROR-CODE-ALIGN-0[0m
+[7m01[0m"[0m
+[7m[0m  task.json:1686:                                       ],[0m
+> task.json:1687:                      "[7mpasses[0m":  false,
+> task.json:1688:                      "[7marchitecture_constraints[0m":  [[0m
+[7m[0m  task.json:1689:                                                       "review 必须以 docs/p[0m
+[7m[0mroduct/* 和 docs/architecture/constraints.md 为 truth source",[0m
+[7m[0m  task.json:1690:                                                       "review 只输出缺口和[0m
+[7m[0m后续任务建议，不把未修复缺口伪装成完成",[0m
+[7m[0m  task.json:1691:                                                       "mock/local/docker/li[0m
+[7m[0mve evidence 必须分开判定"[0m
+[7m[0m  task.json:1692:                                                   ],[0m
+> task.json:1693:                      "[7mforbidden_implementations[0m":  [
+> task.json:1694:                                                        "禁止直接改写已有 [7mpa[0m
+[7msses[0m:true 任务的历史完成结论",[0m
+[7m[0m  task.json:1695:                                                        "禁止只因为 release [0m
+[7m[0mgate 通过就跳过 AC/异常验收逐项检查",[0m
+[7m[0m  task.json:1696:                                                        "禁止把 docker/mock [0m
+[7m[0mevidence 写成 live evidence",[0m
+[7m[0m  task.json:1697:                                                        "禁止在 review 中直[0m
+[7m[0m接修业务代码后声称 review 完成"[0m
+[7m[0m  task.json:1698:                                                    ],[0m
+[7m[0m  task.json:1699:                      "context_files":  [[0m
+[7m[0m  task.json:1700:                                            "docs/product/prd-lite.md",[0m
+[7m[0m  task.json:1701:                                            "docs/product/acceptance-criteri[0m
+[7m[0ma.md",[0m
+[7m[0m  task.json:1702:                                            "docs/product/requirement-interf[0m
+[7m[0mace-matrix.md",[0m
+  task.json:1742:                                    "为未覆盖缺口生成建议后续 task id，不直
+接修改业务实现"
+  task.json:1743:                                ],
+> task.json:1744:                      "[7mtest_command[0m":  "npm run test:mock-local; if ($LASTEX[0m
+[7m[0mITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing[0m
+[7m[0m plans/features/requirements-complete-review.plan.md",[0m
+[7m[0m  task.json:1745:                      "acceptance":  [[0m
+[7m[0m  task.json:1746:                                         "review 明确以 docs/product/* 和 do[0m
+[7m[0mcs/architecture/constraints.md 为 truth source",[0m
+[7m[0m  task.json:1747:                                         "FR-001 至 FR-014、AC-001 至 AC-021[0m
+[7m[0m、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定",[0m
+[7m[0m  task.json:1748:                                         "P0/P1 gap 必须包含文件证据、风险说[0m
+[7m[0m明和建议后续 task id",[0m
+[7m[0m  task.json:1749:                                         "结论不得把 docker/mock evidence 升[0m
+[7m[0m级为 live evidence"[0m
+[7m[0m  task.json:1750:                                     ][0m
+[7m[0m  task.json:1751:                  }[0m
+[7m[0m  task.json:1752:              ][0m
+
+
+ succeeded in 434ms:
+
+             result: "FAILED",
+> -          [7merrorCode[0m:[0m
+[7m[0m  -            error instanceof Error && error.name !== "Error"[0m
+[7m[0m  -              ? error.name[0m
+> -              : "[7mFILE_CLEANUP_DELETE_ERROR[0m",
+> +          [7merrorCode[0m: "FILE_CLEANUP_DELETE_ERROR",[0m
+[7m[0m             requestId: cleanupRequestId(options.workerId),[0m
+[7m[0m             occurredAt: failedAt,[0m
+  +++ b/tests/contract/openapi-route-mapping.contract.test.mjs
+> @@ -121,3 +121,9 @@ test("audit action, result, and [7merrorCode[0m literals written by productio[0m
+[7m[0mn code st[0m
+[7m[0m       [][0m
+[7m[0m     );[0m
+  +
+> +test("cleanup failure audit [7merrorCode[0m is a public ResponseCode literal, not raw Error.name[0m
+[7m[0m", () => {[0m
+[7m[0m  +  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");[0m
+> +  assert.doesNotMatch(cleanupJob, /[7merrorCode[0m:\s*[\s\S]{0,120}\.name/);
+> +  assert.match(cleanupJob, /[7merrorCode[0m:\s*"FILE_CLEANUP_DELETE_ERROR"/);[0m
+[7m[0m  +});[0m
+[7m[0m  diff --git a/tests/worker/scheduler-worker.test.mjs b/tests/worker/scheduler-worker.test.mj[0m
+[7m[0ms[0m
+  +        const error = new Error("delete failed");
+> +        error.name = "[7mUnexpectedStorageVendorError[0m";[0m
+[7m[0m  +        throw error;[0m
+[7m[0m         }[0m
+
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-S2-F001 | LOW | artifact_gap | controller | `git status --short` 显示 `M docs/testing/verify-matrix.md`，以及未跟踪的当前/复审 trace 目录。代码与测试无阻塞问题，但交付前工作区不干净。 | 交付前确认 `docs/testing/verify-matrix.md` 的证据边界更新是否应提交；trace 目录按 harness 规则提交、列白或清理。 | `git status --short` |
+
+## Verification
+
+- 已检查命令:
+  - `npm run test:contract; ...; npm run test:worker; ...; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt`
+  - `npm run typecheck`
+  - `git status --short`
+  - `git show ba5df87 ...`
+- 结果摘要:
+  - contract tests: 5 passed。
+  - worker tests: 18 passed，包含 cleanup delete 失败时供应商自定义 `Error.name` 仍审计为 `FILE_CLEANUP_DELETE_ERROR`。
+  - `tsc --noEmit` passed。
+  - `git diff --check` passed，仅有 `docs/testing/verify-matrix.md` LF/CRLF warning。
+  - 未发现调试输出、硬编码密钥、明显类型逃逸、只 mock 不验结果或 happy path-only 的关键缺口。
+  - `knowledge_outputs` 已包含 `GUIDELINE-AUDIT-CONTRACT-001` 建议，无新增知识归档要求。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-S2-F001 | controller | docs-worker/controller | 1 | No |
+tokens used
+114,495

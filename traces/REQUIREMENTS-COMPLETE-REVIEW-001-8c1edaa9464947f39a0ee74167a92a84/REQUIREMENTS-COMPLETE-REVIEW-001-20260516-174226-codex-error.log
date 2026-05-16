@@ -1,0 +1,698 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e302a-6cb2-7b42-9a17-343d401faed8
+--------
+user
+# Codex 单任务实现 Prompt 模板
+
+## 元信息
+
+- 版本: v2.0
+- 标签: codex, harness, implementation, non-interactive
+
+## 角色
+
+你是一个非交互 Codex 自动实现会话。你只处理 Driver Context 中指定的一个任务，不负责调度、提交、更新任务状态或评审其他任务。
+
+## 输入
+
+Driver 会在本模板后追加 `## Driver Context`，其中包含：
+
+- 当前任务 ID、描述、类型、阶段、优先级和依赖
+- task session 策略、truth source、context files、produces artifacts、architecture constraints、forbidden implementations
+- knowledge catalog、knowledge query budget 和归档约束（如任务声明）
+- 子代理策略
+- 执行步骤、验收标准和测试命令
+
+## 工作流程
+
+1. 先阅读 Driver Context。
+2. 只读取优先上下文源和任务相关文件；信息不足时再做最小范围扩展检索。
+3. 如果存在 `docs/knowledge/knowledge-catalog.md`，先按任务阶段判断是否需要读取 `docs/knowledge/catalog.md` 和相关条目；遵守 `knowledge_query_budget`，不要贪婪读取整库。
+4. 先确认 Architecture Constraints Packet：读取 `docs/architecture/constraints.md`（如存在）、任务的 `architecture_constraints` 和 `forbidden_implementations`；如果当前任务需要生产路径，不得用测试替身、内存实现或领域原型替代。
+5. 先确认当前任务对应的 Requirement IDs、验收示例、追溯矩阵和测试影响，再对照 Product / Design / Testing / Contract / DEV-PLAN / Knowledge 等 truth source 改文件。
+6. 如需使用子代理，先确定子代理角色，再先阅读 `AGENTS.md`、`docs/harness/task-session-strategy.md`、`.agents/rules/agents.md`、`docs/harness/knowledge-architecture.md`、对应 `.agents/skills/*/SKILL.md`（如存在）和必要的深文档，然后只传最小必要上下文给子代理。
+7. 如果相关测试不存在，先补测试骨架、测试计划或稳定选择器，再实现业务代码。
+8. 按任务步骤实现最小必要改动，并同步更新相关测试、证据路径或测试文档。
+9. 自检是否满足验收标准、测试影响、架构约束、知识引用和 forbidden path 约束。
+10. 在最终回答中给出 Requirement IDs、修改摘要、涉及文件、验证命令、证据路径、architecture constraints result、knowledge references、knowledge outputs 和剩余风险。
+
+## 强制边界
+
+- 不要处理 `task.json` 中其他任务。
+- 不要删除或改写任务描述。
+- 不要修改 `task.json`、`progress.txt`、`traces/`、`smoke-task.json`。
+- 不要修改 `trace.schema.json`，除非当前任务明确把它列入 owned paths 且任务目标就是 harness/runtime schema 改造。
+- 不要执行 `git add`、`git commit`、`git push`、`git reset`、`git checkout`。
+- 不要修改与当前任务无关的文件。
+- 不要在没有验收示例或追溯矩阵支撑时自行猜测 P0/P1 业务规则。
+- 不要在没有 `docs/architecture/constraints.md` 或等价架构约束说明时开始 `feature_impl`；如果任务缺少约束但明显涉及服务形态、数据持久化、外部接口或 worker，输出 BLOCKED。
+- 不要把 `InMemory*`、mock、fixture、local-only adapter 或纯领域原型作为生产实现完成，除非任务 `architecture_constraints` 明确声明 `delivery_shape=domain-prototype`。
+- 不要违反任务 `forbidden_implementations`；如发现当前任务验收与 forbidden implementation 冲突，输出 BLOCKED。
+- 如果子代理策略是 `off`，不要主动使用子代理。
+- 如果子代理策略不是 `off`，只有在存在两个以上独立子问题时才可使用，并且只消费结构化结论。
+- 如果本轮是 stop hook 强制继续后的续跑，子代理启用前必须先重读对应 docs / rules / skills；只有明确授权的 writer 角色可以写它们被分配的路径，其余子代理保持只读。
+- 测试失败时不能声称任务完成，不能把任何状态标记为通过。
+
+## UI 任务额外规则
+
+如果任务涉及前端页面、组件、布局、交互状态或视觉还原：
+
+- 必须确认是否存在 `docs/design/ai-image-brief.md`、`ui-image-review.md`、`image-to-frontend-spec.md`、`visual-parity-review.md`。
+- 必须在真实浏览器中验证页面，截图保存到 `artifacts/visual-review/` 或任务指定目录。
+- 最终回答必须写明截图路径和视觉差异处理情况。
+- 如果无法启动浏览器或无法截图，输出 BLOCKED，而不是跳过视觉验证。
+
+## BLOCKED 格式
+
+```text
+BLOCKED - 需要人工介入
+
+当前任务: <task-id> <task-description>
+
+已完成的工作:
+- ...
+
+阻塞原因:
+- ...
+
+需要人工操作:
+1. ...
+
+解除阻塞后请运行:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\codex-loop.ps1
+```
+
+## 输出格式
+
+```markdown
+## Requirement IDs
+- ...
+
+## Summary
+- ...
+
+## Files Changed
+- `path`: ...
+
+## Validation
+- `command`: PASS / FAIL / NOT_RUN - evidence
+
+## Evidence
+- `path`: what it proves
+
+## Architecture Constraints
+- `constraint`: PASS / FAIL / NOT_APPLICABLE - evidence
+
+## Knowledge References
+- `id`: title - used_in - `path`
+
+## Knowledge Outputs
+- `id-or-suggested-id`: type - title - action(created/updated/suggested/archived) - `path-or-target`
+
+## Visual Evidence
+- reference: `path-or-none`
+- screenshot: `path-or-none`
+- parity report: `path-or-none`
+
+## Remaining Risks
+- ...
+```
+
+
+## Driver Context
+
+任务 ID: REQUIREMENTS-COMPLETE-REVIEW-001
+任务描述: 基于产品需求真相源完整 review 当前实现、契约、测试和证据边界
+任务类型: feature_plan
+Gate Profile: spec_required
+Phase: requirements-review
+优先级: 92
+Requirement IDs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- FR-014
+依赖: DOCKER-TEST-DATA-AUTOMATION-001, REQUIREMENTS-GAP-REPAIR-001, CLEANUP-AUDIT-ERROR-CODE-ALIGN-001
+Task Session ID: 8c1edaa9464947f39a0ee74167a92a84
+
+会话策略:
+- Session mode: fresh-process
+- Reuse previous chat: False
+- Carry forward summary: False
+
+优先上下文源:
+- AGENTS.md
+- docs/harness/task-session-strategy.md
+- docs/harness/architecture.md
+- docs/harness/knowledge-architecture.md
+- docs/harness/prompt-knowledge-integration.md
+- docs/harness/rule-governance.md
+- docs/harness/regression-rules.md
+- docs/knowledge/knowledge-catalog.md
+- docs/testing/ACCEPTANCE_EXAMPLES.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/verify-matrix.md
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/verify-matrix.md
+- task.json
+
+前置 truth source:
+- product
+- architecture
+- contract
+- testing
+
+知识使用:
+- 如果存在 docs/knowledge/knowledge-catalog.md，先按任务阶段判断是否需要读取 docs/knowledge/catalog.md 和相关条目。
+- 如果引用了知识条目，最终总结必须列出 knowledge_references，包含 id、title、used_in 和 path。
+- 如果发现可复用的新经验，最终总结必须列出 knowledge_outputs 建议，供 ARCHIVE 任务归档。
+
+预期产物:
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+
+子代理策略:
+- Mode: guided
+- Allowed roles: explorer, readonly-research, docs-researcher, planner, architect, reviewer, stage1-reviewer, stage2-reviewer, security-reviewer, test-planner, failure-triage, harness-writer, docs-worker, backend-worker, test-runner
+- Max parallel roles: 3
+- Notes:
+- Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.
+- Subagents must read the matching AGENTS/rules/docs/skills before concluding.
+- Read-only roles stay read-only and return summaries or concrete results, not full transcripts.
+- Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly.
+
+执行步骤:
+- 从产品真相源抽取 FR、AC、异常验收和状态机要求
+- 对照 contracts、src、tests、verify-matrix 和 task.json 做逐项 review
+- 输出 PASS / PASS_WITH_GAPS / FAIL 总结、覆盖矩阵和 P0/P1 findings
+- 为未覆盖缺口生成建议后续 task id，不直接修改业务实现
+
+验收标准:
+- review 明确以 docs/product/* 和 docs/architecture/constraints.md 为 truth source
+- FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定
+- P0/P1 gap 必须包含文件证据、风险说明和建议后续 task id
+- 结论不得把 docker/mock evidence 升级为 live evidence
+
+测试命令:
+npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会先按仓库规则读取必要入口和任务真相源，再只围绕本任务生成 review 产物；本轮不会改 `task.json` 或提交 Git，因为 Driver 模板把这些列为强制边界。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\skills\\.system\\superpowers\\using-superpowers\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T09:42:39.755602Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.5 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw C:\Users\pzy666\.codex\skills\.system\superpowers\us[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\.system\superpowers\using-superpowers\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 458ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw C:\Users\pzy666\.codex\skills\.system\superpowers\us[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\.system\superpowers\using-superpowers\SKILL.md' because it does not exist.[0m
+
+codex
+技能路径和本机 skill roots 不完全一致，我先改用会话里列出的插件缓存路径读取 `superpowers:using-superpowers`，然后继续收集任务证据。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 370ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+
+codex
+我会使用 `spec-based-review` 辅助做需求/设计/测试一致性审查，并用 `verification-before-completion` 在最终前约束验证口径；这两个技能都只影响方法，不改变 Driver 的文件边界。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\spec-based-review\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\verification-before-completion\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 353ms:
+---
+name: spec-based-review
+description: 以 spec.md 为基准评审 design.md 和 tasks.md 的一致性与最佳实践
+---
+
+# Spec-Based Review（基于规格的反向评审）
+
+> 目标：以 spec.md 为 **唯一真相来源**，验证 design.md 与 tasks.md 是否完整覆盖、表述一致、符合最佳实践
+
+---
+
+## 工作流程
+
+```mermaid
+flowchart LR
+    A[读取 spec.md] --> B[提取 Requirements/Scenarios]
+    B --> C[比对 design.md]
+    C --> D[比对 tasks.md]
+    D --> E[输出评审报告]
+```
+
+---
+
+## 适用场景
+
+- spec.md 已完成或更新后，需验证 design/tasks 是否同步
+- 发现 design/tasks 与实际实现不一致时，回溯到 spec 重新对齐
+- 确保文档体系遵循最佳实践
+
+---
+
+## 评审步骤
+
+### 步骤 1：读取 spec.md
+
+**提取清单**：
+
+| 类型 | 提取项 |
+|------|--------|
+| 术语定义 | 所有 `> **术语**` 定义块 |
+| Requirements | 所有 `### Requirement:` 章节 |
+| Scenarios | 每个 Requirement 下的 `#### Scenario:` |
+| 附录 | 配置示例、关键词集合等 |
+
+### 步骤 2：对齐 design.md
+
+| 检查项 | 验证方法 | 预期结果 |
+|--------|----------|----------|
+| **Decisions 覆盖** | 每个 spec Requirement 是否有对应 Decision | 1:1 或 N:1 映射 |
+| **术语一致** | design 中使用的术语是否与 spec 定义一致 | 无偏差 |
+| **Goals 对齐** | design Goals 是否覆盖 spec 中的核心 Requirements | 无遗漏 |
+| **Non-Goals 合理** | Non-Goals 是否与 spec 范围冲突 | 无冲突 |
+| **Compatibility 完整** | 每个 spec 中涉及现有组件的 Requirement 是否有兼容性说明 | 有对应条目 |
+| **Open Questions 状态** | 所有问题是否已关闭或有明确待办 | 无悬而未决 |
+
+### 步骤 3：对齐 tasks.md
+
+| 检查项 | 验证方法 | 预期结果 |
+|--------|----------|----------|
+| **任务覆盖** | 每个 spec Requirement 是否有对应任务 | 1:N 映射 |
+| **追溯标注** | 任务是否有 `_Requirements: X.Y_` 标注 | 全部有标注 |
+| **场景对应** | spec Scenarios 是否有对应测试任务 | 有 Validation 任务 |
+| **依赖顺序** | 任务顺序是否符合 spec 中定义的逻辑依赖 | 无循环、顺序合理 |
+| **验证任务** | 每个可测试 Scenario 是否有测试任务 | 有 `_Validates:_` 标注 |
+
+### 步骤 4：最佳实践检查
+
+#### design.md 最佳实践
+
+- [ ] 有 Context 章节说明背景
+- [ ] Goals/Non-Goals 明确边界
+- [ ] Decisions 使用主动语态
+- [ ] Compatibility 覆盖五维度（入口/配置/行为/日志/依赖）
+- [ ] Risks/Trade-offs 有缓解措施
+- [ ] Migration Plan 分步骤渐进
+
+#### tasks.md 最佳实践
+
+- [ ] Implementation 与 Validation 分组
+- [ ] 任务编号连续（1, 1.1, 1.2, 2...）
+- [ ] 每个任务有 `_Requirements:_` 追溯
+- [ ] 验证任务有 `_Validates:_` 标注
+- [ ] 高风险任务有 Checkpoint（确保测试通过）
+- [ ] 可选任务标记 `*`
+
+---
+
+## 评审报告模板
+
+```markdown
+# Spec-Based Review: [change-name]
+
+## 1. 快速摘要
+
+| 维度 | 状态 | 问题数 |
+|------|------|--------|
+| design.md 覆盖度 | ✅/⚠️/❌ | N/M Requirements |
+| tasks.md 覆盖度 | ✅/⚠️/❌ | N/M Requirements |
+| 术语一致性 | ✅/⚠️/❌ | N |
+| 最佳实践 design | ✅/⚠️/❌ | N/M 项 |
+| 最佳实践 tasks | ✅/⚠️/❌ | N/M 项 |
+
+## 2. 覆盖度矩阵
+
+| spec Requirement | design Decision | tasks 任务 | 状态 |
+|------------------|-----------------|------------|------|
+| [Requirement 1] | [Decision X] | 1.1, 1.2 | ✅ |
+| [Requirement 2] | ❌ 缺失 | 1.3 | ⚠️ |
+
+## 3. 术语偏差
+
+| 术语 | spec 定义 | design/tasks 用法 | 建议 |
+|------|-----------|-------------------|------|
+| [术语 A] | [定义] | [实际用法] | [修正建议] |
+
+## 4. 最佳实践差距
+
+### design.md
+- ⚠️ [缺失项]
+
+### tasks.md
+- ⚠️ [缺失项]
+
+## 5. 改进建议
+
+- [ ] 建议 1
+- [ ] 建议 2
+
+## 6. 下一步
+
+- 若无问题：文档体系一致，可进入 EXECUTION
+- 若有问题：按建议更新后重新 review
+```
+
+---
+
+## 严重级别定义
+
+| 级别 | 标记 | 定义 | 处理要求 |
+|------|------|------|----------|
+| Critical | 🔴 | spec 有 Requirement 但 design/tasks 无覆盖 | 必须补齐 |
+| Warning | 🟡 | 术语不一致或追溯标注缺失 | 建议修复 |
+| Info | 🟢 | 最佳实践建议 | 可选优化 |
+
+---
+
+## 快速检查清单
+
+### spec.md → design.md
+
+- [ ] 每个 Requirement 有 Decision 覆盖
+- [ ] 术语定义被正确引用
+- [ ] Goals 覆盖核心 Requirements
+- [ ] Compatibility 覆盖涉及现有组件的 Requirements
+
+### spec.md → tasks.md
+
+- [ ] 每个 Requirement 有实现任务
+- [ ] 每个可测试 Scenario 有验证任务
+- [ ] 任务有 `_Requirements:_` 追溯标注
+- [ ] 验证任务有 `_Validates:_` 标注
+
+---
+
+## 与其他工作流的关系
+
+```mermaid
+graph TB
+    A[spec.md 创建/更新] --> B[spec-based-review]
+    B --> C{一致?}
+    C -->|否| D[更新 design/tasks]
+    D --> B
+    C -->|是| E[spec-review 整体评审]
+    E --> F[开始实现]
+```
+
+- **前置**：spec.md 已完成或更新
+- **后续**：通过后可直接实现或再做 `/spec-review` 整体评审
+
+
+ succeeded in 348ms:
+---
+name: verification-before-completion
+description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+---
+
+# Verification Before Completion
+
+## Overview
+
+Claiming work is complete without verification is dishonesty, not efficiency.
+
+**Core principle:** Evidence before claims, always.
+
+**Violating the letter of this rule is violating the spirit of this rule.**
+
+## The Iron Law
+
+```
+NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
+```
+
+If you haven't run the verification command in this message, you cannot claim it passes.
+
+## The Gate Function
+
+```
+BEFORE claiming any status or expressing satisfaction:
+
+1. IDENTIFY: What command proves this claim?
+2. RUN: Execute the FULL command (fresh, complete)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim?
+   - If NO: State actual status with evidence
+   - If YES: State claim WITH evidence
+5. ONLY THEN: Make the claim
+
+Skip any step = lying, not verifying
+```
+
+## Common Failures
+
+| Claim | Requires | Not Sufficient |
+|-------|----------|----------------|
+| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
+| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
+| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
+| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
+| Regression test works | Red-green cycle verified | Test passes once |
+| Agent completed | VCS diff shows changes | Agent reports "success" |
+| Requirements met | Line-by-line checklist | Tests passing |
+
+## Red Flags - STOP
+
+- Using "should", "probably", "seems to"
+- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
+- About to commit/push/PR without verification
+- Trusting agent success reports
+- Relying on partial verification
+- Thinking "just this once"
+- Tired and wanting work over
+- **ANY wording implying success without having run verification**
+
+## Rationalization Prevention
+
+| Excuse | Reality |
+|--------|---------|
+| "Should work now" | RUN the verification |
+| "I'm confident" | Confidence ≠ evidence |
+| "Just this once" | No exceptions |
+| "Linter passed" | Linter ≠ compiler |
+| "Agent said success" | Verify independently |
+| "I'm tired" | Exhaustion ≠ excuse |
+| "Partial check is enough" | Partial proves nothing |
+| "Different words so rule doesn't apply" | Spirit over letter |
+
+## Key Patterns
+
+**Tests:**
+```
+✅ [Run test command] [See: 34/34 pass] "All tests pass"
+❌ "Should pass now" / "Looks correct"
+```
+
+**Regression tests (TDD Red-Green):**
+```
+✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+❌ "I've written a regression test" (without red-green verification)
+```
+
+**Build:**
+```
+✅ [Run build] [See: exit 0] "Build passes"
+❌ "Linter passed" (linter doesn't check compilation)
+```
+
+**Requirements:**
+```
+✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
+❌ "Tests pass, phase complete"
+```
+
+**Agent delegation:**
+```
+✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
+❌ Trust agent report
+```
+
+## Why This Matters
+
+From 24 failure memories:
+- your human partner said "I don't believe you" - trust broken
+- Undefined functions shipped - would crash
+- Missing requirements shipped - incomplete features
+- Time wasted on false completion → redirect → rework
+- Violates: "Honesty is a core value. If you lie, you'll be replaced."
+
+## When To Apply
+
+**ALWAYS before:**
+- ANY variation of success/completion claims
+- ANY expression of satisfaction
+- ANY positive statement about work state
+- Committing, PR creation, task completion
+- Moving to next task
+- Delegating to agents
+
+**Rule applies to:**
+- Exact phrases
+- Paraphrases and synonyms
+- Implications of success
+- ANY communication suggesting completion/correctness
+
+## The Bottom Line
+
+**No shortcuts for verification.**
+
+Run the command. Read the output. THEN claim the result.
+
+This is non-negotiable.
+
+
