@@ -1162,7 +1162,9 @@ serialTest("cleanup job poll once records retry audit and does not mark cleanup 
     workerId: "cleanup-worker",
     storage: {
       async deleteObject() {
-        throw new Error("delete failed");
+        const error = new Error("delete failed");
+        error.name = "UnexpectedStorageVendorError";
+        throw error;
       }
     }
   });

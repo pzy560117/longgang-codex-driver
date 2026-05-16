@@ -114,10 +114,7 @@ export function createCleanupJob(options: CleanupJobOptions) {
           operatorId: candidate.operatorId,
           action: "CLEANUP_FAILED",
           result: "FAILED",
-          errorCode:
-            error instanceof Error && error.name !== "Error"
-              ? error.name
-              : "FILE_CLEANUP_DELETE_ERROR",
+          errorCode: "FILE_CLEANUP_DELETE_ERROR",
           requestId: cleanupRequestId(options.workerId),
           occurredAt: failedAt,
           now: failedAt

@@ -121,3 +121,9 @@ test("audit action, result, and errorCode literals written by production code st
     []
   );
 });
+
+test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
+  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+});
