@@ -1,0 +1,36 @@
+﻿{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58051 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.678ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (803.8809ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1458.0122
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.8541ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3204ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4117ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9725ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2137ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4164ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.1523

@@ -1,0 +1,71 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:54782 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (1.7038ms)
+✔ production object storage config is required outside injected test adapters (0.392ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (275.1186ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (205.5756ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (127.7806ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (113.1159ms)
+✔ object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (115.8218ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (121.241ms)
+✔ xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (98.4871ms)
+✔ zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (102.9063ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (244.0886ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (251.6827ms)
+✔ scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit (224.5369ms)
+✔ scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit (222.9753ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (235.4783ms)
+✔ cleanup job deletes only published object when temp storage key is null (254.5421ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (285.3875ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3477.0286
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (1.2211ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (272.4172ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (293.3454ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (285.4529ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (201.6949ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.3958ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (214.0051ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (414.1756ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (197.2081ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (239.4229ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (291.5135ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (187.0692ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (253.1181ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (242.7026ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (248.8658ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (178.9852ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (154.0536ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (164.9711ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (184.5239ms)
+✔ worker integration tests (4269.0969ms)
+ℹ tests 19
+ℹ suites 1
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4878.5646

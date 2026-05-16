@@ -1,0 +1,52 @@
+SUCCESS: The process with PID 28756 (child process of PID 41256) has been terminated.
+SUCCESS: The process with PID 25268 (child process of PID 34944) has been terminated.
+SUCCESS: The process with PID 34944 (child process of PID 42852) has been terminated.
+SUCCESS: The process with PID 6032 (child process of PID 37152) has been terminated.
+SUCCESS: The process with PID 37152 (child process of PID 17064) has been terminated.
+SUCCESS: The process with PID 17064 (child process of PID 38604) has been terminated.
+SUCCESS: The process with PID 38604 (child process of PID 37568) has been terminated.
+SUCCESS: The process with PID 37568 (child process of PID 42852) has been terminated.
+SUCCESS: The process with PID 7604 (child process of PID 27200) has been terminated.
+SUCCESS: The process with PID 35872 (child process of PID 37952) has been terminated.
+SUCCESS: The process with PID 37952 (child process of PID 42852) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 当前任务相关实现、OpenAPI 契约、API 测试和 verify-matrix 已处于修复后状态；本轮未产生新的任务文件 diff。
+- 已验证任务详情响应包含 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，且不返回未声明的 `events` 替代字段。
+
+## Files Changed
+- 无新改动。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...'; npm run test:contract; ... git diff --check ...`: PASS
+- `npm run test:api`: PASS，2/2 passed
+- `npm run test:contract`: PASS，7/7 passed
+- `git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、有 checkpoint、FAILED、事件兜底失败详情字段。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties 和禁止 `events` 字段。
+- `docs/testing/verify-matrix.md`: 已记录 local/Docker MySQL + contract evidence 边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `production HTTP + MySQL path`: PASS - API 测试经 Fastify + MySQL 路径执行。
+- `no InMemory/mock as production implementation`: PASS - 本轮验证未降级为内存 repository。
+- `evidence boundary`: PASS - 证据边界为 local/Docker MySQL，不声明外部 live MySQL。
+
+## Knowledge References
+- 无具体知识条目引用；仅按流程读取 `docs/knowledge/knowledge-catalog.md` 判断无需展开条目。
+
+## Knowledge Outputs
+- 无。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有既有 `traces/` 运行产物未提交/未清理；本轮按任务边界未触碰。
+- 未执行 commit，因为 Driver Context 明确禁止 `git add` / `git commit`，且本轮没有任务相关文件改动。

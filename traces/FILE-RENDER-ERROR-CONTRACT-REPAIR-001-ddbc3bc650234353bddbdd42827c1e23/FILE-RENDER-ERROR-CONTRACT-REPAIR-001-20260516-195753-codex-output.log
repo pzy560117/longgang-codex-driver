@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 42232 (child process of PID 35160) has been terminated.
+SUCCESS: The process with PID 35160 (child process of PID 41164) has been terminated.
+SUCCESS: The process with PID 41164 (child process of PID 38820) has been terminated.
+SUCCESS: The process with PID 38820 (child process of PID 39512) has been terminated.
+SUCCESS: The process with PID 39512 (child process of PID 28212) has been terminated.
+SUCCESS: The process with PID 35684 (child process of PID 2928) has been terminated.
+SUCCESS: The process with PID 2928 (child process of PID 24412) has been terminated.
+SUCCESS: The process with PID 24412 (child process of PID 27484) has been terminated.
+SUCCESS: The process with PID 27484 (child process of PID 28212) has been terminated.
+SUCCESS: The process with PID 24860 (child process of PID 39840) has been terminated.
+SUCCESS: The process with PID 39840 (child process of PID 41696) has been terminated.
+SUCCESS: The process with PID 41696 (child process of PID 14072) has been terminated.
+SUCCESS: The process with PID 14072 (child process of PID 28212) has been terminated.
+## Requirement IDs
+- FR-006
+- AC-E027
+
+## Summary
+- 当前检出内容已包含目标修复：`renderFileBody` 将 XLSX/ZIP renderer 抛错映射为 `EXPORT_RENDER_ERROR`，并记录 `PACKAGE_FAILED`、`renderInputSummary`、`failureReason`。
+- 已验证 object storage put/read/publish 失败仍保持 `FILE_VERIFY_ERROR`，renderer 失败在 file-service 与 scheduler 路径均收口为 `EXPORT_RENDER_ERROR`。
+
+## Files Changed
+- 无本轮源码/文档改动；目标实现和测试证据已存在于当前工作树。
+- 未修改 `task.json`、`progress.txt`、`traces/`。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; ... npm run test:worker; ... git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS
+  - `arch:check`: PASS
+  - `test:file`: PASS, 17/17
+  - `test:worker`: PASS, 19/19
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `src/file-service/index.ts`: renderer 异常包装为 `EXPORT_RENDER_ERROR`，并写入 `PACKAGE_FAILED` checkpoint。
+- `tests/file/export-file-service.test.mjs`: 覆盖 XLSX/ZIP renderer 失败、scheduler 失败审计、object storage 失败保持 `FILE_VERIFY_ERROR`。
+- `docs/testing/verify-matrix.md`: 记录本任务证据边界为 local/Docker MySQL + 本地 object storage mock / production-equivalent adapter，不声明 live OSS/S3。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 使用现有 file-service + scheduler worker 生产路径。
+- `data_persistence=MySQL/local-or-Docker`: PASS - 验证命令自举 Docker MySQL。
+- `test_double_policy`: PASS - object storage 仅使用本地 mock / production-equivalent adapter，未冒充 live OSS/S3。
+- `forbidden_implementations`: PASS - 未引入 `InMemory*`、fixture repository 或领域原型作为生产实现。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前任务模板禁止 `git add` / `git commit` / `git push`，所以未自动提交；这覆盖了入口 AGENTS.md 的自动 commit 规则。
+- 工作区仍有既有 `traces/` 脏数据，未触碰。

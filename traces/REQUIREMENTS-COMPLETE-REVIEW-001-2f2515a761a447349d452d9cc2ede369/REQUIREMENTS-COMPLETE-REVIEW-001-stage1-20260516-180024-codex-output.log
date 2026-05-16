@@ -1,0 +1,30 @@
+SUCCESS: The process with PID 36276 (child process of PID 6000) has been terminated.
+SUCCESS: The process with PID 6000 (child process of PID 39328) has been terminated.
+SUCCESS: The process with PID 39328 (child process of PID 38924) has been terminated.
+SUCCESS: The process with PID 38924 (child process of PID 1064) has been terminated.
+SUCCESS: The process with PID 1064 (child process of PID 37664) has been terminated.
+SUCCESS: The process with PID 39140 (child process of PID 39760) has been terminated.
+SUCCESS: The process with PID 39760 (child process of PID 36244) has been terminated.
+SUCCESS: The process with PID 36244 (child process of PID 25124) has been terminated.
+SUCCESS: The process with PID 25124 (child process of PID 37664) has been terminated.
+SUCCESS: The process with PID 39560 (child process of PID 32548) has been terminated.
+SUCCESS: The process with PID 32548 (child process of PID 33244) has been terminated.
+SUCCESS: The process with PID 33244 (child process of PID 31736) has been terminated.
+SUCCESS: The process with PID 31736 (child process of PID 37664) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | backend | `docs/product/acceptance-criteria.md` 的 `AC-002` 要求任务详情返回总数、已处理数、进度和错误信息；`contracts/openapi.yaml:1356` 定义 `ExportTaskDetail.recentEvents`；但 `src/task-api/service.ts:478` 固定返回 `totalCount: null`、`progressPercent: 0`、`errorCode: null`、`errorMessage: null`，且使用 `events` 而非 `recentEvents`；`tests/api/export-http-api.test.mjs:367` 只断言 `taskId`。 | 修复 `GET /api/export/tasks/{taskId}`，从 task/checkpoint/event/audit 持久化数据计算 `totalCount`、`processedCount`、`progressPercent`、失败 `errorCode/errorMessage`，并按 OpenAPI 返回 `recentEvents`；补 PENDING、checkpoint、FAILED 详情测试。 | `npm run test:api; npm run test:contract; git diff --check -- src/task-api tests/api contracts/openapi.yaml docs/testing/verify-matrix.md` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | MEDIUM | missing_requirement | backend | `docs/product/acceptance-criteria.md` 的 `AC-E027` 要求 XLSX/ZIP 渲染失败收口为 `EXPORT_RENDER_ERROR`；`contracts/openapi.yaml:1177` 已声明该错误；但 `src/file-service/index.ts:133` 直接调用 `renderFileBody`，`src/file-service/index.ts:329` 直接调用 `renderExportPackage`，真实 renderer 普通异常会在 `src/scheduler/worker.ts:574` 被默认写成非 `EXPORT_RENDER_ERROR`；`rg "EXPORT_RENDER_ERROR" tests` 未发现生产渲染失败路径断言。 | 在 file-service 真实 renderer 边界捕获渲染异常并映射为 `EXPORT_RENDER_ERROR`，保留 object storage put/read/publish 的 `FILE_VERIFY_ERROR` 行为；补 file 或 worker 测试断言任务失败状态、audit/errorCode 和渲染输入摘要。 | `npm run test:file; npm run test:worker; git diff --check -- src/file-service tests/file tests/worker docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | backend | backend-worker | 1 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 1 | no |

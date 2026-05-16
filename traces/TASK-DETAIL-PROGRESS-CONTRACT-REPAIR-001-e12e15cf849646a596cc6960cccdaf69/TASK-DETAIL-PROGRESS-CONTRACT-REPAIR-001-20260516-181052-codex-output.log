@@ -1,0 +1,58 @@
+SUCCESS: The process with PID 39248 (child process of PID 38272) has been terminated.
+SUCCESS: The process with PID 38272 (child process of PID 13392) has been terminated.
+SUCCESS: The process with PID 13392 (child process of PID 36788) has been terminated.
+SUCCESS: The process with PID 36788 (child process of PID 35528) has been terminated.
+SUCCESS: The process with PID 35528 (child process of PID 16368) has been terminated.
+SUCCESS: The process with PID 38420 (child process of PID 10672) has been terminated.
+SUCCESS: The process with PID 10672 (child process of PID 37932) has been terminated.
+SUCCESS: The process with PID 37932 (child process of PID 31232) has been terminated.
+SUCCESS: The process with PID 31232 (child process of PID 16368) has been terminated.
+SUCCESS: The process with PID 26096 (child process of PID 7728) has been terminated.
+SUCCESS: The process with PID 7728 (child process of PID 37032) has been terminated.
+SUCCESS: The process with PID 37032 (child process of PID 27764) has been terminated.
+SUCCESS: The process with PID 27764 (child process of PID 16368) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 修复任务详情响应契约：`errorCode`、`errorMessage`、`recentEvents` 纳入 OpenAPI required，并补 `NullableResponseCode`。
+- 任务详情失败字段现在会从失败审计和最近任务事件中的 `errorCode/errorMessage` 取最近失败信息。
+- API 测试覆盖 PENDING、checkpoint 进度、FAILED 审计失败、FAILED 事件兜底，并断言不返回未声明的 `events`。
+- 变更已出现在最新提交：`798a90e fix(api): complete task detail response contract`。
+
+## Files Changed
+- `contracts/openapi.yaml`: 对齐 ExportTaskDetail schema 与示例。
+- `src/task-api/service.ts`: 合并审计/事件失败信息来源。
+- `tests/api/export-http-api.test.mjs`: 补详情响应关键字段断言。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 补详情 schema required/properties 守护。
+- `docs/testing/verify-matrix.md`: 同步本任务证据边界。
+
+## Validation
+- `powershell ... docker-test-env.ps1; npm run test:api; npm run test:contract; git diff --check ...`: PASS - API 2/2，contract 6/6，diff check 通过。
+- `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml`: PASS - OpenAPI valid，无 warning。
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明 FR-002/AC-002 详情响应字段和失败兜底。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI 详情 schema 不漂移。
+- `docs/testing/verify-matrix.md`: 证明 local/Docker MySQL + contract 边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `production DB boundary`: PASS - API 测试走 local/Docker MySQL。
+- `no InMemory/mock as production`: PASS - 未引入生产替身。
+- `contract truth source`: PASS - OpenAPI 与测试同步。
+- `evidence boundary`: PASS - 明确不声明外部 live MySQL。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `PITFALL-OPENAPI-NULLABLE-ENUM-001`: pitfall - Redocly nullable enum 需要显式包含 `null` - suggested - `docs/knowledge/pitfalls/PITFALL-OPENAPI-NULLABLE-ENUM-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前工作区仍有本轮前已存在的 `traces/` 运行产物未提交；我未修改这些 runtime 文件。

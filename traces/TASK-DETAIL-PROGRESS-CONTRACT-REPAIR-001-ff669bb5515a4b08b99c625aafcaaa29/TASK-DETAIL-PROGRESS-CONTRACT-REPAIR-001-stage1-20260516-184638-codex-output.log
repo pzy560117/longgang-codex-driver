@@ -1,0 +1,32 @@
+SUCCESS: The process with PID 41016 (child process of PID 42620) has been terminated.
+SUCCESS: The process with PID 42620 (child process of PID 26160) has been terminated.
+SUCCESS: The process with PID 26160 (child process of PID 42416) has been terminated.
+SUCCESS: The process with PID 42416 (child process of PID 32716) has been terminated.
+SUCCESS: The process with PID 39760 (child process of PID 31536) has been terminated.
+SUCCESS: The process with PID 31536 (child process of PID 39940) has been terminated.
+SUCCESS: The process with PID 39940 (child process of PID 39992) has been terminated.
+SUCCESS: The process with PID 39992 (child process of PID 32716) has been terminated.
+SUCCESS: The process with PID 2788 (child process of PID 30304) has been terminated.
+SUCCESS: The process with PID 30304 (child process of PID 41808) has been terminated.
+SUCCESS: The process with PID 41808 (child process of PID 14952) has been terminated.
+SUCCESS: The process with PID 14952 (child process of PID 14132) has been terminated.
+SUCCESS: The process with PID 14132 (child process of PID 32716) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | - | - |
+
+## Verdict
+
+- PASS
+
+验证已执行通过：
+
+`docker-test-env.ps1` + `npm run test:api` + `npm run test:contract` + `git diff --check`
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |

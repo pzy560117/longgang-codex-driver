@@ -1,0 +1,42 @@
+SUCCESS: The process with PID 36944 (child process of PID 40668) has been terminated.
+SUCCESS: The process with PID 32104 (child process of PID 41556) has been terminated.
+SUCCESS: The process with PID 41556 (child process of PID 24900) has been terminated.
+SUCCESS: The process with PID 29508 (child process of PID 10756) has been terminated.
+SUCCESS: The process with PID 10756 (child process of PID 37988) has been terminated.
+SUCCESS: The process with PID 37988 (child process of PID 8216) has been terminated.
+SUCCESS: The process with PID 8216 (child process of PID 33504) has been terminated.
+SUCCESS: The process with PID 33504 (child process of PID 24900) has been terminated.
+SUCCESS: The process with PID 39984 (child process of PID 42180) has been terminated.
+SUCCESS: The process with PID 42180 (child process of PID 24604) has been terminated.
+SUCCESS: The process with PID 24604 (child process of PID 42384) has been terminated.
+SUCCESS: The process with PID 42384 (child process of PID 24900) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | HIGH | security | backend | `src/task-api/service.ts:276-285` 直接把 `event.batchCheckpoint` 原样 JSON 解析后返回；`tests/api/export-http-api.test.mjs:672-675` 构造了 `UnexpectedQueryVendorError`，但 `:712-716` 只断言 `eventType`，未断言 `recentEvents[].batchCheckpoint` 不含内部错误码/消息。 | 对 `recentEvents[].batchCheckpoint` 做公开响应清洗：删除或归一化 `errorCode/errorMessage` 等非公开失败字段，并只返回 OpenAPI 声明字段；补 API 回归断言 `JSON.stringify(data)` 不包含 `UnexpectedQueryVendorError` 或内部错误消息；可补 contract 测试守护 `BatchCheckpoint` 公开字段。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'; npm run test:contract; npm run typecheck` |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F002 | MEDIUM | artifact_gap | test | `git show --stat HEAD` 显示本轮改动包含 `src/scheduler/worker.ts` 和 `tests/worker/scheduler-worker.test.mjs`，但 Driver 测试命令未包含 `npm run test:worker`。我补跑后通过，但任务证据路径本身缺少 affected test。 | 如果 worker 归一化属于本任务修复范围，把 `npm run test:worker` 加入 `task.json` 的 `test_command` 和 `docs/testing/verify-matrix.md`；如果不属于本任务，拆分到独立任务并记录证据边界。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:worker'` |
+
+## Verification
+
+- 已检查命令:
+  - 任务声明验证命令：`test:api` + `test:contract` + `git diff --check ...`
+  - 受影响补充验证：`npm run test:worker`
+  - 类型检查：`npm run typecheck`
+- 结果摘要:
+  - `test:api`: 2 passed
+  - `test:contract`: 7 passed
+  - `test:worker`: 19 passed
+  - `typecheck`: passed
+  - `git diff --check`: passed
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | backend | backend-worker | 1 | yes |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F002 | test | test-runner | 1 | no |

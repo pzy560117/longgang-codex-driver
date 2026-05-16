@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | HIGH | architecture_gap | controller | `docs/architecture/constraints.md:60` 要求 `feature_impl` 的 `test_command` 包含架构检查；`plans/features/export-platform.dev-plan.md:142` 要求 `npm run arch:check` 成为 feature_impl 固定验证入口；但 `task.json:1808` 当前只运行 `docker-test-env.ps1`、`npm run test:file`、`npm run test:worker` 和 `git diff --check`，没有 `npm run arch:check` 或等价架构形态验证。 | 将 `FILE-RENDER-ERROR-CONTRACT-REPAIR-001` 的 `test_command` 补入 `npm run arch:check`，建议放在 file/worker 测试前，并保留现有 `test:file`、`test:worker`、`git diff --check`。 | `npm run arch:check; npm run test:file; npm run test:worker; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | controller | harness-writer | 1 | yes |

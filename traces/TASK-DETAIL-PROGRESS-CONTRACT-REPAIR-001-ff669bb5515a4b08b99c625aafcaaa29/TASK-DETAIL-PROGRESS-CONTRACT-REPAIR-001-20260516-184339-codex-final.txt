@@ -1,0 +1,42 @@
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 当前仓库内容已包含该修复：任务详情返回 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，且不返回未声明的 `events` 字段。
+- 失败详情已从失败审计或最近任务事件兜底解析 `errorCode/errorMessage`，进度来自 MySQL 持久化 checkpoint / task event / task 状态。
+- 本轮未修改 tracked 文件；未执行 `git add` / `git commit`，因为任务模板明确禁止。
+
+## Files Changed
+- 无 tracked 文件变更；相关实现已存在于 `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`tests/contract/openapi-route-mapping.contract.test.mjs`、`docs/testing/verify-matrix.md`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...'; ... npm run test:contract; ... git diff --check ...`: PASS
+  - `npm run test:api`: 2/2 PASS
+  - `npm run test:contract`: 7/7 PASS
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、有 checkpoint、FAILED、event-only FAILED 详情字段与禁止 `events`。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties。
+- `docs/testing/verify-matrix.md`: 已记录 local/Docker MySQL + contract 证据边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - HTTP API 走 Fastify + service + MySQL repository。
+- `detail response uses persistent checkpoint/event/audit/task state`: PASS - API 测试通过 Docker MySQL 环境验证。
+- `forbidden events field`: PASS - API 测试断言未返回 `events`。
+- `no mock/live evidence inflation`: PASS - 验证矩阵边界为 local/Docker MySQL。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 工作区已有多条未跟踪/已修改 `traces/` 运行产物；本轮验证又产生了当前 Codex 进程持有的 trace 目录，日志句柄未释放，未继续强删。Tracked 任务文件无新增 diff。

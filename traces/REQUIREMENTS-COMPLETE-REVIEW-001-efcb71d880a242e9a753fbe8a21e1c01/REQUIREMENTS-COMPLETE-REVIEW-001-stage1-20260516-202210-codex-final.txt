@@ -1,0 +1,31 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | architecture_gap | backend | `src/audit-log/auth-context.ts:46-63`, `src/audit-log/auth-context.ts:26-27`, `src/task-api/service.ts:624-633` | 增加可信认证上下文边界，禁止仅凭调用方 header 自声明 `EXPORT_ADMIN` 或跨租户身份。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `src/query-executor/index.ts:352-405` | 查询执行层必须叠加 `operatorId`、`roleCodes`，并执行 registry 的 `dataScopeTemplate`，不能只硬编码 `tenantId + orgScope`。 | `npm run test:query` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | contract_gap | backend | `src/file-service/index.ts:117-120`, `src/file-service/index.ts:166-168`, `src/task-api/service.ts:840` | 下载 URL 需要不可伪造签名，并按产品默认 10 分钟 TTL 生成；文件保留期不能替代签名 URL 过期时间。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | missing_requirement | backend | `contracts/openapi.yaml:1328-1330`, `src/task-api/service.ts:451-615` | 在创建任务生产路径校验 `queryParams` canonical JSON 不超过 32768 bytes，超限返回 `QUERY_PARAMS_TOO_LARGE`，补 API 测试。 | `npm run test:api && npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | HIGH | missing_requirement | backend | `tests/api/export-http-api.test.mjs`, `tests/query/query-executor.test.mjs`, `src/query-executor/index.ts:664-721` | 补齐 P0/P1 验收证据：历史查询 `status/subsystemCode`、registry update/get/list/重复 taskCode、未注册创建不落任务、游标缺失/重复/非递增负向测试。 | `npm run test:api && npm run test:query` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | architecture_gap | backend | `src/registry-config/service.ts:141-186`, `src/query-executor/index.ts:300-317`, `src/query-executor/index.ts:416-418` | registry 持久化前增加 datasource allowlist、模板/表/函数治理，避免非法或高成本查询进入执行阶段。 | `npm run test:query` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | MEDIUM | contract_gap | backend | `src/routes/respond.ts:22-25`, `src/query-executor/index.ts:793-803`, `src/task-api/service.ts:251-254` | 公开 API 和任务详情错误信息做脱敏映射，底层 SQL、数据源、对象存储错误不得原文外泄。 | `npm run test:api && npm run test:query` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 2 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | backend-worker | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | test-runner | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | backend | backend-worker | 1 | false |
+
+视觉门禁不适用：产品范围明确 `frontend_scope: none`，且 PRD 将新前端页面列为 Out of Scope。
+
+已验证：`npm run test:mock-local` 通过，`git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md` 通过，仅有 LF/CRLF warning。本次只读审查未改文件，因此未提交。

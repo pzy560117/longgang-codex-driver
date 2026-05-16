@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:61` 要求 AC-E027 记录渲染输入摘要和失败原因；`src/file-service/index.ts:320` / `:328` / `:335` 中 `summary` 被丢弃，仅映射 `EXPORT_RENDER_ERROR`；`src/scheduler/worker.ts:575` 与 `src/repositories/export-audit.repository.ts:63` 只持久化 `errorCode`；`tests/file/export-file-service.test.mjs:567`、`:595`、`:719`、`:762` 只断言错误码、失败状态、无 object storage 写入，未断言输入摘要或失败原因。 | 在真实 `renderFileBody -> renderExportPackage` 失败路径中记录可追溯的渲染输入摘要和失败原因，例如 taskId/taskCode、attemptNo、fileName、format、totalRowCount、partCount、singleFileMaxRows、sanitized failure reason；同步 file/worker 测试断言该证据已落库或进入任务事件/审计证据路径。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | backend | backend-worker | 1 | yes |

@@ -1,0 +1,50 @@
+## Requirement IDs
+- FR-008
+- FR-009
+- AC-008
+- AC-009
+- RCR-P0-002
+
+## Summary
+- 已在 query executor 生产路径强制编译并叠加 registry `dataScopeTemplate`。
+- 数据范围现在必须绑定 `tenantId`、`operatorId`、`roleCodes`、`orgScope`，并拒绝非认证上下文白名单参数。
+- 已补 query 与 worker 集成测试，覆盖同租户同组织越权行阻断、模板参数注入、调度默认执行链路不回退。
+
+## Files Changed
+- `src/query-executor/index.ts`: 新增数据范围模板编译、白名单参数绑定和 query event 证据。
+- `tests/query/query-executor.test.mjs`: 新增 dataScopeTemplate 正/负向覆盖。
+- `tests/worker/scheduler-worker.test.mjs`: 新增 scheduler 默认 query processor 数据范围链路测试。
+- `docs/testing/verify-matrix.md`: 同步 DATA-SCOPE-TEMPLATE-ENFORCE-001 证据边界。
+
+## Validation
+- `npm run typecheck`: PASS
+- 指定验证命令 `npm run arch:check; ... npm run test:query; npm run test:worker; ... git diff --check ...`: PASS
+- `npm run test:query`: PASS，12/12
+- `npm run test:worker`: PASS，20/20
+
+## Evidence
+- `tests/query/query-executor.test.mjs`: 证明 operator/role/org/template 数据范围生效并拒绝非法模板参数。
+- `tests/worker/scheduler-worker.test.mjs`: 证明 scheduler 默认 query processor 发布前只保留授权行。
+- `docs/testing/verify-matrix.md`: 记录 Docker MySQL / query / worker evidence 边界。
+
+## Architecture Constraints
+- `independent_microservice + worker production path`: PASS - 修改在现有 query executor / scheduler 链路内完成。
+- `no InMemory/mock production substitute`: PASS - 验证使用 Docker MySQL 测试环境。
+- `forbidden_implementations`: PASS - 未绕过 registry `dataScopeTemplate`，未执行调用方原始 SQL。
+- `driver task boundary`: PASS - 未修改 `task.json`、`progress.txt`、`traces/`。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `GUIDELINE-DATA-SCOPE-001`: guideline - registry 数据范围模板只能绑定认证上下文白名单参数 - suggested - `docs/knowledge/guidelines/GUIDELINE-DATA-SCOPE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部业务数据源 live evidence 不在本任务范围内，本轮只声明 local/Docker MySQL 受控证据。
+- 其他 review findings，如认证可信边界、签名 URL、32KB 参数限制，未在本任务内处理。
+- Driver Context 明确禁止 `git add/commit/push`，所以未执行自动 commit。

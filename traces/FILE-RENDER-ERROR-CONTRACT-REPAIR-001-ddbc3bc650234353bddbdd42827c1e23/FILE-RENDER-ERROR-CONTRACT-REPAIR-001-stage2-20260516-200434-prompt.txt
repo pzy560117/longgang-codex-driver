@@ -1,0 +1,184 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: FILE-RENDER-ERROR-CONTRACT-REPAIR-001
+- 描述: 修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据
+- Requirement IDs:
+- FR-006
+- AC-E027
+- 测试命令: npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- src/file-service/index.ts
+- tests/file/export-file-service.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:54782 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (1.7038ms)
+✔ production object storage config is required outside injected test adapters (0.392ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (275.1186ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (205.5756ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (127.7806ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (113.1159ms)
+✔ object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (115.8218ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (121.241ms)
+✔ xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (98.4871ms)
+✔ zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (102.9063ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (244.0886ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (251.6827ms)
+✔ scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit (224.5369ms)
+✔ scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit (222.9753ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (235.4783ms)
+✔ cleanup job deletes only published object when temp storage key is null (254.5421ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (285.3875ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3477.0286
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (1.2211ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (272.4172ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (293.3454ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (285.4529ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (201.6949ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.3958ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (214.0051ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (414.1756ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (197.2081ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (239.4229ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (291.5135ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (187.0692ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (253.1181ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (242.7026ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (248.8658ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (178.9852ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (154.0536ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (164.9711ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (184.5239ms)
+✔ worker integration tests (4269.0969ms)
+ℹ tests 19
+ℹ suites 1
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4878.5646
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。

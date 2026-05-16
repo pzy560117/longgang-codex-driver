@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| DATA-SCOPE-TEMPLATE-ENFORCE-001-S1-F001 | HIGH | missing_requirement | backend | `src/query-executor/index.ts:151`-`src/query-executor/index.ts:152` 只构建并编译 registry `dataScopeTemplate`；`src/query-executor/index.ts:397`-`src/query-executor/index.ts:424` 允许模板只包含 `tenantId/orgScope`。`tests/query/query-executor.test.mjs:189`-`tests/query/query-executor.test.mjs:191` 默认仍是 `tenantId = :tenantId and orgId in (:orgScope)`，主路径测试 `tests/query/query-executor.test.mjs:293`-`tests/query/query-executor.test.mjs:349` 可在未强制 `operatorId/roleCodes` 的情况下通过。与 `docs/product/prd-lite.md:45`、`:105` 和本任务 acceptance 的“强制使用 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate”冲突。 | 在 query executor 生产路径中校验 `dataScopeTemplate` 必须覆盖 `tenantId`、`operatorId`、`roleCodes`、`orgScope`，缺任一认证上下文字段直接 `QUERY_TEMPLATE_INVALID` 或 `PERMISSION_DENIED`；同步更新默认 registry 测试模板，补“模板缺 operatorId / roleCodes 时拒绝执行”的负向用例。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; npm run test:query; npm run test:worker'; git diff --check -- task.json src/query-executor tests/query tests/worker docs/testing/verify-matrix.md` |
+| DATA-SCOPE-TEMPLATE-ENFORCE-001-S1-F002 | MEDIUM | contract_gap | contract | `contracts/openapi.yaml:661` 的 `dataScopeTemplate` 示例仍是 `tenant_id = :tenantId and org_id in (:orgScope)`，但 `contracts/openapi.yaml:1666`-`contracts/openapi.yaml:1668` 描述为使用 `tenantId, operatorId, roleCodes and orgScope`；公开契约示例与当前 P0 数据范围要求不一致。 | 将 OpenAPI 示例改为同时包含 `:tenantId`、`:operatorId`、`:roleCodes`、`:orgScope`，并补 contract 守护，防止示例回退到 tenant/org 简化模板。 | `npm run test:contract; git diff --check -- contracts/openapi.yaml` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| DATA-SCOPE-TEMPLATE-ENFORCE-001-S1-F001 | backend | backend-worker | 1 | true |
+| DATA-SCOPE-TEMPLATE-ENFORCE-001-S1-F002 | contract | backend-worker | 1 | false |

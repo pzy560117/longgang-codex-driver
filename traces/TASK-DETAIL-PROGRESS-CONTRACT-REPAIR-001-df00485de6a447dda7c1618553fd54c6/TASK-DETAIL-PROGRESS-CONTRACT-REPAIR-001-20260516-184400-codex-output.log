@@ -1,0 +1,52 @@
+SUCCESS: The process with PID 30820 (child process of PID 36924) has been terminated.
+SUCCESS: The process with PID 36924 (child process of PID 38660) has been terminated.
+SUCCESS: The process with PID 38660 (child process of PID 12760) has been terminated.
+SUCCESS: The process with PID 12760 (child process of PID 32000) has been terminated.
+SUCCESS: The process with PID 32000 (child process of PID 1056) has been terminated.
+SUCCESS: The process with PID 41940 (child process of PID 11156) has been terminated.
+SUCCESS: The process with PID 43004 (child process of PID 3664) has been terminated.
+SUCCESS: The process with PID 3664 (child process of PID 1056) has been terminated.
+SUCCESS: The process with PID 40660 (child process of PID 42932) has been terminated.
+SUCCESS: The process with PID 42932 (child process of PID 41900) has been terminated.
+SUCCESS: The process with PID 41900 (child process of PID 30164) has been terminated.
+SUCCESS: The process with PID 30164 (child process of PID 1056) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 已核对任务详情契约修复：`GET /api/export/tasks/{taskId}` 返回 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，且不返回未声明的 `events`。
+- 本轮未产生新的 task-owned 文件差异；当前仓库相关文件已包含修复并通过 fresh verification。
+- 未执行 commit：本任务模板强制禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无新增变更：`git diff --name-only -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt` 为空。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...'; npm run test:contract; ...; git diff --check ...`: PASS - Docker/MySQL 环境 ready，`test:api` 2/2 pass，`test:contract` 7/7 pass，限定路径 diff check pass。
+
+## Evidence
+- `src/task-api/service.ts`: 任务详情进度、失败信息和 `recentEvents` 计算路径存在。
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、有 checkpoint、FAILED、事件兜底失败详情，并断言无 `events` 字段。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties 和禁止 `events`。
+- `docs/testing/verify-matrix.md`: 记录 local/Docker MySQL + contract 证据边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `independent_microservice / http_service`: PASS - 通过 Fastify + service + repository API 集成测试验证。
+- `production repository uses MySQL boundary`: PASS - `docker-test-env.ps1` 提供 Docker MySQL，`test:api` 走真实 DB。
+- `forbidden_implementations`: PASS - 未使用 `InMemory*`、mock repository 或 fixture repository 冒充生产路径。
+- `evidence boundary`: PASS - 证据限定为 local/Docker MySQL + contract，不声明外部 live MySQL。
+
+## Knowledge References
+- 无：当前 catalog 中无直接相关的 API 详情契约修复知识条目。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 无当前任务内阻塞；工作区仍有既有 `traces/` 运行产物变更，本轮未修改或清理。

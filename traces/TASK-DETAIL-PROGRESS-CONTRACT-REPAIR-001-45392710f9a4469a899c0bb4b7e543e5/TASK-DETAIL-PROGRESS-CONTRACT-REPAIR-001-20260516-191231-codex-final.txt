@@ -1,0 +1,41 @@
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 当前分支已包含本任务修复：任务详情响应返回 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，且不返回未声明的 `events` 字段。
+- 失败详情已从失败审计或任务事件兜底提取公开 `errorCode/errorMessage`，进度字段来自 checkpoint / task event / task 状态。
+- 本轮未产生新的源码或文档 diff；只做了任务范围核验与完整验证。
+
+## Files Changed
+- 无本轮新增改动。
+- 已核验：`contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`tests/contract/openapi-route-mapping.contract.test.mjs`、`docs/testing/verify-matrix.md`
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`: PASS - API 2/2 passed，contract 8/8 passed，scoped diff check passed
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、checkpoint 进度、FAILED 审计失败、FAILED 事件兜底、禁止 `events`
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties 与 `recentEvents` 契约
+- `docs/testing/verify-matrix.md`: 已记录 TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 的 local/Docker MySQL + contract 边界
+
+## Architecture Constraints
+- `independent_microservice / http_service`: PASS - HTTP API 集成测试通过
+- `production persistence boundary`: PASS - 验证使用本机 Docker MySQL `127.0.0.1:33306/export_platform_test`
+- `no InMemory/mock production completion`: PASS - 未用内存 repository 替代生产路径
+- `evidence boundary`: PASS - 未声明外部 live MySQL
+
+## Knowledge References
+- 无：知识 catalog 中没有与本任务直接相关的条目被引用。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 commit：Driver Context 明确禁止 `git add` / `git commit` / `git push`，且本轮任务范围文件没有新 diff。
+- 工作区仍存在既有 `traces/` 运行产物脏状态；本任务边界要求不修改 `traces/`，所以未处理。

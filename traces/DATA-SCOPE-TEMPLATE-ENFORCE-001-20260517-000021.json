@@ -1,0 +1,270 @@
+﻿{
+    "task_id":  "DATA-SCOPE-TEMPLATE-ENFORCE-001",
+    "task_session_id":  "604a8a513a0741a9b420a9e9475d1b56",
+    "task_kind":  "feature_impl",
+    "gate_profile":  "spec_required",
+    "required_truth_sources":  [
+                                   "product",
+                                   "architecture",
+                                   "contract",
+                                   "testing"
+                               ],
+    "truth_source_state":  [
+                               {
+                                   "source":  "product",
+                                   "satisfied":  true,
+                                   "present_paths":  [
+                                                         "docs\\product\\prd-lite.md",
+                                                         "docs\\product\\page-inventory.md",
+                                                         "docs\\product\\state-matrix.yaml",
+                                                         "docs\\product\\acceptance-criteria.md",
+                                                         "docs\\product\\requirement-interface-matrix.md",
+                                                         "docs\\product\\difficulty-research.md"
+                                                     ],
+                                   "missing_requirements":  [
+
+                                                            ]
+                               },
+                               {
+                                   "source":  "architecture",
+                                   "satisfied":  true,
+                                   "present_paths":  [
+                                                         "docs/architecture/constraints.md",
+                                                         "docs/context/architecture-brief.md",
+                                                         "docs/context/repo-map.md"
+                                                     ],
+                                   "missing_requirements":  [
+
+                                                            ]
+                               },
+                               {
+                                   "source":  "contract",
+                                   "satisfied":  true,
+                                   "present_paths":  "contracts\\openapi.yaml",
+                                   "missing_requirements":  [
+
+                                                            ]
+                               },
+                               {
+                                   "source":  "testing",
+                                   "satisfied":  true,
+                                   "present_paths":  [
+                                                         "docs\\testing\\ACCEPTANCE_CRITERIA.md",
+                                                         "docs\\testing\\ACCEPTANCE_EXAMPLES.md",
+                                                         "docs\\testing\\TRACEABILITY_MATRIX.md",
+                                                         "docs\\testing\\TEST_DATA_MATRIX.md",
+                                                         "docs\\testing\\test-matrix.md",
+                                                         "docs\\testing\\verify-matrix.md"
+                                                     ],
+                                   "missing_requirements":  [
+
+                                                            ]
+                               }
+                           ],
+    "agent":  "codex",
+    "started_at":  "2026-05-17T00:00:19.3001315+08:00",
+    "ended_at":  "2026-05-17T00:00:21.9643367+08:00",
+    "status":  "blocked",
+    "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
+    "failed_stage":  null,
+    "stage1_review":  {
+                          "verdict":  "NOT_RUN",
+                          "exit_code":  null,
+                          "summary":  "未进入 Stage 1 审查。"
+                      },
+    "stage2_review":  {
+                          "verdict":  "NOT_RUN",
+                          "exit_code":  null,
+                          "summary":  "未进入 Stage 2 审查。"
+                      },
+    "session_policy":  {
+                           "mode":  "fresh-process",
+                           "reuse_previous_chat":  false,
+                           "carry_forward_summary":  false,
+                           "context_sources":  [
+                                                   "AGENTS.md",
+                                                   "docs/harness/task-session-strategy.md",
+                                                   "docs/harness/architecture.md",
+                                                   "docs/harness/knowledge-architecture.md",
+                                                   "docs/harness/prompt-knowledge-integration.md",
+                                                   "docs/harness/rule-governance.md",
+                                                   "docs/harness/regression-rules.md",
+                                                   "docs/knowledge/knowledge-catalog.md",
+                                                   "docs/testing/ACCEPTANCE_EXAMPLES.md",
+                                                   "docs/testing/TRACEABILITY_MATRIX.md",
+                                                   "docs/testing/verify-matrix.md"
+                                               ]
+                       },
+    "subagent_policy":  {
+                            "mode":  "guided",
+                            "allowed_roles":  [
+                                                  "explorer",
+                                                  "readonly-research",
+                                                  "docs-researcher",
+                                                  "planner",
+                                                  "architect",
+                                                  "reviewer",
+                                                  "stage1-reviewer",
+                                                  "stage2-reviewer",
+                                                  "security-reviewer",
+                                                  "test-planner",
+                                                  "failure-triage",
+                                                  "harness-writer",
+                                                  "docs-worker",
+                                                  "backend-worker",
+                                                  "test-runner"
+                                              ],
+                            "max_parallel_roles":  3,
+                            "notes":  [
+                                          "Only enable subagents when the task has two or more independent subtasks, or when the controller/session must delegate a file write instead of writing directly.",
+                                          "Subagents must read the matching AGENTS/rules/docs/skills before concluding.",
+                                          "Read-only roles stay read-only and return summaries or concrete results, not full transcripts.",
+                                          "Any repo write outside driver-owned runtime outputs must go to a matching writer role; the controller/main session should not write directly."
+                                      ]
+                        },
+    "context_files":  [
+                          "docs/product/prd-lite.md",
+                          "docs/product/acceptance-criteria.md",
+                          "docs/architecture/constraints.md",
+                          "docs/reviews/requirements-complete-review.md",
+                          "docs/reviews/requirements-complete-review.findings.json",
+                          "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                          "src/query-executor/index.ts",
+                          "tests/query/query-executor.test.mjs",
+                          "tests/worker/scheduler-worker.test.mjs",
+                          "docs/testing/verify-matrix.md",
+                          "task.json"
+                      ],
+    "run_profile_path":  "E:\\2026\\alpha-project\\longgang-codex-driver\\.codex\\\\task-run-profile.json",
+    "review_context":  {
+                           "product":  [
+                                           "docs\\product\\prd-lite.md",
+                                           "docs\\product\\page-inventory.md",
+                                           "docs\\product\\state-matrix.yaml",
+                                           "docs\\product\\acceptance-criteria.md",
+                                           "docs\\product\\requirement-interface-matrix.md",
+                                           "docs\\product\\difficulty-research.md"
+                                       ],
+                           "design":  {
+
+                                      },
+                           "contracts":  "contracts\\openapi.yaml",
+                           "testing":  [
+                                           "docs\\testing\\ACCEPTANCE_CRITERIA.md",
+                                           "docs\\testing\\ACCEPTANCE_EXAMPLES.md",
+                                           "docs\\testing\\TRACEABILITY_MATRIX.md",
+                                           "docs\\testing\\RISK_BASED_TEST_PLAN.md",
+                                           "docs\\testing\\TEST_DATA_MATRIX.md",
+                                           "docs\\testing\\EVIDENCE_PROTOCOL.md",
+                                           "docs\\testing\\REGRESSION_PLAN.md",
+                                           "docs\\testing\\test-matrix.md",
+                                           "docs\\testing\\test-data-plan.md",
+                                           "docs\\testing\\verify-matrix.md",
+                                           "docs\\testing\\failure-triage.md"
+                                       ],
+                           "plans":  [
+                                         "plans\\features\\export-platform.dev-plan.md"
+                                     ],
+                           "task_context":  [
+                                                "docs/product/prd-lite.md",
+                                                "docs/product/acceptance-criteria.md",
+                                                "docs/architecture/constraints.md",
+                                                "docs/reviews/requirements-complete-review.md",
+                                                "docs/reviews/requirements-complete-review.findings.json",
+                                                "traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt",
+                                                "src/query-executor/index.ts",
+                                                "tests/query/query-executor.test.mjs",
+                                                "tests/worker/scheduler-worker.test.mjs",
+                                                "docs/testing/verify-matrix.md",
+                                                "task.json"
+                                            ],
+                           "truth_source_state":  [
+                                                      {
+                                                          "source":  "product",
+                                                          "satisfied":  true,
+                                                          "present_paths":  [
+                                                                                "docs\\product\\prd-lite.md",
+                                                                                "docs\\product\\page-inventory.md",
+                                                                                "docs\\product\\state-matrix.yaml",
+                                                                                "docs\\product\\acceptance-criteria.md",
+                                                                                "docs\\product\\requirement-interface-matrix.md",
+                                                                                "docs\\product\\difficulty-research.md"
+                                                                            ],
+                                                          "missing_requirements":  [
+
+                                                                                   ]
+                                                      },
+                                                      {
+                                                          "source":  "architecture",
+                                                          "satisfied":  true,
+                                                          "present_paths":  [
+                                                                                "docs/architecture/constraints.md",
+                                                                                "docs/context/architecture-brief.md",
+                                                                                "docs/context/repo-map.md"
+                                                                            ],
+                                                          "missing_requirements":  [
+
+                                                                                   ]
+                                                      },
+                                                      {
+                                                          "source":  "contract",
+                                                          "satisfied":  true,
+                                                          "present_paths":  "contracts\\openapi.yaml",
+                                                          "missing_requirements":  [
+
+                                                                                   ]
+                                                      },
+                                                      {
+                                                          "source":  "testing",
+                                                          "satisfied":  true,
+                                                          "present_paths":  [
+                                                                                "docs\\testing\\ACCEPTANCE_CRITERIA.md",
+                                                                                "docs\\testing\\ACCEPTANCE_EXAMPLES.md",
+                                                                                "docs\\testing\\TRACEABILITY_MATRIX.md",
+                                                                                "docs\\testing\\TEST_DATA_MATRIX.md",
+                                                                                "docs\\testing\\test-matrix.md",
+                                                                                "docs\\testing\\verify-matrix.md"
+                                                                            ],
+                                                          "missing_requirements":  [
+
+                                                                                   ]
+                                                      }
+                                                  ],
+                           "missing_truth_sources":  [
+
+                                                     ]
+                       },
+    "commands":  [
+                     {
+                         "exit_code":  null,
+                         "cmd":  "codex exec"
+                     }
+                 ],
+    "blocked_reason":  "Codex 会话未完成。",
+    "final_message":  "\nerror: could not find bin metadata file\n\nBun failed to remap this bin to its proper location within node_modules.\nThis is an indication of a corrupted node_modules directory.\n\nPlease run \u0027bun install --force\u0027 in the project root and try\nit again. If this message persists, please open an issue:\nhttps://github.com/oven-sh/bun/issues\n\n\n",
+    "logs":  {
+                 "stdout":  "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-output.log",
+                 "stderr":  "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-error.log",
+                 "prompt":  "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-prompt.txt",
+                 "last_message":  "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-final.txt"
+             },
+    "schema_version":  "2.0.0",
+    "session_dir":  "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56",
+    "events_file":  null,
+    "log_files":  [
+                      "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-output.log",
+                      "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-error.log",
+                      "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-prompt.txt",
+                      "E:\\2026\\alpha-project\\longgang-codex-driver\\traces\\DATA-SCOPE-TEMPLATE-ENFORCE-001-604a8a513a0741a9b420a9e9475d1b56\\DATA-SCOPE-TEMPLATE-ENFORCE-001-20260517-000019-codex-final.txt"
+                  ],
+    "evidence_files":  [
+
+                       ],
+    "knowledge_references":  [
+
+                             ],
+    "knowledge_outputs":  [
+
+                          ],
+    "archive_summary":  null
+}

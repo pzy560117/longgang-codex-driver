@@ -1,0 +1,48 @@
+## Requirement IDs
+- `FR-001` - `FR-014`
+- `AC-001` - `AC-021`
+- `AC-E001` - `AC-E027`
+
+## Summary
+- 已刷新需求完整复审产物，当前结论为 `FAIL`。
+- 旧缺口 `FR-002 / AC-002`、`AC-E027` 已标记为 closed。
+- 新记录 5 个 P0、2 个 P1 findings，覆盖认证上下文可信边界、数据范围、签名 URL、`queryParams` 32KB 限制、P0 验收证据缺口、SQL 模板治理和公开错误脱敏。
+
+## Files Changed
+- [requirements-complete-review.md](/E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.md): 完整 review 报告
+- [requirements-complete-review.findings.json](/E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.findings.json): 结构化 findings / coverage / evidence boundary
+
+## Validation
+- `Get-Content ...findings.json | ConvertFrom-Json`: PASS
+- `npm run test:mock-local; ...; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md`: PASS，31 tests passed
+- `git diff --check -- docs/reviews`: PASS
+
+## Evidence
+- `docs/reviews/requirements-complete-review.md`: 证明 FR/AC/AC-E 已逐项判定并列出 P0/P1 findings
+- `docs/reviews/requirements-complete-review.findings.json`: 证明 findings 可机器读取
+- `docs/testing/verify-matrix.md`: 作为 release evidence 边界来源
+
+## Architecture Constraints
+- `truth_source=docs/product/* + docs/architecture/constraints.md`: PASS
+- `review_only_no_business_fix`: PASS
+- `mock/local/docker/live evidence separated`: PASS
+- `forbidden_implementations`: FAIL - review 发现 auth/data scope/signed URL/queryParams 等生产边界仍不完整
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - review output - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - review boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-SECURITY-001`: guideline - 认证上下文透传必须有可信来源证明 - suggested
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested
+- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常和安全验收 review - suggested
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- Review 只输出缺口，未修业务实现。
+- 工作区存在 runtime trace 脏文件/未跟踪文件，我未修改或清理。
+- 未执行提交；当前任务模板明确禁止 `git add` / `git commit` / `git push`。

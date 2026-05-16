@@ -1,0 +1,43 @@
+SUCCESS: The process with PID 2716 (child process of PID 35232) has been terminated.
+SUCCESS: The process with PID 35232 (child process of PID 24404) has been terminated.
+SUCCESS: The process with PID 24404 (child process of PID 40700) has been terminated.
+SUCCESS: The process with PID 40700 (child process of PID 27956) has been terminated.
+SUCCESS: The process with PID 1056 (child process of PID 27764) has been terminated.
+SUCCESS: The process with PID 27764 (child process of PID 9644) has been terminated.
+SUCCESS: The process with PID 9644 (child process of PID 41004) has been terminated.
+SUCCESS: The process with PID 41004 (child process of PID 4184) has been terminated.
+SUCCESS: The process with PID 4184 (child process of PID 27956) has been terminated.
+SUCCESS: The process with PID 25144 (child process of PID 39096) has been terminated.
+SUCCESS: The process with PID 39096 (child process of PID 2264) has been terminated.
+SUCCESS: The process with PID 2264 (child process of PID 38268) has been terminated.
+SUCCESS: The process with PID 38268 (child process of PID 27956) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | HIGH | test_gap | backend | `src/scheduler/worker.ts:574` 仍会把非 `Error` 的 `error.name` 原样写入 `EXECUTE_FAILED` audit；`src/task-api/service.ts:228` / `src/task-api/service.ts:264` 会把最近失败 audit 的 `errorCode` 直接暴露到 task detail；`contracts/openapi.yaml:1245` / `contracts/openapi.yaml:1435` 将 detail `errorCode` 限定为 `NullableResponseCode`。当前 `tests/api/export-http-api.test.mjs:551` 只手工插入 `QUERY_EXECUTION_ERROR`，未覆盖真实 worker 写入非公开错误名后 detail 响应是否仍符合契约。 | 在 worker/audit 写入侧或 detail 读取侧增加公开 `ResponseCode` allow-list 归一化，未知 worker 异常统一映射到公开错误码，例如 `QUERY_EXECUTION_ERROR` 或 `INTERNAL_ERROR`；补 `test:worker` 或 API 集成测试，构造自定义 `Error.name`，断言 audit 与 task detail 不返回未声明错误码；扩展 contract guard，禁止 audit errorCode 继续从 raw `.name` 透传。 | `npm run typecheck; npm run test:worker; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; npm run test:contract; git diff --check -- task.json contracts/openapi.yaml src/task-api src/scheduler tests/api tests/worker tests/contract docs/testing/verify-matrix.md progress.txt` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git show 798a90e`
+  - `npm run typecheck`
+  - 任务测试命令中的 `docker-test-env.ps1 + npm run test:api + npm run test:contract`
+  - `git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`
+- 结果摘要:
+  - `typecheck` 通过。
+  - `test:api` 2/2 通过。
+  - `test:contract` 6/6 通过。
+  - `git diff --check` 退出码 0，仅有 CRLF 提示。
+  - 当前工作区任务相关文件无未提交 diff；存在 traces 运行产物变更。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | backend | backend-worker | 1 | yes |

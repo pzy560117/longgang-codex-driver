@@ -1,0 +1,55 @@
+SUCCESS: The process with PID 24604 (child process of PID 39288) has been terminated.
+SUCCESS: The process with PID 39288 (child process of PID 28596) has been terminated.
+SUCCESS: The process with PID 28596 (child process of PID 3380) has been terminated.
+SUCCESS: The process with PID 3380 (child process of PID 3088) has been terminated.
+SUCCESS: The process with PID 3088 (child process of PID 37948) has been terminated.
+SUCCESS: The process with PID 39208 (child process of PID 29052) has been terminated.
+SUCCESS: The process with PID 29052 (child process of PID 24212) has been terminated.
+SUCCESS: The process with PID 24212 (child process of PID 12024) has been terminated.
+SUCCESS: The process with PID 12024 (child process of PID 37948) has been terminated.
+SUCCESS: The process with PID 25284 (child process of PID 18552) has been terminated.
+SUCCESS: The process with PID 18552 (child process of PID 40260) has been terminated.
+SUCCESS: The process with PID 40260 (child process of PID 30700) has been terminated.
+SUCCESS: The process with PID 30700 (child process of PID 37948) has been terminated.
+## Requirement IDs
+- FR-006
+- AC-E027
+
+## Summary
+- 已核对当前实现：renderer 抛错已映射为 `EXPORT_RENDER_ERROR`，并写入 `PACKAGE_FAILED` 事件的 `renderInputSummary` / `failureReason`。
+- object storage put/read/publish 失败仍保持 `FILE_VERIFY_ERROR` 映射。
+- 本轮未改动任务 owned paths；当前仓库中该修复代码和测试证据已存在并通过 fresh 验证。未执行 commit，因为 Driver Context 明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无：本轮未产生 `src/file-service`、`tests/file`、`tests/worker`、`docs/testing/verify-matrix.md` 的新 diff。
+
+## Validation
+- `npm run arch:check; ... npm run test:file; ... npm run test:worker; ... git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS
+  - `test:file`: 17/17 passed
+  - `test:worker`: 19/19 passed
+  - 使用 Docker MySQL `127.0.0.1:33306/export_platform_test` 与本地 object storage mock
+
+## Evidence
+- [src/file-service/index.ts](E:/2026/alpha-project/longgang-codex-driver/src/file-service/index.ts:350): renderer 异常收口与 `PACKAGE_FAILED` checkpoint。
+- [tests/file/export-file-service.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/file/export-file-service.test.mjs:598): XLSX/ZIP renderer failure 与 storage failure 映射测试。
+- [tests/file/export-file-service.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/file/export-file-service.test.mjs:831): scheduler 最终 `FAILED + EXPORT_RENDER_ERROR` 审计测试。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 已声明本任务证据边界为 local/Docker MySQL + 本地 object storage mock，不声明 live OSS/S3。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker`: PASS - `npm run arch:check`
+- `生产路径不得用 InMemory/mock repository 冒充`: PASS - arch check 通过；测试使用 MySQL 与注入式 storage adapter。
+- `证据边界 local/Docker MySQL + 本地 object storage mock`: PASS - 验证命令已自举 Docker MySQL 和本地 mock。
+
+## Knowledge References
+- 无相关知识条目被引用；仅按流程读取了 `docs/knowledge/knowledge-catalog.md` / `catalog.md`。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有既存 `traces/` 未跟踪/已修改运行产物；按任务边界未处理。

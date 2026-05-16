@@ -1,0 +1,68 @@
+SUCCESS: The process with PID 20264 (child process of PID 40976) has been terminated.
+SUCCESS: The process with PID 30312 (child process of PID 6384) has been terminated.
+SUCCESS: The process with PID 37760 (child process of PID 41224) has been terminated.
+SUCCESS: The process with PID 6384 (child process of PID 24560) has been terminated.
+SUCCESS: The process with PID 41224 (child process of PID 37164) has been terminated.
+SUCCESS: The process with PID 37164 (child process of PID 7724) has been terminated.
+SUCCESS: The process with PID 7724 (child process of PID 24560) has been terminated.
+SUCCESS: The process with PID 42568 (child process of PID 8316) has been terminated.
+SUCCESS: The process with PID 8316 (child process of PID 41964) has been terminated.
+SUCCESS: The process with PID 41964 (child process of PID 15132) has been terminated.
+SUCCESS: The process with PID 15132 (child process of PID 29956) has been terminated.
+SUCCESS: The process with PID 29956 (child process of PID 24560) has been terminated.
+SUCCESS: The process with PID 23940 (child process of PID 42556) has been terminated.
+SUCCESS: The process with PID 42556 (child process of PID 27720) has been terminated.
+SUCCESS: The process with PID 27720 (child process of PID 38656) has been terminated.
+SUCCESS: The process with PID 38656 (child process of PID 24560) has been terminated.
+SUCCESS: The process with PID 40228 (child process of PID 41396) has been terminated.
+SUCCESS: The process with PID 40200 (child process of PID 8852) has been terminated.
+SUCCESS: The process with PID 8852 (child process of PID 42808) has been terminated.
+SUCCESS: The process with PID 40732 (child process of PID 36280) has been terminated.
+SUCCESS: The process with PID 42808 (child process of PID 24256) has been terminated.
+SUCCESS: The process with PID 36280 (child process of PID 24560) has been terminated.
+SUCCESS: The process with PID 24256 (child process of PID 42868) has been terminated.
+SUCCESS: The process with PID 42868 (child process of PID 24560) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 已核对 `GET /api/export/tasks/{taskId}` 当前实现：详情响应包含 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`。
+- 当前代码已从 MySQL 持久化 checkpoint / task events / audit / task 状态计算进度与失败字段，并禁止返回未声明的 `events` 字段替代 `recentEvents`。
+- 本轮未新增 diff；目标代码、契约和验证矩阵在当前工作区已处于修复后状态。
+
+## Files Changed
+- 无本轮新增修改。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...'; npm run test:contract; git diff --check ...`: PASS
+  - Docker MySQL / 本地 object storage mock 自举成功
+  - `npm run test:api`: PASS，2/2
+  - `npm run test:contract`: PASS，7/7
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、checkpoint 进度、FAILED 详情、失败事件兜底、`recentEvents` 与禁止 `events`。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties 包含进度、错误和 `recentEvents` 字段。
+- `docs/testing/verify-matrix.md`: 已记录该任务 local/Docker MySQL evidence 边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - HTTP route/service/repository/API test 链路已存在。
+- `production MySQL repository boundary`: PASS - API 测试通过 Docker MySQL 执行。
+- `forbidden events field`: PASS - API 与契约测试均断言不返回 `events`。
+- `no live MySQL claim`: PASS - 证据边界为 local/Docker MySQL。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `docs/reviews/requirements-complete-review.md` 仍保留旧 review finding；按任务边界未修改，需后续 driver 重新运行完整 review 刷新结论。
+- 未执行 commit：当前任务模板明确禁止 `git add` / `git commit` / `git push`。

@@ -1,0 +1,55 @@
+SUCCESS: The process with PID 34304 (child process of PID 30668) has been terminated.
+SUCCESS: The process with PID 32680 (child process of PID 36496) has been terminated.
+SUCCESS: The process with PID 36496 (child process of PID 25048) has been terminated.
+SUCCESS: The process with PID 32956 (child process of PID 40028) has been terminated.
+SUCCESS: The process with PID 40028 (child process of PID 39144) has been terminated.
+SUCCESS: The process with PID 39144 (child process of PID 41256) has been terminated.
+SUCCESS: The process with PID 41256 (child process of PID 31740) has been terminated.
+SUCCESS: The process with PID 31740 (child process of PID 25048) has been terminated.
+SUCCESS: The process with PID 32632 (child process of PID 38540) has been terminated.
+SUCCESS: The process with PID 38540 (child process of PID 30604) has been terminated.
+SUCCESS: The process with PID 30604 (child process of PID 41580) has been terminated.
+SUCCESS: The process with PID 41580 (child process of PID 25048) has been terminated.
+## Requirement IDs
+- FR-006
+- AC-E027
+
+## Summary
+- 当前工作树已包含本任务所需实现与测试：`renderFileBody` 捕获真实 `renderExportPackage` 异常并映射为 `EXPORT_RENDER_ERROR`，同时写入 `PACKAGE_FAILED` 的 `renderInputSummary` / `failureReason`。
+- 已验证 object storage put/publish 失败仍保持 `FILE_VERIFY_ERROR`，未回退。
+- 本轮没有修改 owned paths；未执行提交，因为当前单任务模板明确禁止 `git add` / `git commit` / `git push`。
+
+## Files Changed
+- 无。本轮 `git diff -- src/file-service tests/file tests/worker docs/testing/verify-matrix.md task.json progress.txt` 为空。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS
+- `npm run test:file`: PASS，15/15
+- `npm run test:worker`: PASS，19/19
+- `git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS
+
+## Evidence
+- `src/file-service/index.ts`: `renderFileBody` 将 renderer 异常收口到 `EXPORT_RENDER_ERROR`，存储异常仍走 `FILE_VERIFY_ERROR`。
+- `tests/file/export-file-service.test.mjs`: 覆盖 XLSX/ZIP renderer 失败、scheduler `EXPORT_RENDER_ERROR` 审计，以及 put/publish `FILE_VERIFY_ERROR` 回归。
+- `docs/testing/verify-matrix.md`: 已声明本任务证据边界为 local/Docker MySQL + 本地 object storage mock，不声明 live OSS/S3。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 验证走现有 file-service + worker 生产路径。
+- `renderer 抛错必须收口 EXPORT_RENDER_ERROR`: PASS - file/worker 测试覆盖。
+- `object storage 失败保持 FILE_VERIFY_ERROR`: PASS - file 测试覆盖 put/publish。
+- `禁止 mock renderer 绕过生产 renderExportPackage / renderFileBody`: PASS - 测试通过真实渲染输入触发异常。
+
+## Knowledge References
+- 无相关知识条目引用；`docs/knowledge/catalog.md` 当前仅有 harness/rules 条目，与本文件渲染错误映射任务不直接相关。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区存在任务外 `traces/` 运行产物变更，我未触碰。
+- 本轮未产生可提交源码 diff。

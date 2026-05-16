@@ -1,0 +1,25 @@
+SUCCESS: The process with PID 26208 (child process of PID 36880) has been terminated.
+SUCCESS: The process with PID 36880 (child process of PID 36564) has been terminated.
+SUCCESS: The process with PID 36564 (child process of PID 35208) has been terminated.
+SUCCESS: The process with PID 35208 (child process of PID 1832) has been terminated.
+SUCCESS: The process with PID 42544 (child process of PID 40236) has been terminated.
+SUCCESS: The process with PID 11044 (child process of PID 21100) has been terminated.
+SUCCESS: The process with PID 21100 (child process of PID 2788) has been terminated.
+SUCCESS: The process with PID 2788 (child process of PID 34376) has been terminated.
+SUCCESS: The process with PID 34376 (child process of PID 39200) has been terminated.
+SUCCESS: The process with PID 39200 (child process of PID 1832) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | HIGH | missing_requirement | backend | [src/file-service/index.ts](E:/2026/alpha-project/longgang-codex-driver/src/file-service/index.ts:207) 的 `storage.readObject(tempStorageKey)` 未包 `toFileVerifyError`；put/publish 已分别包在 185-193、228-235。若 read 发生 adapter/network 原始异常，worker 会在 [src/scheduler/worker.ts](E:/2026/alpha-project/longgang-codex-driver/src/scheduler/worker.ts:575) fallback 为 `QUERY_EXECUTION_ERROR`，不满足任务验收“object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口”。[tests/file/export-file-service.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/file/export-file-service.test.mjs:510) 只覆盖 put/publish/checksum，缺少 read failure 显式断言。 | 在 `publishRows` 的 read/校验阶段捕获 `storage.readObject` 原始异常并转换为 `FILE_VERIFY_ERROR`；补 file 或 worker 测试覆盖 object storage read failure 的 `error.name`、任务 `FAILED`、audit `FILE_VERIFY_ERROR`，并确认渲染失败测试仍为 `EXPORT_RENDER_ERROR`。 | `npm run arch:check; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:file; npm run test:worker'; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | backend | backend-worker | 1 | yes |

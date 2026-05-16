@@ -1,0 +1,59 @@
+SUCCESS: The process with PID 12840 (child process of PID 21564) has been terminated.
+SUCCESS: The process with PID 21564 (child process of PID 37676) has been terminated.
+SUCCESS: The process with PID 37676 (child process of PID 13100) has been terminated.
+SUCCESS: The process with PID 13100 (child process of PID 38088) has been terminated.
+SUCCESS: The process with PID 31316 (child process of PID 38628) has been terminated.
+SUCCESS: The process with PID 38628 (child process of PID 9364) has been terminated.
+SUCCESS: The process with PID 9364 (child process of PID 36968) has been terminated.
+SUCCESS: The process with PID 36968 (child process of PID 37452) has been terminated.
+SUCCESS: The process with PID 37452 (child process of PID 38088) has been terminated.
+SUCCESS: The process with PID 26132 (child process of PID 41928) has been terminated.
+SUCCESS: The process with PID 41928 (child process of PID 37108) has been terminated.
+SUCCESS: The process with PID 37108 (child process of PID 23968) has been terminated.
+SUCCESS: The process with PID 23968 (child process of PID 38088) has been terminated.
+## Requirement IDs
+- FR-006
+- AC-E027
+
+## Summary
+- 当前基线已包含 `FILE-RENDER-ERROR-CONTRACT-REPAIR-001` 修复：renderer 失败映射为 `EXPORT_RENDER_ERROR`，并写入 `PACKAGE_FAILED` 的 `renderInputSummary/failureReason`。
+- object storage put/read/publish 失败仍保持 `FILE_VERIFY_ERROR`，未回退。
+- 本轮未新增文件改动；目标 owned paths 当前无未提交差异。按 Driver Prompt 禁止执行 commit。
+
+## Files Changed
+- 无本轮新增修改。
+- `src/file-service/index.ts`: 已存在 renderer 与 object storage 错误边界。
+- `tests/file/export-file-service.test.mjs`: 已存在 XLSX/ZIP renderer 失败、worker audit、storage 失败回归测试。
+- `docs/testing/verify-matrix.md`: 已存在本任务 evidence 边界说明。
+
+## Validation
+- `npm run arch:check`: PASS - Architecture check passed.
+- `scripts/docker-test-env.ps1 + npm run test:file`: PASS - 15/15 passed.
+- `scripts/docker-test-env.ps1 + npm run test:worker`: PASS - 19/19 passed.
+- `git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS - 无空白错误。
+
+## Evidence
+- `src/file-service/index.ts`: `renderFileBody` 捕获 renderer 异常并抛 `EXPORT_RENDER_ERROR`；storage 失败仍走 `FILE_VERIFY_ERROR`。
+- `tests/file/export-file-service.test.mjs`: 覆盖 XLSX/ZIP renderer 失败、scheduler 失败审计、put/publish 失败保持 `FILE_VERIFY_ERROR`。
+- `docs/testing/verify-matrix.md`: 声明 local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 未改变服务形态。
+- `MySQL production boundary`: PASS - 验证通过 Docker/local MySQL test env。
+- `test double policy`: PASS - 仅使用本地 object storage mock / production-equivalent adapter，不冒充 live OSS/S3。
+- `forbidden implementations`: PASS - 未引入 `InMemory*`、mock repository 或领域原型生产路径。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- 无。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区存在本轮外的 `traces/` 脏文件；当前任务硬边界禁止修改 `traces/`，已忽略。
+- 未执行 commit，因为本轮 Driver Prompt 明确禁止 `git add/git commit/git push`。

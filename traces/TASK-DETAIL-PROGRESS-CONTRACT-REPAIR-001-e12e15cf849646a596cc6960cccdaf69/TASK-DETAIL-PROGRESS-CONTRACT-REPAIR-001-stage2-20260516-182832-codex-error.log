@@ -1,0 +1,3814 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3054-9fe3-7d30-aacb-2fac77ce1337
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001
+- 描述: 修复任务详情进度与失败字段响应契约，覆盖 FR-002 / AC-002
+- Requirement IDs:
+- FR-002
+- AC-002
+- 测试命令: powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- src/task-api/service.ts
+- tests/api/export-http-api.test.mjs
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58051 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.678ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (803.8809ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1458.0122
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.8541ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3204ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4117ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9725ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2137ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4164ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.1523
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 2 Reviewer 口径做只读审查：先加载适用的 review 技能规则，然后核对相关 diff、生产代码、契约和测试证据，最后按你给的表格输出 PASS/FAIL。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 328ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+
+ succeeded in 361ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+
+codex
+已使用 `using-superpowers` 和 `code-review` 技能：前者确认本轮按技能流程执行，后者提供审查清单。接下来我只读检查任务相关改动和测试证据，不会改文件。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 363ms:
+ succeeded in 423ms:
+ M traces/REQUIREMENTS-COMPLETE-REVIEW-001-8c1edaa9464947f39a0ee74167a92a84/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-174226-codex-error.log
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-1fc2315bb2fa46bb86d5c11db1e74917/
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-174716.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-175926.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-180443.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-2f2515a761a447349d452d9cc2ede369/
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-e1e3d3fc39cf42518b5065470485d8b9/
+?? traces/TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-593441246ca345b1a8b1c255ddd5916e/
+?? traces/TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-c8c9f558f355482693b5c83cf174926a/
+?? traces/TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-e12e15cf849646a596cc6960cccdaf69/
+
+ succeeded in 417ms:
+codex
+当前工作区里任务相关源码/契约/测试没有未提交 diff，只有 traces 产物变化。为了审查这个任务的实际实现，我会从当前仓库状态和近期提交中定位该 Task 的代码路径与测试覆盖。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001|recentEvents|progress|error" task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log --oneline -n 8' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg --files src/task-api tests/api tests/contract contracts docs/testing | sort' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 419ms:
+798a90e fix(api): complete task detail response contract
+ef3da52 fix(api): align task detail progress contract
+e15acd6 docs(review): record requirements complete stage1 findings
+0f6dd23 fix(file-service): map renderer failures to export error
+08ed798 chore(progress): record blocked requirements review run
+26e7b1f feat: 对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试 - completed CLEANUP-AUDIT-ERROR-CODE-ALIGN-001
+054b27c feat: 对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试 - completed CLEANUP-AUDIT-ERROR-CODE-ALIGN-001
+ba5df87 Align cleanup audit error code
+
+ succeeded in 434ms:
+docs/testing/verify-matrix.md:31:| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 | FR-002 / AC-002 | repaired | `npm run test:api` 断言 PENDING 详情、带 checkpoint 详情、FAILED 详情均返回 OpenAPI 声明的 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，并禁止以未声明的 `events` 字段替代；FAILED 详情覆盖失败审计和带 `errorCode/errorMessage` 的最近任务事件兜底。`npm run test:contract` 守护 task detail schema required/properties 与公开契约一致 | local/Docker MySQL + contract；不声明外部 live MySQL |
+docs/testing/verify-matrix.md:50:| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
+docs/testing/verify-matrix.md:124:| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql；`TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` 补齐 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents` 的契约对齐证据 | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`npm run test:api`、`npm run test:contract` |
+contracts/openapi.yaml:249:      x-contract-errorResponses:
+contracts/openapi.yaml:299:      x-contract-errorResponseStatus:
+contracts/openapi.yaml:377:      summary: Get task detail and progress
+contracts/openapi.yaml:405:                      progressPercent: 20.0
+contracts/openapi.yaml:406:                      errorCode: null
+contracts/openapi.yaml:407:                      errorMessage: null
+contracts/openapi.yaml:408:                      recentEvents: []
+contracts/openapi.yaml:504:      x-contract-errorResponses:
+contracts/openapi.yaml:667:      x-contract-errorResponses:
+contracts/openapi.yaml:783:      x-contract-errorResponses:
+contracts/openapi.yaml:995:                errors:
+contracts/openapi.yaml:1146:                message: masking rule error
+contracts/openapi.yaml:1177:                message: masking rule error
+contracts/openapi.yaml:1190:                message: export render error
+contracts/openapi.yaml:1206:      description: Unclassified server-side error. Specific platform errors should use a more precise response when known.
+contracts/openapi.yaml:1215:                message: internal error
+contracts/openapi.yaml:1301:            errors:
+contracts/openapi.yaml:1397:        - progressPercent
+contracts/openapi.yaml:1398:        - errorCode
+contracts/openapi.yaml:1399:        - errorMessage
+contracts/openapi.yaml:1400:        - recentEvents
+contracts/openapi.yaml:1425:        progressPercent:
+contracts/openapi.yaml:1434:        errorCode:
+contracts/openapi.yaml:1436:        errorMessage:
+contracts/openapi.yaml:1461:        recentEvents:
+contracts/openapi.yaml:1831:        - errorCode
+contracts/openapi.yaml:1868:        errorCode:
+task.json:1571:                                    "统一审计 action/result/errorCode 的公开契约、实现写入和测试断言，修复 AUDIT-CONTRACT-ALIGN-001 指向的 contract drift",
+task.json:1578:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt",
+task.json:1588:                      "description":  "对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试",
+task.json:1605:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001：cleanup 失败审计 errorCode 必须与公开 ResponseCode 契约一致",
+task.json:1611:                                                        "禁止把 cleanup 失败 errorCode 改成未在产品或契约中可解释的通用错误码来规避 finding",
+task.json:1612:                                                        "禁止只修改 OpenAPI 而不补 source audit errorCode literal 属于 ResponseCode enum 的契约守护",
+task.json:1655:                                    "确认 cleanup 失败审计当前写入的 errorCode 和 ResponseCode enum 的差异",
+task.json:1657:                                    "补 contract 测试，断言生产审计写入的 errorCode literals 都属于 OpenAPI ResponseCode enum",
+task.json:1658:                                    "补 worker cleanup failure 测试，断言 CLEANUP_FAILED 审计的 errorCode 为公开契约允许值且保持失败结果",
+task.json:1661:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1663:                                         "src/cleanup-job/index.ts 写入的 cleanup 失败 audit errorCode 必须在 contracts/openapi.yaml components.schemas.ResponseCode enum 中公开",
+task.json:1664:                                         "tests/contract/openapi-route-mapping.contract.test.mjs 能守护生产审计 action/result/errorCode literals 均不漂移出公开枚举",
+task.json:1670:                      "id":  "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+task.json:1688:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：任务详情必须按 OpenAPI 和 AC-002 返回 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+task.json:1694:                                                        "禁止继续固定返回 totalCount=null、progressPercent=0、errorCode=null、errorMessage=null 来规避 AC-002",
+task.json:1695:                                                        "禁止返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+task.json:1729:                                    "从 checkpoint / task events / audit / task 状态计算 detail 的 totalCount、processedCount、progressPercent、失败 errorCode/errorMessage 和 recentEvents",
+task.json:1730:                                    "补 API 测试断言 PENDING / 有 checkpoint / FAILED 任务详情关键字段，并禁止 events 字段替代 recentEvents",
+task.json:1731:                                    "同步 verify-matrix 记录 TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 的 local/Docker MySQL 证据边界"
+task.json:1733:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+task.json:1735:                                         "GET /api/export/tasks/{taskId} 响应包含 OpenAPI 声明的 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+task.json:1736:                                         "任务详情不得返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+task.json:1737:                                         "失败任务详情能暴露最近失败审计或任务事件中的 errorCode/errorMessage，进度字段来自持久化 checkpoint / task 状态",
+task.json:1755:                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+task.json:1805:                                    "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
+task.json:1808:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1812:                                         "file 或 worker 测试覆盖渲染失败的 errorCode / audit / 失败状态证据",
+task.json:1833:                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+tests/contract\openapi-route-mapping.contract.test.mjs:68:    errorCodes: new Set(
+tests/contract\openapi-route-mapping.contract.test.mjs:70:        [...source.matchAll(/errorCode:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)]
+tests/contract\openapi-route-mapping.contract.test.mjs:116:test("audit action, result, and errorCode literals written by production code stay within OpenAPI public enums", () => {
+tests/contract\openapi-route-mapping.contract.test.mjs:131:    [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
+tests/contract\openapi-route-mapping.contract.test.mjs:136:test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+tests/contract\openapi-route-mapping.contract.test.mjs:138:  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+tests/contract\openapi-route-mapping.contract.test.mjs:139:  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+tests/contract\openapi-route-mapping.contract.test.mjs:142:test("task detail schema requires public progress, error, and recentEvents fields", () => {
+tests/contract\openapi-route-mapping.contract.test.mjs:149:    "progressPercent",
+tests/contract\openapi-route-mapping.contract.test.mjs:150:    "errorCode",
+tests/contract\openapi-route-mapping.contract.test.mjs:151:    "errorMessage",
+tests/contract\openapi-route-mapping.contract.test.mjs:152:    "recentEvents"
+tests/api\export-http-api.test.mjs:212:        server.close((error) => {
+tests/api\export-http-api.test.mjs:213:          if (error) {
+tests/api\export-http-api.test.mjs:214:            reject(error);
+tests/api\export-http-api.test.mjs:308:  assert.equal(disabledAudits[0].error_code, "TASK_DISABLED");
+tests/api\export-http-api.test.mjs:367:  assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
+tests/api\export-http-api.test.mjs:381:  assert.equal(pendingDetailResponse.json().data.progressPercent, 0);
+tests/api\export-http-api.test.mjs:382:  assert.equal(pendingDetailResponse.json().data.errorCode, null);
+tests/api\export-http-api.test.mjs:383:  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
+tests/api\export-http-api.test.mjs:384:  assert.deepEqual(pendingDetailResponse.json().data.recentEvents, []);
+tests/api\export-http-api.test.mjs:451:  assert.equal(detailResponse.json().data.progressPercent, 20);
+tests/api\export-http-api.test.mjs:452:  assert.equal(detailResponse.json().data.errorCode, null);
+tests/api\export-http-api.test.mjs:453:  assert.equal(detailResponse.json().data.errorMessage, null);
+tests/api\export-http-api.test.mjs:454:  assert.ok(Array.isArray(detailResponse.json().data.recentEvents));
+tests/api\export-http-api.test.mjs:456:  assert.equal(detailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+tests/api\export-http-api.test.mjs:457:  assert.equal(detailResponse.json().data.recentEvents[0].taskId, taskId);
+tests/api\export-http-api.test.mjs:458:  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
+tests/api\export-http-api.test.mjs:459:  assert.equal(detailResponse.json().data.recentEvents[0].requestId, `req-worker-${runId}`);
+tests/api\export-http-api.test.mjs:460:  assert.equal(detailResponse.json().data.recentEvents[0].datasourceCode, "purchase-ro");
+tests/api\export-http-api.test.mjs:461:  assert.equal(detailResponse.json().data.recentEvents[0].queryTemplateVersion, "v1");
+tests/api\export-http-api.test.mjs:462:  assert.equal(detailResponse.json().data.recentEvents[0].batchCheckpoint.processedCount, 24);
+tests/api\export-http-api.test.mjs:551:    errorCode: "QUERY_EXECUTION_ERROR",
+tests/api\export-http-api.test.mjs:568:  assert.equal(failedDetailResponse.json().data.progressPercent, 50);
+tests/api\export-http-api.test.mjs:569:  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+tests/api\export-http-api.test.mjs:570:  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
+tests/api\export-http-api.test.mjs:571:  assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
+tests/api\export-http-api.test.mjs:572:  assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+tests/api\export-http-api.test.mjs:609:      errorCode: "DATASOURCE_UNAVAILABLE",
+tests/api\export-http-api.test.mjs:610:      errorMessage: "datasource credentials unavailable"
+tests/api\export-http-api.test.mjs:630:  assert.equal(eventOnlyFailedDetailResponse.json().data.progressPercent, 25);
+tests/api\export-http-api.test.mjs:631:  assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
+tests/api\export-http-api.test.mjs:633:    eventOnlyFailedDetailResponse.json().data.errorMessage,
+tests/api\export-http-api.test.mjs:637:    eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
+tests/api\export-http-api.test.mjs:836:  assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
+src/task-api\service.ts:88:    progressPercent: 0,
+src/task-api\service.ts:89:    errorCode: null,
+src/task-api\service.ts:90:    errorMessage: null,
+src/task-api\service.ts:143:      return "query execution error";
+src/task-api\service.ts:151:      return "masking rule error";
+src/task-api\service.ts:153:      return "export render error";
+src/task-api\service.ts:225:  errorCode: string | null;
+src/task-api\service.ts:226:  errorMessage: string | null;
+src/task-api\service.ts:229:    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
+src/task-api\service.ts:232:      errorCode: audit.errorCode,
+src/task-api\service.ts:233:      errorMessage: responseCodeMessage(audit.errorCode)
+src/task-api\service.ts:238:    const errorCode = readNonEmptyString(checkpoint?.errorCode);
+src/task-api\service.ts:239:    if (!errorCode || errorCode === "SUCCESS") {
+src/task-api\service.ts:246:        errorCode,
+src/task-api\service.ts:247:        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+src/task-api\service.ts:258:      errorCode: null,
+src/task-api\service.ts:259:      errorMessage: null
+src/task-api\service.ts:264:    errorCode: failedRecord.errorCode,
+src/task-api\service.ts:265:    errorMessage: failedRecord.errorMessage
+src/task-api\service.ts:285:  error: ApiError;
+src/task-api\service.ts:302:    errorCode: input.error.code,
+src/task-api\service.ts:305:  throw input.error;
+src/task-api\service.ts:377:function toStorageApiError(error: unknown, file: { checksumAlgorithm: string }): ApiError {
+src/task-api\service.ts:378:  if (error instanceof ApiError) {
+src/task-api\service.ts:379:    return error;
+src/task-api\service.ts:382:  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+src/task-api\service.ts:383:    return new ApiError(502, "EXPORT_RENDER_ERROR", error.message);
+src/task-api\service.ts:386:  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+src/task-api\service.ts:387:    return new ApiError(500, "FILE_VERIFY_ERROR", error.message, {
+src/task-api\service.ts:411:    } catch (error) {
+src/task-api\service.ts:412:      if (error instanceof ApiError) {
+src/task-api\service.ts:416:          error,
+src/task-api\service.ts:423:      throw error;
+src/task-api\service.ts:442:        error: new ApiError(404, "TASK_NOT_REGISTERED", "task code is not registered"),
+src/task-api\service.ts:453:        error: new ApiError(400, "TASK_DISABLED", "task code is disabled", {
+src/task-api\service.ts:480:            error: new ApiError(409, "IDEMPOTENCY_CONFLICT", "clientRequestId conflicts", {
+src/task-api\service.ts:495:            error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:625:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:633:    } catch (error) {
+src/task-api\service.ts:634:      if (error instanceof ApiError) {
+src/task-api\service.ts:638:          error,
+src/task-api\service.ts:647:      throw error;
+src/task-api\service.ts:666:    const progressPercent = resolveProgressPercent({
+src/task-api\service.ts:673:      : { errorCode: null, errorMessage: null };
+src/task-api\service.ts:689:      progressPercent,
+src/task-api\service.ts:690:      errorCode: failure.errorCode,
+src/task-api\service.ts:691:      errorMessage: failure.errorMessage,
+src/task-api\service.ts:693:      recentEvents: events.map(mapRecentTaskEvent)
+src/task-api\service.ts:711:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:719:    } catch (error) {
+src/task-api\service.ts:720:      if (error instanceof ApiError) {
+src/task-api\service.ts:724:          error,
+src/task-api\service.ts:733:      throw error;
+src/task-api\service.ts:741:        error: new ApiError(400, "FILE_NOT_READY", "file is not ready"),
+src/task-api\service.ts:754:        error: new ApiError(410, "FILE_EXPIRED", "file expired"),
+src/task-api\service.ts:767:        error: new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+src/task-api\service.ts:799:    } catch (error) {
+src/task-api\service.ts:803:        error: toStorageApiError(error, file),
+src/task-api\service.ts:837:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:845:    } catch (error) {
+src/task-api\service.ts:846:      if (error instanceof ApiError) {
+src/task-api\service.ts:850:          error,
+src/task-api\service.ts:859:      throw error;
+src/task-api\service.ts:865:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src/task-api\service.ts:883:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:920:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src/task-api\service.ts:928:    } catch (error) {
+src/task-api\service.ts:929:      if (error instanceof ApiError) {
+src/task-api\service.ts:933:          error,
+src/task-api\service.ts:942:      throw error;
+src/task-api\service.ts:948:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src/task-api\service.ts:965:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation"),
+
+ succeeded in 435ms:
+contracts\openapi.yaml
+contracts\README.md
+docs/testing\ACCEPTANCE_CRITERIA.md
+docs/testing\ACCEPTANCE_EXAMPLES.md
+docs/testing\coverage-policy.md
+docs/testing\docker-test-data-runbook.md
+docs/testing\e2e-plan.md
+docs/testing\EVIDENCE_PROTOCOL.md
+docs/testing\failure-findings.example.json
+docs/testing\failure-triage.md
+docs/testing\local-demo-runbook.md
+docs/testing\mock-first-acceptance.md
+docs/testing\mock-first-release-plan.md
+docs/testing\REGRESSION_PLAN.md
+docs/testing\RISK_BASED_TEST_PLAN.md
+docs/testing\TEST_DATA_MATRIX.md
+docs/testing\TEST_STRATEGY.md
+docs/testing\test-data-plan.md
+docs/testing\test-matrix.md
+docs/testing\test-report.md
+docs/testing\TRACEABILITY_MATRIX.md
+docs/testing\verify-matrix.md
+src/task-api\README.md
+src/task-api\service.ts
+tests/api\export-http-api.test.mjs
+tests/api\README.md
+tests/contract\openapi-route-mapping.contract.test.mjs
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline 798a90e' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show -- contracts/openapi.yaml src/task-api/service.ts tests/api/export-http-api.test.mjs tests/contract/openapi-route-mapping.contract.test.mjs docs/testing/verify-matrix.md task.json --format=medium 798a90e' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 388ms:
+commit 798a90e38dcaa84409412bbec1bc13718b7bc840
+Author: 潘宗友 <panzongyou@v380max.com>
+Date:   Sat May 16 18:22:13 2026 +0800
+
+    fix(api): complete task detail response contract
+
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index ad52db5..79f5267 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -403,6 +403,9 @@ paths:
+                       totalCount: 100000
+                       processedCount: 20000
+                       progressPercent: 20.0
++                      errorCode: null
++                      errorMessage: null
++                      recentEvents: []
+                       fileFormat: ZIP
+                       attemptNo: 1
+                       requestId: req-20260513-0001
+@@ -1239,6 +1242,35 @@ components:
+         - REGISTRY_CONFLICT
+         - ACTIVE_ATTEMPT_CONFLICT
+         - INTERNAL_ERROR
++    NullableResponseCode:
++      type: string
++      nullable: true
++      enum:
++        - SUCCESS
++        - VALIDATION_ERROR
++        - AUTH_CONTEXT_MISSING
++        - PERMISSION_DENIED
++        - TASK_NOT_FOUND
++        - TASK_NOT_REGISTERED
++        - TASK_DISABLED
++        - QUERY_PARAMS_TOO_LARGE
++        - IDEMPOTENCY_CONFLICT
++        - INVALID_TASK_STATE
++        - FILE_EXPIRED
++        - FILE_NOT_READY
++        - FILE_VERIFY_ERROR
++        - FILE_CLEANUP_DELETE_ERROR
++        - QUERY_TEMPLATE_INVALID
++        - DATASOURCE_UNAVAILABLE
++        - QUERY_EXECUTION_ERROR
++        - FIELD_MAPPING_INVALID
++        - MASKING_RULE_ERROR
++        - EXPORT_RENDER_ERROR
++        - EXPORT_LIMIT_EXCEEDED
++        - REGISTRY_CONFLICT
++        - ACTIVE_ATTEMPT_CONFLICT
++        - INTERNAL_ERROR
++        - null
+     TaskStatus:
+       type: string
+       description: Official public task status. Internal cancel flags are not valid values.
+@@ -1363,6 +1395,9 @@ components:
+         - totalCount
+         - processedCount
+         - progressPercent
++        - errorCode
++        - errorMessage
++        - recentEvents
+         - attemptNo
+         - requestId
+         - requestDigest
+@@ -1397,9 +1432,10 @@ components:
+           type: integer
+           minimum: 0
+         errorCode:
+-          $ref: "#/components/schemas/ResponseCode"
++          $ref: "#/components/schemas/NullableResponseCode"
+         errorMessage:
+           type: string
++          nullable: true
+         failureStage:
+           type: string
+         lastSuccessStage:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index a364579..b7adcf1 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -28,6 +28,7 @@
+ 
+ | Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
+ | --- | --- | --- | --- | --- |
++| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 | FR-002 / AC-002 | repaired | `npm run test:api` 断言 PENDING 详情、带 checkpoint 详情、FAILED 详情均返回 OpenAPI 声明的 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，并禁止以未声明的 `events` 字段替代；FAILED 详情覆盖失败审计和带 `errorCode/errorMessage` 的最近任务事件兜底。`npm run test:contract` 守护 task detail schema required/properties 与公开契约一致 | local/Docker MySQL + contract；不声明外部 live MySQL |
+ | AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+ | TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
+ | CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+@@ -120,7 +121,7 @@
+ | Req ID | 后续验证类型 | 当前状态 | 证据路径 |
+ | --- | --- | --- | --- |
+ | FR-001 | contract / API / DB | HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
++| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql；`TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` 补齐 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents` 的契约对齐证据 | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`npm run test:api`、`npm run test:contract` |
+ | FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+ | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+ | FR-005 | DB / worker | DB lease repository and worker polling available / local-or-docker-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+diff --git a/src/task-api/service.ts b/src/task-api/service.ts
+index 3307178..3970624 100644
+--- a/src/task-api/service.ts
++++ b/src/task-api/service.ts
+@@ -121,6 +121,14 @@ function readNonNegativeInteger(value: unknown): number | null {
+   return Math.trunc(value);
+ }
+ 
++function readNonEmptyString(value: unknown): string | null {
++  if (typeof value !== "string" || value.trim() === "") {
++    return null;
++  }
++
++  return value;
++}
++
+ function clampProgressPercent(value: number): number {
+   if (!Number.isFinite(value)) {
+     return 0;
+@@ -210,15 +218,42 @@ function resolveProgressPercent(input: {
+   return 0;
+ }
+ 
+-function resolveTaskFailure(audits: AuditLogRecord[]): {
++function resolveTaskFailure(
++  audits: AuditLogRecord[],
++  events: TaskEventRecord[]
++): {
+   errorCode: string | null;
+   errorMessage: string | null;
+ } {
+-  const failedAudit = audits
+-    .filter((audit) => audit.result === "FAILED")
+-    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0];
++  const auditFailures = audits
++    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
++    .map((audit) => ({
++      occurredAt: audit.occurredAt,
++      errorCode: audit.errorCode,
++      errorMessage: responseCodeMessage(audit.errorCode)
++    }));
++
++  const eventFailures = events.flatMap((event) => {
++    const checkpoint = parseJsonRecord(event.batchCheckpoint);
++    const errorCode = readNonEmptyString(checkpoint?.errorCode);
++    if (!errorCode || errorCode === "SUCCESS") {
++      return [];
++    }
++
++    return [
++      {
++        occurredAt: event.occurredAt,
++        errorCode,
++        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
++      }
++    ];
++  });
++
++  const failedRecord = [...auditFailures, ...eventFailures].sort(
++    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
++  )[0];
+ 
+-  if (!failedAudit || failedAudit.errorCode === "SUCCESS") {
++  if (!failedRecord) {
+     return {
+       errorCode: null,
+       errorMessage: null
+@@ -226,8 +261,8 @@ function resolveTaskFailure(audits: AuditLogRecord[]): {
+   }
+ 
+   return {
+-    errorCode: failedAudit.errorCode,
+-    errorMessage: responseCodeMessage(failedAudit.errorCode)
++    errorCode: failedRecord.errorCode,
++    errorMessage: failedRecord.errorMessage
+   };
+ }
+ 
+@@ -634,7 +669,7 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
+       totalCount
+     });
+     const failure = task.status === "FAILED"
+-      ? resolveTaskFailure(audits)
++      ? resolveTaskFailure(audits, events)
+       : { errorCode: null, errorMessage: null };
+ 
+     await appendAudit({
+diff --git a/tests/api/export-http-api.test.mjs b/tests/api/export-http-api.test.mjs
+index cfa4cf9..17896bd 100644
+--- a/tests/api/export-http-api.test.mjs
++++ b/tests/api/export-http-api.test.mjs
+@@ -367,6 +367,23 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
+ 
+   const taskId = createTaskResponse.json().data.taskId;
++  const pendingDetailResponse = await app.inject({
++    method: "GET",
++    url: `/api/export/tasks/${taskId}`,
++    headers: createHeaders(`req-detail-pending-${runId}`)
++  });
++
++  assert.equal(pendingDetailResponse.statusCode, 200);
++  assert.equal(pendingDetailResponse.json().data.taskId, taskId);
++  assert.equal(pendingDetailResponse.json().data.status, "PENDING");
++  assert.equal(pendingDetailResponse.json().data.totalCount, 0);
++  assert.equal(pendingDetailResponse.json().data.processedCount, 0);
++  assert.equal(pendingDetailResponse.json().data.progressPercent, 0);
++  assert.equal(pendingDetailResponse.json().data.errorCode, null);
++  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
++  assert.deepEqual(pendingDetailResponse.json().data.recentEvents, []);
++  assert.equal("events" in pendingDetailResponse.json().data, false);
++
+   const firstDetailNow = await getDatabaseTime(db);
+ 
+   await checkpointRepository.saveCheckpoint({
+@@ -555,6 +572,73 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+   assert.equal("events" in failedDetailResponse.json().data, false);
+ 
++  const eventOnlyFailedTaskResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-create-task-event-failed-${runId}`),
++    payload: createTaskPayload(taskCode, "client-event-failed")
++  });
++
++  assert.equal(eventOnlyFailedTaskResponse.statusCode, 201);
++  const eventOnlyFailedTaskId = eventOnlyFailedTaskResponse.json().data.taskId;
++  const eventOnlyFailedAt = await getDatabaseTime(db);
++  await checkpointRepository.saveCheckpoint({
++    taskId: eventOnlyFailedTaskId,
++    attemptNo: 0,
++    lastCursor: "cursor-10",
++    processedCount: 10,
++    filePartNo: 1,
++    retryCount: 3,
++    batchSize: 500,
++    batchRowCount: 10,
++    backoffMs: 0,
++    now: eventOnlyFailedAt
++  });
++  await eventRepository.appendTaskEvent({
++    eventId: `event-only-failed-${runId}`,
++    taskId: eventOnlyFailedTaskId,
++    attemptNo: 0,
++    eventType: "QUERY_BATCH_DONE",
++    requestId: `req-worker-event-failed-${runId}`,
++    datasourceCode: "purchase-ro",
++    queryTemplateVersion: "v1",
++    batchCheckpoint: JSON.stringify({
++      lastCursor: "cursor-10",
++      processedCount: 10,
++      totalCount: 40,
++      errorCode: "DATASOURCE_UNAVAILABLE",
++      errorMessage: "datasource credentials unavailable"
++    }),
++    occurredAt: eventOnlyFailedAt,
++    now: eventOnlyFailedAt
++  });
++  await taskRepository.updateTaskStatus({
++    taskId: eventOnlyFailedTaskId,
++    status: "FAILED",
++    now: new Date(eventOnlyFailedAt.getTime() + 1)
++  });
++
++  const eventOnlyFailedDetailResponse = await app.inject({
++    method: "GET",
++    url: `/api/export/tasks/${eventOnlyFailedTaskId}`,
++    headers: createHeaders(`req-detail-event-failed-${runId}`)
++  });
++
++  assert.equal(eventOnlyFailedDetailResponse.statusCode, 200);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.totalCount, 40);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.processedCount, 10);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.progressPercent, 25);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
++  assert.equal(
++    eventOnlyFailedDetailResponse.json().data.errorMessage,
++    "datasource credentials unavailable"
++  );
++  assert.equal(
++    eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
++    "QUERY_BATCH_DONE"
++  );
++  assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
++
+   const ordinaryListResponse = await app.inject({
+     method: "GET",
+     url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,
+diff --git a/tests/contract/openapi-route-mapping.contract.test.mjs b/tests/contract/openapi-route-mapping.contract.test.mjs
+index 83c12bb..80faded 100644
+--- a/tests/contract/openapi-route-mapping.contract.test.mjs
++++ b/tests/contract/openapi-route-mapping.contract.test.mjs
+@@ -35,6 +35,17 @@ function parseResponseCodeEnum() {
+   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+ }
+ 
++function parseExportTaskDetailSchemaBlock() {
++  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
++  const [, block] = openapi.match(/ExportTaskDetail:\s*\n([\s\S]*?)\n\s{4}ExportTaskPageEnvelope:/) ?? [];
++  return block;
++}
++
++function parseYamlListFromBlock(block, key) {
++  const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
++  return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
++}
++
+ function sourceAuditLiterals() {
+   const sources = [
+     "src/task-api/service.ts",
+@@ -127,3 +138,22 @@ test("cleanup failure audit errorCode is a public ResponseCode literal, not raw
+   assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+   assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+ });
++
++test("task detail schema requires public progress, error, and recentEvents fields", () => {
++  const detailSchema = parseExportTaskDetailSchemaBlock();
++  const required = parseYamlListFromBlock(detailSchema, "required");
++
++  for (const field of [
++    "totalCount",
++    "processedCount",
++    "progressPercent",
++    "errorCode",
++    "errorMessage",
++    "recentEvents"
++  ]) {
++    assert.equal(required.has(field), true, `${field} must be required on ExportTaskDetail`);
++    assert.match(detailSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a property`);
++  }
++
++  assert.doesNotMatch(detailSchema, /\n\s{8}events:\n/);
++});
+
+ succeeded in 432ms:
+798a90e fix(api): complete task detail response contract
+ contracts/openapi.yaml                             | 38 +++++++++-
+ docs/testing/verify-matrix.md                      |  3 +-
+ src/task-api/service.ts                            | 51 ++++++++++---
+ tests/api/export-http-api.test.mjs                 | 84 ++++++++++++++++++++++
+ .../openapi-route-mapping.contract.test.mjs        | 30 ++++++++
+ 5 files changed, 196 insertions(+), 10 deletions(-)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline ef3da52' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show -- contracts/openapi.yaml src/task-api/service.ts tests/api/export-http-api.test.mjs docs/testing/verify-matrix.md task.json --format=medium ef3da52' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 351ms:
+commit 798a90e38dcaa84409412bbec1bc13718b7bc840
+Author: 潘宗友 <panzongyou@v380max.com>
+Date:   Sat May 16 18:22:13 2026 +0800
+
+    fix(api): complete task detail response contract
+
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index ad52db5..79f5267 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -403,6 +403,9 @@ paths:
+                       totalCount: 100000
+                       processedCount: 20000
+                       progressPercent: 20.0
++                      errorCode: null
++                      errorMessage: null
++                      recentEvents: []
+                       fileFormat: ZIP
+                       attemptNo: 1
+                       requestId: req-20260513-0001
+@@ -1239,6 +1242,35 @@ components:
+         - REGISTRY_CONFLICT
+         - ACTIVE_ATTEMPT_CONFLICT
+         - INTERNAL_ERROR
++    NullableResponseCode:
++      type: string
++      nullable: true
++      enum:
++        - SUCCESS
++        - VALIDATION_ERROR
++        - AUTH_CONTEXT_MISSING
++        - PERMISSION_DENIED
++        - TASK_NOT_FOUND
++        - TASK_NOT_REGISTERED
++        - TASK_DISABLED
++        - QUERY_PARAMS_TOO_LARGE
++        - IDEMPOTENCY_CONFLICT
++        - INVALID_TASK_STATE
++        - FILE_EXPIRED
++        - FILE_NOT_READY
++        - FILE_VERIFY_ERROR
++        - FILE_CLEANUP_DELETE_ERROR
++        - QUERY_TEMPLATE_INVALID
++        - DATASOURCE_UNAVAILABLE
++        - QUERY_EXECUTION_ERROR
++        - FIELD_MAPPING_INVALID
++        - MASKING_RULE_ERROR
++        - EXPORT_RENDER_ERROR
++        - EXPORT_LIMIT_EXCEEDED
++        - REGISTRY_CONFLICT
++        - ACTIVE_ATTEMPT_CONFLICT
++        - INTERNAL_ERROR
++        - null
+     TaskStatus:
+       type: string
+       description: Official public task status. Internal cancel flags are not valid values.
+@@ -1363,6 +1395,9 @@ components:
+         - totalCount
+         - processedCount
+         - progressPercent
++        - errorCode
++        - errorMessage
++        - recentEvents
+         - attemptNo
+         - requestId
+         - requestDigest
+@@ -1397,9 +1432,10 @@ components:
+           type: integer
+           minimum: 0
+         errorCode:
+-          $ref: "#/components/schemas/ResponseCode"
++          $ref: "#/components/schemas/NullableResponseCode"
+         errorMessage:
+           type: string
++          nullable: true
+         failureStage:
+           type: string
+         lastSuccessStage:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index a364579..b7adcf1 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -28,6 +28,7 @@
+ 
+ | Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
+ | --- | --- | --- | --- | --- |
++| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 | FR-002 / AC-002 | repaired | `npm run test:api` 断言 PENDING 详情、带 checkpoint 详情、FAILED 详情均返回 OpenAPI 声明的 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，并禁止以未声明的 `events` 字段替代；FAILED 详情覆盖失败审计和带 `errorCode/errorMessage` 的最近任务事件兜底。`npm run test:contract` 守护 task detail schema required/properties 与公开契约一致 | local/Docker MySQL + contract；不声明外部 live MySQL |
+ | AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+ | TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
+ | CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+@@ -120,7 +121,7 @@
+ | Req ID | 后续验证类型 | 当前状态 | 证据路径 |
+ | --- | --- | --- | --- |
+ | FR-001 | contract / API / DB | HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+-| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
++| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql；`TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` 补齐 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents` 的契约对齐证据 | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`npm run test:api`、`npm run test:contract` |
+ | FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+ | FR-004 | contract / API / DB | HTTP list handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+ | FR-005 | DB / worker | DB lease repository and worker polling available / local-or-docker-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+diff --git a/src/task-api/service.ts b/src/task-api/service.ts
+index 3307178..3970624 100644
+--- a/src/task-api/service.ts
++++ b/src/task-api/service.ts
+@@ -121,6 +121,14 @@ function readNonNegativeInteger(value: unknown): number | null {
+   return Math.trunc(value);
+ }
+ 
++function readNonEmptyString(value: unknown): string | null {
++  if (typeof value !== "string" || value.trim() === "") {
++    return null;
++  }
++
++  return value;
++}
++
+ function clampProgressPercent(value: number): number {
+   if (!Number.isFinite(value)) {
+     return 0;
+@@ -210,15 +218,42 @@ function resolveProgressPercent(input: {
+   return 0;
+ }
+ 
+-function resolveTaskFailure(audits: AuditLogRecord[]): {
++function resolveTaskFailure(
++  audits: AuditLogRecord[],
++  events: TaskEventRecord[]
++): {
+   errorCode: string | null;
+   errorMessage: string | null;
+ } {
+-  const failedAudit = audits
+-    .filter((audit) => audit.result === "FAILED")
+-    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0];
++  const auditFailures = audits
++    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
++    .map((audit) => ({
++      occurredAt: audit.occurredAt,
++      errorCode: audit.errorCode,
++      errorMessage: responseCodeMessage(audit.errorCode)
++    }));
++
++  const eventFailures = events.flatMap((event) => {
++    const checkpoint = parseJsonRecord(event.batchCheckpoint);
++    const errorCode = readNonEmptyString(checkpoint?.errorCode);
++    if (!errorCode || errorCode === "SUCCESS") {
++      return [];
++    }
++
++    return [
++      {
++        occurredAt: event.occurredAt,
++        errorCode,
++        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
++      }
++    ];
++  });
++
++  const failedRecord = [...auditFailures, ...eventFailures].sort(
++    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
++  )[0];
+ 
+-  if (!failedAudit || failedAudit.errorCode === "SUCCESS") {
++  if (!failedRecord) {
+     return {
+       errorCode: null,
+       errorMessage: null
+@@ -226,8 +261,8 @@ function resolveTaskFailure(audits: AuditLogRecord[]): {
+   }
+ 
+   return {
+-    errorCode: failedAudit.errorCode,
+-    errorMessage: responseCodeMessage(failedAudit.errorCode)
++    errorCode: failedRecord.errorCode,
++    errorMessage: failedRecord.errorMessage
+   };
+ }
+ 
+@@ -634,7 +669,7 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
+       totalCount
+     });
+     const failure = task.status === "FAILED"
+-      ? resolveTaskFailure(audits)
++      ? resolveTaskFailure(audits, events)
+       : { errorCode: null, errorMessage: null };
+ 
+     await appendAudit({
+diff --git a/tests/api/export-http-api.test.mjs b/tests/api/export-http-api.test.mjs
+index cfa4cf9..17896bd 100644
+--- a/tests/api/export-http-api.test.mjs
++++ b/tests/api/export-http-api.test.mjs
+@@ -367,6 +367,23 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
+ 
+   const taskId = createTaskResponse.json().data.taskId;
++  const pendingDetailResponse = await app.inject({
++    method: "GET",
++    url: `/api/export/tasks/${taskId}`,
++    headers: createHeaders(`req-detail-pending-${runId}`)
++  });
++
++  assert.equal(pendingDetailResponse.statusCode, 200);
++  assert.equal(pendingDetailResponse.json().data.taskId, taskId);
++  assert.equal(pendingDetailResponse.json().data.status, "PENDING");
++  assert.equal(pendingDetailResponse.json().data.totalCount, 0);
++  assert.equal(pendingDetailResponse.json().data.processedCount, 0);
++  assert.equal(pendingDetailResponse.json().data.progressPercent, 0);
++  assert.equal(pendingDetailResponse.json().data.errorCode, null);
++  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
++  assert.deepEqual(pendingDetailResponse.json().data.recentEvents, []);
++  assert.equal("events" in pendingDetailResponse.json().data, false);
++
+   const firstDetailNow = await getDatabaseTime(db);
+ 
+   await checkpointRepository.saveCheckpoint({
+@@ -555,6 +572,73 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+   assert.equal("events" in failedDetailResponse.json().data, false);
+ 
++  const eventOnlyFailedTaskResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-create-task-event-failed-${runId}`),
++    payload: createTaskPayload(taskCode, "client-event-failed")
++  });
++
++  assert.equal(eventOnlyFailedTaskResponse.statusCode, 201);
++  const eventOnlyFailedTaskId = eventOnlyFailedTaskResponse.json().data.taskId;
++  const eventOnlyFailedAt = await getDatabaseTime(db);
++  await checkpointRepository.saveCheckpoint({
++    taskId: eventOnlyFailedTaskId,
++    attemptNo: 0,
++    lastCursor: "cursor-10",
++    processedCount: 10,
++    filePartNo: 1,
++    retryCount: 3,
++    batchSize: 500,
++    batchRowCount: 10,
++    backoffMs: 0,
++    now: eventOnlyFailedAt
++  });
++  await eventRepository.appendTaskEvent({
++    eventId: `event-only-failed-${runId}`,
++    taskId: eventOnlyFailedTaskId,
++    attemptNo: 0,
++    eventType: "QUERY_BATCH_DONE",
++    requestId: `req-worker-event-failed-${runId}`,
++    datasourceCode: "purchase-ro",
++    queryTemplateVersion: "v1",
++    batchCheckpoint: JSON.stringify({
++      lastCursor: "cursor-10",
++      processedCount: 10,
++      totalCount: 40,
++      errorCode: "DATASOURCE_UNAVAILABLE",
++      errorMessage: "datasource credentials unavailable"
++    }),
++    occurredAt: eventOnlyFailedAt,
++    now: eventOnlyFailedAt
++  });
++  await taskRepository.updateTaskStatus({
++    taskId: eventOnlyFailedTaskId,
++    status: "FAILED",
++    now: new Date(eventOnlyFailedAt.getTime() + 1)
++  });
++
++  const eventOnlyFailedDetailResponse = await app.inject({
++    method: "GET",
++    url: `/api/export/tasks/${eventOnlyFailedTaskId}`,
++    headers: createHeaders(`req-detail-event-failed-${runId}`)
++  });
++
++  assert.equal(eventOnlyFailedDetailResponse.statusCode, 200);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.totalCount, 40);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.processedCount, 10);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.progressPercent, 25);
++  assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
++  assert.equal(
++    eventOnlyFailedDetailResponse.json().data.errorMessage,
++    "datasource credentials unavailable"
++  );
++  assert.equal(
++    eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
++    "QUERY_BATCH_DONE"
++  );
++  assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
++
+   const ordinaryListResponse = await app.inject({
+     method: "GET",
+     url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,
+
+ succeeded in 401ms:
+ef3da52 fix(api): align task detail progress contract
+ src/task-api/service.ts            | 187 +++++++++++++++++++++++++++++++++++--
+ tests/api/export-http-api.test.mjs | 152 ++++++++++++++++++++++++++++++
+ 2 files changed, 332 insertions(+), 7 deletions(-)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show ef3da52 -- src/task-api/service.ts tests/api/export-http-api.test.mjs --format=medium' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/task-api/service.ts | Select-Object -Skip 1 -First 260' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/task-api/service.ts | Select-Object -Skip 620 -First 90' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 382ms:
+commit ef3da5289a0a49aa682d8ea4bdf5e7735c821384
+Author: 潘宗友 <panzongyou@v380max.com>
+Date:   Sat May 16 18:10:05 2026 +0800
+
+    fix(api): align task detail progress contract
+
+diff --git a/src/task-api/service.ts b/src/task-api/service.ts
+index 3846e4c..3307178 100644
+--- a/src/task-api/service.ts
++++ b/src/task-api/service.ts
+@@ -3,13 +3,17 @@ import type { Kysely } from "kysely";
+ import type { ExportPlatformDatabase } from "../db/schema.ts";
+ import { createDatabase } from "../db/kysely.ts";
+ import {
++  createExportAuditRepository,
+   createCheckpointRepository,
+   createExportFileRepository,
+   createExportRegistryRepository,
+   createExportTaskEventRepository,
+   createExportTaskRepository,
+   getDatabaseTime,
+-  type ExportTaskRecord
++  type AuditLogRecord,
++  type CheckpointRecord,
++  type ExportTaskRecord,
++  type TaskEventRecord
+ } from "../repositories/index.ts";
+ import { appendAudit } from "../audit-log/service.ts";
+ import {
+@@ -90,6 +94,156 @@ function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {
+   };
+ }
+ 
++function parseJsonRecord(value: string | null | undefined): Record<string, unknown> | null {
++  if (!value) {
++    return null;
++  }
++
++  try {
++    const parsed = JSON.parse(value) as unknown;
++    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
++      ? (parsed as Record<string, unknown>)
++      : null;
++  } catch {
++    return null;
++  }
++}
++
++function readNonNegativeInteger(value: unknown): number | null {
++  if (typeof value !== "number" || !Number.isFinite(value)) {
++    return null;
++  }
++
++  if (value < 0) {
++    return null;
++  }
++
++  return Math.trunc(value);
++}
++
++function clampProgressPercent(value: number): number {
++  if (!Number.isFinite(value)) {
++    return 0;
++  }
++
++  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
++}
++
++function responseCodeMessage(code: string | null): string | null {
++  switch (code) {
++    case "QUERY_EXECUTION_ERROR":
++      return "query execution error";
++    case "DATASOURCE_UNAVAILABLE":
++      return "datasource unavailable";
++    case "QUERY_TEMPLATE_INVALID":
++      return "query template invalid";
++    case "FIELD_MAPPING_INVALID":
++      return "field mapping invalid";
++    case "MASKING_RULE_ERROR":
++      return "masking rule error";
++    case "EXPORT_RENDER_ERROR":
++      return "export render error";
++    case "FILE_VERIFY_ERROR":
++      return "file verification failed";
++    case "EXPORT_LIMIT_EXCEEDED":
++      return "export limit exceeded";
++    default:
++      return null;
++  }
++}
++
++function resolveTotalCount(input: {
++  task: ExportTaskRecord;
++  checkpoint: CheckpointRecord | undefined;
++  events: TaskEventRecord[];
++}): number {
++  const eventTotal = input.events.reduce<number | null>((current, event) => {
++    const checkpoint = parseJsonRecord(event.batchCheckpoint);
++    const totalCount = readNonNegativeInteger(checkpoint?.totalCount);
++    if (totalCount !== null) {
++      return current === null ? totalCount : Math.max(current, totalCount);
++    }
++    return current;
++  }, null);
++
++  if (eventTotal !== null) {
++    return eventTotal;
++  }
++
++  if (input.task.status === "COMPLETED") {
++    return input.checkpoint?.processedCount ?? 0;
++  }
++
++  return 0;
++}
++
++function resolveProcessedCount(input: {
++  task: ExportTaskRecord;
++  checkpoint: CheckpointRecord | undefined;
++  totalCount: number;
++}): number {
++  const checkpointCount = input.checkpoint?.processedCount ?? 0;
++  if (input.totalCount > 0) {
++    return Math.min(checkpointCount, input.totalCount);
++  }
++
++  if (input.task.status === "COMPLETED" && checkpointCount === 0) {
++    return input.totalCount;
++  }
++
++  return checkpointCount;
++}
++
++function resolveProgressPercent(input: {
++  task: ExportTaskRecord;
++  processedCount: number;
++  totalCount: number;
++}): number {
++  if (input.totalCount > 0) {
++    return clampProgressPercent((input.processedCount / input.totalCount) * 100);
++  }
++
++  if (input.task.status === "COMPLETED") {
++    return 100;
++  }
++
++  return 0;
++}
++
++function resolveTaskFailure(audits: AuditLogRecord[]): {
++  errorCode: string | null;
++  errorMessage: string | null;
++} {
++  const failedAudit = audits
++    .filter((audit) => audit.result === "FAILED")
++    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0];
++
++  if (!failedAudit || failedAudit.errorCode === "SUCCESS") {
++    return {
++      errorCode: null,
++      errorMessage: null
++    };
++  }
++
++  return {
++    errorCode: failedAudit.errorCode,
++    errorMessage: responseCodeMessage(failedAudit.errorCode)
++  };
++}
++
++function mapRecentTaskEvent(event: TaskEventRecord) {
++  return {
++    taskId: event.taskId,
++    attemptNo: event.attemptNo,
++    eventType: event.eventType,
++    requestId: event.requestId,
++    datasourceCode: event.datasourceCode,
++    queryTemplateVersion: event.queryTemplateVersion,
++    batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
++    occurredAt: event.occurredAt.toISOString()
++  };
++}
++
+ async function rejectWithAudit(input: {
+   db: Kysely<ExportPlatformDatabase>;
+   auth: AuthContext;
+@@ -458,11 +612,30 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
+       throw error;
+     }
+ 
++    const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+     const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+     const checkpoint = await createCheckpointRepository(db).findLatestCheckpoint(
+       taskId,
+       task.attemptNo
+     );
++    const totalCount = resolveTotalCount({
++      task,
++      checkpoint,
++      events
++    });
++    const processedCount = resolveProcessedCount({
++      task,
++      checkpoint,
++      totalCount
++    });
++    const progressPercent = resolveProgressPercent({
++      task,
++      processedCount,
++      totalCount
++    });
++    const failure = task.status === "FAILED"
++      ? resolveTaskFailure(audits)
++      : { errorCode: null, errorMessage: null };
+ 
+     await appendAudit({
+       db,
+@@ -476,13 +649,13 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
+     });
+ 
+     return taskEnvelope(task, {
+-      totalCount: null,
+-      processedCount: checkpoint?.processedCount ?? 0,
+-      progressPercent: 0,
+-      errorCode: null,
+-      errorMessage: null,
++      totalCount,
++      processedCount,
++      progressPercent,
++      errorCode: failure.errorCode,
++      errorMessage: failure.errorMessage,
+       requestId: auth.requestId,
+-      events
++      recentEvents: events.map(mapRecentTaskEvent)
+     });
+   });
+ }
+diff --git a/tests/api/export-http-api.test.mjs b/tests/api/export-http-api.test.mjs
+index 18630ec..cfa4cf9 100644
+--- a/tests/api/export-http-api.test.mjs
++++ b/tests/api/export-http-api.test.mjs
+@@ -8,8 +8,10 @@ import { Kysely, MysqlDialect } from "kysely";
+ import { createExportPlatformServer } from "../../src/server.ts";
+ import { runMigrations } from "../../src/db/migrator.ts";
+ import {
++  createCheckpointRepository,
+   createExportAuditRepository,
+   createExportFileRepository,
++  createExportTaskEventRepository,
+   createExportTaskRepository,
+   getDatabaseTime
+ } from "../../src/repositories/index.ts";
+@@ -267,7 +269,9 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   const objectStorageServer = await createLocalObjectStorageServer(t);
+   const app = await createServer(t, objectStorageServer);
+   const auditRepository = createExportAuditRepository(db);
++  const checkpointRepository = createCheckpointRepository(db);
+   const taskRepository = createExportTaskRepository(db);
++  const eventRepository = createExportTaskEventRepository(db);
+   const fileRepository = createExportFileRepository(db);
+   const runId = `${Date.now()}-${process.pid}`;
+   const taskCode = `purchase-order-export-${runId}`;
+@@ -363,6 +367,59 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
+ 
+   const taskId = createTaskResponse.json().data.taskId;
++  const firstDetailNow = await getDatabaseTime(db);
++
++  await checkpointRepository.saveCheckpoint({
++    taskId,
++    attemptNo: 0,
++    lastCursor: "cursor-24",
++    processedCount: 24,
++    filePartNo: 1,
++    retryCount: 0,
++    batchSize: 500,
++    batchRowCount: 24,
++    backoffMs: 0,
++    now: firstDetailNow
++  });
++  await eventRepository.appendTaskEvent({
++    eventId: `event-ready-${runId}`,
++    taskId,
++    attemptNo: 0,
++    eventType: "QUERY_READY",
++    requestId: `req-worker-${runId}`,
++    datasourceCode: "purchase-ro",
++    queryTemplateVersion: "v1",
++    batchCheckpoint: JSON.stringify({
++      taskId,
++      attemptNo: 0,
++      requestId: `req-worker-${runId}`,
++      datasourceCode: "purchase-ro",
++      queryTemplateVersion: "v1"
++    }),
++    occurredAt: firstDetailNow,
++    now: firstDetailNow
++  });
++  await eventRepository.appendTaskEvent({
++    eventId: `event-batch-${runId}`,
++    taskId,
++    attemptNo: 0,
++    eventType: "QUERY_BATCH_DONE",
++    requestId: `req-worker-${runId}`,
++    datasourceCode: "purchase-ro",
++    queryTemplateVersion: "v1",
++    batchCheckpoint: JSON.stringify({
++      lastCursor: "cursor-24",
++      processedCount: 24,
++      totalCount: 120,
++      filePartNo: 1,
++      retryCount: 0,
++      batchSize: 500,
++      batchRowCount: 24,
++      backoffMs: 0
++    }),
++    occurredAt: new Date(firstDetailNow.getTime() + 1),
++    now: new Date(firstDetailNow.getTime() + 1)
++  });
+ 
+   const detailResponse = await app.inject({
+     method: "GET",
+@@ -372,6 +429,20 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+ 
+   assert.equal(detailResponse.statusCode, 200);
+   assert.equal(detailResponse.json().data.taskId, taskId);
++  assert.equal(detailResponse.json().data.totalCount, 120);
++  assert.equal(detailResponse.json().data.processedCount, 24);
++  assert.equal(detailResponse.json().data.progressPercent, 20);
++  assert.equal(detailResponse.json().data.errorCode, null);
++  assert.equal(detailResponse.json().data.errorMessage, null);
++  assert.ok(Array.isArray(detailResponse.json().data.recentEvents));
++  assert.equal("events" in detailResponse.json().data, false);
++  assert.equal(detailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
++  assert.equal(detailResponse.json().data.recentEvents[0].taskId, taskId);
++  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
++  assert.equal(detailResponse.json().data.recentEvents[0].requestId, `req-worker-${runId}`);
++  assert.equal(detailResponse.json().data.recentEvents[0].datasourceCode, "purchase-ro");
++  assert.equal(detailResponse.json().data.recentEvents[0].queryTemplateVersion, "v1");
++  assert.equal(detailResponse.json().data.recentEvents[0].batchCheckpoint.processedCount, 24);
+ 
+   const listResponse = await app.inject({
+     method: "GET",
+@@ -402,6 +473,87 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+ 
+   assert.equal(secondTaskResponse.statusCode, 201);
+   const secondTaskId = secondTaskResponse.json().data.taskId;
++  const failedTaskResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-create-task-failed-${runId}`),
++    payload: createTaskPayload(taskCode, "client-failed")
++  });
++
++  assert.equal(failedTaskResponse.statusCode, 201);
++  const failedTaskId = failedTaskResponse.json().data.taskId;
++  const failedDetailNow = await getDatabaseTime(db);
++
++  await checkpointRepository.saveCheckpoint({
++    taskId: failedTaskId,
++    attemptNo: 0,
++    lastCursor: "cursor-25",
++    processedCount: 25,
++    filePartNo: 1,
++    retryCount: 2,
++    batchSize: 500,
++    batchRowCount: 25,
++    backoffMs: 0,
++    now: failedDetailNow
++  });
++  await eventRepository.appendTaskEvent({
++    eventId: `event-failed-batch-${runId}`,
++    taskId: failedTaskId,
++    attemptNo: 0,
++    eventType: "QUERY_BATCH_DONE",
++    requestId: `req-worker-failed-${runId}`,
++    datasourceCode: "purchase-ro",
++    queryTemplateVersion: "v1",
++    batchCheckpoint: JSON.stringify({
++      lastCursor: "cursor-25",
++      processedCount: 25,
++      totalCount: 50,
++      filePartNo: 1,
++      retryCount: 2,
++      batchSize: 500,
++      batchRowCount: 25,
++      backoffMs: 0
++    }),
++    occurredAt: failedDetailNow,
++    now: failedDetailNow
++  });
++  await taskRepository.updateTaskStatus({
++    taskId: failedTaskId,
++    status: "FAILED",
++    now: new Date(failedDetailNow.getTime() + 1)
++  });
++  await auditRepository.appendAuditLog({
++    auditId: `audit-failed-${runId}`,
++    taskId: failedTaskId,
++    attemptNo: 0,
++    taskCode,
++    subsystemCode: "purchase",
++    operatorId: "u001",
++    action: "EXECUTE_FAILED",
++    result: "FAILED",
++    errorCode: "QUERY_EXECUTION_ERROR",
++    requestId: `req-worker-failed-${runId}`,
++    occurredAt: new Date(failedDetailNow.getTime() + 2),
++    now: new Date(failedDetailNow.getTime() + 2)
++  });
++
++  const failedDetailResponse = await app.inject({
++    method: "GET",
++    url: `/api/export/tasks/${failedTaskId}`,
++    headers: createHeaders(`req-detail-failed-${runId}`)
++  });
++
++  assert.equal(failedDetailResponse.statusCode, 200);
++  assert.equal(failedDetailResponse.json().data.taskId, failedTaskId);
++  assert.equal(failedDetailResponse.json().data.status, "FAILED");
++  assert.equal(failedDetailResponse.json().data.totalCount, 50);
++  assert.equal(failedDetailResponse.json().data.processedCount, 25);
++  assert.equal(failedDetailResponse.json().data.progressPercent, 50);
++  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
++  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
++  assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
++  assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
++  assert.equal("events" in failedDetailResponse.json().data, false);
+ 
+   const ordinaryListResponse = await app.inject({
+     method: "GET",
+
+ succeeded in 416ms:
+import type { Kysely } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+import { createDatabase } from "../db/kysely.ts";
+import {
+  createExportAuditRepository,
+  createCheckpointRepository,
+  createExportFileRepository,
+  createExportRegistryRepository,
+  createExportTaskEventRepository,
+  createExportTaskRepository,
+  getDatabaseTime,
+  type AuditLogRecord,
+  type CheckpointRecord,
+  type ExportTaskRecord,
+  type TaskEventRecord
+} from "../repositories/index.ts";
+import { appendAudit } from "../audit-log/service.ts";
+import {
+  ApiError,
+  assertExportPermission,
+  isExportAdmin,
+  type AuthContext
+} from "../audit-log/auth-context.ts";
+import { createExportFileService } from "../file-service/index.ts";
+
+type CreateTaskBody = {
+  taskCode?: string;
+  subsystemCode?: string;
+  fileFormat?: string;
+  clientRequestId?: string;
+  queryParams?: unknown;
+};
+
+export type DownloadDeliveryMode = "SIGNED_URL" | "STREAM";
+
+type DownloadSignedUrlResponse = {
+  deliveryMode: "SIGNED_URL";
+  downloadUrl: string;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
+type DownloadStreamResponse = {
+  deliveryMode: "STREAM";
+  body: Buffer;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
+function digest(value: unknown): string {
+  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+}
+
+function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {}) {
+  return {
+    taskId: task.taskId,
+    taskCode: task.taskCode,
+    subsystemCode: task.subsystemCode,
+    tenantId: task.tenantId,
+    createdBy: task.createdBy,
+    fileFormat: task.fileFormat,
+    status: task.status,
+    clientRequestId: task.clientRequestId,
+    idempotencyScope: task.idempotencyScope,
+    requestDigest: task.requestDigest,
+    configSnapshotDigest: task.configSnapshotDigest,
+    attemptNo: task.attemptNo,
+    lockOwner: task.lockOwner,
+    lockExpireAt: task.lockExpireAt?.toISOString() ?? null,
+    leaseRenewedAt: task.leaseRenewedAt?.toISOString() ?? null,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    totalCount: null,
+    processedCount: 0,
+    progressPercent: 0,
+    errorCode: null,
+    errorMessage: null,
+    failureStage: null,
+    lastSuccessStage: null,
+    ...extra
+  };
+}
+
+function parseJsonRecord(value: string | null | undefined): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readNonNegativeInteger(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (value < 0) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  return value;
+}
+
+function clampProgressPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
+}
+
+function responseCodeMessage(code: string | null): string | null {
+  switch (code) {
+    case "QUERY_EXECUTION_ERROR":
+      return "query execution error";
+    case "DATASOURCE_UNAVAILABLE":
+      return "datasource unavailable";
+    case "QUERY_TEMPLATE_INVALID":
+      return "query template invalid";
+    case "FIELD_MAPPING_INVALID":
+      return "field mapping invalid";
+    case "MASKING_RULE_ERROR":
+      return "masking rule error";
+    case "EXPORT_RENDER_ERROR":
+      return "export render error";
+    case "FILE_VERIFY_ERROR":
+      return "file verification failed";
+    case "EXPORT_LIMIT_EXCEEDED":
+      return "export limit exceeded";
+    default:
+      return null;
+  }
+}
+
+function resolveTotalCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  events: TaskEventRecord[];
+}): number {
+  const eventTotal = input.events.reduce<number | null>((current, event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const totalCount = readNonNegativeInteger(checkpoint?.totalCount);
+    if (totalCount !== null) {
+      return current === null ? totalCount : Math.max(current, totalCount);
+    }
+    return current;
+  }, null);
+
+  if (eventTotal !== null) {
+    return eventTotal;
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return input.checkpoint?.processedCount ?? 0;
+  }
+
+  return 0;
+}
+
+function resolveProcessedCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  totalCount: number;
+}): number {
+  const checkpointCount = input.checkpoint?.processedCount ?? 0;
+  if (input.totalCount > 0) {
+    return Math.min(checkpointCount, input.totalCount);
+  }
+
+  if (input.task.status === "COMPLETED" && checkpointCount === 0) {
+    return input.totalCount;
+  }
+
+  return checkpointCount;
+}
+
+function resolveProgressPercent(input: {
+  task: ExportTaskRecord;
+  processedCount: number;
+  totalCount: number;
+}): number {
+  if (input.totalCount > 0) {
+    return clampProgressPercent((input.processedCount / input.totalCount) * 100);
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return 100;
+  }
+
+  return 0;
+}
+
+function resolveTaskFailure(
+  audits: AuditLogRecord[],
+  events: TaskEventRecord[]
+): {
+  errorCode: string | null;
+  errorMessage: string | null;
+} {
+  const auditFailures = audits
+    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
+    .map((audit) => ({
+      occurredAt: audit.occurredAt,
+      errorCode: audit.errorCode,
+      errorMessage: responseCodeMessage(audit.errorCode)
+    }));
+
+  const eventFailures = events.flatMap((event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const errorCode = readNonEmptyString(checkpoint?.errorCode);
+    if (!errorCode || errorCode === "SUCCESS") {
+      return [];
+    }
+
+    return [
+      {
+        occurredAt: event.occurredAt,
+        errorCode,
+        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+      }
+    ];
+  });
+
+  const failedRecord = [...auditFailures, ...eventFailures].sort(
+    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
+  )[0];
+
+  if (!failedRecord) {
+    return {
+      errorCode: null,
+      errorMessage: null
+    };
+  }
+
+ succeeded in 463ms:
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+        action: "DETAIL_VIEW",
+        now,
+        taskId
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "DETAIL_VIEW",
+          now,
+          taskId,
+          attemptNo: task.attemptNo,
+          taskCode: task.taskCode,
+          subsystemCode: task.subsystemCode
+        });
+      }
+      throw error;
+    }
+
+    const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+    const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+    const checkpoint = await createCheckpointRepository(db).findLatestCheckpoint(
+      taskId,
+      task.attemptNo
+    );
+    const totalCount = resolveTotalCount({
+      task,
+      checkpoint,
+      events
+    });
+    const processedCount = resolveProcessedCount({
+      task,
+      checkpoint,
+      totalCount
+    });
+    const progressPercent = resolveProgressPercent({
+      task,
+      processedCount,
+      totalCount
+    });
+    const failure = task.status === "FAILED"
+      ? resolveTaskFailure(audits, events)
+      : { errorCode: null, errorMessage: null };
+
+    await appendAudit({
+      db,
+      auth,
+      taskId,
+      attemptNo: task.attemptNo,
+      taskCode: task.taskCode,
+      subsystemCode: task.subsystemCode,
+      action: "DETAIL_VIEW",
+      now
+    });
+
+    return taskEnvelope(task, {
+      totalCount,
+      processedCount,
+      progressPercent,
+      errorCode: failure.errorCode,
+      errorMessage: failure.errorMessage,
+      requestId: auth.requestId,
+      recentEvents: events.map(mapRecentTaskEvent)
+    });
+  });
+}
+
+export async function downloadExportTask(
+  auth: AuthContext,
+  taskId: string,
+  requestedMode?: string
+): Promise<DownloadSignedUrlResponse | DownloadStreamResponse> {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const deliveryMode = resolveDownloadMode(requestedMode);
+    const task = await createExportTaskRepository(db).findTaskById(taskId);
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/task-api/service.ts | Select-Object -Skip 250 -First 60' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path contracts/openapi.yaml | Select-Object -Skip 1370 -First 120' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path tests/api/export-http-api.test.mjs | Select-Object -Skip 360 -First 290' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path tests/contract/openapi-route-mapping.contract.test.mjs | Select-Object -Skip 130 -First 45' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 397ms:
+    [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
+    []
+  );
+});
+
+test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
+  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+});
+
+test("task detail schema requires public progress, error, and recentEvents fields", () => {
+  const detailSchema = parseExportTaskDetailSchemaBlock();
+  const required = parseYamlListFromBlock(detailSchema, "required");
+
+  for (const field of [
+    "totalCount",
+    "processedCount",
+    "progressPercent",
+    "errorCode",
+    "errorMessage",
+    "recentEvents"
+  ]) {
+    assert.equal(required.has(field), true, `${field} must be required on ExportTaskDetail`);
+    assert.match(detailSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a property`);
+  }
+
+  assert.doesNotMatch(detailSchema, /\n\s{8}events:\n/);
+});
+
+ succeeded in 397ms:
+
+  assert.equal(conflictResponse.statusCode, 409);
+  assert.equal(conflictResponse.json().code, "IDEMPOTENCY_CONFLICT");
+  const conflictAudits = await auditLogsByRequestId(db, `req-conflict-task-${runId}`);
+  assert.equal(conflictAudits.length, 1);
+  assert.equal(conflictAudits[0].result, "FAILED");
+  assert.equal(conflictAudits[0].error_code, "IDEMPOTENCY_CONFLICT");
+
+  const taskId = createTaskResponse.json().data.taskId;
+  const pendingDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}`,
+    headers: createHeaders(`req-detail-pending-${runId}`)
+  });
+
+  assert.equal(pendingDetailResponse.statusCode, 200);
+  assert.equal(pendingDetailResponse.json().data.taskId, taskId);
+  assert.equal(pendingDetailResponse.json().data.status, "PENDING");
+  assert.equal(pendingDetailResponse.json().data.totalCount, 0);
+  assert.equal(pendingDetailResponse.json().data.processedCount, 0);
+  assert.equal(pendingDetailResponse.json().data.progressPercent, 0);
+  assert.equal(pendingDetailResponse.json().data.errorCode, null);
+  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
+  assert.deepEqual(pendingDetailResponse.json().data.recentEvents, []);
+  assert.equal("events" in pendingDetailResponse.json().data, false);
+
+  const firstDetailNow = await getDatabaseTime(db);
+
+  await checkpointRepository.saveCheckpoint({
+    taskId,
+    attemptNo: 0,
+    lastCursor: "cursor-24",
+    processedCount: 24,
+    filePartNo: 1,
+    retryCount: 0,
+    batchSize: 500,
+    batchRowCount: 24,
+    backoffMs: 0,
+    now: firstDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-ready-${runId}`,
+    taskId,
+    attemptNo: 0,
+    eventType: "QUERY_READY",
+    requestId: `req-worker-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      taskId,
+      attemptNo: 0,
+      requestId: `req-worker-${runId}`,
+      datasourceCode: "purchase-ro",
+      queryTemplateVersion: "v1"
+    }),
+    occurredAt: firstDetailNow,
+    now: firstDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-batch-${runId}`,
+    taskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-24",
+      processedCount: 24,
+      totalCount: 120,
+      filePartNo: 1,
+      retryCount: 0,
+      batchSize: 500,
+      batchRowCount: 24,
+      backoffMs: 0
+    }),
+    occurredAt: new Date(firstDetailNow.getTime() + 1),
+    now: new Date(firstDetailNow.getTime() + 1)
+  });
+
+  const detailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${taskId}`,
+    headers: createHeaders(`req-detail-${runId}`)
+  });
+
+  assert.equal(detailResponse.statusCode, 200);
+  assert.equal(detailResponse.json().data.taskId, taskId);
+  assert.equal(detailResponse.json().data.totalCount, 120);
+  assert.equal(detailResponse.json().data.processedCount, 24);
+  assert.equal(detailResponse.json().data.progressPercent, 20);
+  assert.equal(detailResponse.json().data.errorCode, null);
+  assert.equal(detailResponse.json().data.errorMessage, null);
+  assert.ok(Array.isArray(detailResponse.json().data.recentEvents));
+  assert.equal("events" in detailResponse.json().data, false);
+  assert.equal(detailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+  assert.equal(detailResponse.json().data.recentEvents[0].taskId, taskId);
+  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
+  assert.equal(detailResponse.json().data.recentEvents[0].requestId, `req-worker-${runId}`);
+  assert.equal(detailResponse.json().data.recentEvents[0].datasourceCode, "purchase-ro");
+  assert.equal(detailResponse.json().data.recentEvents[0].queryTemplateVersion, "v1");
+  assert.equal(detailResponse.json().data.recentEvents[0].batchCheckpoint.processedCount, 24);
+
+  const listResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}&createdBy=u001&fileFormat=XLSX&createdAtFrom=2026-05-01T00%3A00%3A00.000Z&createdAtTo=2099-01-01T00%3A00%3A00.000Z`,
+    headers: createHeaders(`req-list-admin-${runId}`)
+  });
+
+  assert.equal(listResponse.statusCode, 200);
+  assert.ok(listResponse.json().data.items.some((item) => item.taskId === taskId));
+  assert.equal(
+    listResponse.json().data.items.find((item) => item.taskId === taskId).createdBy,
+    "u001"
+  );
+  assert.equal(
+    listResponse.json().data.items.find((item) => item.taskId === taskId).fileFormat,
+    "XLSX"
+  );
+
+  const secondTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-other-${runId}`, {
+      operatorId: "u002",
+      roleCodes: "EXPORT_USER"
+    }),
+    payload: createTaskPayload(taskCode, "client-other")
+  });
+
+  assert.equal(secondTaskResponse.statusCode, 201);
+  const secondTaskId = secondTaskResponse.json().data.taskId;
+  const failedTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-failed-${runId}`),
+    payload: createTaskPayload(taskCode, "client-failed")
+  });
+
+  assert.equal(failedTaskResponse.statusCode, 201);
+  const failedTaskId = failedTaskResponse.json().data.taskId;
+  const failedDetailNow = await getDatabaseTime(db);
+
+  await checkpointRepository.saveCheckpoint({
+    taskId: failedTaskId,
+    attemptNo: 0,
+    lastCursor: "cursor-25",
+    processedCount: 25,
+    filePartNo: 1,
+    retryCount: 2,
+    batchSize: 500,
+    batchRowCount: 25,
+    backoffMs: 0,
+    now: failedDetailNow
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-failed-batch-${runId}`,
+    taskId: failedTaskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-failed-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-25",
+      processedCount: 25,
+      totalCount: 50,
+      filePartNo: 1,
+      retryCount: 2,
+      batchSize: 500,
+      batchRowCount: 25,
+      backoffMs: 0
+    }),
+    occurredAt: failedDetailNow,
+    now: failedDetailNow
+  });
+  await taskRepository.updateTaskStatus({
+    taskId: failedTaskId,
+    status: "FAILED",
+    now: new Date(failedDetailNow.getTime() + 1)
+  });
+  await auditRepository.appendAuditLog({
+    auditId: `audit-failed-${runId}`,
+    taskId: failedTaskId,
+    attemptNo: 0,
+    taskCode,
+    subsystemCode: "purchase",
+    operatorId: "u001",
+    action: "EXECUTE_FAILED",
+    result: "FAILED",
+    errorCode: "QUERY_EXECUTION_ERROR",
+    requestId: `req-worker-failed-${runId}`,
+    occurredAt: new Date(failedDetailNow.getTime() + 2),
+    now: new Date(failedDetailNow.getTime() + 2)
+  });
+
+  const failedDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${failedTaskId}`,
+    headers: createHeaders(`req-detail-failed-${runId}`)
+  });
+
+  assert.equal(failedDetailResponse.statusCode, 200);
+  assert.equal(failedDetailResponse.json().data.taskId, failedTaskId);
+  assert.equal(failedDetailResponse.json().data.status, "FAILED");
+  assert.equal(failedDetailResponse.json().data.totalCount, 50);
+  assert.equal(failedDetailResponse.json().data.processedCount, 25);
+  assert.equal(failedDetailResponse.json().data.progressPercent, 50);
+  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
+  assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
+  assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+  assert.equal("events" in failedDetailResponse.json().data, false);
+
+  const eventOnlyFailedTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-event-failed-${runId}`),
+    payload: createTaskPayload(taskCode, "client-event-failed")
+  });
+
+  assert.equal(eventOnlyFailedTaskResponse.statusCode, 201);
+  const eventOnlyFailedTaskId = eventOnlyFailedTaskResponse.json().data.taskId;
+  const eventOnlyFailedAt = await getDatabaseTime(db);
+  await checkpointRepository.saveCheckpoint({
+    taskId: eventOnlyFailedTaskId,
+    attemptNo: 0,
+    lastCursor: "cursor-10",
+    processedCount: 10,
+    filePartNo: 1,
+    retryCount: 3,
+    batchSize: 500,
+    batchRowCount: 10,
+    backoffMs: 0,
+    now: eventOnlyFailedAt
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-only-failed-${runId}`,
+    taskId: eventOnlyFailedTaskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-event-failed-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      lastCursor: "cursor-10",
+      processedCount: 10,
+      totalCount: 40,
+      errorCode: "DATASOURCE_UNAVAILABLE",
+      errorMessage: "datasource credentials unavailable"
+    }),
+    occurredAt: eventOnlyFailedAt,
+    now: eventOnlyFailedAt
+  });
+  await taskRepository.updateTaskStatus({
+    taskId: eventOnlyFailedTaskId,
+    status: "FAILED",
+    now: new Date(eventOnlyFailedAt.getTime() + 1)
+  });
+
+  const eventOnlyFailedDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${eventOnlyFailedTaskId}`,
+    headers: createHeaders(`req-detail-event-failed-${runId}`)
+  });
+
+  assert.equal(eventOnlyFailedDetailResponse.statusCode, 200);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.totalCount, 40);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.processedCount, 10);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.progressPercent, 25);
+  assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
+  assert.equal(
+    eventOnlyFailedDetailResponse.json().data.errorMessage,
+    "datasource credentials unavailable"
+  );
+  assert.equal(
+    eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
+    "QUERY_BATCH_DONE"
+  );
+  assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
+
+  const ordinaryListResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,
+    headers: createHeaders(`req-list-user-${runId}`, {
+      operatorId: "u001",
+      roleCodes: "EXPORT_USER"
+    })
+  });
+
+
+ succeeded in 402ms:
+
+  const failedRecord = [...auditFailures, ...eventFailures].sort(
+    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
+  )[0];
+
+  if (!failedRecord) {
+    return {
+      errorCode: null,
+      errorMessage: null
+    };
+  }
+
+  return {
+    errorCode: failedRecord.errorCode,
+    errorMessage: failedRecord.errorMessage
+  };
+}
+
+function mapRecentTaskEvent(event: TaskEventRecord) {
+  return {
+    taskId: event.taskId,
+    attemptNo: event.attemptNo,
+    eventType: event.eventType,
+    requestId: event.requestId,
+    datasourceCode: event.datasourceCode,
+    queryTemplateVersion: event.queryTemplateVersion,
+    batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
+    occurredAt: event.occurredAt.toISOString()
+  };
+}
+
+async function rejectWithAudit(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  auth: AuthContext;
+  error: ApiError;
+  action: string;
+  now: Date;
+  taskId?: string | null;
+  attemptNo?: number | null;
+  taskCode?: string | null;
+  subsystemCode?: string | null;
+}): Promise<never> {
+  await appendAudit({
+    db: input.db,
+    auth: input.auth,
+    taskId: input.taskId ?? null,
+    attemptNo: input.attemptNo ?? null,
+    taskCode: input.taskCode ?? null,
+    subsystemCode: input.subsystemCode ?? null,
+    action: input.action,
+    result: "FAILED",
+    errorCode: input.error.code,
+    now: input.now
+  });
+  throw input.error;
+}
+
+function parseDateFilter(value: unknown): Date | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+
+ succeeded in 447ms:
+          type: string
+        configSnapshotDigest:
+          type: string
+        attemptNo:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    ExportTaskDetailEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportTaskDetail"
+    ExportTaskDetail:
+      type: object
+      required:
+        - taskId
+        - taskCode
+        - subsystemCode
+        - status
+        - totalCount
+        - processedCount
+        - progressPercent
+        - errorCode
+        - errorMessage
+        - recentEvents
+        - attemptNo
+        - requestId
+        - requestDigest
+        - configSnapshotDigest
+        - createdBy
+        - createdAt
+        - updatedAt
+      properties:
+        taskId:
+          type: string
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        totalCount:
+          type: integer
+          format: int64
+          minimum: 0
+        processedCount:
+          type: integer
+          format: int64
+          minimum: 0
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        fileFormat:
+          $ref: "#/components/schemas/FileFormat"
+        attemptNo:
+          type: integer
+          minimum: 0
+        errorCode:
+          $ref: "#/components/schemas/NullableResponseCode"
+        errorMessage:
+          type: string
+          nullable: true
+        failureStage:
+          type: string
+        lastSuccessStage:
+          type: string
+        requestId:
+          type: string
+        requestDigest:
+          type: string
+        configSnapshotDigest:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        file:
+          $ref: "#/components/schemas/FileMetadata"
+        batchCheckpoint:
+          $ref: "#/components/schemas/BatchCheckpoint"
+        recentEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskEvent"
+        auditEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+    ExportTaskPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportTaskPage"
+    ExportTaskPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportTaskDetail"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+
+codex
+实现集中在任务详情响应组装：从 checkpoint、task events 和 audit 推导进度与失败字段，测试覆盖了 PENDING、有 checkpoint、FAILED、event-only 失败，以及 OpenAPI 必填字段守护。我还会补跑与审查直接相关的验证命令，确认当前工作区 fresh evidence。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 378ms:
+warning: in the working copy of 'progress.txt', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 389ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+
+ succeeded in 464ms:
+warning: in the working copy of 'progress.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'traces/REQUIREMENTS-COMPLETE-REVIEW-001-8c1edaa9464947f39a0ee74167a92a84/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-174226-codex-error.log', LF will be replaced by CRLF the next time Git touches it
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2541ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+ succeeded in 5229ms:
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:59545 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6674ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (835.3257ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1490.3399
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.0371ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.6129ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4782ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9164ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2103ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4161ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.3235
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "listRecentTaskEvents|listAuditLogsForTask|findLatestCheckpoint|appendTaskEvent|appendAuditLog" src/repositories src -g "*.ts"' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/repositories/index.ts | Select-Object -Skip 1 -First 260' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 329ms:
+export { createExportAuditRepository } from "./export-audit.repository.ts";
+export { createCheckpointRepository } from "./export-checkpoint.repository.ts";
+export { createExportFileRepository } from "./export-file.repository.ts";
+export { createLeaseRepository } from "./export-lease.repository.ts";
+export { createExportRegistryRepository } from "./export-registry.repository.ts";
+export { createExportTaskRepository } from "./export-task.repository.ts";
+export { createExportTaskEventRepository } from "./export-task-event.repository.ts";
+
+export type { AppendAuditLogInput, AuditLogRecord } from "./export-audit.repository.ts";
+export type {
+  CheckpointRecord,
+  SaveCheckpointInput
+} from "./export-checkpoint.repository.ts";
+export type {
+  ExpiredFileCleanupCandidate,
+  FileMetadataRecord,
+  SaveFileMetadataInput
+} from "./export-file.repository.ts";
+export type {
+  AcquirePendingTaskLeaseInput,
+  ExportTaskLeaseRecord
+} from "./export-lease.repository.ts";
+export type {
+  ExportRegistryRecord,
+  ExportRegistryUpsertInput
+} from "./export-registry.repository.ts";
+export type {
+  CreatePendingTaskInput,
+  ExportTaskIdempotencyRecord,
+  ExportTaskRecord
+} from "./export-task.repository.ts";
+export type { AppendTaskEventInput, TaskEventRecord } from "./export-task-event.repository.ts";
+
+ succeeded in 374ms:
+src\cleanup-job\index.ts:78:        await audits.appendAuditLog({
+src\cleanup-job\index.ts:108:        await audits.appendAuditLog({
+src\cleanup-job\index.ts:174:  await input.events.appendTaskEvent({
+src\audit-log\service.ts:19:  await createExportAuditRepository(input.db).appendAuditLog({
+src\file-service\index.ts:272:  await input.events.appendTaskEvent({
+src\query-executor\index.ts:556:  await createExportTaskEventRepository(input.context.db).appendTaskEvent({
+src/repositories\export-task-event.repository.ts:55:    async appendTaskEvent(input: AppendTaskEventInput): Promise<void> {
+src/repositories\export-task-event.repository.ts:73:    async listRecentTaskEvents(taskId: string): Promise<TaskEventRecord[]> {
+src/repositories\export-checkpoint.repository.ts:81:    async findLatestCheckpoint(
+src\scheduler\worker.ts:415:    const checkpoint = await checkpoints.findLatestCheckpoint(
+src\scheduler\worker.ts:747:  await createExportAuditRepository(input.db).appendAuditLog({
+src\task-api\service.ts:650:    const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+src\task-api\service.ts:651:    const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+src\task-api\service.ts:652:    const checkpoint = await createCheckpointRepository(db).findLatestCheckpoint(
+src/repositories\export-audit.repository.ts:51:    async appendAuditLog(input: AppendAuditLogInput): Promise<void> {
+src/repositories\export-audit.repository.ts:71:    async listAuditLogsForTask(taskId: string): Promise<AuditLogRecord[]> {
+src\repositories\export-audit.repository.ts:51:    async appendAuditLog(input: AppendAuditLogInput): Promise<void> {
+src\repositories\export-audit.repository.ts:71:    async listAuditLogsForTask(taskId: string): Promise<AuditLogRecord[]> {
+src\repositories\export-task-event.repository.ts:55:    async appendTaskEvent(input: AppendTaskEventInput): Promise<void> {
+src\repositories\export-task-event.repository.ts:73:    async listRecentTaskEvents(taskId: string): Promise<TaskEventRecord[]> {
+src\repositories\export-checkpoint.repository.ts:81:    async findLatestCheckpoint(
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "assertTaskVisible|function assertTaskVisible|getExportTask|DETAIL_VIEW" src/task-api/service.ts tests/api/export-http-api.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 352ms:
+src/task-api/service.ts:330:function assertTaskVisible(auth: AuthContext, task: ExportTaskRecord): void {
+src/task-api/service.ts:617:export async function getExportTask(auth: AuthContext, taskId: string) {
+src/task-api/service.ts:626:        action: "DETAIL_VIEW",
+src/task-api/service.ts:632:      assertTaskVisible(auth, task);
+src/task-api/service.ts:639:          action: "DETAIL_VIEW",
+src/task-api/service.ts:682:      action: "DETAIL_VIEW",
+src/task-api/service.ts:718:      assertTaskVisible(auth, task);
+src/task-api/service.ts:844:      assertTaskVisible(auth, task);
+src/task-api/service.ts:927:      assertTaskVisible(auth, task);
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/repositories/export-task-event.repository.ts' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/task-api/service.ts | Select-Object -Skip 315 -First 45' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/repositories/export-audit.repository.ts' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 354ms:
+import type { Kysely } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+
+export type AppendAuditLogInput = {
+  auditId: string;
+  taskId: string | null;
+  attemptNo: number | null;
+  taskCode: string | null;
+  subsystemCode: string | null;
+  operatorId: string;
+  action: string;
+  result: string;
+  errorCode: string;
+  requestId: string;
+  occurredAt: Date;
+  now: Date;
+};
+
+export type AuditLogRecord = Omit<AppendAuditLogInput, "now">;
+
+function toAuditLogRecord(row: {
+  audit_id: string;
+  task_id: string | null;
+  attempt_no: number | null;
+  task_code: string | null;
+  subsystem_code: string | null;
+  operator_id: string;
+  action: string;
+  result: string;
+  error_code: string;
+  request_id: string;
+  occurred_at: Date;
+}): AuditLogRecord {
+  return {
+    auditId: row.audit_id,
+    taskId: row.task_id,
+    attemptNo: row.attempt_no,
+    taskCode: row.task_code,
+    subsystemCode: row.subsystem_code,
+    operatorId: row.operator_id,
+    action: row.action,
+    result: row.result,
+    errorCode: row.error_code,
+    requestId: row.request_id,
+    occurredAt: row.occurred_at
+  };
+}
+
+export function createExportAuditRepository(db: Kysely<ExportPlatformDatabase>) {
+  return {
+    async appendAuditLog(input: AppendAuditLogInput): Promise<void> {
+      await db
+        .insertInto("export_audit_logs")
+        .values({
+          audit_id: input.auditId,
+          task_id: input.taskId,
+          attempt_no: input.attemptNo,
+          task_code: input.taskCode,
+          subsystem_code: input.subsystemCode,
+          operator_id: input.operatorId,
+          action: input.action,
+          result: input.result,
+          error_code: input.errorCode,
+          request_id: input.requestId,
+          occurred_at: input.occurredAt,
+          created_at: input.now
+        })
+        .execute();
+    },
+
+    async listAuditLogsForTask(taskId: string): Promise<AuditLogRecord[]> {
+      const rows = await db
+        .selectFrom("export_audit_logs")
+        .selectAll()
+        .where("task_id", "=", taskId)
+        .orderBy("occurred_at", "asc")
+        .execute();
+
+      return rows.map(toAuditLogRecord);
+    }
+  };
+}
+
+ succeeded in 404ms:
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function assertTaskVisible(auth: AuthContext, task: ExportTaskRecord): void {
+  if (task.tenantId === auth.tenantId && (isExportAdmin(auth) || task.createdBy === auth.operatorId)) {
+    return;
+  }
+
+  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task", {
+    taskId: task.taskId
+  });
+}
+
+async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) => Promise<T>) {
+  const db = createDatabase();
+  try {
+    return await operation(db);
+  } finally {
+    await db.destroy();
+  }
+}
+
+function resolveDownloadMode(mode: string | undefined): DownloadDeliveryMode {
+  if (!mode || mode === "SIGNED_URL") {
+    return "SIGNED_URL";
+  }
+  if (mode === "STREAM") {
+    return "STREAM";
+  }
+
+  throw new ApiError(400, "VALIDATION_ERROR", "mode must be SIGNED_URL or STREAM", {
+    mode
+  });
+}
+
+ succeeded in 409ms:
+import type { Kysely } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+
+export type AppendTaskEventInput = {
+  eventId: string;
+  taskId: string;
+  attemptNo: number;
+  eventType: string;
+  requestId: string;
+  datasourceCode?: string;
+  queryTemplateVersion?: string;
+  batchCheckpoint?: string;
+  occurredAt: Date;
+  now: Date;
+};
+
+export type TaskEventRecord = {
+  eventId: string;
+  taskId: string;
+  attemptNo: number;
+  eventType: string;
+  requestId: string;
+  datasourceCode: string | null;
+  queryTemplateVersion: string | null;
+  batchCheckpoint: string | null;
+  occurredAt: Date;
+};
+
+function toTaskEventRecord(row: {
+  event_id: string;
+  task_id: string;
+  attempt_no: number;
+  event_type: string;
+  request_id: string;
+  datasource_code: string | null;
+  query_template_version: string | null;
+  batch_checkpoint: string | null;
+  occurred_at: Date;
+}): TaskEventRecord {
+  return {
+    eventId: row.event_id,
+    taskId: row.task_id,
+    attemptNo: row.attempt_no,
+    eventType: row.event_type,
+    requestId: row.request_id,
+    datasourceCode: row.datasource_code,
+    queryTemplateVersion: row.query_template_version,
+    batchCheckpoint: row.batch_checkpoint,
+    occurredAt: row.occurred_at
+  };
+}
+
+export function createExportTaskEventRepository(db: Kysely<ExportPlatformDatabase>) {
+  return {
+    async appendTaskEvent(input: AppendTaskEventInput): Promise<void> {
+      await db
+        .insertInto("export_task_events")
+        .values({
+          event_id: input.eventId,
+          task_id: input.taskId,
+          attempt_no: input.attemptNo,
+          event_type: input.eventType,
+          request_id: input.requestId,
+          datasource_code: input.datasourceCode ?? null,
+          query_template_version: input.queryTemplateVersion ?? null,
+          batch_checkpoint: input.batchCheckpoint ?? null,
+          occurred_at: input.occurredAt,
+          created_at: input.now
+        })
+        .execute();
+    },
+
+    async listRecentTaskEvents(taskId: string): Promise<TaskEventRecord[]> {
+      const rows = await db
+        .selectFrom("export_task_events")
+        .selectAll()
+        .where("task_id", "=", taskId)
+        .orderBy("occurred_at", "desc")
+        .orderBy("event_id", "desc")
+        .limit(20)
+        .execute();
+
+      return rows.map(toTaskEventRecord);
+    }
+  };
+}
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "errorCode|errorMessage|batchCheckpoint|appendTaskEvent" src/query-executor src/scheduler src/file-service src/cleanup-job src -g "*.ts"' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "NullableResponseCode|ResponseCode:" contracts/openapi.yaml' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/query-executor/index.ts | Select-Object -Skip 510 -First 75' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 354ms:
+src/query-executor\index.ts:194:      batchCheckpoint: {
+src/query-executor\index.ts:209:      batchCheckpoint: checkpoint,
+src/query-executor\index.ts:553:  batchCheckpoint: unknown;
+src/query-executor\index.ts:556:  await createExportTaskEventRepository(input.context.db).appendTaskEvent({
+src/query-executor\index.ts:564:    batchCheckpoint: JSON.stringify(input.batchCheckpoint),
+src/cleanup-job\index.ts:87:          errorCode: "SUCCESS",
+src/cleanup-job\index.ts:117:          errorCode: "FILE_CLEANUP_DELETE_ERROR",
+src/cleanup-job\index.ts:174:  await input.events.appendTaskEvent({
+src/cleanup-job\index.ts:181:    batchCheckpoint: JSON.stringify(input.checkpoint),
+src/scheduler\worker.ts:574:      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+src/scheduler\worker.ts:745:  errorCode?: string;
+src/scheduler\worker.ts:756:    errorCode: input.errorCode ?? "SUCCESS",
+src/file-service\index.ts:272:  await input.events.appendTaskEvent({
+src/file-service\index.ts:280:    batchCheckpoint: JSON.stringify(input.checkpoint),
+src\cleanup-job\index.ts:87:          errorCode: "SUCCESS",
+src\cleanup-job\index.ts:117:          errorCode: "FILE_CLEANUP_DELETE_ERROR",
+src\cleanup-job\index.ts:174:  await input.events.appendTaskEvent({
+src\cleanup-job\index.ts:181:    batchCheckpoint: JSON.stringify(input.checkpoint),
+src\audit-log\service.ts:16:  errorCode?: string;
+src\audit-log\service.ts:28:    errorCode: input.errorCode ?? "SUCCESS",
+src\query-executor\index.ts:194:      batchCheckpoint: {
+src\query-executor\index.ts:209:      batchCheckpoint: checkpoint,
+src\query-executor\index.ts:553:  batchCheckpoint: unknown;
+src\query-executor\index.ts:556:  await createExportTaskEventRepository(input.context.db).appendTaskEvent({
+src\query-executor\index.ts:564:    batchCheckpoint: JSON.stringify(input.batchCheckpoint),
+src\repositories\export-audit.repository.ts:13:  errorCode: string;
+src\repositories\export-audit.repository.ts:43:    errorCode: row.error_code,
+src\repositories\export-audit.repository.ts:63:          error_code: input.errorCode,
+src\file-service\index.ts:272:  await input.events.appendTaskEvent({
+src\file-service\index.ts:280:    batchCheckpoint: JSON.stringify(input.checkpoint),
+src\registry-config\service.ts:70:    errorCode: input.error.code,
+src\scheduler\worker.ts:574:      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+src\scheduler\worker.ts:745:  errorCode?: string;
+src\scheduler\worker.ts:756:    errorCode: input.errorCode ?? "SUCCESS",
+src\repositories\export-task-event.repository.ts:12:  batchCheckpoint?: string;
+src\repositories\export-task-event.repository.ts:25:  batchCheckpoint: string | null;
+src\repositories\export-task-event.repository.ts:48:    batchCheckpoint: row.batch_checkpoint,
+src\repositories\export-task-event.repository.ts:55:    async appendTaskEvent(input: AppendTaskEventInput): Promise<void> {
+src\repositories\export-task-event.repository.ts:66:          batch_checkpoint: input.batchCheckpoint ?? null,
+src\task-api\service.ts:89:    errorCode: null,
+src\task-api\service.ts:90:    errorMessage: null,
+src\task-api\service.ts:169:    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+src\task-api\service.ts:225:  errorCode: string | null;
+src\task-api\service.ts:226:  errorMessage: string | null;
+src\task-api\service.ts:229:    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
+src\task-api\service.ts:232:      errorCode: audit.errorCode,
+src\task-api\service.ts:233:      errorMessage: responseCodeMessage(audit.errorCode)
+src\task-api\service.ts:237:    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+src\task-api\service.ts:238:    const errorCode = readNonEmptyString(checkpoint?.errorCode);
+src\task-api\service.ts:239:    if (!errorCode || errorCode === "SUCCESS") {
+src\task-api\service.ts:246:        errorCode,
+src\task-api\service.ts:247:        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+src\task-api\service.ts:258:      errorCode: null,
+src\task-api\service.ts:259:      errorMessage: null
+src\task-api\service.ts:264:    errorCode: failedRecord.errorCode,
+src\task-api\service.ts:265:    errorMessage: failedRecord.errorMessage
+src\task-api\service.ts:277:    batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
+src\task-api\service.ts:302:    errorCode: input.error.code,
+src\task-api\service.ts:673:      : { errorCode: null, errorMessage: null };
+src\task-api\service.ts:690:      errorCode: failure.errorCode,
+src\task-api\service.ts:691:      errorMessage: failure.errorMessage,
+
+ succeeded in 353ms:
+    if (!rule || !["PHONE", "PERSON_NAME"].includes(rule.type)) {
+      throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode ?? ""} is missing`);
+    }
+  }
+}
+
+function maskValue(
+  value: unknown,
+  mapping: FieldMapping,
+  maskingPolicy: MaskingPolicy
+): unknown {
+  const ruleCode = mapping.maskingRuleCode;
+  const rule = ruleCode ? maskingPolicy.rules?.[ruleCode] : undefined;
+  if (!rule) {
+    throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode ?? ""} is missing`);
+  }
+  const text = String(value ?? "");
+  if (rule.type === "PHONE") {
+    const prefix = rule.preservePrefix ?? 3;
+    const suffix = rule.preserveSuffix ?? 4;
+    if (text.length <= prefix + suffix) {
+      return "*".repeat(text.length);
+    }
+    return `${text.slice(0, prefix)}${"*".repeat(text.length - prefix - suffix)}${text.slice(-suffix)}`;
+  }
+  if (rule.type === "PERSON_NAME") {
+    if (text.length <= 1) {
+      return "*";
+    }
+    if (text.length === 2) {
+      return `${text.slice(0, 1)}*`;
+    }
+    return `${text.slice(0, 1)}${"*".repeat(text.length - 2)}${text.slice(-1)}`;
+  }
+  throw queryError("MASKING_RULE_ERROR", `masking rule ${ruleCode} is not supported`);
+}
+
+async function appendQueryEvent(input: {
+  context: SchedulerBatchContext;
+  eventType: string;
+  datasourceCode: string;
+  queryTemplateVersion: string;
+  batchCheckpoint: unknown;
+  now: Date;
+}): Promise<void> {
+  await createExportTaskEventRepository(input.context.db).appendTaskEvent({
+    eventId: `event_${randomUUID()}`,
+    taskId: input.context.task.taskId,
+    attemptNo: input.context.lease.attemptNo,
+    eventType: input.eventType,
+    requestId: input.context.requestId,
+    datasourceCode: input.datasourceCode,
+    queryTemplateVersion: input.queryTemplateVersion,
+    batchCheckpoint: JSON.stringify(input.batchCheckpoint),
+    occurredAt: input.now,
+    now: input.now
+  });
+}
+
+function extractPlaceholders(templateText: string): string[] {
+  return [...templateText.matchAll(placeholderPattern)].map((match) => match[1]);
+}
+
+function dedupeOrderBy(orderBy: OrderByDefinition[]): OrderByDefinition[] {
+  const seen = new Set<string>();
+  const normalized: OrderByDefinition[] = [];
+  for (const item of orderBy) {
+    if (seen.has(item.field)) {
+      continue;
+    }
+    seen.add(item.field);
+    normalized.push(item);
+  }
+  return normalized;
+}
+
+ succeeded in 395ms:
+1218:    ResponseCode:
+1245:    NullableResponseCode:
+1435:          $ref: "#/components/schemas/NullableResponseCode"
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/scheduler/worker.ts | Select-Object -Skip 540 -First 55' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/query-executor/index.ts | Select-Object -Skip 170 -First 50' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path src/scheduler/worker.ts | Select-Object -Skip 730 -First 45' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 331ms:
+      lockOwner: input.lease.lockOwner,
+      leaseDurationSeconds: input.leaseDurationSeconds
+    });
+
+    result.renewed = renewed ? 1 : 0;
+    return result;
+  } catch (error) {
+    if (isLeaseLostError(error)) {
+      return result;
+    }
+
+    let failedAt: Date;
+    try {
+      failedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "FAILED"
+      });
+    } catch (terminalError) {
+      if (isLeaseLostError(terminalError)) {
+        return result;
+      }
+      throw terminalError;
+    }
+
+    await appendWorkerAudit({
+      db: input.db,
+      task: input.task,
+      attemptNo: input.lease.attemptNo,
+      action: "EXECUTE_FAILED",
+      result: "FAILED",
+      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+      requestId: input.requestId,
+      now: failedAt
+    });
+    result.failed = 1;
+    return result;
+  }
+}
+
+async function ensureLeaseAtBatchBoundary(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  taskId: string;
+  attemptNo: number;
+  lockOwner: string;
+  leaseDurationSeconds: number;
+}): Promise<void> {
+  const renewed = await renewLeaseAtBatchBoundary(input);
+  if (!renewed) {
+    throw leaseLostError(
+      `worker ${input.lockOwner} no longer owns an active lease for task ${input.taskId}`
+    );
+  }
+
+ succeeded in 336ms:
+    };
+    const outcome = rawRows.length <= batchSize ? "completed" : "continue";
+    const rows =
+      outcome === "completed" && (context.checkpoint?.processedCount ?? 0) > 0
+        ? await collectCompletedRows({
+            db: context.db,
+            template,
+            queryParams,
+            scope,
+            orderBy,
+            batchSize,
+            fieldMappings,
+            maskingPolicy,
+            expectedCount: processedCount,
+            exportMaxRows: registry.exportMaxRows
+          })
+        : mappedRows;
+
+    await appendQueryEvent({
+      context,
+      eventType: "QUERY_READY",
+      datasourceCode: registry.datasourceCode,
+      queryTemplateVersion: template.queryTemplateVersion ?? context.task.configSnapshotDigest,
+      batchCheckpoint: {
+        taskId: context.task.taskId,
+        attemptNo: context.lease.attemptNo,
+        requestId: context.requestId,
+        datasourceCode: registry.datasourceCode,
+        queryTemplateVersion: template.queryTemplateVersion ?? null
+      },
+      now
+    });
+
+    await appendQueryEvent({
+      context,
+      eventType: "QUERY_BATCH_DONE",
+      datasourceCode: registry.datasourceCode,
+      queryTemplateVersion: template.queryTemplateVersion ?? context.task.configSnapshotDigest,
+      batchCheckpoint: checkpoint,
+      now: batchEventTime
+    });
+
+    return {
+      rows,
+      checkpoint,
+      outcome,
+      registry
+    };
+  };
+}
+
+ succeeded in 379ms:
+    .orderBy("occurred_at", "asc")
+    .executeTakeFirst();
+
+  return row?.request_id ?? `scheduler:${workerId}`;
+}
+
+async function appendWorkerAudit(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  attemptNo: number;
+  action: string;
+  result: string;
+  requestId: string;
+  now: Date;
+  errorCode?: string;
+}): Promise<void> {
+  await createExportAuditRepository(input.db).appendAuditLog({
+    auditId: `audit_${randomUUID()}`,
+    taskId: input.task.taskId,
+    attemptNo: input.attemptNo,
+    taskCode: input.task.taskCode,
+    subsystemCode: input.task.subsystemCode,
+    operatorId: input.task.createdBy,
+    action: input.action,
+    result: input.result,
+    errorCode: input.errorCode ?? "SUCCESS",
+    requestId: input.requestId,
+    occurredAt: input.now,
+    now: input.now
+  });
+}
+
+function leaseLostError(message: string): Error {
+  const error = new Error(message);
+  error.name = "WORKER_LEASE_LOST";
+  return error;
+}
+
+function isLeaseLostError(error: unknown): boolean {
+  return error instanceof Error && error.name === "WORKER_LEASE_LOST";
+}
+
+function isRetryableBatchError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "error instanceof Error && error.name !== '"\\\"Error\\\"|const auditFailures|errorCode: failedRecord.errorCode|NullableResponseCode|errorCode: \\\"QUERY_EXECUTION_ERROR\\\"|failedDetailResponse|task detail schema requires\" src/scheduler/worker.ts src/task-api/service.ts contracts/openapi.yaml tests/api/export-http-api.test.mjs tests/contract/openapi-route-mapping.contract.test.mjs" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "OpenAPI handlers are production handlers|listAuditLogsForTask|scheduler" tests/contract/openapi-route-mapping.contract.test.mjs tests/api/export-http-api.test.mjs tests/worker' in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T10:31:31.921072Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+rg: regex parse error:
+    (?:error instanceof Error && error.name !== \)
+    ^
+error: unclosed group
+
+ exited 1 in 439ms:
+rg: regex parse error:
+    (?:error instanceof Error && error.name !== \)
+    ^
+error: unclosed group
+
+ succeeded in 452ms:
+tests/api/export-http-api.test.mjs:831:  const auditLogs = await auditRepository.listAuditLogsForTask(taskId);
+tests/contract/openapi-route-mapping.contract.test.mjs:53:    "src/scheduler/worker.ts",
+tests/contract/openapi-route-mapping.contract.test.mjs:85:test("OpenAPI handlers are production handlers with service and DB repository evidence", () => {
+tests/worker\scheduler-worker.test.mjs:14:import { createSchedulerWorker } from "../../src/scheduler/worker.ts";
+tests/worker\scheduler-worker.test.mjs:211:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(
+tests/worker\scheduler-worker.test.mjs:225:  assert.equal(audits.every((audit) => audit.requestId === "scheduler:worker-a" || audit.requestId === "scheduler:worker-b"), true);
+tests/worker\scheduler-worker.test.mjs:381:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:393:    ["scheduler:worker-b"]
+tests/worker\scheduler-worker.test.mjs:398:        audit.requestId === "scheduler:worker-a" &&
+tests/worker\scheduler-worker.test.mjs:637:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:647:        audit.requestId === "scheduler:worker-a" &&
+tests/worker\scheduler-worker.test.mjs:687:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:977:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:1027:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:1065:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:1118:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\scheduler-worker.test.mjs:1173:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker\README.md:3:后续 scheduler worker、抢锁、续租、接管、取消和重试边界测试目录。
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "error.name|const auditFailures|failedRecord.errorCode|NullableResponseCode|QUERY_EXECUTION_ERROR|failedDetailResponse|task detail schema requires" src/scheduler/worker.ts src/task-api/service.ts contracts/openapi.yaml tests/api/export-http-api.test.mjs tests/contract/openapi-route-mapping.contract.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path tests/contract/openapi-route-mapping.contract.test.mjs | Select-Object -Skip 45 -First 35' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path tests/contract/openapi-route-mapping.contract.test.mjs | Select-Object -Skip 110 -First 30' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 342ms:
+    .length;
+
+  assert.equal(apiEvidenceCount, parseOpenApiOperationIds().length);
+});
+
+test("audit action, result, and errorCode literals written by production code stay within OpenAPI public enums", () => {
+  const actionEnum = parseAuditActionEnum();
+  const resultEnum = parseAuditResultEnum();
+  const responseCodeEnum = parseResponseCodeEnum();
+  const literals = sourceAuditLiterals();
+
+  assert.deepEqual(
+    [...literals.actions].filter((action) => !actionEnum.has(action)),
+    []
+  );
+  assert.deepEqual(
+    [...literals.results].filter((result) => !resultEnum.has(result)),
+    []
+  );
+  assert.deepEqual(
+    [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
+    []
+  );
+});
+
+test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
+  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+});
+
+ succeeded in 350ms:
+tests/api/export-http-api.test.mjs:551:    errorCode: "QUERY_EXECUTION_ERROR",
+tests/api/export-http-api.test.mjs:557:  const failedDetailResponse = await app.inject({
+tests/api/export-http-api.test.mjs:563:  assert.equal(failedDetailResponse.statusCode, 200);
+tests/api/export-http-api.test.mjs:564:  assert.equal(failedDetailResponse.json().data.taskId, failedTaskId);
+tests/api/export-http-api.test.mjs:565:  assert.equal(failedDetailResponse.json().data.status, "FAILED");
+tests/api/export-http-api.test.mjs:566:  assert.equal(failedDetailResponse.json().data.totalCount, 50);
+tests/api/export-http-api.test.mjs:567:  assert.equal(failedDetailResponse.json().data.processedCount, 25);
+tests/api/export-http-api.test.mjs:568:  assert.equal(failedDetailResponse.json().data.progressPercent, 50);
+tests/api/export-http-api.test.mjs:569:  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+tests/api/export-http-api.test.mjs:570:  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
+tests/api/export-http-api.test.mjs:571:  assert.ok(Array.isArray(failedDetailResponse.json().data.recentEvents));
+tests/api/export-http-api.test.mjs:572:  assert.equal(failedDetailResponse.json().data.recentEvents[0].eventType, "QUERY_BATCH_DONE");
+tests/api/export-http-api.test.mjs:573:  assert.equal("events" in failedDetailResponse.json().data, false);
+src/scheduler/worker.ts:574:      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+src/scheduler/worker.ts:765:  error.name = "WORKER_LEASE_LOST";
+src/scheduler/worker.ts:770:  return error instanceof Error && error.name === "WORKER_LEASE_LOST";
+src/scheduler/worker.ts:776:    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+tests/contract/openapi-route-mapping.contract.test.mjs:142:test("task detail schema requires public progress, error, and recentEvents fields", () => {
+contracts/openapi.yaml:1115:                code: QUERY_EXECUTION_ERROR
+contracts/openapi.yaml:1237:        - QUERY_EXECUTION_ERROR
+contracts/openapi.yaml:1245:    NullableResponseCode:
+contracts/openapi.yaml:1265:        - QUERY_EXECUTION_ERROR
+contracts/openapi.yaml:1435:          $ref: "#/components/schemas/NullableResponseCode"
+src/task-api/service.ts:142:    case "QUERY_EXECUTION_ERROR":
+src/task-api/service.ts:228:  const auditFailures = audits
+src/task-api/service.ts:264:    errorCode: failedRecord.errorCode,
+src/task-api/service.ts:382:  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+src/task-api/service.ts:386:  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+
+ succeeded in 394ms:
+  return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
+}
+
+function sourceAuditLiterals() {
+  const sources = [
+    "src/task-api/service.ts",
+    "src/registry-config/service.ts",
+    "src/scheduler/worker.ts",
+    "src/cleanup-job/index.ts"
+  ].map((path) => readFileSync(path, "utf8"));
+
+  return {
+    actions: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/action:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+      )
+    ),
+    results: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/result:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+      )
+    ),
+    errorCodes: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/errorCode:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)]
+          .flatMap((match) => [match[1], match[2]])
+          .filter(Boolean)
+      )
+    )
+  };
+}
+
+test("OpenAPI operationIds are represented by route manifest entries", () => {
+  assert.deepEqual(
+    new Set(parseRouteManifestOperationIds()),
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "QUERY_EXECUTION_ERROR|DATASOURCE_UNAVAILABLE|EXECUTE_FAILED|TypeError|error.name" tests/worker/scheduler-worker.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path tests/worker/scheduler-worker.test.mjs | Select-Object -Skip 1040 -First 95' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 339ms:
+  );
+});
+
+serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-ds-down-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-datasource-unavailable",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 0,
+    batchProcessor: async () => {
+      const error = new Error("credential unavailable");
+      error.name = "DATASOURCE_UNAVAILABLE";
+      throw error;
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(result.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) =>
+        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+    )
+  );
+});
+
+serialTest("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = "cleanup-success-01";
+  const task = await seedTask(db, { taskId, taskCode, subsystemCode });
+  const now = await getDatabaseTime(db);
+
+  await createExportTaskRepository(db).updateTaskStatus({
+    taskId,
+    status: "COMPLETED",
+    now
+  });
+  await createExportFileRepository(db).saveFileMetadata({
+    taskId,
+    attemptNo: 0,
+    fileName: "cleanup.xlsx",
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    fileSize: 1024,
+    checksum: "sha256:cleanup",
+    checksumAlgorithm: "SHA-256",
+    tempStorageKey: "exports/tmp/cleanup.xlsx",
+    publishedStorageKey: "exports/published/cleanup.xlsx",
+    expiresAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    deliveryReadyAt: now,
+    checksumVerifiedAt: now,
+    now
+  });
+
+  const deletes = [];
+  const cleanupJob = createCleanupJob({
+    db,
+    workerId: "cleanup-worker",
+    storage: {
+      async deleteObject(storageKey) {
+        deletes.push(storageKey);
+      }
+    }
+  });
+
+  const result = await cleanupJob.pollOnce();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+  const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+
+  assert.equal(result.scanned, 1);
+  assert.equal(result.deleted, 1);
+  assert.equal(result.retried, 0);
+  assert.deepEqual(deletes, ["exports/published/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
+  assert.ok(audits.some((audit) => audit.action === "EXPIRE_MARK" && audit.result === "SUCCESS"));
+  assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
+  assert.equal(task.taskCode, taskCode);
+});
+
+serialTest("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = "cleanup-failed-01";
+
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+ succeeded in 378ms:
+399:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+648:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+766:        error.name = "QUERY_EXECUTION_ERROR";
+834:        error.name = "QUERY_EXECUTION_ERROR";
+897:        error.name = "QUERY_EXECUTION_ERROR";
+940:serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+955:      error.name = "QUERY_EXECUTION_ERROR";
+987:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+1009:      error.name = "QUERY_EXECUTION_ERROR";
+1039:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+1044:serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion", async (t) => {
+1058:      error.name = "DATASOURCE_UNAVAILABLE";
+1072:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+1166:        error.name = "UnexpectedStorageVendorError";
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Path task.json | Select-Object -Skip 1665 -First 85' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001|architecture_constraints|forbidden_implementations|validation_command|completion_criteria" task.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 375ms:
+                                         "REQUIREMENTS-COMPLETE-REVIEW-001 可在本任务完成后重新运行，不依赖手工修改 review 结论"
+                                     ]
+                  },
+                  {
+                      "id":  "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+                      "description":  "修复任务详情进度与失败字段响应契约，覆盖 FR-002 / AC-002",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.82,
+                      "dependencies":  [
+                                           "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：任务详情必须按 OpenAPI 和 AC-002 返回 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+                                                       "必须以 contracts/openapi.yaml、src/task-api/service.ts、tests/api/export-http-api.test.mjs 和最新 requirements complete review finding 为 truth source",
+                                                       "详情响应必须走生产 MySQL repository、checkpoint/event/audit/task 状态数据，不得用内存或固定占位值冒充进度",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续固定返回 totalCount=null、progressPercent=0、errorCode=null、errorMessage=null 来规避 AC-002",
+                                                        "禁止返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+                                                        "禁止只改测试或文档而不修生产 API 响应",
+                                                        "禁止把 mock/local evidence 写成 live evidence"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "src/task-api/service.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/task-api/",
+                                          "tests/api/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-002",
+                                              "AC-002"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "tests/api/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "对齐 ExportTaskDetail OpenAPI required/properties 与 task detail 实际响应",
+                                    "从 checkpoint / task events / audit / task 状态计算 detail 的 totalCount、processedCount、progressPercent、失败 errorCode/errorMessage 和 recentEvents",
+                                    "补 API 测试断言 PENDING / 有 checkpoint / FAILED 任务详情关键字段，并禁止 events 字段替代 recentEvents",
+                                    "同步 verify-matrix 记录 TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 的 local/Docker MySQL 证据边界"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+                      "acceptance":  [
+                                         "GET /api/export/tasks/{taskId} 响应包含 OpenAPI 声明的 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+                                         "任务详情不得返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+                                         "失败任务详情能暴露最近失败审计或任务事件中的 errorCode/errorMessage，进度字段来自持久化 checkpoint / task 状态",
+                                         "API 与契约测试均通过，且 evidence 边界不声明外部 live MySQL"
+                                     ]
+                  },
+                  {
+                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+                      "description":  "修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+
+ succeeded in 454ms:
+131:                                    "确认后续 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证生产形态的 test_command"
+273:                      "architecture_constraints":  [
+279:                      "forbidden_implementations":  [
+381:                      "architecture_constraints":  [
+386:                      "forbidden_implementations":  [
+450:                      "architecture_constraints":  [
+455:                      "forbidden_implementations":  [
+527:                      "architecture_constraints":  [
+532:                      "forbidden_implementations":  [
+625:                                    "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+654:                      "architecture_constraints":  [
+659:                      "forbidden_implementations":  [
+723:                      "architecture_constraints":  [
+728:                      "forbidden_implementations":  [
+791:                      "architecture_constraints":  [
+796:                      "forbidden_implementations":  [
+860:                      "architecture_constraints":  [
+865:                      "forbidden_implementations":  [
+928:                      "architecture_constraints":  [
+934:                      "forbidden_implementations":  [
+1008:                      "architecture_constraints":  [
+1014:                      "forbidden_implementations":  [
+1091:                      "architecture_constraints":  [
+1097:                      "forbidden_implementations":  [
+1175:                      "architecture_constraints":  [
+1181:                      "forbidden_implementations":  [
+1253:                      "architecture_constraints":  [
+1259:                      "forbidden_implementations":  [
+1402:                      "architecture_constraints":  [
+1409:                      "forbidden_implementations":  [
+1489:                      "architecture_constraints":  [
+1496:                      "forbidden_implementations":  [
+1603:                      "architecture_constraints":  [
+1610:                      "forbidden_implementations":  [
+1670:                      "id":  "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+1686:                      "architecture_constraints":  [
+1693:                      "forbidden_implementations":  [
+1731:                                    "同步 verify-matrix 记录 TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 的 local/Docker MySQL 证据边界"
+1755:                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+1758:                      "architecture_constraints":  [
+1765:                      "forbidden_implementations":  [
+1833:                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+1837:                      "architecture_constraints":  [
+1842:                      "forbidden_implementations":  [
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | HIGH | test_gap | backend | `src/scheduler/worker.ts:574` 仍会把非 `Error` 的 `error.name` 原样写入 `EXECUTE_FAILED` audit；`src/task-api/service.ts:228` / `src/task-api/service.ts:264` 会把最近失败 audit 的 `errorCode` 直接暴露到 task detail；`contracts/openapi.yaml:1245` / `contracts/openapi.yaml:1435` 将 detail `errorCode` 限定为 `NullableResponseCode`。当前 `tests/api/export-http-api.test.mjs:551` 只手工插入 `QUERY_EXECUTION_ERROR`，未覆盖真实 worker 写入非公开错误名后 detail 响应是否仍符合契约。 | 在 worker/audit 写入侧或 detail 读取侧增加公开 `ResponseCode` allow-list 归一化，未知 worker 异常统一映射到公开错误码，例如 `QUERY_EXECUTION_ERROR` 或 `INTERNAL_ERROR`；补 `test:worker` 或 API 集成测试，构造自定义 `Error.name`，断言 audit 与 task detail 不返回未声明错误码；扩展 contract guard，禁止 audit errorCode 继续从 raw `.name` 透传。 | `npm run typecheck; npm run test:worker; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; npm run test:contract; git diff --check -- task.json contracts/openapi.yaml src/task-api src/scheduler tests/api tests/worker tests/contract docs/testing/verify-matrix.md progress.txt` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git show 798a90e`
+  - `npm run typecheck`
+  - 任务测试命令中的 `docker-test-env.ps1 + npm run test:api + npm run test:contract`
+  - `git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`
+- 结果摘要:
+  - `typecheck` 通过。
+  - `test:api` 2/2 通过。
+  - `test:contract` 6/6 通过。
+  - `git diff --check` 退出码 0，仅有 CRLF 提示。
+  - 当前工作区任务相关文件无未提交 diff；存在 traces 运行产物变更。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | backend | backend-worker | 1 | yes |
+tokens used
+58,393

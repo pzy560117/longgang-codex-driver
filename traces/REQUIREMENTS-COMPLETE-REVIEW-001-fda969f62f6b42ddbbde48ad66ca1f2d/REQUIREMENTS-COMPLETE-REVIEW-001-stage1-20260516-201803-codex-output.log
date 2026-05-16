@@ -1,0 +1,38 @@
+SUCCESS: The process with PID 31680 (child process of PID 31500) has been terminated.
+SUCCESS: The process with PID 31500 (child process of PID 40000) has been terminated.
+SUCCESS: The process with PID 40000 (child process of PID 38952) has been terminated.
+SUCCESS: The process with PID 38952 (child process of PID 24668) has been terminated.
+SUCCESS: The process with PID 9844 (child process of PID 42092) has been terminated.
+SUCCESS: The process with PID 42092 (child process of PID 432) has been terminated.
+SUCCESS: The process with PID 432 (child process of PID 42124) has been terminated.
+SUCCESS: The process with PID 42124 (child process of PID 8956) has been terminated.
+SUCCESS: The process with PID 8956 (child process of PID 24668) has been terminated.
+SUCCESS: The process with PID 14592 (child process of PID 32284) has been terminated.
+SUCCESS: The process with PID 32284 (child process of PID 7544) has been terminated.
+SUCCESS: The process with PID 7544 (child process of PID 15720) has been terminated.
+SUCCESS: The process with PID 15720 (child process of PID 24668) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | missing_requirement | backend | `src/query-executor/index.ts:352`, `src/query-executor/index.ts:393` | 查询数据范围只强制 `tenantId + orgScope`，未覆盖 `operatorId / roleCodes / dataScopeTemplate`；补齐注册数据范围模板执行与权限维度校验。 | `npm run test:query`; `npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `src/file-service/index.ts:117`, `src/file-service/index.ts:166`, `src/task-api/service.ts:840` | 下载 URL 仅追加 `expiresAt`，且使用文件保留期，不是 10 分钟不可伪造签名 URL；实现签名、TTL、验签/下载审计边界。 | `npm run test:file`; `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | missing_requirement | backend | `contracts/openapi.yaml:1004`, `contracts/openapi.yaml:1330`, `src/task-api/service.ts:508` | OpenAPI 声明 `queryParams` 32768 bytes 限制，但创建任务生产路径未校验；在 create API 落库前按 canonical JSON 字节数拒绝。 | `npm run test:api`; `npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | architecture_gap | backend | `src/audit-log/auth-context.ts:46`, `src/audit-log/auth-context.ts:60`, `src/task-api/service.ts:624` | `EXPORT_ADMIN` 等角色直接来自请求头，缺少网关/子系统可信边界证明；补充可信上下文校验或明确 ingress 约束并加负向测试。 | `npm run test:api`; `npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | HIGH | state_gap | controller | `tests/api/export-http-api.test.mjs`, `tests/query/query-executor.test.mjs`, `src/query-executor/index.ts:673` | P0 验收证据仍不完整：历史 `status/subsystemCode` 组合、registry get/list/update/重复 taskCode、未注册创建不落任务、游标缺失/重复/非递增负向用例需补齐。 | `npm run test:api`; `npm run test:query` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 1 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | security-reviewer / backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | controller | test-planner / backend-worker | 1 | yes |
+
+已执行核验：`npm run arch:check` 通过；`npm run test:contract` 8/8 通过；`git diff --check` 无空白错误，仅有 CRLF/LF 提示。当前任务不是 UI 任务，视觉还原闸门不适用。

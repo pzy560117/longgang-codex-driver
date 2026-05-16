@@ -1,0 +1,55 @@
+SUCCESS: The process with PID 39048 (child process of PID 41972) has been terminated.
+SUCCESS: The process with PID 41972 (child process of PID 3620) has been terminated.
+SUCCESS: The process with PID 3620 (child process of PID 40872) has been terminated.
+SUCCESS: The process with PID 40872 (child process of PID 38960) has been terminated.
+SUCCESS: The process with PID 38420 (child process of PID 16740) has been terminated.
+SUCCESS: The process with PID 16740 (child process of PID 28352) has been terminated.
+SUCCESS: The process with PID 28352 (child process of PID 17068) has been terminated.
+SUCCESS: The process with PID 17068 (child process of PID 38960) has been terminated.
+SUCCESS: The process with PID 3660 (child process of PID 21236) has been terminated.
+SUCCESS: The process with PID 21236 (child process of PID 29248) has been terminated.
+SUCCESS: The process with PID 29248 (child process of PID 41220) has been terminated.
+SUCCESS: The process with PID 41220 (child process of PID 42672) has been terminated.
+SUCCESS: The process with PID 42672 (child process of PID 38960) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 已核对当前实现：`GET /api/export/tasks/{taskId}` 已返回 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`。
+- 当前实现已禁止用未声明的 `events` 字段替代 `recentEvents`。
+- 本轮未产生文件改动；目标文件当前 HEAD 已满足该任务要求。
+
+## Files Changed
+- 无
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...'; npm run test:contract; git diff --check ...`: PASS
+  - `npm run test:api`: 2/2 passed
+  - `npm run test:contract`: 6/6 passed
+  - `git diff --check`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、checkpoint、FAILED、event fallback 任务详情字段断言。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 `ExportTaskDetail` required/properties 且禁止 `events`。
+- `docs/testing/verify-matrix.md`: 已记录 local/Docker MySQL + contract evidence 边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - API 测试走 Fastify + MySQL repository 路径。
+- `不得用内存或固定占位值冒充进度`: PASS - 详情字段来自 checkpoint / task event / audit / task 状态。
+- `禁止 events 替代 recentEvents`: PASS - API 与 contract 测试均断言。
+- `不声明外部 live MySQL`: PASS - verify-matrix 只声明 local/Docker MySQL。
+
+## Knowledge References
+- 无任务特定知识条目引用；仅读取 knowledge catalog 判断当前无相关专门条目。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 commit：本轮 Driver Context 明确禁止 `git add` / `git commit` / `git push`，且本轮没有文件变更可提交。

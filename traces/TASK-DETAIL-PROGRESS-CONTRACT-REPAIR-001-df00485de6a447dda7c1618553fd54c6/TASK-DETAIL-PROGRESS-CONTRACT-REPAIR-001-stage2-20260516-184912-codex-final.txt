@@ -1,0 +1,29 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | HIGH | architecture_test_gap | backend | `src/task-api/service.ts:172-189` 只从 `recentEvents[].batchCheckpoint.totalCount` 解析总数；但生产查询路径 `src/query-executor/index.ts:163-171` 生成的 checkpoint 不包含 `totalCount`。当前测试在 `tests/api/export-http-api.test.mjs:524-528` 手工写入 `totalCount: 50`，没有证明 worker/query 生产路径会产生可查询总数。 | 在生产 query/worker 路径中持久化真实 `totalCount`，或明确实现可计算总数的 checkpoint/event 字段；补一个从任务创建到 worker/query 执行再 GET detail 的集成测试，断言 `totalCount/processedCount/progressPercent` 来自生产生成的数据。 | 原测试命令 + `npm run test:worker` |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F002 | MEDIUM | artifact_gap | backend | `contracts/openapi.yaml:1477-1484` 列表项复用 `ExportTaskDetail`，而该 schema 在 `contracts/openapi.yaml:1395-1400` 要求 `totalCount/errorCode/errorMessage/recentEvents`；`src/task-api/service.ts:621-623` 的 list 响应仍只用 `taskEnvelope` 默认值，`recentEvents` 缺失且 `totalCount` 默认为 `null`。现有 API 测试只断言列表包含 taskId/createdBy/fileFormat，没有校验列表响应契约。 | 要么为列表引入独立 `ExportTaskSummary` schema，要么让 list 路径也填充符合 `ExportTaskDetail` 的字段；补列表响应字段/契约测试。 | `npm run test:api; npm run test:contract` |
+
+## Verification
+
+- 已检查命令:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ... npm run test:api ...'; npm run test:contract; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`
+  - `npm run test:contract`
+  - `git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`
+- 结果摘要:
+  - `test:api`: 2 passed, 0 failed
+  - `test:contract`: 7 passed, 0 failed
+  - `git diff --check`: 无输出
+  - 测试通过，但关键进度总数证据依赖测试手工构造字段，未覆盖生产 worker/query 生成路径。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | backend | backend-worker | 2 | Yes |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F002 | backend | backend-worker | 1 | No |

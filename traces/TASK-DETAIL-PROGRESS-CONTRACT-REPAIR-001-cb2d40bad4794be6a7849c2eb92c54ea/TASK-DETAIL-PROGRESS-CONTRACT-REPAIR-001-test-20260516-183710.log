@@ -1,0 +1,37 @@
+﻿{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:56563 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.677ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (925.5996ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1579.3518
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.123ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.7311ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5091ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.265ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.3235ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.571ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.6956
+warning: in the working copy of 'progress.txt', LF will be replaced by CRLF the next time Git touches it

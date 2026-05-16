@@ -1,0 +1,53 @@
+SUCCESS: The process with PID 24152 (child process of PID 11760) has been terminated.
+SUCCESS: The process with PID 11760 (child process of PID 42556) has been terminated.
+SUCCESS: The process with PID 42556 (child process of PID 32072) has been terminated.
+SUCCESS: The process with PID 32072 (child process of PID 34944) has been terminated.
+SUCCESS: The process with PID 34944 (child process of PID 3660) has been terminated.
+SUCCESS: The process with PID 26524 (child process of PID 3696) has been terminated.
+SUCCESS: The process with PID 3696 (child process of PID 33748) has been terminated.
+SUCCESS: The process with PID 33748 (child process of PID 35104) has been terminated.
+SUCCESS: The process with PID 35104 (child process of PID 3660) has been terminated.
+SUCCESS: The process with PID 42184 (child process of PID 38200) has been terminated.
+SUCCESS: The process with PID 38200 (child process of PID 37060) has been terminated.
+SUCCESS: The process with PID 37060 (child process of PID 40456) has been terminated.
+SUCCESS: The process with PID 40456 (child process of PID 3660) has been terminated.
+## Requirement IDs
+- FR-006
+- AC-E027
+
+## Summary
+- 确认 `src/file-service/index.ts` 已在 `renderFileBody` 边界把 renderer 异常收口为 `EXPORT_RENDER_ERROR`。
+- 确认 `tests/file/export-file-service.test.mjs` 已覆盖 XLSX/ZIP renderer 失败、scheduler `FAILED + EXPORT_RENDER_ERROR` audit，以及 object storage put/publish 仍保持 `FILE_VERIFY_ERROR`。
+- 同步更新验证矩阵，补入 `FILE-RENDER-ERROR-CONTRACT-REPAIR-001` fresh repair evidence 和 FR-006 证据边界。
+
+## Files Changed
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md): 增加本任务证据行，并明确 renderer 与 object storage 失败映射边界。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ... npm run test:file; ... npm run test:worker; ...'; ... git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt`: PASS
+  - `npm run test:file`: 15/15 pass
+  - `npm run test:worker`: 19/19 pass
+  - scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/file/export-file-service.test.mjs`: 证明 XLSX/ZIP renderer 失败映射为 `EXPORT_RENDER_ERROR`，scheduler 失败 audit 写入 `EXPORT_RENDER_ERROR`，object storage put/publish 失败保持 `FILE_VERIFY_ERROR`。
+- `docs/testing/verify-matrix.md`: 记录本任务 local/Docker MySQL + 本地 object storage mock / production-equivalent adapter 证据边界。
+
+## Architecture Constraints
+- `delivery_shape=independent_microservice`: PASS - 未引入内存生产路径或领域原型。
+- `test_double_policy`: PASS - 证据仅声明 local/Docker MySQL 与本地 object storage mock / production-equivalent adapter。
+- `forbidden_implementations`: PASS - 未把 mock、fixture repository 或 live OSS/S3 伪装成生产完成证据。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `git add` / `git commit`，因为本轮 Driver Context 明确禁止提交操作；当前工作区还存在 runtime 生成的 untracked `traces/FILE-RENDER-ERROR-CONTRACT-REPAIR-001-21012b2a671245c1ae68cdeeb97303a1/`。

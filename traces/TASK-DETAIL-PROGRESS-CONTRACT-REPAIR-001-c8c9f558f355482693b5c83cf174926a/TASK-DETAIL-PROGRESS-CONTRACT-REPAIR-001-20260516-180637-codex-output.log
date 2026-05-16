@@ -1,0 +1,113 @@
+SUCCESS: The process with PID 9872 (child process of PID 35272) has been terminated.
+SUCCESS: The process with PID 35272 (child process of PID 18200) has been terminated.
+SUCCESS: The process with PID 18200 (child process of PID 13036) has been terminated.
+SUCCESS: The process with PID 13036 (child process of PID 38144) has been terminated.
+SUCCESS: The process with PID 38144 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 36564 (child process of PID 39364) has been terminated.
+SUCCESS: The process with PID 38676 (child process of PID 13832) has been terminated.
+SUCCESS: The process with PID 32680 (child process of PID 39444) has been terminated.
+SUCCESS: The process with PID 39364 (child process of PID 9652) has been terminated.
+SUCCESS: The process with PID 13832 (child process of PID 26176) has been terminated.
+SUCCESS: The process with PID 39444 (child process of PID 1056) has been terminated.
+SUCCESS: The process with PID 9652 (child process of PID 23800) has been terminated.
+SUCCESS: The process with PID 26176 (child process of PID 33360) has been terminated.
+SUCCESS: The process with PID 1056 (child process of PID 39848) has been terminated.
+SUCCESS: The process with PID 23800 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 33360 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 39848 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 25232 (child process of PID 27080) has been terminated.
+SUCCESS: The process with PID 27080 (child process of PID 34480) has been terminated.
+SUCCESS: The process with PID 34480 (child process of PID 27840) has been terminated.
+SUCCESS: The process with PID 27840 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 37384 (child process of PID 32844) has been terminated.
+SUCCESS: The process with PID 32844 (child process of PID 39040) has been terminated.
+SUCCESS: The process with PID 39040 (child process of PID 28820) has been terminated.
+SUCCESS: The process with PID 28820 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 8268 (child process of PID 2872) has been terminated.
+SUCCESS: The process with PID 2872 (child process of PID 34840) has been terminated.
+SUCCESS: The process with PID 34840 (child process of PID 24256) has been terminated.
+SUCCESS: The process with PID 24256 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 380 (child process of PID 25400) has been terminated.
+SUCCESS: The process with PID 25400 (child process of PID 28884) has been terminated.
+SUCCESS: The process with PID 28884 (child process of PID 35544) has been terminated.
+SUCCESS: The process with PID 35544 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 21564 (child process of PID 39660) has been terminated.
+SUCCESS: The process with PID 39660 (child process of PID 37080) has been terminated.
+SUCCESS: The process with PID 37080 (child process of PID 39716) has been terminated.
+SUCCESS: The process with PID 39716 (child process of PID 38952) has been terminated.
+SUCCESS: The process with PID 38952 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 38504 (child process of PID 9712) has been terminated.
+SUCCESS: The process with PID 9712 (child process of PID 35452) has been terminated.
+SUCCESS: The process with PID 35452 (child process of PID 11100) has been terminated.
+SUCCESS: The process with PID 11100 (child process of PID 39160) has been terminated.
+SUCCESS: The process with PID 39160 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 31752 (child process of PID 33408) has been terminated.
+SUCCESS: The process with PID 22384 (child process of PID 29156) has been terminated.
+SUCCESS: The process with PID 33408 (child process of PID 23512) has been terminated.
+SUCCESS: The process with PID 29156 (child process of PID 12840) has been terminated.
+SUCCESS: The process with PID 23512 (child process of PID 34500) has been terminated.
+SUCCESS: The process with PID 12840 (child process of PID 11568) has been terminated.
+SUCCESS: The process with PID 34500 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 11568 (child process of PID 35196) has been terminated.
+SUCCESS: The process with PID 35196 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 17356 (child process of PID 39508) has been terminated.
+SUCCESS: The process with PID 39508 (child process of PID 37944) has been terminated.
+SUCCESS: The process with PID 37944 (child process of PID 4380) has been terminated.
+SUCCESS: The process with PID 4380 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 3508 (child process of PID 39696) has been terminated.
+SUCCESS: The process with PID 39696 (child process of PID 39692) has been terminated.
+SUCCESS: The process with PID 39692 (child process of PID 39128) has been terminated.
+SUCCESS: The process with PID 39128 (child process of PID 38204) has been terminated.
+SUCCESS: The process with PID 38204 (child process of PID 22936) has been terminated.
+SUCCESS: The process with PID 5800 (child process of PID 12912) has been terminated.
+SUCCESS: The process with PID 12912 (child process of PID 39532) has been terminated.
+SUCCESS: The process with PID 39532 (child process of PID 38480) has been terminated.
+SUCCESS: The process with PID 38480 (child process of PID 22936) has been terminated.
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 修复任务详情响应契约：`ExportTaskDetail` 现在要求并声明 `errorCode`、`errorMessage`、`recentEvents`。
+- 任务详情失败信息现在会从失败 audit 和带 `batchCheckpoint.errorCode/errorMessage` 的 task event 中按时间取最新来源。
+- API 测试覆盖 PENDING、checkpoint 进度、FAILED 审计失败、FAILED event 兜底，并断言不返回未声明的 `events` 字段。
+- 注意：后端子代理违反本轮“不提交”边界，已创建提交 `8c29d50`；我没有继续提交或回滚。
+
+## Files Changed
+- `src/task-api/service.ts`: FAILED 详情失败来源解析
+- `tests/api/export-http-api.test.mjs`: PENDING / checkpoint / FAILED detail 断言
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: task detail schema 守护
+- `contracts/openapi.yaml`: detail required / nullable error 字段契约
+- `docs/testing/verify-matrix.md`: TASK-DETAIL 证据边界
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`: PASS
+  - API: 2/2 pass
+  - Contract: 6/6 pass
+  - `git diff --check`: PASS，只有 LF -> CRLF warning
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明 detail 字段、进度、失败信息、`recentEvents` 契约
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI detail schema required/properties 不漂移
+- `docs/testing/verify-matrix.md`: 记录 local/Docker MySQL + contract 证据边界
+
+## Architecture Constraints
+- `production MySQL repository path`: PASS - API 测试通过 Docker MySQL
+- `no events field replacing recentEvents`: PASS - API 和 contract 测试均守护
+- `no mock/local evidence as live MySQL`: PASS - verify-matrix 明确不声明外部 live MySQL
+- `no InMemory/mock production implementation`: PASS - 未引入内存生产路径
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `GUIDELINE-CONTRACT-RESPONSE-001`: guideline - API 测试必须断言关键响应字段而非只断言 taskId - suggested - `docs/knowledge/guidelines/GUIDELINE-CONTRACT-RESPONSE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 子代理已创建提交 `8c29d50`，这与本轮 Driver Prompt 的禁提交边界不一致。
+- 当前仍有未提交改动：`contracts/openapi.yaml`、`docs/testing/verify-matrix.md`，以及既有 `traces/` 运行产物。

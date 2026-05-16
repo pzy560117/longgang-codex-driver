@@ -1,0 +1,29 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | |
+
+## Verification
+
+- 已检查命令:
+  - Driver Context 提供的完整命令链，退出码 `0`
+  - 我额外运行 `npm run typecheck`，通过
+  - 静态抽查 `console.log/debugger/skip/.only/secret/token/password`，未发现阻塞项
+- 结果摘要:
+  - [src/query-executor/index.ts](/E:/2026/alpha-project/longgang-codex-driver/src/query-executor/index.ts:376) 强制从 auth snapshot 构建 `tenantId/operatorId/roleCodes/orgScope`，并要求 `dataScopeTemplate` 绑定四类占位符。
+  - [tests/query/query-executor.test.mjs](/E:/2026/alpha-project/longgang-codex-driver/tests/query/query-executor.test.mjs:351) 覆盖同租户同组织下错误 operator/role 被阻断，以及非法模板参数、缺少 auth 占位符的负向场景。
+  - [tests/worker/scheduler-worker.test.mjs](/E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:254) 覆盖默认 scheduler 查询处理器到发布前的生产链路，不回退到旧硬编码 scope。
+  - Driver 输出中 `arch:check`、`test:query`、`test:worker`、`test:sample`、`test:contract`、scoped `git diff --check` 均通过；测试无 skip/todo/fail。
+  - `knowledge_outputs`: 无新增归档建议。
+  - `knowledge_references`: 未发现本次代码/文档决策依赖 `docs/knowledge/`。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| | | | | | |

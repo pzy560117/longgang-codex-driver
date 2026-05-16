@@ -1,0 +1,52 @@
+## Requirement IDs
+- FR-008
+- FR-009
+- AC-008
+- AC-009
+- RCR-P0-002
+
+## Summary
+- 当前生产查询路径已强制使用 `operatorId`、`roleCodes`、`orgScope`、`tenantId` 与 registry `dataScopeTemplate`。
+- `test:query` 覆盖同组织不同操作人/角色越权阻断、模板参数白名单、缺失 scope 占位符拒绝。
+- `test:worker` 覆盖 scheduler 默认 query processor 不回退旧硬编码范围，发布前仅保留授权行。
+- 本轮未新增文件改动；相关 owned paths 当前无 diff。按本任务强制边界，未执行 `git add/commit/push`。
+
+## Files Changed
+- 无本轮新增修改。
+- 已验证相关文件：`src/query-executor/index.ts`、`tests/query/query-executor.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`
+
+## Validation
+- `npm run arch:check ... npm run test:query ... npm run test:worker ... npm run test:sample ... npm run test:contract ... git diff --check ...`: PASS
+- `npm run arch:check`: PASS
+- Docker MySQL test env: PASS，seed 完成，MySQL `127.0.0.1:33306/export_platform_test`
+- `npm run test:query`: PASS，13/13
+- `npm run test:worker`: PASS，20/20
+- `npm run test:sample`: PASS，9/9
+- `npm run test:contract`: PASS，9/9
+- scoped `git diff --check`: PASS
+
+## Evidence
+- `tests/query/query-executor.test.mjs`: 证明 dataScopeTemplate 绑定 operator/role/org/tenant、拒绝非白名单参数和缺失占位符。
+- `tests/worker/scheduler-worker.test.mjs`: 证明 scheduler 默认执行链路使用同一数据范围约束。
+- `docs/testing/verify-matrix.md`: 已有 DATA-SCOPE-TEMPLATE-ENFORCE-001 的 Docker MySQL / query / worker evidence 边界记录。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - 使用现有生产 query executor / scheduler worker 路径。
+- `production repository / MySQL boundary`: PASS - 验证通过 Docker MySQL，不使用内存 repository 冒充。
+- `forbidden_implementations`: PASS - 未引入 InMemory、mock repository、fixture repository 作为生产路径。
+- `feature_impl verification`: PASS - 已运行任务指定完整验证命令。
+
+## Knowledge References
+- none: 当前知识库 catalog 无与本实现直接相关的 guideline/pitfall 条目。
+
+## Knowledge Outputs
+- `PITFALL-DATA-SCOPE-001`: pitfall - 查询数据范围不能只靠 tenant/org 硬编码，必须执行 registry dataScopeTemplate 并绑定认证上下文字段 - suggested - `docs/knowledge/pitfalls/PITFALL-DATA-SCOPE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部业务数据源 live evidence 不在本任务边界内；本轮证据限定为本机 Docker MySQL 受控测试数据。
+- `REQUIREMENTS-COMPLETE-REVIEW-001` 需由 driver 在本任务通过后重新复审。

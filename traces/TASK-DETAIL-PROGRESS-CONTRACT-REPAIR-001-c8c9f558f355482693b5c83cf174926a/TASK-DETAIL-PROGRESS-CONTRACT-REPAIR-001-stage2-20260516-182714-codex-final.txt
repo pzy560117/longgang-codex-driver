@@ -1,0 +1,28 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | HIGH | test_gap | backend | `src/scheduler/worker.ts:568-575` 将 `error.name` 直接写入 `EXECUTE_FAILED` 审计 `errorCode`；`src/task-api/service.ts:228-265` 会把失败审计的 `errorCode` 作为任务详情 `errorCode` 返回；`contracts/openapi.yaml:1434-1435` 要求该字段来自 `NullableResponseCode`。当前 `tests/contract/openapi-route-mapping.contract.test.mjs:116-134` 只抓静态字面量，未覆盖动态 `error.name` 泄漏。 | 增加公共错误码归一化函数：只允许 `QUERY_EXECUTION_ERROR`、`DATASOURCE_UNAVAILABLE` 等公开 `ResponseCode`，未知 `Error.name` 统一降级为 `QUERY_EXECUTION_ERROR` 或明确公开的错误码；补 worker/API/contract 测试，构造 `error.name = "UnexpectedQueryVendorError"`，断言审计和任务详情不会返回未公开错误码。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt`
+  - `npm run test:contract`
+  - 代码审查读取：`src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/contract/openapi-route-mapping.contract.test.mjs`、`contracts/openapi.yaml`、`docs/testing/verify-matrix.md`
+- 结果摘要:
+  - Driver 提供的完整测试命令退出码为 `0`。
+  - 本地复跑 `npm run test:contract` 通过：6/6 passed。
+  - scoped `git diff --check` 无输出。
+  - 发现现有测试未覆盖动态 `error.name` 写入审计后经任务详情响应外泄的契约漂移路径。
+
+## Verdict
+
+FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001-S2-F001 | backend | backend-worker | 1 | yes |

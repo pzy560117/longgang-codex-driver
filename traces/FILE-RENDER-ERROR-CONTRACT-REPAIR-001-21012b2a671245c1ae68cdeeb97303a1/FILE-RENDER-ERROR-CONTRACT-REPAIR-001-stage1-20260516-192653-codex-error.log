@@ -1,0 +1,2812 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e308a-0b35-7883-8472-c82effe7aba9
+--------
+user
+# Stage 1 Review Prompt 模板
+
+你是 Stage 1 Reviewer。只审查**当前实现是否符合 Product Spec / Design Brief / 设计稿 / DEV-PLAN**，不要讨论代码风格。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- Task Kind: `<task-kind>`
+- Gate Profile: `<gate-profile>`
+- 对应 Phase: `<phase>`
+
+## 真相源
+
+- Truth source completeness: `<truth-source-state>`
+- Product Spec: `<product-spec>`
+- Design Brief: `<design-brief>`
+- Testing truth source: `<testing-truth-source>`
+- Knowledge Catalog: `docs/knowledge/knowledge-catalog.md` / `docs/knowledge/catalog.md`（如存在）
+- Architecture Constraints Packet: `docs/architecture/constraints.md`（如存在）
+- 设计稿 / Figma: `<design-source>`
+- DEV-PLAN: `<dev-plan>`
+- 状态矩阵: `<state-matrix>`
+
+## 必查项
+
+1. 先审查 Architecture Constraints Packet：交付形态、API 边界、数据持久化、worker/异步边界、测试替身策略、禁止实现和 Definition of Done 是否已明确。
+2. 如果当前任务是 `feature_impl`，是否携带 `architecture_constraints`、`forbidden_implementations` 和能验证架构形态的 `test_command`。
+3. 当前实现是否符合交付形态；例如微服务必须有 API/handler/启动入口/DB 或 worker 证据，不能只有领域 service class。
+4. 是否使用 `InMemory*`、mock、fixture、local-only adapter 或领域原型替代生产路径；除非任务明确标记 `domain-prototype`，否则这类情况必须 FAIL。
+5. Contract / OpenAPI / protobuf 等公开契约是否能追踪到 handler、service、测试和证据路径。
+6. 功能有没有漏实现。
+7. 有没有多做 Product Spec 没要求的内容。
+8. 每条 P0/P1 需求是否有 Requirement ID，并且能追溯到页面、状态、字段、操作、接口、测试和验收。
+9. 是否存在“页面有功能但需求没有”的多余实现。
+10. 高风险难点是否已在 `difficulty-research.md` 中提前研究并落实到计划。
+11. 页面状态是否完整：`default / empty / loading / error / disabled / permission / mobile`。
+12. AI 生成界面图是否已通过 `ui-image-review.md`，并已转成 `image-to-frontend-spec.md`。
+13. 前端 UI 任务是否已在真实浏览器截图，并把截图保存到 `artifacts/visual-review/`。
+14. 浏览器实拍图是否已和设计参考图通过 `visual-parity-review.md` 完成对比，且 Verdict 为 PASS。
+15. 交互是否与设计稿、Design Brief、CSS/token 和 Image To Frontend Spec 冲突。
+16. 验收示例、TRACEABILITY_MATRIX、测试矩阵和任务上下文之间是否一致。
+17. Contract 相关行为是否与当前 Spec 一致。
+18. 如果需求需要异常路径、权限路径或极端数据路径，这些路径是否已经进入测试或规格文档。
+19. 如果任务声明 `required_truth_sources` 包含 `knowledge`，或任务阶段是 `archive`，是否读取并使用了 `docs/knowledge/` 的索引与相关条目。
+20. 如果实现明显复用了项目经验，最终报告是否列出 `knowledge_references`；如果产生了可复用经验，是否列出 `knowledge_outputs` 建议。
+21. 是否把单次经验直接升级成 `AGENTS.md` 或全局规则；如有，必须有 proven evidence 或用户明确要求。
+
+如果当前任务涉及页面 UI，而缺少参考图、浏览器截图或视觉还原对比报告，Stage 1 必须输出 `FAIL`。只有在任务明确不是 UI 任务，或 `screen-states.md` / `image-to-frontend-spec.md` 明确豁免该状态时，才可以跳过视觉还原闸门。
+
+## 忽略项
+
+下面这些属于外层 driver 在 Stage 1 之后统一处理的状态收口，不要在 Stage 1 中作为失败项：
+
+- `task.json` 中的 `passes=true`
+- `progress.txt` 完成记录
+- `traces/` 目录和 trace 文件
+- 自动 `git commit`
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S1-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `architecture_gap` / `forbidden_implementation` / `missing_requirement` / `extra_scope` / `state_gap` / `visual_gap` / `contract_gap` / `truth_source_missing` / `knowledge_gap`
+- owner: `frontend` / `backend` / `contract` / `design` / `product` / `controller`
+- evidence: 文件路径、截图路径、日志路径或具体页面/状态
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令或报告路径
+
+## 输出格式
+
+```markdown
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- 只要存在 `HIGH` 问题，结论必须是 `FAIL`。
+- 如果 `gate-profile` 不是 `lightweight`，缺少 required truth source 必须视为 `HIGH`。
+- 如果 `feature_impl` 缺少架构约束，或实现与架构约束冲突，必须视为 `HIGH`。
+- 如果生产路径使用测试替身或内存实现冒充完成，必须视为 `HIGH`。
+- 不要在 Stage 1 讨论命名、格式化、测试框架选型这类代码质量问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: FILE-RENDER-ERROR-CONTRACT-REPAIR-001
+- 描述: 修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据
+- Task Kind: feature_impl
+- Gate Profile: spec_required
+- Requirement IDs:
+- FR-006
+- AC-E027
+- 验收标准:
+- 真实 renderer 抛错时生产 file-service/worker 路径按 EXPORT_RENDER_ERROR 收口
+- object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口，既有测试不回退
+- file 或 worker 测试覆盖渲染失败的 errorCode / audit / 失败状态证据
+- 证据边界只声明 local/Docker MySQL 与本地 object storage mock，不声明 live OSS/S3
+
+优先真相源:
+
+### Product
+- docs\product\prd-lite.md
+- docs\product\page-inventory.md
+- docs\product\state-matrix.yaml
+- docs\product\acceptance-criteria.md
+- docs\product\requirement-interface-matrix.md
+- docs\product\difficulty-research.md
+
+### Design
+- 无
+
+### Testing
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+### DEV-PLAN
+- plans\features\export-platform.dev-plan.md
+
+### Contract
+- contracts\openapi.yaml
+
+### Task Context Files
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- src/file-service/index.ts
+- tests/file/export-file-service.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- task.json
+
+### Truth Source Completeness
+- [OK] product: present=docs\product\prd-lite.md, docs\product\page-inventory.md, docs\product\state-matrix.yaml, docs\product\acceptance-criteria.md, docs\product\requirement-interface-matrix.md, docs\product\difficulty-research.md; missing=无
+- [OK] architecture: present=docs/architecture/constraints.md, docs/context/architecture-brief.md, docs/context/repo-map.md; missing=无
+- [OK] contract: present=contracts\openapi.yaml; missing=无
+- [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
+
+审查要求:
+- 只看功能完整性、状态覆盖、与设计和计划的一致性。
+- 不要重写代码，不要实现新功能。
+- 如果 Gate Profile 不是 lightweight，缺少 required truth source 视为阻塞性问题。
+- 如果 Gate Profile 是 lightweight，可以记录缺口，但不要把 driver 自己负责的状态文件当作失败项。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性功能/状态/设计偏差，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 1 的产品/架构/测试一致性口径审查，不做代码风格评审；先读取相关 truth source、任务上下文和实现证据，再给出 PASS/FAIL。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md' -ErrorAction SilentlyContinue" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 358ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+codex
+我已确认通用 code-review 技能不适合主导这次审查，因为用户明确限定为 Stage 1 功能/规格一致性；接下来会按 Stage 1 reviewer 的专用流程取证。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage1-reviewer\\SKILL.md' -ErrorAction Stop" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T11:27:19.238223Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.5 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Path 'E:\2026\alpha-project\longgang-codex-driver\.agent[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage1-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 461ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Path 'E:\2026\alpha-project\longgang-codex-driver\.agent[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage1-reviewer\SKILL.md' because it does not exist.[0m
+
+codex
+stage1-reviewer 技能路径在当前仓库下不存在，我会继续用用户提供的 Stage 1 模板直接审查。现在先定位 FR-006 / AC-E027、架构约束和实现映射证据。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "FILE-RENDER-ERROR-CONTRACT-REPAIR-001|FR-006|AC-E027|EXPORT_RENDER_ERROR|FILE_VERIFY_ERROR|architecture_constraints|forbidden_implementations|test_command|domain-prototype" task.json docs/product/acceptance-criteria.md docs/architecture/constraints.md contracts/openapi.yaml plans/features/export-platform.dev-plan.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "EXPORT_RENDER_ERROR|FILE_VERIFY_ERROR|render|renderer|audit|failed|failure|object storage|put|read|publish" src/file-service/index.ts tests/file/export-file-service.test.mjs tests/worker/scheduler-worker.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "FR-006|AC-E027|EXPORT_RENDER_ERROR|FILE_VERIFY_ERROR|renderer|render|object storage|Evidence|evidence|local|Docker MySQL|OSS|S3" docs/testing/ACCEPTANCE_CRITERIA.md docs/testing/ACCEPTANCE_EXAMPLES.md docs/testing/TRACEABILITY_MATRIX.md docs/testing/RISK_BASED_TEST_PLAN.md docs/testing/TEST_DATA_MATRIX.md docs/testing/EVIDENCE_PROTOCOL.md docs/testing/REGRESSION_PLAN.md docs/testing/test-matrix.md docs/testing/test-data-plan.md docs/testing/verify-matrix.md docs/testing/failure-triage.md docs/product/difficulty-research.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 440ms:
+plans/features/export-platform.dev-plan.md:29:| P5 | 实现 scheduler 与 query-executor | 抢锁、租约、游标、数据范围、批次事件 | P2/P3 | FR-005、FR-006、FR-008、FR-010 |
+plans/features/export-platform.dev-plan.md:30:| P6 | 实现 file-service | 临时对象、发布校验、下载元信息、分片打包 | P2/P3/P5 | FR-003、FR-006、FR-009 |
+plans/features/export-platform.dev-plan.md:125:- 再验收 `QUERY-EXECUTOR-001`，覆盖 FR-008、FR-009 和 FR-006 的批次事件、数据范围、脱敏与模板约束。
+plans/features/export-platform.dev-plan.md:126:- 再验收 `FILE-SERVICE-001` 与 `CLEANUP-JOB-001`，覆盖 FR-003、FR-006、FR-011 的发布、下载保护和过期清理。
+contracts/openapi.yaml:506:        - FILE_VERIFY_ERROR
+contracts/openapi.yaml:507:        - EXPORT_RENDER_ERROR
+contracts/openapi.yaml:1089:                code: FILE_VERIFY_ERROR
+contracts/openapi.yaml:1189:                code: EXPORT_RENDER_ERROR
+contracts/openapi.yaml:1233:        - FILE_VERIFY_ERROR
+contracts/openapi.yaml:1240:        - EXPORT_RENDER_ERROR
+contracts/openapi.yaml:1261:        - FILE_VERIFY_ERROR
+contracts/openapi.yaml:1268:        - EXPORT_RENDER_ERROR
+docs/architecture/constraints.md:3:本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+docs/architecture/constraints.md:60:- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+docs/architecture/constraints.md:64:- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+docs/architecture/constraints.md:65:- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+docs/product/acceptance-criteria.md:14:| AC-006 | FR-006 | 超过单文件阈值时自动分片并打包，空数据生成仅表头文件。 | P0 |
+docs/product/acceptance-criteria.md:28:| AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+docs/product/acceptance-criteria.md:29:| AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+docs/product/acceptance-criteria.md:39:| AC-E005 | OSS 上传失败 | 任务置为 `FAILED`，错误码收口为 `FILE_VERIFY_ERROR`，并记录对象存储写入失败原因和临时对象定位或清理记录。 |
+docs/product/acceptance-criteria.md:60:| AC-E026 | 文件发布前校验失败 | 文件元信息缺失、校验值不匹配或临时对象发布失败时，不生成下载地址，任务置为 `FAILED`，错误码为 `FILE_VERIFY_ERROR`，并记录临时对象定位或清理记录。 |
+docs/product/acceptance-criteria.md:61:| AC-E027 | 文件渲染失败 | XLSX/ZIP 文件渲染失败时，任务置为 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。 |
+task.json:131:                                    "确认后续 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证生产形态的 test_command"
+task.json:133:                      "test_command":  "git diff --check -- task.json docs/architecture/constraints.md docs/testing/verify-matrix.md",
+task.json:189:                      "test_command":  "git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json",
+task.json:249:                      "test_command":  "git diff --check -- contracts docs/testing/verify-matrix.md",
+task.json:273:                      "architecture_constraints":  [
+task.json:279:                      "forbidden_implementations":  [
+task.json:357:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
+task.json:381:                      "architecture_constraints":  [
+task.json:386:                      "forbidden_implementations":  [
+task.json:426:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:450:                      "architecture_constraints":  [
+task.json:455:                      "forbidden_implementations":  [
+task.json:503:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:contract\u0027,\u0027npm run test:api\u0027,\u0027git diff --check\u0027)",
+task.json:527:                      "architecture_constraints":  [
+task.json:532:                      "forbidden_implementations":  [
+task.json:571:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:609:                                              "FR-006",
+task.json:625:                                    "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+task.json:628:                      "test_command":  "git diff --check -- task.json plans docs/testing/verify-matrix.md",
+task.json:654:                      "architecture_constraints":  [
+task.json:659:                      "forbidden_implementations":  [
+task.json:681:                                              "FR-006",
+task.json:699:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:701:                                         "FR-006/008/009 的 query 生产路径有本机/Docker MySQL 证据",
+task.json:723:                      "architecture_constraints":  [
+task.json:728:                      "forbidden_implementations":  [
+task.json:750:                                              "FR-006",
+task.json:767:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:791:                      "architecture_constraints":  [
+task.json:796:                      "forbidden_implementations":  [
+task.json:834:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:860:                      "architecture_constraints":  [
+task.json:865:                      "forbidden_implementations":  [
+task.json:904:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:928:                      "architecture_constraints":  [
+task.json:934:                      "forbidden_implementations":  [
+task.json:961:                                              "FR-006",
+task.json:984:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
+task.json:1008:                      "architecture_constraints":  [
+task.json:1014:                      "forbidden_implementations":  [
+task.json:1043:                                              "FR-006",
+task.json:1067:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md",
+task.json:1091:                      "architecture_constraints":  [
+task.json:1097:                      "forbidden_implementations":  [
+task.json:1126:                                              "FR-006",
+task.json:1151:                      "test_command":  "npm run release:local-rehearsal",
+task.json:1175:                      "architecture_constraints":  [
+task.json:1181:                      "forbidden_implementations":  [
+task.json:1228:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run demo:local:smoke; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts/local-demo.ps1 scripts/local-demo-setup.mjs docs/testing/local-demo-runbook.md docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md tests/mock-local/local-demo-runbook.test.mjs tests/mock-local/test-practice-matrix.test.mjs",
+task.json:1237:                      "description":  "补齐测试实践到 task 的显式映射，防止 test 脚本、任务 test_command 和验证矩阵漂移",
+task.json:1253:                      "architecture_constraints":  [
+task.json:1259:                      "forbidden_implementations":  [
+task.json:1261:                                                        "禁止只有 task test_command 而没有测试实践矩阵",
+task.json:1282:                                              "FR-006",
+task.json:1301:                                    "新增守护测试，校验 package scripts、task test_command 和测试实践矩阵保持一致",
+task.json:1304:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing/verify-matrix.md tests/mock-local/test-practice-matrix.test.mjs",
+task.json:1308:                                         "守护测试会在 test script、task test_command 或文档映射漂移时失败"
+task.json:1354:                                              "FR-006",
+task.json:1377:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
+task.json:1402:                      "architecture_constraints":  [
+task.json:1409:                      "forbidden_implementations":  [
+task.json:1439:                                              "FR-006",
+task.json:1464:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts docs/testing tests/mock-local plans/features/docker-test-data-automation.plan.md",
+task.json:1489:                      "architecture_constraints":  [
+task.json:1496:                      "forbidden_implementations":  [
+task.json:1501:                                                        "禁止把 DATASOURCE_UNAVAILABLE、FILE_VERIFY_ERROR 或审计 action/result drift 继续收口到通用错误码"
+task.json:1551:                                              "AC-E027"
+task.json:1578:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt",
+task.json:1603:                      "architecture_constraints":  [
+task.json:1610:                      "forbidden_implementations":  [
+task.json:1661:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1686:                      "architecture_constraints":  [
+task.json:1693:                      "forbidden_implementations":  [
+task.json:1733:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+task.json:1742:                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+task.json:1743:                      "description":  "修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据",
+task.json:1758:                      "architecture_constraints":  [
+task.json:1760:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：真实 XLSX/ZIP renderer 抛错必须收口为 EXPORT_RENDER_ERROR",
+task.json:1761:                                                       "必须以 docs/product/acceptance-criteria.md AC-E027、contracts/openapi.yaml、src/file-service/index.ts、tests/file/export-file-service.test.mjs、tests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth source",
+task.json:1762:                                                       "不得破坏 object storage put/read/publish 失败映射为 FILE_VERIFY_ERROR 的既有行为",
+task.json:1765:                      "forbidden_implementations":  [
+task.json:1766:                                                        "禁止只在 OpenAPI 中声明 EXPORT_RENDER_ERROR 而不提供生产实现路径",
+task.json:1767:                                                        "禁止把 renderer 抛错继续按 QUERY_EXECUTION_ERROR、FILE_VERIFY_ERROR 或 INTERNAL_ERROR 收口",
+task.json:1790:                                              "FR-006",
+task.json:1791:                                              "AC-E027"
+task.json:1804:                                    "将 renderer 抛错映射为 EXPORT_RENDER_ERROR，同时保留 object storage put/read/publish 的 FILE_VERIFY_ERROR 映射",
+task.json:1805:                                    "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
+task.json:1806:                                    "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
+task.json:1808:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1810:                                         "真实 renderer 抛错时生产 file-service/worker 路径按 EXPORT_RENDER_ERROR 收口",
+task.json:1811:                                         "object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口，既有测试不回退",
+task.json:1834:                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+task.json:1837:                      "architecture_constraints":  [
+task.json:1842:                      "forbidden_implementations":  [
+task.json:1870:                                              "FR-006",
+task.json:1893:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md",
+task.json:1896:                                         "FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定",
+
+ succeeded in 408ms:
+src/file-service/index.ts:12:import { renderExportPackage } from "./xlsx-package.ts";
+src/file-service/index.ts:14:export type ObjectStoragePutInput = {
+src/file-service/index.ts:20:export type ObjectStoragePublishInput = {
+src/file-service/index.ts:22:  publishedStorageKey: string;
+src/file-service/index.ts:26:  putObject(input: ObjectStoragePutInput): Promise<void>;
+src/file-service/index.ts:27:  readObject(storageKey: string): Promise<Buffer>;
+src/file-service/index.ts:28:  publishObject(input: ObjectStoragePublishInput): Promise<void>;
+src/file-service/index.ts:32:export type PublishRowsInput = {
+src/file-service/index.ts:72:      "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for file publishing."
+src/file-service/index.ts:78:    async putObject(input) {
+src/file-service/index.ts:79:      const response = await fetch(`${baseUrl}/${encodeStorageKey(input.storageKey)}`, {
+src/file-service/index.ts:81:        headers: { "content-type": input.contentType },
+src/file-service/index.ts:82:        body: toArrayBuffer(input.body)
+src/file-service/index.ts:85:        throw fileError("FILE_VERIFY_ERROR", `object storage put failed: ${response.status}`);
+src/file-service/index.ts:88:    async readObject(storageKey) {
+src/file-service/index.ts:91:        throw fileError("FILE_VERIFY_ERROR", `object storage read failed: ${response.status}`);
+src/file-service/index.ts:95:    async publishObject(input) {
+src/file-service/index.ts:96:      const response = await fetch(`${baseUrl}/${encodeStorageKey(input.publishedStorageKey)}`, {
+src/file-service/index.ts:99:          "x-export-copy-source": `${bucket}/${input.tempStorageKey}`
+src/file-service/index.ts:103:        throw fileError("FILE_VERIFY_ERROR", `object storage publish failed: ${response.status}`);
+src/file-service/index.ts:119:  async function publishRows(input: PublishRowsInput): Promise<PublishedFile> {
+src/file-service/index.ts:121:    const singleFileMaxRows = positiveInteger(input.registry.singleFileMaxRows, 20000);
+src/file-service/index.ts:122:    const exportMaxRows = positiveInteger(input.registry.exportMaxRows, 100000);
+src/file-service/index.ts:123:    if (input.rows.length > exportMaxRows) {
+src/file-service/index.ts:124:      throw fileError("EXPORT_RENDER_ERROR", "row count exceeds registry exportMaxRows");
+src/file-service/index.ts:127:    const headers = resolveHeaders(input.registry, input.rows);
+src/file-service/index.ts:128:    const parts = splitRows(input.rows, headers, singleFileMaxRows);
+src/file-service/index.ts:129:    const packageFileName = buildFileName(input);
+src/file-service/index.ts:132:      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+src/file-service/index.ts:133:    const body = await renderFileBody(parts, packageFileName, {
+src/file-service/index.ts:134:      totalRowCount: input.rows.length,
+src/file-service/index.ts:138:    const storagePrefix = buildStoragePrefix(input.task, input.attemptNo, now);
+src/file-service/index.ts:140:    const publishedStorageKey = `${storagePrefix}/${packageFileName}`;
+src/file-service/index.ts:142:      now.getTime() + positiveInteger(input.registry.fileRetentionDays, 15) * 24 * 60 * 60 * 1000
+src/file-service/index.ts:148:        input,
+src/file-service/index.ts:161:      await storage.putObject({
+src/file-service/index.ts:167:      throw toFileVerifyError(error, "object storage put failed");
+src/file-service/index.ts:171:      input,
+src/file-service/index.ts:182:    const persistedBody = await storage.readObject(tempStorageKey);
+src/file-service/index.ts:184:      throw fileError("FILE_VERIFY_ERROR", "file checksum verification failed");
+src/file-service/index.ts:193:      input,
+src/file-service/index.ts:204:      await storage.publishObject({
+src/file-service/index.ts:206:        publishedStorageKey
+src/file-service/index.ts:209:      throw toFileVerifyError(error, "object storage publish failed");
+src/file-service/index.ts:211:    const publishedAt = await getDatabaseTime(options.db);
+src/file-service/index.ts:213:      Math.max(publishedAt.getTime(), now.getTime() + parts.length + 3)
+src/file-service/index.ts:216:      taskId: input.task.taskId,
+src/file-service/index.ts:217:      attemptNo: input.attemptNo,
+src/file-service/index.ts:224:      publishedStorageKey,
+src/file-service/index.ts:226:      publishedAt,
+src/file-service/index.ts:227:      deliveryReadyAt: publishedAt,
+src/file-service/index.ts:229:      now: publishedAt
+src/file-service/index.ts:233:      input,
+src/file-service/index.ts:237:        publishedStorageKey,
+src/file-service/index.ts:248:      storageKey: publishedStorageKey,
+src/file-service/index.ts:250:      attemptNo: input.attemptNo
+src/file-service/index.ts:258:  async function readObject(storageKey: string): Promise<Buffer> {
+src/file-service/index.ts:259:    return storage.readObject(storageKey);
+src/file-service/index.ts:262:  return { publishRows, createDownloadUrl, readObject };
+src/file-service/index.ts:265:async function appendFileEvent(input: {
+src/file-service/index.ts:267:  input: PublishRowsInput;
+src/file-service/index.ts:272:  await input.events.appendTaskEvent({
+src/file-service/index.ts:274:    taskId: input.input.task.taskId,
+src/file-service/index.ts:275:    attemptNo: input.input.attemptNo,
+src/file-service/index.ts:276:    eventType: input.eventType,
+src/file-service/index.ts:277:    requestId: input.input.requestId,
+src/file-service/index.ts:278:    datasourceCode: input.input.registry.datasourceCode,
+src/file-service/index.ts:279:    queryTemplateVersion: input.input.registry.configSnapshotDigest,
+src/file-service/index.ts:280:    batchCheckpoint: JSON.stringify(input.checkpoint),
+src/file-service/index.ts:281:    occurredAt: input.now,
+src/file-service/index.ts:282:    now: input.now
+src/file-service/index.ts:308:function buildFileName(input: PublishRowsInput): string {
+src/file-service/index.ts:309:  const extension = input.rows.length > positiveInteger(input.registry.singleFileMaxRows, 20000)
+src/file-service/index.ts:311:    : input.task.fileFormat.toLowerCase();
+src/file-service/index.ts:312:  return `${input.task.taskCode}-${input.task.taskId}-attempt-${input.attemptNo}.${extension}`;
+src/file-service/index.ts:320:async function renderFileBody(
+src/file-service/index.ts:330:    return await renderExportPackage({
+src/file-service/index.ts:335:    throw toExportRenderError(error, "export package render failed");
+src/file-service/index.ts:417:  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+src/file-service/index.ts:421:    "FILE_VERIFY_ERROR",
+src/file-service/index.ts:427:  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+src/file-service/index.ts:431:    "EXPORT_RENDER_ERROR",
+tests/worker/scheduler-worker.test.mjs:78:  await db.deleteFrom("export_audit_logs").execute();
+tests/worker/scheduler-worker.test.mjs:122:async function seedTask(db, input) {
+tests/worker/scheduler-worker.test.mjs:125:    input.configSnapshot ??
+tests/worker/scheduler-worker.test.mjs:126:    (await createExportRegistryRepository(db).findRegistryByTaskCode(input.taskCode));
+tests/worker/scheduler-worker.test.mjs:128:    taskId: input.taskId,
+tests/worker/scheduler-worker.test.mjs:129:    taskCode: input.taskCode,
+tests/worker/scheduler-worker.test.mjs:130:    subsystemCode: input.subsystemCode ?? "purchase",
+tests/worker/scheduler-worker.test.mjs:136:    requestDigest: `sha256:${input.taskId}`,
+tests/worker/scheduler-worker.test.mjs:137:    configSnapshotDigest: input.configSnapshotDigest ?? "sha256:config-v1",
+tests/worker/scheduler-worker.test.mjs:139:      input.requestPayload ?? {
+tests/worker/scheduler-worker.test.mjs:174:serialTest("multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence", async (t) => {
+tests/worker/scheduler-worker.test.mjs:211:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(
+tests/worker/scheduler-worker.test.mjs:222:    [...audits.map((audit) => audit.action)].sort(),
+tests/worker/scheduler-worker.test.mjs:225:  assert.equal(audits.every((audit) => audit.requestId === "scheduler:worker-a" || audit.requestId === "scheduler:worker-b"), true);
+tests/worker/scheduler-worker.test.mjs:237:  let publishedRows;
+tests/worker/scheduler-worker.test.mjs:264:      async publishRows(input) {
+tests/worker/scheduler-worker.test.mjs:265:        publishedRows = input.rows;
+tests/worker/scheduler-worker.test.mjs:267:          storageKey: "exports/published/po.xlsx"
+tests/worker/scheduler-worker.test.mjs:301:  assert.deepEqual(publishedRows, [{ "Order No": "PO-200" }]);
+tests/worker/scheduler-worker.test.mjs:307:serialTest("expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish", async (t) => {
+tests/worker/scheduler-worker.test.mjs:310:  const taskId = `exp-worker-${runId}-publish-race`;
+tests/worker/scheduler-worker.test.mjs:335:      async publishRows() {
+tests/worker/scheduler-worker.test.mjs:338:          storageKey: "exports/published/new-owner.xlsx"
+tests/worker/scheduler-worker.test.mjs:362:      async publishRows() {
+tests/worker/scheduler-worker.test.mjs:373:          storageKey: "exports/published/old-owner.xlsx"
+tests/worker/scheduler-worker.test.mjs:381:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:384:  assert.equal(oldWorkerResult.failed, 0);
+tests/worker/scheduler-worker.test.mjs:392:    audits.filter((audit) => audit.action === "EXECUTE_SUCCESS").map((audit) => audit.requestId),
+tests/worker/scheduler-worker.test.mjs:396:    audits.some(
+tests/worker/scheduler-worker.test.mjs:397:      (audit) =>
+tests/worker/scheduler-worker.test.mjs:398:        audit.requestId === "scheduler:worker-a" &&
+tests/worker/scheduler-worker.test.mjs:399:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:515:serialTest("task snapshot still dispatches and publishes after the current registry is disabled and updated", async (t) => {
+tests/worker/scheduler-worker.test.mjs:564:  let publishedRegistry;
+tests/worker/scheduler-worker.test.mjs:584:      async publishRows(input) {
+tests/worker/scheduler-worker.test.mjs:585:        publishedRegistry = input.registry;
+tests/worker/scheduler-worker.test.mjs:586:        return { storageKey: "exports/published/snapshot-disabled.xlsx" };
+tests/worker/scheduler-worker.test.mjs:597:  assert.equal(publishedRegistry.configSnapshotDigest, registryAtCreate.configSnapshotDigest);
+tests/worker/scheduler-worker.test.mjs:598:  assert.equal(publishedRegistry.enabled, true);
+tests/worker/scheduler-worker.test.mjs:599:  assert.equal(publishedRegistry.datasourceCode, "purchase-ro");
+tests/worker/scheduler-worker.test.mjs:600:  assert.equal(publishedRegistry.singleFileMaxRows, 20000);
+tests/worker/scheduler-worker.test.mjs:606:  const taskId = `exp-worker-${runId}-failure-race`;
+tests/worker/scheduler-worker.test.mjs:631:      throw new Error("late failure after lease takeover");
+tests/worker/scheduler-worker.test.mjs:637:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:639:  assert.equal(oldWorkerResult.failed, 0);
+tests/worker/scheduler-worker.test.mjs:645:    audits.some(
+tests/worker/scheduler-worker.test.mjs:646:      (audit) =>
+tests/worker/scheduler-worker.test.mjs:647:        audit.requestId === "scheduler:worker-a" &&
+tests/worker/scheduler-worker.test.mjs:648:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:668:        auditId: `audit-cancel-${runId}`,
+tests/worker/scheduler-worker.test.mjs:687:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:693:    [...audits.map((audit) => audit.action)].sort(),
+tests/worker/scheduler-worker.test.mjs:698:serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+tests/worker/scheduler-worker.test.mjs:713:      throw new Error("query failed");
+tests/worker/scheduler-worker.test.mjs:717:  const failedResult = await failingWorker.pollAndProcessOnce();
+tests/worker/scheduler-worker.test.mjs:718:  const failed = await repository.findTaskById(taskId);
+tests/worker/scheduler-worker.test.mjs:719:  assert.equal(failedResult.failed, 1);
+tests/worker/scheduler-worker.test.mjs:720:  assert.equal(failed.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:721:  assert.equal(failed.attemptNo, 0);
+tests/worker/scheduler-worker.test.mjs:748:serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+tests/worker/scheduler-worker.test.mjs:784:      async publishRows() {
+tests/worker/scheduler-worker.test.mjs:785:        return { storageKey: "exports/published/retry.xlsx" };
+tests/worker/scheduler-worker.test.mjs:808:  assert.equal(firstPoll.failed, 0);
+tests/worker/scheduler-worker.test.mjs:816:serialTest("query batch transient failure does not retry again before checkpoint backoff elapses", async (t) => {
+tests/worker/scheduler-worker.test.mjs:852:      async publishRows() {
+tests/worker/scheduler-worker.test.mjs:853:        return { storageKey: "exports/published/retry-wait.xlsx" };
+tests/worker/scheduler-worker.test.mjs:871:  assert.equal(secondPoll.failed, 0);
+tests/worker/scheduler-worker.test.mjs:882:  const taskId = `exp-retry-backoff-ready-${runId}`;
+tests/worker/scheduler-worker.test.mjs:888:    workerId: "worker-retry-ready",
+tests/worker/scheduler-worker.test.mjs:902:          lastCursor: "order-retry-ready",
+tests/worker/scheduler-worker.test.mjs:915:      async publishRows() {
+tests/worker/scheduler-worker.test.mjs:916:        return { storageKey: "exports/published/retry-ready.xlsx" };
+tests/worker/scheduler-worker.test.mjs:977:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:979:  assert.equal(firstPoll.failed, 0);
+tests/worker/scheduler-worker.test.mjs:981:  assert.equal(secondPoll.failed, 1);
+tests/worker/scheduler-worker.test.mjs:986:    audits.some(
+tests/worker/scheduler-worker.test.mjs:987:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:992:serialTest("query batch retry exhaustion waits for backoff before the terminal failed retry attempt", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1027:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:1031:  assert.equal(prematurePoll.failed, 0);
+tests/worker/scheduler-worker.test.mjs:1034:  assert.equal(finalPoll.failed, 1);
+tests/worker/scheduler-worker.test.mjs:1038:    audits.some(
+tests/worker/scheduler-worker.test.mjs:1039:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1065:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:1067:  assert.equal(result.failed, 1);
+tests/worker/scheduler-worker.test.mjs:1070:    audits.some(
+tests/worker/scheduler-worker.test.mjs:1071:      (audit) =>
+tests/worker/scheduler-worker.test.mjs:1072:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1077:serialTest("unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1090:      const error = new Error("vendor-specific failure");
+tests/worker/scheduler-worker.test.mjs:1098:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:1100:  assert.equal(result.failed, 1);
+tests/worker/scheduler-worker.test.mjs:1103:    audits.some(
+tests/worker/scheduler-worker.test.mjs:1104:      (audit) =>
+tests/worker/scheduler-worker.test.mjs:1105:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1108:  assert.ok(!audits.some((audit) => audit.errorCode === "UnexpectedQueryVendorError"));
+tests/worker/scheduler-worker.test.mjs:1111:serialTest("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1127:    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+tests/worker/scheduler-worker.test.mjs:1132:    publishedStorageKey: "exports/published/cleanup.xlsx",
+tests/worker/scheduler-worker.test.mjs:1134:    publishedAt: now,
+tests/worker/scheduler-worker.test.mjs:1152:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:1158:  assert.deepEqual(deletes, ["exports/published/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
+tests/worker/scheduler-worker.test.mjs:1159:  assert.ok(audits.some((audit) => audit.action === "EXPIRE_MARK" && audit.result === "SUCCESS"));
+tests/worker/scheduler-worker.test.mjs:1164:serialTest("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1167:  const taskId = "cleanup-failed-01";
+tests/worker/scheduler-worker.test.mjs:1181:    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+tests/worker/scheduler-worker.test.mjs:1186:    publishedStorageKey: "exports/published/cleanup.xlsx",
+tests/worker/scheduler-worker.test.mjs:1188:    publishedAt: now,
+tests/worker/scheduler-worker.test.mjs:1199:        const error = new Error("delete failed");
+tests/worker/scheduler-worker.test.mjs:1207:  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+tests/worker/scheduler-worker.test.mjs:1215:    audits.some(
+tests/worker/scheduler-worker.test.mjs:1216:      (audit) =>
+tests/worker/scheduler-worker.test.mjs:1217:        audit.action === "CLEANUP_FAILED" &&
+tests/worker/scheduler-worker.test.mjs:1218:        audit.result === "FAILED" &&
+tests/worker/scheduler-worker.test.mjs:1219:        audit.errorCode === "FILE_CLEANUP_DELETE_ERROR"
+tests/worker/scheduler-worker.test.mjs:1224:  assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");
+tests/file/export-file-service.test.mjs:66:test("production object storage config is required outside injected test adapters", () => {
+tests/file/export-file-service.test.mjs:76:      /BLOCKED - 需要人工介入: object storage/
+tests/file/export-file-service.test.mjs:108:  await db.deleteFrom("export_audit_logs").execute();
+tests/file/export-file-service.test.mjs:219:      const body = await readRequestBody(request);
+tests/file/export-file-service.test.mjs:262:    throw new Error("failed to resolve local object storage server address");
+tests/file/export-file-service.test.mjs:273:async function readRequestBody(request) {
+tests/file/export-file-service.test.mjs:312:  const publishes = [];
+tests/file/export-file-service.test.mjs:318:    publishes,
+tests/file/export-file-service.test.mjs:320:    async putObject(input) {
+tests/file/export-file-service.test.mjs:321:      writes.push(input);
+tests/file/export-file-service.test.mjs:322:      if (options.putError) {
+tests/file/export-file-service.test.mjs:323:        throw options.putError;
+tests/file/export-file-service.test.mjs:325:      objects.set(input.storageKey, Buffer.from(input.body));
+tests/file/export-file-service.test.mjs:327:    async readObject(storageKey) {
+tests/file/export-file-service.test.mjs:334:    async publishObject(input) {
+tests/file/export-file-service.test.mjs:335:      publishes.push(input);
+tests/file/export-file-service.test.mjs:336:      if (options.publishError) {
+tests/file/export-file-service.test.mjs:337:        throw options.publishError;
+tests/file/export-file-service.test.mjs:339:      const object = objects.get(input.tempStorageKey);
+tests/file/export-file-service.test.mjs:341:        throw new Error(`missing temp object ${input.tempStorageKey}`);
+tests/file/export-file-service.test.mjs:343:      objects.set(input.publishedStorageKey, Buffer.from(object));
+tests/file/export-file-service.test.mjs:358:test("file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter", async (t) => {
+tests/file/export-file-service.test.mjs:367:  const result = await service.publishRows({
+tests/file/export-file-service.test.mjs:371:    requestId: "req-file-publish",
+tests/file/export-file-service.test.mjs:383:  assert.equal(storage.publishes.length, 1);
+tests/file/export-file-service.test.mjs:385:  assert.equal(storage.publishes[0].publishedStorageKey, result.storageKey);
+tests/file/export-file-service.test.mjs:395:  assert.equal(metadata.publishedStorageKey, result.storageKey);
+tests/file/export-file-service.test.mjs:409:test("env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL", async (t) => {
+tests/file/export-file-service.test.mjs:419:    const result = await service.publishRows({
+tests/file/export-file-service.test.mjs:435:    assert.equal(result.storageKey, metadata.publishedStorageKey);
+tests/file/export-file-service.test.mjs:441:    assert.ok(objectStorageServer.objects.has(metadata.publishedStorageKey));
+tests/file/export-file-service.test.mjs:443:    const publishedBuffer = Buffer.from(objectStorageServer.objects.get(metadata.publishedStorageKey));
+tests/file/export-file-service.test.mjs:445:    assert.deepEqual(publishedBuffer, tempBuffer);
+tests/file/export-file-service.test.mjs:447:    const archive = await inspectZipOfXlsxBuffer(publishedBuffer, { mode: "all" });
+tests/file/export-file-service.test.mjs:453:    const downloadUrl = await service.createDownloadUrl(metadata.publishedStorageKey, metadata.expiresAt);
+tests/file/export-file-service.test.mjs:465:    assert.deepEqual(downloadedBuffer, publishedBuffer);
+tests/file/export-file-service.test.mjs:474:        `PUT ${metadata.publishedStorageKey}`,
+tests/file/export-file-service.test.mjs:475:        `GET ${metadata.publishedStorageKey}`
+tests/file/export-file-service.test.mjs:485:test("checksum failure prevents publish and metadata from becoming downloadable", async (t) => {
+tests/file/export-file-service.test.mjs:495:      service.publishRows({
+tests/file/export-file-service.test.mjs:499:        requestId: "req-file-checksum-failed",
+tests/file/export-file-service.test.mjs:502:    /FILE_VERIFY_ERROR/
+tests/file/export-file-service.test.mjs:507:  assert.equal(storage.publishes.length, 0);
+tests/file/export-file-service.test.mjs:510:test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata", async (t) => {
+tests/file/export-file-service.test.mjs:516:    putError: new Error("object storage write unavailable")
+tests/file/export-file-service.test.mjs:522:      service.publishRows({
+tests/file/export-file-service.test.mjs:526:        requestId: "req-file-put-failed",
+tests/file/export-file-service.test.mjs:529:    (error) => error.name === "FILE_VERIFY_ERROR"
+tests/file/export-file-service.test.mjs:535:  assert.equal(storage.publishes.length, 0);
+tests/file/export-file-service.test.mjs:538:test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed", async (t) => {
+tests/file/export-file-service.test.mjs:544:    publishError: new Error("object storage publish unavailable")
+tests/file/export-file-service.test.mjs:550:      service.publishRows({
+tests/file/export-file-service.test.mjs:554:        requestId: "req-file-publish-failed",
+tests/file/export-file-service.test.mjs:557:    (error) => error.name === "FILE_VERIFY_ERROR"
+tests/file/export-file-service.test.mjs:563:  assert.equal(storage.publishes.length, 1);
+tests/file/export-file-service.test.mjs:567:test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+tests/file/export-file-service.test.mjs:579:      service.publishRows({
+tests/file/export-file-service.test.mjs:583:        requestId: "req-file-render-failed-xlsx",
+tests/file/export-file-service.test.mjs:586:    (error) => error.name === "EXPORT_RENDER_ERROR"
+tests/file/export-file-service.test.mjs:592:  assert.equal(storage.publishes.length, 0);
+tests/file/export-file-service.test.mjs:595:test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+tests/file/export-file-service.test.mjs:608:      service.publishRows({
+tests/file/export-file-service.test.mjs:612:        requestId: "req-file-render-failed-zip",
+tests/file/export-file-service.test.mjs:619:    (error) => error.name === "EXPORT_RENDER_ERROR"
+tests/file/export-file-service.test.mjs:625:  assert.equal(storage.publishes.length, 0);
+tests/file/export-file-service.test.mjs:628:test("scheduler publishes file metadata before marking a completed batch as COMPLETED", async (t) => {
+tests/file/export-file-service.test.mjs:662:  assert.equal(metadata.publishedStorageKey.includes(task.taskId), true);
+tests/file/export-file-service.test.mjs:663:  assert.equal(storage.publishes.length, 1);
+tests/file/export-file-service.test.mjs:665:  const workbook = await inspectXlsxBuffer(storage.objects.get(metadata.publishedStorageKey), {
+tests/file/export-file-service.test.mjs:672:test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+tests/file/export-file-service.test.mjs:678:    putError: new Error("object storage write unavailable")
+tests/file/export-file-service.test.mjs:683:    workerId: "worker-file-put-failure",
+tests/file/export-file-service.test.mjs:703:  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+tests/file/export-file-service.test.mjs:704:  const audits = await db
+tests/file/export-file-service.test.mjs:705:    .selectFrom("export_audit_logs")
+tests/file/export-file-service.test.mjs:710:  assert.equal(result.failed, 1);
+tests/file/export-file-service.test.mjs:711:  assert.equal(failed.status, "FAILED");
+tests/file/export-file-service.test.mjs:713:    audits.some(
+tests/file/export-file-service.test.mjs:714:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+tests/file/export-file-service.test.mjs:719:test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+tests/file/export-file-service.test.mjs:730:    workerId: "worker-file-render-failure",
+tests/file/export-file-service.test.mjs:750:  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+tests/file/export-file-service.test.mjs:751:  const audits = await db
+tests/file/export-file-service.test.mjs:752:    .selectFrom("export_audit_logs")
+tests/file/export-file-service.test.mjs:757:  assert.equal(result.failed, 1);
+tests/file/export-file-service.test.mjs:758:  assert.equal(failed.status, "FAILED");
+tests/file/export-file-service.test.mjs:761:    audits.some(
+tests/file/export-file-service.test.mjs:762:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
+tests/file/export-file-service.test.mjs:774:  const published = await fileService.publishRows({
+tests/file/export-file-service.test.mjs:778:    requestId: "req-cleanup-publish",
+tests/file/export-file-service.test.mjs:791:    fileName: published.fileName,
+tests/file/export-file-service.test.mjs:792:    contentType: published.contentType,
+tests/file/export-file-service.test.mjs:793:    fileSize: published.fileSize,
+tests/file/export-file-service.test.mjs:794:    checksum: published.checksum,
+tests/file/export-file-service.test.mjs:795:    checksumAlgorithm: published.checksumAlgorithm,
+tests/file/export-file-service.test.mjs:797:    publishedStorageKey: published.storageKey,
+tests/file/export-file-service.test.mjs:799:    publishedAt: now,
+tests/file/export-file-service.test.mjs:815:  assert.equal(metadata.publishedAt, null);
+tests/file/export-file-service.test.mjs:817:  assert.equal(metadata.publishedStorageKey, null);
+tests/file/export-file-service.test.mjs:819:  assert.deepEqual(storage.deletes, [published.storageKey, `tmp/${task.taskId}`]);
+tests/file/export-file-service.test.mjs:822:test("cleanup job deletes only published object when temp storage key is null", async (t) => {
+tests/file/export-file-service.test.mjs:829:  const published = await fileService.publishRows({
+tests/file/export-file-service.test.mjs:833:    requestId: "req-cleanup-publish-no-temp",
+tests/file/export-file-service.test.mjs:846:    fileName: published.fileName,
+tests/file/export-file-service.test.mjs:847:    contentType: published.contentType,
+tests/file/export-file-service.test.mjs:848:    fileSize: published.fileSize,
+tests/file/export-file-service.test.mjs:849:    checksum: published.checksum,
+tests/file/export-file-service.test.mjs:850:    checksumAlgorithm: published.checksumAlgorithm,
+tests/file/export-file-service.test.mjs:852:    publishedStorageKey: published.storageKey,
+tests/file/export-file-service.test.mjs:854:    publishedAt: now,
+tests/file/export-file-service.test.mjs:869:  assert.equal(metadata.publishedStorageKey, null);
+tests/file/export-file-service.test.mjs:871:  assert.deepEqual(storage.deletes, [published.storageKey]);
+tests/file/export-file-service.test.mjs:880:    deleteError: new Error("object storage delete failed")
+tests/file/export-file-service.test.mjs:883:  const published = await fileService.publishRows({
+tests/file/export-file-service.test.mjs:887:    requestId: "req-cleanup-retry-publish",
+tests/file/export-file-service.test.mjs:900:    fileName: published.fileName,
+tests/file/export-file-service.test.mjs:901:    contentType: published.contentType,
+tests/file/export-file-service.test.mjs:902:    fileSize: published.fileSize,
+tests/file/export-file-service.test.mjs:903:    checksum: published.checksum,
+tests/file/export-file-service.test.mjs:904:    checksumAlgorithm: published.checksumAlgorithm,
+tests/file/export-file-service.test.mjs:906:    publishedStorageKey: published.storageKey,
+tests/file/export-file-service.test.mjs:908:    publishedAt: now,
+tests/file/export-file-service.test.mjs:924:  assert.equal(metadata.publishedAt, null);
+tests/file/export-file-service.test.mjs:926:  assert.equal(metadata.publishedStorageKey, published.storageKey);
+tests/file/export-file-service.test.mjs:928:  assert.deepEqual(storage.deletes, [published.storageKey]);
+
+ succeeded in 407ms:
+docs/product/difficulty-research.md:15:| DR-007 | 文件生成与交付 | renderer / OSS | Medium | XLSX/ZIP 平台渲染，临时对象校验后发布 |
+docs/product/difficulty-research.md:24:| DR-016 | 文件发布一致性 | file service / OSS / download | High | 临时对象写入，校验通过后发布，下载只暴露已发布对象 |
+docs/product/difficulty-research.md:76:| 文件渲染失败 | `FAILED` | `EXPORT_RENDER_ERROR` | 记录渲染输入摘要和失败原因 |
+docs/product/difficulty-research.md:77:| OSS 上传失败 | `FAILED` | `FILE_VERIFY_ERROR` | 记录对象存储写入失败原因和临时对象定位或清理记录 |
+docs/product/difficulty-research.md:78:| 文件发布前校验失败 | `FAILED` | `FILE_VERIFY_ERROR` | 不生成下载地址 |
+docs/testing/verify-matrix.md:15:| STACK-ADR-001 设计基线 | FR-001 / FR-002 / FR-003 / FR-004 / FR-005 / FR-006 / FR-007 / FR-008 / FR-009 / FR-010 / FR-011 / FR-012 / FR-013 / FR-014 | design-baseline / implemented-by-release | `docs/context/architecture-brief.md`、`plans/features/export-platform.dev-plan.md` |
+docs/testing/verify-matrix.md:19:| 生产 repository | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | available / local-or-docker-mysql | `src/repositories/`、`tests/db/export-repositories.test.mjs`、`npm run test:db` |
+docs/testing/verify-matrix.md:20:| scheduler worker | FR-005 / FR-010 / FR-012 / FR-013 | available / local-or-docker-mysql | `src/workers/scheduler-worker.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:worker` |
+docs/testing/verify-matrix.md:21:| query executor | FR-006 / FR-008 / FR-009 / FR-014 | production-path wired / local-or-docker-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；测试数据由本机/Docker MySQL 自动建表和 seed；不得把 file/sample 口径写成已通过 |
+docs/testing/verify-matrix.md:22:| file service / cleanup job | FR-003 / FR-006 / FR-011 / FR-014 | file-service production-path wired / cleanup job production entry + poll-once wired / local-or-docker-mysql；`npm run test:file` 同时覆盖生产等价 object-storage adapter 失败态与本地 HTTP server 驱动的 env-backed adapter，证明 `createObjectStorageFromEnv()` 可完成 put/read/publish/download URL 协议链路，但不宣称 live OSS/S3 release evidence；环境变量缺失时 `createObjectStorageFromEnv()` 仍必须 `BLOCKED - 需要人工介入` | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`src/scheduler/worker.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker` |
+docs/testing/verify-matrix.md:23:| purchase-order sample | FR-014 | executable sample contract / local-or-docker-mysql；`npm run test:sample` 通过公开 registry/task/download service + worker + production-equivalent object-storage adapter 串联样板证据，不宣称 live OSS/S3 release evidence | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:sample`；本机/Docker MySQL 会自动建表并写入测试数据；若要声明外部对象存储已验证，必须另开 live 专项验证 |
+docs/testing/verify-matrix.md:24:| API / DB / worker 集成测试 | FR-001 - FR-014 | available / local-or-docker-mysql | `tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+docs/testing/verify-matrix.md:27:## REQUIREMENTS-GAP-REPAIR-001 fresh repair evidence（2026-05-16）
+docs/testing/verify-matrix.md:29:| Finding | 关联需求 / 验收 | 修复状态 | Fresh evidence | Evidence 边界 |
+docs/testing/verify-matrix.md:31:| TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 | FR-002 / AC-002 | repaired | `npm run test:api` 断言 PENDING 详情、带 checkpoint 详情、FAILED 详情均返回 OpenAPI 声明的 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，并禁止以未声明的 `events` 字段替代；FAILED 详情覆盖失败审计和带 `errorCode/errorMessage` 的最近任务事件兜底。`npm run test:contract` 守护 task detail schema required/properties 与公开契约一致 | local/Docker MySQL + contract；不声明外部 live MySQL |
+docs/testing/verify-matrix.md:32:| AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+docs/testing/verify-matrix.md:33:| TASK-HISTORY-ADMIN-SCOPE-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言普通用户只见本人任务，管理员历史查询可见跨租户全局任务；详情/下载仍保持权限隔离 | local/Docker MySQL API evidence；不声明外部生产 MySQL |
+docs/testing/verify-matrix.md:34:| CONFIG-SNAPSHOT-REPLAY-001 | FR-013 / AC-016 / AC-E024 | repaired | `npm run test:api` 断言创建任务持久化完整 `configSnapshot`；`npm run test:query` 断言当前 registry 更新后旧任务仍按创建时快照执行 | local/Docker MySQL query evidence；不把当前 registry 当作旧任务执行真相源 |
+docs/testing/verify-matrix.md:35:| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+docs/testing/verify-matrix.md:36:| DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+docs/testing/verify-matrix.md:37:| FILE-STORAGE-ERROR-MAPPING-001 | FR-003 / FR-006 / AC-E005 / AC-E026 | repaired | `npm run test:file` 覆盖 object storage put/publish 失败均映射为 `FILE_VERIFY_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + FILE_VERIFY_ERROR` | production-equivalent adapter + local/Docker MySQL；不声明 live OSS/S3 |
+docs/testing/verify-matrix.md:38:| FILE-RENDER-ERROR-CONTRACT-REPAIR-001 | FR-006 / AC-E027 | repaired | `npm run test:file` 覆盖 XLSX 与 ZIP renderer 失败在 object storage 写入前映射为 `EXPORT_RENDER_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + EXPORT_RENDER_ERROR` 审计；同一命令继续覆盖 object storage put/publish 失败保持 `FILE_VERIFY_ERROR` | local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3 |
+docs/testing/verify-matrix.md:47:## CLEANUP-AUDIT-ERROR-CODE-ALIGN-001 repair evidence（2026-05-16）
+docs/testing/verify-matrix.md:51:| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
+docs/testing/verify-matrix.md:55:| API 集成测试 | `npm run test:api` | 公开 route/handler 与 OpenAPI operation 对齐，并要求 `EXPORT_PLATFORM_TEST_DATABASE_URL` 连接本机或 Docker MySQL；release gate 会自动自举 Docker MySQL |
+docs/testing/verify-matrix.md:56:| DB 集成测试 | `npm run test:db` | migration、repository、事务/锁行为必须连接本机或 Docker MySQL；release gate 会自动建库、建表并写入测试数据 |
+docs/testing/verify-matrix.md:57:| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接本机或 Docker MySQL；release gate 会自动提供 DB URL |
+docs/testing/verify-matrix.md:58:| query-executor 验证 | `npm run test:query` | 模板绑定、数据范围、字段映射、脱敏、批次检查点和失败收口必须连接本机或 Docker MySQL；外部业务数据源以受控测试数据模拟 |
+docs/testing/verify-matrix.md:59:| file-service 验证 | `npm run test:file` | temp object、checksum 校验、published object、真实 XLSX OOXML 包与 ZIP 分片二进制解析、下载 guard 必须连接本机或 Docker MySQL；对象存储证据必须同时覆盖生产等价 adapter 失败态和本地 HTTP server 驱动的 env-backed `createObjectStorageFromEnv()` put/read/publish/download URL 流程，不能写成 live OSS/S3 已验证 |
+docs/testing/verify-matrix.md:60:| sample 样板验证 | `npm run test:sample` | 采购订单样板必须覆盖 `0/1/20000/20001/100000/100001` 行边界、脱敏、真实 XLSX/ZIP 二进制解析、公开 create/download service 链路和 10 万行默认批次压测证据；测试数据由本机/Docker MySQL seed；live 对象存储不属于当前完成条件 |
+docs/testing/verify-matrix.md:61:| mock-first local/dev evidence 映射 | `npm run arch:check`、`npm run test:mock-local`、`npm test`、scoped `git diff --check` | `MOCK-FIRST-001` 负责建立 FR-001 - FR-014 的 mock-first local/dev evidence 基线；`MOCK-INTEGRATION-001` 负责补齐本地主流程、失败态和证据归档，并同步到 `docs/testing/mock-first-acceptance.md`。本轮结果只用于本地开发、联调和 failure drill，不是 RELEASE-001 PASS 证据，不能替代 API / DB / worker / query / file / sample 或 docker/mock release gate；mock-first 说明见 `docs/testing/mock-first-release-plan.md`，但它不是 docker/mock release gate |
+docs/testing/verify-matrix.md:62:| 本地 release rehearsal | `npm run release:local-rehearsal` | `LOCAL-RELEASE-REHEARSAL-001` 默认使用本地 object storage mock，显式 env 覆盖也只允许在本地 rehearsal 中使用；同时必须连接本地 MySQL 先压通 API / DB / worker / query / file / sample 集成命令。MySQL URL 可由当前进程环境变量、`-DatabaseUrl` 参数或本地未跟踪的 `.env.local` / `-EnvFile` 提供。证据只能标记为 mock/local rehearsal，不能替代 `RELEASE-001` 的 docker/mock release gate；缺少本地依赖时必须输出 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:63:| 本地 demo | `npm run demo:local`、`npm run demo:local:smoke` | `LOCAL-DEMO-001` 负责本机演示入口、自动 migration/seed、runbook 和健康检查 smoke。它使用本机 Docker MySQL 与本地 object storage mock，只产出 local demo / local smoke evidence，不是 release evidence，不能替代 `LOCAL-RELEASE-REHEARSAL-001` 或 `RELEASE-001`。 |
+docs/testing/verify-matrix.md:64:| Docker test data automation | `npm run test:docker-local` | `DOCKER-TEST-DATA-AUTOMATION-001` 负责自动启动或等待 Docker Desktop、创建或复用本机 Docker MySQL、执行 migration、seed `purchase-order-export` 测试数据并运行 API / DB / worker / query / file / sample / object-storage smoke。依赖形态为本机 Docker MySQL + 本地 object storage mock；该证据不是 live evidence，不证明外部生产 MySQL 或 live OSS/S3 已验证。 |
+docs/testing/verify-matrix.md:65:| 测试实践映射守护 | `npm run test:mock-local`、scoped `git diff --check` | `TEST-PRACTICE-MATRIX-001` 负责把关键 test script 显式映射到 task id、需求范围、依赖形态和 evidence 边界，并由 `tests/mock-local/test-practice-matrix.test.mjs` 守护 package scripts、task test_command 与本矩阵不漂移。该任务不替代任何功能测试或 release gate，只防止测试实践失去 task 归属。 |
+docs/testing/verify-matrix.md:66:| release 验证 | `RELEASE-001 docker/mock release gate`（2026-05-15） | `RELEASE-001` 已通过 docker/mock release gate。`scripts/release-verify.ps1` 在缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时复用或创建本机 Docker MySQL `export-platform-mysql-local`，并启动本地 object storage mock 执行 smoke。该 gate 是本机受控 release 验证；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件；release 结论来自 docker/mock release gate，未直接沿用 mock-first 或 local rehearsal 结果。 |
+docs/testing/verify-matrix.md:70:| 测试实践 | package script / 命令 | task 归属 | 需求范围 | 依赖形态 | evidence 边界 |
+docs/testing/verify-matrix.md:73:| 基础单测 | `npm test` | `SERVICE-SCAFFOLD-001`、`MOCK-FIRST-001`、`MOCK-INTEGRATION-001`、`RELEASE-001` | FR-001 - FR-014 | 本地进程 | 覆盖基础脚手架、文档守护和轻量 HTTP 行为；不能替代本机/Docker MySQL 集成测试。 |
+docs/testing/verify-matrix.md:74:| API 集成测试 | `npm run test:api` | `TASK-API-HTTP-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明公开 HTTP route/handler/service/repository 链路；release 只算 docker/mock，外部生产 MySQL 不属于当前完成条件。 |
+docs/testing/verify-matrix.md:75:| DB 集成测试 | `npm run test:db` | `DB-SCHEMA-001`、`SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明 migration、repository、锁和持久化边界；未设置 MySQL 时必须 BLOCKED，不能降级为内存替身。 |
+docs/testing/verify-matrix.md:76:| Worker 集成测试 | `npm run test:worker` | `SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`CLEANUP-JOB-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-005 / FR-010 / FR-012 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明 polling、租约、接管、取消、重试和 cleanup 调度边界；不替代 query/file/sample 的内容级断言。 |
+docs/testing/verify-matrix.md:77:| Query executor 验证 | `npm run test:query` | `QUERY-EXECUTOR-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-006 / FR-008 / FR-009 / FR-014 | MySQL；外部数据源以受控测试数据模拟 | 证明模板绑定、数据范围、脱敏、字段映射和 checkpoint；不声明外部业务库 live 已接入。 |
+docs/testing/verify-matrix.md:78:| File service 验证 | `npm run test:file` | `FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-003 / FR-006 / FR-009 / FR-011 / FR-014 | MySQL + production-equivalent adapter；release 时使用本地 object storage mock | 证明 temp/checksum/publish/download/cleanup；本地 HTTP adapter 和 docker/mock smoke 不能写成外部 live OSS/S3 已验证。 |
+docs/testing/verify-matrix.md:79:| Sample 样板验证 | `npm run test:sample` | `SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-014 | MySQL + production-equivalent adapter；release 时使用本地 object storage mock | 证明采购订单样板、0/1/20000/20001/100000/100001 行边界、XLSX/ZIP 和公开 create/download 链路；live 对象存储不属于当前完成条件。 |
+docs/testing/verify-matrix.md:80:| Mock-first local/dev 验收 | `npm run test:mock-local` | `MOCK-FIRST-001`、`MOCK-INTEGRATION-001`、`TEST-PRACTICE-MATRIX-001` | FR-001 - FR-014 | 本地 mock / 文档守护 | 只证明本地开发、失败态演练、文档边界和测试实践映射；不是 release evidence。 |
+docs/testing/verify-matrix.md:81:| Object storage smoke | `npm run test:object-storage-live` | `LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-003 / FR-006 / FR-011 / FR-014 | local rehearsal 可跳过；docker/mock release 显式允许本地 smoke；外部 live 需另行配置 | 在 `RELEASE-001` 中只声明 docker/mock release evidence；外部 live OSS/S3 验证必须另开任务，不得覆盖当前结论。 |
+docs/testing/verify-matrix.md:82:| 本地 release rehearsal | `npm run release:local-rehearsal` | `LOCAL-RELEASE-REHEARSAL-001` | FR-001 - FR-014 | 本地 MySQL + 本地 object storage mock | 只用于本机彩排 API / DB / worker / query / file / sample 链路；不能替代 `RELEASE-001` docker/mock release gate。 |
+docs/testing/verify-matrix.md:83:| 本地 demo | `npm run demo:local`、`npm run demo:local:smoke` | `LOCAL-DEMO-001` | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-014 | 本机 Docker MySQL + 本地 object storage mock + 本地 seed 数据 | 只用于人工演示、runbook 示例和 `GET /health` smoke；不是 release evidence，不能替代 API / DB / worker / query / file / sample 全链路验证，也不能写成外部 MySQL 或 live OSS/S3 证据。 |
+docs/testing/verify-matrix.md:84:| Docker test data automation | `npm run test:docker-local` | `DOCKER-TEST-DATA-AUTOMATION-001` | FR-001 - FR-014 | 本机 Docker MySQL + 本地 object storage mock | 自动准备 Docker daemon、Docker MySQL、migration、`purchase-order-export` seed 数据和主链路验证；不是 live evidence，不替代外部生产 MySQL 或 live OSS/S3 专项验证。 |
+docs/testing/verify-matrix.md:85:| Docker/mock release gate | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` | `RELEASE-001` | FR-001 - FR-014 | 本机 Docker MySQL + 本地 object storage mock | 当前 release 结论来源；外部生产 MySQL 或 live OSS/S3 不属于当前完成条件。 |
+docs/testing/verify-matrix.md:87:## RELEASE-001 fresh release evidence snapshot（2026-05-15）
+docs/testing/verify-matrix.md:91:| API 集成测试 | FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:api`，2/2 passed。 |
+docs/testing/verify-matrix.md:92:| DB 集成测试 | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:db`，3/3 passed。 |
+docs/testing/verify-matrix.md:93:| Worker 集成测试 | FR-005 / FR-010 / FR-012 / FR-013 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:worker`，11/11 passed。 |
+docs/testing/verify-matrix.md:94:| Query executor 验证 | FR-006 / FR-008 / FR-009 / FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 后执行 `npm run test:query`，8/8 passed。 |
+docs/testing/verify-matrix.md:95:| File service 验证 | FR-003 / FR-006 / FR-009 / FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:file`，9/9 passed。 |
+docs/testing/verify-matrix.md:96:| Sample 样板验证 | FR-014 | PASS / docker-mock-release | `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 后执行 `npm run test:sample`，9/9 passed，包含 0/1/20000/20001/100000/100001 行边界。 |
+docs/testing/verify-matrix.md:97:| Docker/mock object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | PASS / docker-mock-release | `scripts/release-verify.ps1` 启动本地 object storage mock，设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 和 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE=true` 后执行 `npm run test:object-storage-live`，smoke passed。该项只声明 docker/mock release evidence，不声明外部 live OSS/S3 已验证。 |
+docs/testing/verify-matrix.md:98:| 契约 / 基线校验 | FR-001 - FR-014 | 已执行通过 / 本轮前置门槛通过 | 当前 release gate 使用 `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml`；该项只能证明契约和前置校验完成，不能代替 API/DB/worker/query/file/sample 或 live object storage release evidence |
+docs/testing/verify-matrix.md:100:> 结论：`RELEASE-001` 已通过 docker/mock release gate。2026-05-15 22:16 +08:00 前后执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1`，脚本自举本机 Docker MySQL 与本地 object storage mock 后完整通过 audit、arch、typecheck、contract、base tests、OpenAPI lint、API、DB、worker、query、file、sample、object-storage smoke 和 scoped `git diff --check`。
+docs/testing/verify-matrix.md:102:## MOCK-INTEGRATION-001 local/dev acceptance
+docs/testing/verify-matrix.md:106:| 本地集成验收归档 | FR-001 - FR-014 | accepted / local-dev-only | `MOCK-INTEGRATION-001` 已执行 `npm run arch:check`、`npm run test:mock-local`、`npm test` 与 scoped `git diff --check`，并把 FR-001 - FR-014 的主流程、失败态和证据归档同步到 `docs/testing/mock-first-acceptance.md`、`docs/testing/mock-first-release-plan.md` 与本矩阵；该任务不是 release evidence，不替代 docker/mock release gate |
+docs/testing/verify-matrix.md:107:| 本地 release rehearsal | FR-001 - FR-014 | passed / mock/local rehearsal | `LOCAL-RELEASE-REHEARSAL-001` 已通过 `npm run release:local-rehearsal` 连接本地 MySQL 与本地 object storage mock，先执行 API、DB、worker、query、file 和 sample 集成命令；证据只能写成 mock/local rehearsal，不是 RELEASE-001 PASS 证据，不能替代 docker/mock release gate |
+docs/testing/verify-matrix.md:109:## LOCAL-RELEASE-REHEARSAL-001 mock/local rehearsal result（2026-05-15）
+docs/testing/verify-matrix.md:113:| 本地 release rehearsal 入口 | FR-001 - FR-014 | PASS / mock-local-only | `npm run release:local-rehearsal` 已执行通过；脚本使用本地 MySQL 配置，并启动本地 object storage mock。该结果只证明 mock/local rehearsal 链路可运行，不是 `RELEASE-001` PASS 证据。 |
+docs/testing/verify-matrix.md:114:| API / DB / worker / query / file / sample 集成命令 | FR-001 - FR-014 | PASS / mock-local-only | 本轮依次通过 `npm run arch:check`、`npm run typecheck`、`npm run test:contract`、`npm test`、`npm run test:api`、`npm run test:db`、`npm run test:worker`、`npm run test:query`、`npm run test:file`、`npm run test:sample`。其中 API / DB / worker / query / file / sample 只作为本地彩排证据，不替代正式 release evidence。 |
+docs/testing/verify-matrix.md:115:| Docker/mock object storage smoke | FR-003 / FR-006 / FR-011 / FR-014 | PASS / docker-mock-release | `RELEASE-001` 已由 `release-verify.ps1` 独立启动本地 object storage mock 并执行 docker/mock smoke。 |
+docs/testing/verify-matrix.md:118:> 结论：`LOCAL-RELEASE-REHEARSAL-001` 在 2026-05-15 通过本地 mock/local rehearsal；该结论只说明本地 MySQL 与本地 object storage mock 下 API、DB、worker、query、file 和 sample 集成链路已压通。`RELEASE-001` 已单独执行并通过 docker/mock release gate。
+docs/testing/verify-matrix.md:124:| FR-001 | contract / API / DB | HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing/verify-matrix.md:125:| FR-002 | contract / API / DB | HTTP detail handler-service-repository wired / local-or-docker-mysql；`TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001` 补齐 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents` 的契约对齐证据 | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs`、`npm run test:api`、`npm run test:contract` |
+docs/testing/verify-matrix.md:126:| FR-003 | contract / API / file | file-service production-path wired with temp object / checksum / publish / download metadata guard; cleanup job invalidates metadata before object delete and records cleanup audit/event | `src/file-service/index.ts`、`src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:file`、`npm run test:worker`；`npm run test:file` 同时覆盖生产等价 adapter 与本地 HTTP env-backed adapter，后者只证明 `createObjectStorageFromEnv()` 协议链路，不得写成 live OSS/S3 已验证；环境变量缺失时必须记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:127:| FR-004 | contract / API / DB | HTTP list handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/task-api/service.ts`、`tests/api/export-http-api.test.mjs` |
+docs/testing/verify-matrix.md:128:| FR-005 | DB / worker | DB lease repository and worker polling available / local-or-docker-mysql | `src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing/verify-matrix.md:129:| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; renderer failures mapped to `EXPORT_RENDER_ERROR`; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 XLSX/ZIP renderer 失败收口 `EXPORT_RENDER_ERROR`、object storage put/publish 失败保持 `FILE_VERIFY_ERROR`，并覆盖 env-backed HTTP adapter 的发布与下载 URL 流程；`npm run test:sample` 覆盖默认批次 10 万行不丢批次；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+docs/testing/verify-matrix.md:130:| FR-007 | contract / API / DB | registry HTTP handler-service-repository wired / local-or-docker-mysql | `contracts/openapi.yaml`、`src/registry-config/service.ts`、`src/repositories/export-registry.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing/verify-matrix.md:131:| FR-008 | query / DB / security | query executor production-path wired / local-or-docker-mysql | `src/query-executor/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`；外部业务数据源以受控测试数据模拟 |
+docs/testing/verify-matrix.md:132:| FR-009 | API / query / security | API auth context consumed / query executor production-path wired + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；本机/Docker MySQL 与测试数据由 release gate 提供，adapter 级对象存储证据不得写成 live release 已验证 |
+docs/testing/verify-matrix.md:133:| FR-010 | audit / API / worker | API and worker audit writes wired / local-or-docker-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing/verify-matrix.md:135:| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs` |
+docs/testing/verify-matrix.md:136:| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+docs/testing/verify-matrix.md:137:| FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+docs/testing/verify-matrix.md:157:- 没有本机/Docker MySQL、本地 object storage mock 或任务声明依赖时必须记录 `BLOCKED - 需要人工介入`，不得用内存替身绕过。
+docs/testing/verify-matrix.md:159:- `LOCAL-RELEASE-REHEARSAL-001` 的结果只能算 mock/local rehearsal evidence；`RELEASE-001` 的正式 release evidence 来自 `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 的完整 docker/mock release gate。
+docs/testing/test-data-plan.md:6:**重置命令**: 由 API / DB / worker / query / file / sample 测试套件按本机 Docker MySQL 隔离执行；当前 RELEASE-001 已通过 docker/mock release gate，历史通过记录仅可作为旧证据
+docs/testing/test-data-plan.md:7:**Seed 命令**: 由对应测试套件创建当前回归数据；release gate 使用本机 Docker MySQL + 本地 object storage mock 的受控验证
+docs/testing/test-data-plan.md:23:| seed-download-001 | FR-003 | 文件下载 | 已发布、临时、过期、校验失败文件元信息 | 清理 OSS key 和下载记录 | 未发布对象、EXPIRED、checksum 失败 |
+docs/testing/test-data-plan.md:26:| seed-split-001 | FR-006 | 分片与打包 | 0、1、20000、20001、100000、100001 行数据集 | 清理分片文件、ZIP 清单、事件日志 | 空数据、ZIP、超量控制 |
+docs/testing/test-data-plan.md:47:- 所有 seed 在当前测试实现中必须可重复创建、隔离和清理，且应优先服务本机 Docker MySQL 的受控 release 验证。
+docs/testing/test-matrix.md:9:- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；本文记录当前 docker/mock release evidence，不要求外部生产 MySQL 或 live OSS/S3。
+docs/testing/test-matrix.md:10:- live object storage 仍属于外部生产/live 验证范围，不是本机受控 release gate；本文不得把本机 mock 结果写成 live OSS 证据。
+docs/testing/test-matrix.md:11:- 下表保留少量历史基线表述，仅用于说明最初的分析来源，不代表当前 release evidence。
+docs/testing/test-matrix.md:20:| FR-006 | P0 | 无前端页面；worker、文件渲染与打包 | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | TM-006 | `seed-split-001` | RELEASE-001 | `docs/testing/TRACEABILITY_MATRIX.md`、`docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/verify-matrix.md` | PASS / docker-mock-release |
+docs/testing/test-matrix.md:34:- 当前状态以最新 release 证据为准；当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate。历史 `历史通过记录` 仅能作为旧证据，外部 live OSS/S3 需另开任务验证。
+docs/testing/REGRESSION_PLAN.md:10:- 最新 release trace 显示 release gate 口径已切换为本机 Docker MySQL + 本地 object storage mock 的受控验证；本轮文档不把本机彩排写成外部生产/live 通过记录。
+docs/testing/REGRESSION_PLAN.md:11:- live object storage smoke 仍属于外部生产/live 验证；当前 release 证据不能用 adapter/local HTTP 结果替代。
+docs/testing/REGRESSION_PLAN.md:22:| 文件交付与清理 | FR-003 / FR-006 / FR-011 | 临时对象、校验、发布、下载和过期清理需要端到端证据。 | `docs/testing/ACCEPTANCE_EXAMPLES.md` |
+docs/testing/REGRESSION_PLAN.md:33:| REG-P0-005 | FR-003 / FR-006 / FR-011 | 空数据、单文件、ZIP、校验失败、下载、过期清理 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | PASS / docker-mock-release |
+docs/testing/REGRESSION_PLAN.md:47:- 发布结论：当前 release 已通过 docker/mock release gate，release gate 以本机 Docker MySQL + 本地 object storage mock 为受控验证边界。
+docs/testing/REGRESSION_PLAN.md:49:- 当前 release 不要求外部生产 MySQL 或 live OSS/S3；API、DB、worker、query、file、sample 的通过结论来自本机 Docker MySQL、自动 migration/seed 数据和本地 object storage mock。
+docs/testing/EVIDENCE_PROTOCOL.md:15:| 风险与回归 | FR-001 - FR-014 | 高风险项、P0/P1 回归集合和 live object storage BLOCKED 项必须可定位；mock-first 证据只能作为 local/dev 边界说明，不能覆盖 release evidence。 | `docs/testing/RISK_BASED_TEST_PLAN.md`、`docs/testing/REGRESSION_PLAN.md`、`docs/testing/mock-first-release-plan.md` |
+docs/testing/EVIDENCE_PROTOCOL.md:16:| 验证命令 | FR-001 - FR-014 | RELEASE-001 执行当前受控 release gate，优先使用本机 Docker MySQL 与本地 object storage mock，不伪造 live object storage 证据。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1` |
+docs/testing/EVIDENCE_PROTOCOL.md:23:- live object storage 只属于外部生产/live 验证；本机受控 release gate 仅允许本地 object storage mock 作为证据边界。
+docs/testing/EVIDENCE_PROTOCOL.md:24:- mock-first 相关证据只能标记为 `local/dev evidence`；本地 HTTP object storage adapter、fixture seed、fake 外部数据源都不能覆盖本机 Docker MySQL release evidence，更不能覆盖 live object storage release evidence。
+docs/testing/EVIDENCE_PROTOCOL.md:39:| `batchCheckpoint` | 证明查询批次、重试和取消边界。 | FR-006 / FR-008 / FR-012 |
+docs/testing/EVIDENCE_PROTOCOL.md:40:| `storageKey` / `checksum` / `checksumAlgorithm` | 证明文件校验、发布和下载保护。 | FR-003 / FR-006 / FR-011 |
+docs/testing/TEST_DATA_MATRIX.md:9:- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；以下条目保留为当前矩阵的可执行数据入口，历史通过记录仅能作为旧证据。
+docs/testing/TEST_DATA_MATRIX.md:10:- live object storage smoke 仍属于外部生产/live 验证范围，不得写入本机受控 release evidence。
+docs/testing/TEST_DATA_MATRIX.md:17:| FR-003 | seed-download-001 | 历史基线：最初用来说明已发布对象、临时对象、过期对象与文件元信息；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理 OSS key、文件引用和下载记录 | 仅完成态可下载、签名 URL 与 stream、EXPIRED、校验失败、未发布对象 | RELEASE-001 |
+docs/testing/TEST_DATA_MATRIX.md:20:| FR-006 | seed-split-001 | 历史基线：最初用来说明 0、1、20000、20001、100000、100001 行导出数据集；当前仅可作为历史数据入口，不能作为当前 release 历史通过记录 依据 | 清理分片文件、ZIP 清单和事件日志 | 空数据仅表头、超阈值分片打包、批次边界事件缺失 | RELEASE-001 |
+docs/testing/TEST_DATA_MATRIX.md:36:- 任何 live object storage smoke 相关 fixture 仅用于外部生产/live 验证，不属于本机受控 release gate。
+docs/testing/RISK_BASED_TEST_PLAN.md:16:| RISK-005 | FR-003 / FR-006 / FR-011 文件发布与清理 | 临时对象、校验、发布、下载和过期清理若顺序错误会暴露未校验文件或留下不可恢复对象。 | 校验通过前不返回下载地址；校验失败不发布对象；过期先标记不可下载再清理；清理失败可重试。 | `seed-download-001`、`seed-split-001`、`seed-cleanup-001` | `docs/testing/verify-matrix.md`、`traces/` |
+docs/testing/RISK_BASED_TEST_PLAN.md:17:| RISK-006 | FR-006 / FR-014 采购订单压测与边界 | 0/1/20000/20001/100000/100001 行同时覆盖空文件、单文件、ZIP、默认上限和超量控制。 | 空数据仅表头；20001 行分片 ZIP；100000 行记录耗时、批大小、分片数、续租次数、文件大小和 checksum；100001 行拒绝或进入严格控制流。 | `seed-split-001`、`seed-purchase-order-001` | `docs/testing/TEST_DATA_MATRIX.md`、`docs/testing/test-data-plan.md` |
+docs/testing/RISK_BASED_TEST_PLAN.md:23:- P0 必测：FR-001、FR-002、FR-003、FR-004、FR-005、FR-006、FR-007、FR-008、FR-009、FR-010、FR-013、FR-014。
+docs/testing/RISK_BASED_TEST_PLAN.md:25:- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate。历史通过记录仅能作为旧证据，不能作为当前 release 依据；文档不应把本机受控 gate 写成外部生产/live OSS。
+docs/testing/RISK_BASED_TEST_PLAN.md:31:- 外部生产/live object storage 不属于当前完成条件；如后续任务声明必须接入外部 live 依赖且不可达，必须在 `progress.txt` 记录 `BLOCKED - 需要人工介入`，不得把 adapter/local HTTP 证据写成 live PASS。本机受控 release gate 仍以 Docker MySQL + 本地 object storage mock 为界。
+docs/testing/ACCEPTANCE_EXAMPLES.md:7:> 本文件提供验收示例索引。当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；外部生产 MySQL / live OSS 不属于当前完成条件。历史自动化用例、契约文件和实现测试仅可作为旧证据。
+docs/testing/ACCEPTANCE_EXAMPLES.md:48:- 关联需求: FR-006
+docs/testing/ACCEPTANCE_EXAMPLES.md:146:- 关联需求: FR-006 / FR-010 / FR-013
+docs/testing/ACCEPTANCE_EXAMPLES.md:153:- 关联需求: FR-003 / FR-006 / FR-011
+docs/testing/TRACEABILITY_MATRIX.md:11:| FR-003 | 下载前必须再次校验权限和文件有效期；签名 URL 与 stream 两种交付方式都要携带文件元信息；未发布对象不得下载 | 无前端页面；文件服务 / OSS / 下载接口 | COMPLETED / EXPIRED | `GET /api/export/tasks/{taskId}/download`、文件元信息契约 | contract / file / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `prd-lite.md`、`acceptance-criteria.md`、`state-matrix.yaml` | 校验、发布边界和元信息缺失会造成误交付 |
+docs/testing/TRACEABILITY_MATRIX.md:14:| FR-006 | 超过单文件阈值时自动分片并打包；空数据生成仅表头文件；执行链路必须保留关键阶段事件 | 无前端页面；worker / file service | EXECUTING / COMPLETED | 执行事件契约、文件渲染契约 | contract / backend / file / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-006`、`AC-020`、`state-matrix.yaml` | 分片、打包和空数据分支是回归高发点 |
+docs/testing/TRACEABILITY_MATRIX.md:29:- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；历史通过记录仅能作为旧记录，不得覆盖当前 `src`、`tests`、`migrations` 证据。
+docs/testing/ACCEPTANCE_CRITERIA.md:9:- 当前 RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate；外部生产 MySQL / live OSS 不属于当前完成条件。
+docs/testing/ACCEPTANCE_CRITERIA.md:10:- 已有的历史通过记录仅可作为旧证据，当前验收完成依据以 `scripts/release-verify.ps1` 的 docker/mock release evidence 为准。
+docs/testing/ACCEPTANCE_CRITERIA.md:24:| AC-006 | FR-006 | 超阈值自动分片 ZIP，空数据仅表头 | TM-006 / AE-006 | 分片清单、ZIP 清单、空文件表头 |
+docs/testing/ACCEPTANCE_CRITERIA.md:38:| AC-020 | FR-006 / FR-010 / FR-013 | 执行事件覆盖六个关键阶段 | TM-006 / TM-010 / AE-020 | 阶段事件序列 |
+docs/testing/ACCEPTANCE_CRITERIA.md:39:| AC-021 | FR-003 / FR-006 / FR-011 | 临时对象校验后发布，失败不生成下载地址 | TM-003 / TM-006 / TM-011 / AE-021 | 临时对象、发布对象、校验记录 |
+docs/testing/ACCEPTANCE_CRITERIA.md:45:| AC-E001 | FR-006 / FR-014 | 空数据生成仅表头文件并完成 | TM-006 / TM-014 |
+docs/testing/ACCEPTANCE_CRITERIA.md:48:| AC-E004 | FR-005 / FR-006 | 查询短暂失败后按批次重试并完成 | TM-005 / TM-006 |
+docs/testing/ACCEPTANCE_CRITERIA.md:49:| AC-E005 | FR-003 / FR-006 | OSS 上传失败收口为 `FILE_VERIFY_ERROR` | TM-003 / TM-006 |
+docs/testing/ACCEPTANCE_CRITERIA.md:54:| AC-E010 / AC-E021 | FR-006 / FR-014 | 超过默认最大导出量拒绝或进入更严格控制流 | TM-006 / TM-014 |
+docs/testing/ACCEPTANCE_CRITERIA.md:57:| AC-E013 / AC-E020 | FR-006 / FR-008 | 查询失败或批次重试耗尽收口 `QUERY_EXECUTION_ERROR` | TM-006 / TM-008 |
+docs/testing/ACCEPTANCE_CRITERIA.md:61:| AC-E017 / AC-E026 | FR-003 / FR-006 | 文件校验不匹配或发布失败，不生成下载地址 | TM-003 / TM-006 |
+docs/testing/ACCEPTANCE_CRITERIA.md:67:| AC-E027 | FR-006 | XLSX/ZIP 渲染失败收口 `EXPORT_RENDER_ERROR` | TM-006 |
+docs/testing/ACCEPTANCE_CRITERIA.md:73:- release 阶段每条 P0/P1 必需项必须有当前 release evidence；历史通过记录只能作为旧证据，不能替代当前 docker/mock release 结论。本机受控 release gate 以 Docker MySQL + 本地 object storage mock 为边界，不等于外部生产/live OSS。
+
+codex
+初步证据显示任务本身携带了 architecture_constraints、forbidden_implementations 和 test_command，且 verify-matrix 已声明本地/Docker MySQL + 本地 object storage mock 的边界。我要再看渲染错误实际是如何构造和被 worker 审计收口的，确认是否满足 AC-E027 的“输入摘要和失败原因”。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'src/file-service/index.ts' | Select-Object -Skip 300 -First 150" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'src/file-service/index.ts' | Select-Object -Skip 110 -First 140" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'tests/file/export-file-service.test.mjs' | Select-Object -Skip 560 -First 220" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'task.json' | Select-Object -Skip 1738 -First 90" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 381ms:
+                                     ]
+                  },
+                  {
+                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+                      "description":  "修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.84,
+                      "dependencies":  [
+                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：真实 XLSX/ZIP renderer 抛错必须收口为 EXPORT_RENDER_ERROR",
+                                                       "必须以 docs/product/acceptance-criteria.md AC-E027、contracts/openapi.yaml、src/file-service/index.ts、tests/file/export-file-service.test.mjs、tests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth source",
+                                                       "不得破坏 object storage put/read/publish 失败映射为 FILE_VERIFY_ERROR 的既有行为",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只在 OpenAPI 中声明 EXPORT_RENDER_ERROR 而不提供生产实现路径",
+                                                        "禁止把 renderer 抛错继续按 QUERY_EXECUTION_ERROR、FILE_VERIFY_ERROR 或 INTERNAL_ERROR 收口",
+                                                        "禁止用 mock renderer 绕过生产 renderExportPackage / renderFileBody 路径",
+                                                        "禁止把本地 object storage mock 证据写成 live OSS/S3 证据"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "src/file-service/index.ts",
+                                            "tests/file/export-file-service.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/file-service/",
+                                          "tests/file/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-006",
+                                              "AC-E027"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/file-service/",
+                                                 "tests/file/",
+                                                 "tests/worker/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "识别 renderFileBody / renderExportPackage 真实渲染异常边界",
+                                    "将 renderer 抛错映射为 EXPORT_RENDER_ERROR，同时保留 object storage put/read/publish 的 FILE_VERIFY_ERROR 映射",
+                                    "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
+                                    "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+                      "acceptance":  [
+                                         "真实 renderer 抛错时生产 file-service/worker 路径按 EXPORT_RENDER_ERROR 收口",
+                                         "object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口，既有测试不回退",
+                                         "file 或 worker 测试覆盖渲染失败的 errorCode / audit / 失败状态证据",
+                                         "证据边界只声明 local/Docker MySQL 与本地 object storage mock，不声明 live OSS/S3"
+                                     ]
+                  },
+                  {
+                      "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
+                      "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
+                      "task_kind":  "feature_plan",
+                      "phase":  "requirements-review",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  92,
+
+ succeeded in 398ms:
+      headers,
+      rows: rows.slice(index, index + singleFileMaxRows)
+    });
+  }
+  return parts;
+}
+
+function buildFileName(input: PublishRowsInput): string {
+  const extension = input.rows.length > positiveInteger(input.registry.singleFileMaxRows, 20000)
+    ? "zip"
+    : input.task.fileFormat.toLowerCase();
+  return `${input.task.taskCode}-${input.task.taskId}-attempt-${input.attemptNo}.${extension}`;
+}
+
+function buildStoragePrefix(task: ExportTaskRecord, attemptNo: number, now: Date): string {
+  const datePart = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}`;
+  return `exports/${task.subsystemCode}/${task.taskCode}/${datePart}/${task.taskId}/${attemptNo}`;
+}
+
+async function renderFileBody(
+  parts: FilePart[],
+  packageFileName: string,
+  summary: {
+    totalRowCount: number;
+    singleFileMaxRows: number;
+  }
+): Promise<Buffer> {
+  void summary;
+  try {
+    return await renderExportPackage({
+      packageFileName,
+      parts
+    });
+  } catch (error) {
+    throw toExportRenderError(error, "export package render failed");
+  }
+}
+
+function createChecksum(body: Buffer): string {
+  return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+}
+
+function resolveHeaders(
+  registry: ExportRegistryRecord,
+  rows: Record<string, unknown>[]
+): string[] {
+  const headers = parseFieldHeaders(registry);
+  if (headers.length === 0 && rows.length > 0) {
+    return Object.keys(rows[0]);
+  }
+  for (const row of rows) {
+    const rowHeaders = Object.keys(row);
+    if (
+      rowHeaders.length !== headers.length ||
+      rowHeaders.some((header, index) => header !== headers[index])
+    ) {
+      throw fileError("FIELD_MAPPING_INVALID", "row headers do not match registry field order");
+    }
+  }
+  return headers;
+}
+
+function parseFieldHeaders(registry: ExportRegistryRecord): string[] {
+  if (!registry.fieldMappings) {
+    return [];
+  }
+  let fieldMappings: Array<{
+    headerName?: unknown;
+    orderNo?: unknown;
+    exportable?: boolean;
+  }>;
+  try {
+    fieldMappings = JSON.parse(registry.fieldMappings) as Array<{
+      headerName?: unknown;
+      orderNo?: unknown;
+      exportable?: boolean;
+    }>;
+  } catch {
+    throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings must be valid JSON");
+  }
+  if (!Array.isArray(fieldMappings)) {
+    throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings must be an array");
+  }
+  return fieldMappings
+    .filter((mapping) => mapping.exportable !== false)
+    .sort((left, right) => Number(left.orderNo ?? 0) - Number(right.orderNo ?? 0))
+    .map((mapping) => {
+      if (typeof mapping.headerName !== "string" || mapping.headerName.length === 0) {
+        throw fileError("FIELD_MAPPING_INVALID", "registry fieldMappings contain empty headers");
+      }
+      return mapping.headerName;
+    });
+}
+
+function positiveInteger(value: number | null | undefined, fallback: number): number {
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : fallback;
+}
+
+function encodeStorageKey(storageKey: string): string {
+  return storageKey.split("/").map(encodeURIComponent).join("/");
+}
+
+function toArrayBuffer(body: Buffer): ArrayBuffer {
+  return body.buffer.slice(
+    body.byteOffset,
+    body.byteOffset + body.byteLength
+  ) as ArrayBuffer;
+}
+
+function fileError(code: string, message: string): Error {
+  const error = new Error(`${code}: ${message}`);
+  error.name = code;
+  return error;
+}
+
+function toFileVerifyError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+    return error;
+  }
+  return fileError(
+    "FILE_VERIFY_ERROR",
+    error instanceof Error ? error.message : fallbackMessage
+  );
+}
+
+function toExportRenderError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+    return error;
+  }
+  return fileError(
+    "EXPORT_RENDER_ERROR",
+    error instanceof Error ? error.message : fallbackMessage
+  );
+}
+
+ succeeded in 402ms:
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.publishes.length, 1);
+  assert.match(storage.writes[0].storageKey, /\/tmp\//);
+});
+
+test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const service = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-render-failed-xlsx",
+        rows: [{ "Order No": circularValue }]
+      }),
+    (error) => error.name === "EXPORT_RENDER_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 0);
+  assert.equal(storage.publishes.length, 0);
+});
+
+test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 2,
+    fileFormat: "XLSX"
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const service = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+
+  await assert.rejects(
+    () =>
+      service.publishRows({
+        task,
+        registry,
+        attemptNo: 0,
+        requestId: "req-file-render-failed-zip",
+        rows: [
+          { "Order No": "PO-001" },
+          { "Order No": circularValue },
+          { "Order No": "PO-003" }
+        ]
+      }),
+    (error) => error.name === "EXPORT_RENDER_ERROR"
+  );
+
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+  assert.equal(metadata, undefined);
+  assert.equal(storage.writes.length, 0);
+  assert.equal(storage.publishes.length, 0);
+});
+
+test("scheduler publishes file metadata before marking a completed batch as COMPLETED", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const fileService = createExportFileService({ db, storage });
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": "PO-001" }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const completed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
+
+  assert.equal(result.completed, 1);
+  assert.equal(completed.status, "COMPLETED");
+  assert.equal(metadata.publishedStorageKey.includes(task.taskId), true);
+  assert.equal(storage.publishes.length, 1);
+  assert.equal(registry.taskCode, task.taskCode);
+  const workbook = await inspectXlsxBuffer(storage.objects.get(metadata.publishedStorageKey), {
+    mode: "all"
+  });
+  assert.deepEqual(workbook.header, ["Order No"]);
+  assert.deepEqual(workbook.rows, [["PO-001"]]);
+});
+
+test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+  const db = await createTestDatabase(t);
+  const { task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter({
+    putError: new Error("object storage write unavailable")
+  });
+  const fileService = createExportFileService({ db, storage });
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file-put-failure",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": "PO-001" }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const audits = await db
+    .selectFrom("export_audit_logs")
+    .selectAll()
+    .where("task_id", "=", task.taskId)
+    .execute();
+
+  assert.equal(result.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+    )
+  );
+});
+
+test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+  const db = await createTestDatabase(t);
+  const { task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const fileService = createExportFileService({ db, storage });
+  const circularValue = {};
+  circularValue.self = circularValue;
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-file-render-failure",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    fileService,
+    batchProcessor: async () => ({
+      rows: [{ "Order No": circularValue }],
+      checkpoint: {
+        lastCursor: "PO-001",
+        processedCount: 1,
+        filePartNo: 1,
+        retryCount: 0,
+        batchSize: 500,
+        batchRowCount: 1,
+        backoffMs: 0
+      },
+      outcome: "completed"
+    })
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const failed = await createExportTaskRepository(db).findTaskById(task.taskId);
+  const audits = await db
+    .selectFrom("export_audit_logs")
+    .selectAll()
+    .where("task_id", "=", task.taskId)
+    .execute();
+
+  assert.equal(result.failed, 1);
+  assert.equal(failed.status, "FAILED");
+  assert.equal(storage.writes.length, 0);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
+    )
+  );
+});
+
+test("cleanup job invalidates expired metadata before deleting object and download is guarded", async (t) => {
+  const db = await createTestDatabase(t);
+  const { registry, task } = await seedRegistryAndTask(db, {
+    singleFileMaxRows: 20000
+  });
+  const storage = createProductionEquivalentObjectStorageAdapter();
+  const fileService = createExportFileService({ db, storage });
+  const published = await fileService.publishRows({
+    task,
+    registry,
+    attemptNo: 0,
+    requestId: "req-cleanup-publish",
+    rows: [{ "Order No": "PO-001" }]
+  });
+
+ succeeded in 431ms:
+  };
+}
+
+export function createExportFileService(options: ExportFileServiceOptions) {
+  const storage = options.storage ?? createObjectStorageFromEnv();
+  const files = createExportFileRepository(options.db);
+  const events = createExportTaskEventRepository(options.db);
+
+  async function publishRows(input: PublishRowsInput): Promise<PublishedFile> {
+    const now = await getDatabaseTime(options.db);
+    const singleFileMaxRows = positiveInteger(input.registry.singleFileMaxRows, 20000);
+    const exportMaxRows = positiveInteger(input.registry.exportMaxRows, 100000);
+    if (input.rows.length > exportMaxRows) {
+      throw fileError("EXPORT_RENDER_ERROR", "row count exceeds registry exportMaxRows");
+    }
+
+    const headers = resolveHeaders(input.registry, input.rows);
+    const parts = splitRows(input.rows, headers, singleFileMaxRows);
+    const packageFileName = buildFileName(input);
+    const contentType = packageFileName.endsWith(".zip")
+      ? "application/zip"
+      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const body = await renderFileBody(parts, packageFileName, {
+      totalRowCount: input.rows.length,
+      singleFileMaxRows
+    });
+    const checksum = createChecksum(body);
+    const storagePrefix = buildStoragePrefix(input.task, input.attemptNo, now);
+    const tempStorageKey = `${storagePrefix}/tmp/${packageFileName}`;
+    const publishedStorageKey = `${storagePrefix}/${packageFileName}`;
+    const expiresAt = new Date(
+      now.getTime() + positiveInteger(input.registry.fileRetentionDays, 15) * 24 * 60 * 60 * 1000
+    );
+
+    for (const part of parts) {
+      await appendFileEvent({
+        events,
+        input,
+        eventType: "FILE_PART_WRITTEN",
+        now: new Date(now.getTime() + part.partNo),
+        checkpoint: {
+          partNo: part.partNo,
+          fileName: part.fileName,
+          rowCount: part.rows.length,
+          tempStorageKey
+        }
+      });
+    }
+
+    try {
+      await storage.putObject({
+        storageKey: tempStorageKey,
+        body,
+        contentType
+      });
+    } catch (error) {
+      throw toFileVerifyError(error, "object storage put failed");
+    }
+    await appendFileEvent({
+      events,
+      input,
+      eventType: "PACKAGE_DONE",
+      now: new Date(now.getTime() + parts.length + 1),
+      checkpoint: {
+        fileName: packageFileName,
+        fileSize: body.byteLength,
+        partCount: parts.length,
+        tempStorageKey
+      }
+    });
+
+    const persistedBody = await storage.readObject(tempStorageKey);
+    if (createChecksum(persistedBody) !== checksum) {
+      throw fileError("FILE_VERIFY_ERROR", "file checksum verification failed");
+    }
+
+    const verifiedAt = await getDatabaseTime(options.db);
+    const verifiedEventAt = new Date(
+      Math.max(verifiedAt.getTime(), now.getTime() + parts.length + 2)
+    );
+    await appendFileEvent({
+      events,
+      input,
+      eventType: "FILE_VERIFIED",
+      now: verifiedEventAt,
+      checkpoint: {
+        checksum,
+        checksumAlgorithm,
+        tempStorageKey
+      }
+    });
+
+    try {
+      await storage.publishObject({
+        tempStorageKey,
+        publishedStorageKey
+      });
+    } catch (error) {
+      throw toFileVerifyError(error, "object storage publish failed");
+    }
+    const publishedAt = await getDatabaseTime(options.db);
+    const deliveryEventAt = new Date(
+      Math.max(publishedAt.getTime(), now.getTime() + parts.length + 3)
+    );
+    await files.saveFileMetadata({
+      taskId: input.task.taskId,
+      attemptNo: input.attemptNo,
+      fileName: packageFileName,
+      contentType,
+      fileSize: body.byteLength,
+      checksum,
+      checksumAlgorithm,
+      tempStorageKey,
+      publishedStorageKey,
+      expiresAt,
+      publishedAt,
+      deliveryReadyAt: publishedAt,
+      checksumVerifiedAt: verifiedAt,
+      now: publishedAt
+    });
+    await appendFileEvent({
+      events,
+      input,
+      eventType: "DELIVERY_READY",
+      now: deliveryEventAt,
+      checkpoint: {
+        publishedStorageKey,
+        expiresAt: expiresAt.toISOString()
+      }
+    });
+
+    return {
+      fileName: packageFileName,
+      contentType,
+      fileSize: body.byteLength,
+      checksum,
+      checksumAlgorithm,
+      storageKey: publishedStorageKey,
+      expiresAt,
+      attemptNo: input.attemptNo
+
+codex
+这里有一个可能的规格风险：实现把 `summary` 参数丢弃了，而 AC-E027 要求记录“渲染输入摘要和失败原因”。我会再确认 worker 的失败审计是否把 error message 或 checkpoint 写入了足够的输入摘要；如果没有，这就是 Stage 1 功能缺口。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "EXECUTE_FAILED|errorCode|error_code|errorMessage|error_message|checkpoint|batchCheckpoint|mark.*FAILED|FAILED" src/scheduler src/workers src/repositories tests/file/export-file-service.test.mjs tests/worker/scheduler-worker.test.mjs' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'docs/reviews/requirements-complete-review.md' -ErrorAction SilentlyContinue | Select-Object -First 220" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'docs/reviews/requirements-complete-review.findings.json' -ErrorAction SilentlyContinue | Select-Object -First 220" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'docs/architecture/constraints.md' | Select-Object -First 120" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 378ms:
+{
+  "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+  "verdict": "FAIL",
+  "reviewedAt": "2026-05-16",
+  "truthSources": [
+    "docs/product/prd-lite.md",
+    "docs/product/acceptance-criteria.md",
+    "docs/product/requirement-interface-matrix.md",
+    "docs/product/state-matrix.yaml",
+    "docs/architecture/constraints.md"
+  ],
+  "findings": [
+    {
+      "id": "RCR-001",
+      "severity": "P0",
+      "title": "task detail progress/error contract is not implemented to AC-002",
+      "requirementIds": ["FR-002", "AC-002"],
+      "evidence": [
+        "docs/product/acceptance-criteria.md:AC-002",
+        "contracts/openapi.yaml:1364-1428",
+        "src/task-api/service.ts:479-485",
+        "tests/api/export-http-api.test.mjs:369-375"
+      ],
+      "risk": "P0 的任务进度查询只能证明接口存在，不能证明调用方可获得真实总数、进度百分比和失败原因；FR-002 / AC-002 不能声明完全覆盖。",
+      "suggestedNextTaskId": "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+    },
+    {
+      "id": "RCR-002",
+      "severity": "P1",
+      "title": "XLSX/ZIP render failure is only contracted, not verified by production error mapping",
+      "requirementIds": ["FR-006", "AC-E027"],
+      "evidence": [
+        "docs/product/acceptance-criteria.md:AC-E027",
+        "contracts/openapi.yaml:1178-1187",
+        "src/file-service/index.ts:133",
+        "src/file-service/index.ts:320-329",
+        "tests/: no EXPORT_RENDER_ERROR implementation-path assertion found"
+      ],
+      "risk": "文件渲染层异常可能被 worker 按默认错误路径收口，而不是产品定义的 EXPORT_RENDER_ERROR；AC-E027 目前只有契约文字，没有 fresh implementation/test evidence。",
+      "suggestedNextTaskId": "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+    }
+  ],
+  "coverage": {
+    "requirements": [
+      { "id": "FR-001", "status": "covered" },
+      { "id": "FR-002", "status": "partially_covered" },
+      { "id": "FR-003", "status": "covered" },
+      { "id": "FR-004", "status": "covered" },
+      { "id": "FR-005", "status": "covered" },
+      { "id": "FR-006", "status": "partially_covered" },
+      { "id": "FR-007", "status": "covered" },
+      { "id": "FR-008", "status": "covered" },
+      { "id": "FR-009", "status": "covered" },
+      { "id": "FR-010", "status": "covered" },
+      { "id": "FR-011", "status": "covered" },
+      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-013", "status": "covered" },
+      { "id": "FR-014", "status": "covered" }
+    ],
+    "acceptance": [
+      { "id": "AC-001", "status": "covered" },
+      { "id": "AC-002", "status": "partially_covered" },
+      { "id": "AC-003", "status": "covered" },
+      { "id": "AC-004", "status": "covered" },
+      { "id": "AC-005", "status": "covered" },
+      { "id": "AC-006", "status": "covered" },
+      { "id": "AC-007", "status": "covered" },
+      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-009", "status": "covered" },
+      { "id": "AC-010", "status": "covered" },
+      { "id": "AC-011", "status": "covered" },
+      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-013", "status": "covered" },
+      { "id": "AC-014", "status": "covered" },
+      { "id": "AC-015", "status": "covered" },
+      { "id": "AC-016", "status": "covered" },
+      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-018", "status": "covered" },
+      { "id": "AC-019", "status": "covered" },
+      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-021", "status": "covered" }
+    ],
+    "exceptions": [
+      { "id": "AC-E001", "status": "covered" },
+      { "id": "AC-E002", "status": "covered" },
+      { "id": "AC-E003", "status": "covered" },
+      { "id": "AC-E004", "status": "covered" },
+      { "id": "AC-E005", "status": "covered" },
+      { "id": "AC-E006", "status": "covered" },
+      { "id": "AC-E007", "status": "covered" },
+      { "id": "AC-E008", "status": "covered" },
+      { "id": "AC-E009", "status": "covered" },
+      { "id": "AC-E010", "status": "covered" },
+      { "id": "AC-E011", "status": "covered" },
+      { "id": "AC-E012", "status": "covered" },
+      { "id": "AC-E013", "status": "covered" },
+      { "id": "AC-E014", "status": "covered" },
+      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E016", "status": "covered" },
+      { "id": "AC-E017", "status": "covered" },
+      { "id": "AC-E018", "status": "covered" },
+      { "id": "AC-E019", "status": "covered" },
+      { "id": "AC-E020", "status": "covered" },
+      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E022", "status": "covered" },
+      { "id": "AC-E023", "status": "covered" },
+      { "id": "AC-E024", "status": "covered" },
+      { "id": "AC-E025", "status": "covered" },
+      { "id": "AC-E026", "status": "covered" },
+      { "id": "AC-E027", "status": "gap" }
+    ]
+  },
+  "closedPreviousFindings": [
+    "AUDIT-CONTRACT-ALIGN-001",
+    "TASK-HISTORY-ADMIN-SCOPE-001",
+    "CONFIG-SNAPSHOT-REPLAY-001",
+    "QUERY-BATCH-RETRY-001",
+    "DATASOURCE-ADAPTER-ERROR-001",
+    "FILE-STORAGE-ERROR-MAPPING-001",
+    "CLEANUP-AUDIT-ERROR-CODE-001"
+  ],
+  "evidenceBoundary": {
+    "releaseId": "RELEASE-001",
+    "type": "docker/mock release gate",
+    "notes": [
+      "RELEASE-001 已通过本机 Docker MySQL + 本地 object storage mock 的受控 release gate",
+      "npm run test:mock-local 仅作为本任务本地/开发守护，不替代 docker/mock release gate",
+      "外部生产 MySQL 不属于当前完成条件",
+      "live OSS/S3 不属于当前完成条件"
+    ]
+  },
+  "architectureConstraints": [
+    {
+      "constraint": "truth_source=docs/product/* + docs/architecture/constraints.md",
+      "status": "PASS",
+      "evidence": "review truthSources"
+    },
+    {
+      "constraint": "review_only_no_business_fix",
+      "status": "PASS",
+      "evidence": "only docs/reviews artifacts updated"
+    },
+    {
+      "constraint": "mock/local/docker/live evidence separated",
+      "status": "PASS",
+      "evidence": "evidenceBoundary"
+    },
+    {
+      "constraint": "forbidden_implementations",
+      "status": "PASS",
+      "evidence": "review did not promote InMemory/mock/fixture as production evidence"
+    }
+  ],
+  "knowledgeReferences": [
+    {
+      "id": "DECISION-HARNESS-001",
+      "title": "Harness 从执行闭环扩展为知识闭环",
+      "usedIn": "review 输出 knowledge references/outputs",
+      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md"
+    },
+    {
+      "id": "GUIDELINE-RULES-001",
+      "title": "规则必须短入口、深文档、可验证",
+      "usedIn": "review 以 truth source 和验证边界给出 findings",
+      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md"
+    }
+  ],
+  "knowledgeOutputs": [
+    {
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常验收 review",
+      "action": "suggested",
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+    },
+    {
+      "id": "GUIDELINE-EVIDENCE-001",
+      "type": "guideline",
+      "title": "mock/local/docker/live evidence 分层命名",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
+    },
+    {
+      "id": "GUIDELINE-CONTRACT-RESPONSE-001",
+      "type": "guideline",
+      "title": "API 测试必须断言 OpenAPI 中的关键响应字段而非只断言状态码/taskId",
+      "action": "suggested",
+      "target": "docs/knowledge/guidelines/GUIDELINE-CONTRACT-RESPONSE-001.md"
+    }
+  ]
+}
+
+ succeeded in 384ms:
+tests/file/export-file-service.test.mjs:105:  await db.deleteFrom("export_task_checkpoints").execute();
+tests/file/export-file-service.test.mjs:643:      checkpoint: {
+tests/file/export-file-service.test.mjs:672:test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+tests/file/export-file-service.test.mjs:689:      checkpoint: {
+tests/file/export-file-service.test.mjs:711:  assert.equal(failed.status, "FAILED");
+tests/file/export-file-service.test.mjs:714:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+tests/file/export-file-service.test.mjs:719:test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+tests/file/export-file-service.test.mjs:736:      checkpoint: {
+tests/file/export-file-service.test.mjs:758:  assert.equal(failed.status, "FAILED");
+tests/file/export-file-service.test.mjs:762:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
+tests/worker/scheduler-worker.test.mjs:75:  await db.deleteFrom("export_task_checkpoints").execute();
+tests/worker/scheduler-worker.test.mjs:161:    checkpoint: {
+tests/worker/scheduler-worker.test.mjs:174:serialTest("multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence", async (t) => {
+tests/worker/scheduler-worker.test.mjs:214:  const checkpoint = await db
+tests/worker/scheduler-worker.test.mjs:215:    .selectFrom("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:226:  assert.ok([100, 200].includes(Number(checkpoint.processed_count)));
+tests/worker/scheduler-worker.test.mjs:235:  const checkpoints = [];
+tests/worker/scheduler-worker.test.mjs:243:    batchProcessor: async ({ checkpoint }) => {
+tests/worker/scheduler-worker.test.mjs:244:      checkpoints.push(checkpoint ?? null);
+tests/worker/scheduler-worker.test.mjs:250:        checkpoint: {
+tests/worker/scheduler-worker.test.mjs:299:  assert.equal(checkpoints[0], null);
+tests/worker/scheduler-worker.test.mjs:300:  assert.equal(checkpoints[1].lastCursor, "order-100");
+tests/worker/scheduler-worker.test.mjs:322:      checkpoint: {
+tests/worker/scheduler-worker.test.mjs:349:      checkpoint: {
+tests/worker/scheduler-worker.test.mjs:399:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:464:serialTest("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
+tests/worker/scheduler-worker.test.mjs:493:    batchProcessor: async ({ checkpoint }) => {
+tests/worker/scheduler-worker.test.mjs:494:      resumedCheckpoint = checkpoint;
+tests/worker/scheduler-worker.test.mjs:571:      checkpoint: {
+tests/worker/scheduler-worker.test.mjs:603:serialTest("expired worker does not mark FAILED or overwrite the new owner after takeover", async (t) => {
+tests/worker/scheduler-worker.test.mjs:648:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:676:        errorCode: "SUCCESS",
+tests/worker/scheduler-worker.test.mjs:698:serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+tests/worker/scheduler-worker.test.mjs:720:  assert.equal(failed.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:748:serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+tests/worker/scheduler-worker.test.mjs:770:        checkpoint: {
+tests/worker/scheduler-worker.test.mjs:791:  const checkpointAfterFailure = await db
+tests/worker/scheduler-worker.test.mjs:792:    .selectFrom("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:798:    .updateTable("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:810:  assert.equal(checkpointAfterFailure.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:811:  assert.equal(checkpointAfterFailure.backoff_ms, 25);
+tests/worker/scheduler-worker.test.mjs:816:serialTest("query batch transient failure does not retry again before checkpoint backoff elapses", async (t) => {
+tests/worker/scheduler-worker.test.mjs:838:        checkpoint: {
+tests/worker/scheduler-worker.test.mjs:861:  const checkpoint = await db
+tests/worker/scheduler-worker.test.mjs:862:    .selectFrom("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:875:  assert.equal(checkpoint.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:876:  assert.equal(checkpoint.backoff_ms, 60000);
+tests/worker/scheduler-worker.test.mjs:879:serialTest("query batch retry resumes only after checkpoint backoff elapses", async (t) => {
+tests/worker/scheduler-worker.test.mjs:901:        checkpoint: {
+tests/worker/scheduler-worker.test.mjs:923:    .updateTable("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:962:    .updateTable("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:971:  const checkpoint = await db
+tests/worker/scheduler-worker.test.mjs:972:    .selectFrom("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:982:  assert.equal(task.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:983:  assert.equal(checkpoint.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:984:  assert.equal(checkpoint.backoff_ms, 1000);
+tests/worker/scheduler-worker.test.mjs:987:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1018:    .updateTable("export_task_checkpoints")
+tests/worker/scheduler-worker.test.mjs:1036:  assert.equal(task.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:1039:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1068:  assert.equal(task.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:1072:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1101:  assert.equal(task.status, "FAILED");
+tests/worker/scheduler-worker.test.mjs:1105:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1108:  assert.ok(!audits.some((audit) => audit.errorCode === "UnexpectedQueryVendorError"));
+tests/worker/scheduler-worker.test.mjs:1217:        audit.action === "CLEANUP_FAILED" &&
+tests/worker/scheduler-worker.test.mjs:1218:        audit.result === "FAILED" &&
+tests/worker/scheduler-worker.test.mjs:1219:        audit.errorCode === "FILE_CLEANUP_DELETE_ERROR"
+src/scheduler\worker.ts:30:  checkpoint?: SchedulerBatchCheckpoint;
+src/scheduler\worker.ts:40:  checkpoint: CheckpointRecord | undefined;
+src/scheduler\worker.ts:75:type TerminalTaskStatus = "COMPLETED" | "FAILED" | "CANCELED";
+src/scheduler\worker.ts:228:      .leftJoin("export_task_checkpoints as cp", (join) =>
+src/scheduler\worker.ts:415:    const checkpoints = createCheckpointRepository(input.db);
+src/scheduler\worker.ts:416:    const checkpoint = await checkpoints.findLatestCheckpoint(
+src/scheduler\worker.ts:426:        checkpoint,
+src/scheduler\worker.ts:432:        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+src/scheduler\worker.ts:434:        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+src/scheduler\worker.ts:437:        await checkpoints.saveCheckpoint({
+src/scheduler\worker.ts:440:          lastCursor: checkpoint?.lastCursor ?? null,
+src/scheduler\worker.ts:441:          processedCount: checkpoint?.processedCount ?? 0,
+src/scheduler\worker.ts:442:          filePartNo: checkpoint?.filePartNo ?? 1,
+src/scheduler\worker.ts:444:          batchSize: checkpoint?.batchSize ?? null,
+src/scheduler\worker.ts:445:          batchRowCount: checkpoint?.batchRowCount ?? 0,
+src/scheduler\worker.ts:463:    if (batch.checkpoint) {
+src/scheduler\worker.ts:464:      await checkpoints.saveCheckpoint({
+src/scheduler\worker.ts:467:        ...batch.checkpoint,
+src/scheduler\worker.ts:560:        status: "FAILED"
+src/scheduler\worker.ts:573:      action: "EXECUTE_FAILED",
+src/scheduler\worker.ts:574:      result: "FAILED",
+src/scheduler\worker.ts:575:      errorCode: normalizePublicResponseCode(
+src/scheduler\worker.ts:749:  errorCode?: string;
+src/scheduler\worker.ts:760:    errorCode: input.errorCode ?? "SUCCESS",
+src/repositories\export-audit.repository.ts:13:  errorCode: string;
+src/repositories\export-audit.repository.ts:30:  error_code: string;
+src/repositories\export-audit.repository.ts:43:    errorCode: row.error_code,
+src/repositories\export-audit.repository.ts:63:          error_code: input.errorCode,
+src/repositories\export-checkpoint.repository.ts:54:        .insertInto("export_task_checkpoints")
+src/repositories\export-checkpoint.repository.ts:86:        .selectFrom("export_task_checkpoints")
+src/repositories\export-task-event.repository.ts:12:  batchCheckpoint?: string;
+src/repositories\export-task-event.repository.ts:25:  batchCheckpoint: string | null;
+src/repositories\export-task-event.repository.ts:37:  batch_checkpoint: string | null;
+src/repositories\export-task-event.repository.ts:48:    batchCheckpoint: row.batch_checkpoint,
+src/repositories\export-task-event.repository.ts:66:          batch_checkpoint: input.batchCheckpoint ?? null,
+src/repositories\export-task.repository.ts:228:        if (!task || task.status !== "FAILED") {
+src/repositories\index.ts:3:export { createCheckpointRepository } from "./export-checkpoint.repository.ts";
+src/repositories\index.ts:14:} from "./export-checkpoint.repository.ts";
+
+ succeeded in 398ms:
+# Architecture Constraints Packet：统一导出平台
+
+本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+
+## 1. System Shape
+
+- 交付形态：`independent_microservice`。
+- 运行方式：`http_service` + `worker` + `scheduled_job`。
+- 部署单位：独立服务进程；后续实现必须提供生产启动入口和部署入口。
+- 生产入口最低要求：HTTP server entry、scheduler worker entry、cleanup job entry、配置加载入口。
+- 当前状态：仓库保留产品、契约、架构和测试文档；不保留任何已完成的业务实现、测试证据或旧运行 trace。
+
+## 2. API Boundary
+
+- 外部入口：HTTP，契约来源为 `contracts/openapi.yaml`。
+- 子系统接入：仅通过 HTTP/Feign 调用统一导出平台，不加载业务 JAR，不直接写平台表。
+- Public operation 完成条件：每个公开 operation 必须能追踪到 route/handler、service、repository 或外部 adapter、测试和证据路径。
+- 禁止状态：只有 service class、领域函数或单元测试时，不得声明 API 需求完成。
+
+## 3. Data Boundary
+
+- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+- 数据访问：平台只允许访问注册配置声明的只读数据源或数据中台，禁止执行调用方传入的原始 SQL。
+- 数据一致性：幂等键、配置快照、任务状态机、DB 锁租约和审计写入必须有可验证约束。
+
+## 4. Async And Worker Boundary
+
+- 调度方式：MySQL 轮询 + DB 抢锁。
+- 锁模型：`lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。
+- 默认租约：5 分钟，worker 只能在批次边界续租。
+- 接管规则：租约过期后的实例接管延续当前 `attemptNo`，从最近持久化批次检查点继续。
+- 重试规则：只有 FAILED 重试递增 `attemptNo`；PENDING/EXECUTING 重试必须拒绝。
+
+## 5. Test Double Policy
+
+- `InMemory*` 允许范围：unit tests only。
+- Mock 允许范围：外部生产依赖不可用时可作为临时单测替身；当前验收允许本机/Docker MySQL 与本地 object storage mock，但不能使用内存 repository 冒充生产路径。
+- 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
+- 若本机/Docker MySQL、本地 object storage mock 或任务声明的第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。外部生产 MySQL / live OSS 不属于当前 release gate 的完成条件。
+
+## 6. Forbidden Implementations
+
+- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+- 禁止只有 `src/*/service.ts` 而没有 HTTP route/handler、server entry 和 API 集成测试。
+- 禁止只有调度 class 而没有 worker entry、DB 锁 schema、repository 原子抢锁和租约测试。
+- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+- 禁止把采购订单样板写成平台特例接口；样板必须复用标准 registry、query、file、audit 链路。
+
+## 7. Architecture Fitness Checks
+
+后续脚手架任务必须创建 `arch:check` 或等价命令。最低检查项：
+
+- 生产 HTTP server entry 存在。
+- scheduler worker entry 和 cleanup job entry 存在。
+- `contracts/openapi.yaml` 的公开 operation 有 route/handler 和测试映射。
+- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+
+## 8. Definition Of Done
+
+- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+- Stage 1 Review 先审查架构形态，再审查业务规格。
+- 完成声明能说明 production path、test double 和 BLOCKED 依赖边界。
+
+ succeeded in 447ms:
+# Requirements Complete Review: REQUIREMENTS-COMPLETE-REVIEW-001
+
+Verdict: FAIL
+
+## Truth Source
+
+- `docs/product/prd-lite.md`
+- `docs/product/acceptance-criteria.md`
+- `docs/product/requirement-interface-matrix.md`
+- `docs/product/state-matrix.yaml`
+- `docs/architecture/constraints.md`
+
+## Evidence Source
+
+- `contracts/openapi.yaml`
+- `src/`
+- `tests/`
+- `docs/testing/verify-matrix.md`
+- `task.json`
+
+## Summary
+
+本轮复审结论为 `FAIL`。`CLEANUP-AUDIT-ERROR-CODE-ALIGN-001` 已关闭上一轮 cleanup 失败审计 `errorCode` 契约缺口：`contracts/openapi.yaml` 已公开 `FILE_CLEANUP_DELETE_ERROR`，`tests/contract/openapi-route-mapping.contract.test.mjs` 已守护生产审计 `action/result/errorCode` 均落在公开枚举内，`tests/worker/scheduler-worker.test.mjs` 已断言 cleanup 删除失败写入 `CLEANUP_FAILED / FAILED / FILE_CLEANUP_DELETE_ERROR`。
+
+仍存在 1 个 P0 gap 和 1 个 P1 gap：
+
+- P0: `FR-002 / AC-002` 的任务详情进度契约未由当前 API 实现和测试完整证明。实现固定返回 `totalCount=null`、`progressPercent=0`、`errorCode=null`、`errorMessage=null`，并返回 `events` 字段而不是 OpenAPI 中的 `recentEvents`。
+- P1: `AC-E027` 的 XLSX/ZIP 渲染失败异常路径没有实现级错误映射和测试证据。契约声明 `EXPORT_RENDER_ERROR`，但当前 file service 对真实 renderer 抛错没有显式映射，现有测试也未断言该异常验收。
+
+证据边界保持不变：当前 `RELEASE-001` 是本机 Docker MySQL + 本地 object storage mock 的 docker/mock release gate；本 review 不声明外部生产 MySQL 或 live OSS/S3 已验证。
+
+## FR Coverage Matrix
+
+| FR ID | Status | Notes |
+| --- | --- | --- |
+| FR-001 | covered | 创建任务接口、PENDING 返回、幂等和注册校验已有契约、服务和测试证据。 |
+| FR-002 | partially_covered | API 存在，但任务详情未按 AC-002 返回可用 totalCount、progressPercent、失败 errorCode/errorMessage；测试仅断言 taskId。 |
+| FR-003 | covered | 下载链路、签名 URL/stream 元信息、文件元数据和过期/权限保护有证据。 |
+| FR-004 | covered | 历史查询筛选维度、普通用户可见性和管理员全局查询有证据。 |
+| FR-005 | covered | 调度、并发、DB 锁租约、续租和接管有 worker / repository / test 证据。 |
+| FR-006 | partially_covered | 分片、ZIP、空数据和阶段事件已覆盖；渲染失败 `EXPORT_RENDER_ERROR` 异常路径缺少实现级映射和测试。 |
+| FR-007 | covered | 注册、更新、查询、启停和配置快照链路已有 API / service / repository 证据。 |
+| FR-008 | covered | 集中查询模板、字段映射、脱敏策略、数据源不可用和批次重试证据已补齐。 |
+| FR-009 | covered | 权限、数据范围、脱敏和下载保护有覆盖。 |
+| FR-010 | covered | 审计 action/result/errorCode 公开契约和生产写入已对齐，cleanup 失败路径已补 guard。 |
+| FR-011 | covered | 过期标记、不可下载、对象删除失败重试记录和 cleanup 审计已覆盖。 |
+| FR-012 | covered | 取消与重试边界、非法状态错误和 worker 批次收口已有证据。 |
+| FR-013 | covered | 幂等、执行尝试、配置快照、DB 锁租约和接管有证据。 |
+| FR-014 | covered | 采购订单样板集中查询合同、样板链路和边界压测有证据。 |
+
+## AC Coverage Matrix
+
+| AC ID | Status | Notes |
+| --- | --- | --- |
+| AC-001 | covered | 创建任务返回 taskId 且状态为 PENDING。 |
+| AC-002 | partially_covered | status / processedCount 有部分证据；totalCount、progressPercent、errorCode/errorMessage 未按真实进度和失败态返回。 |
+| AC-003 | covered | 下载响应、文件元信息和校验保护有证据。 |
+| AC-004 | covered | 历史分页筛选和管理员/普通用户可见性已覆盖。 |
+| AC-005 | covered | 同子系统并发控制有 scheduler / lease 证据。 |
+| AC-006 | covered | 超阈值分片打包和空数据表头文件已覆盖。 |
+| AC-007 | covered | 注册创建、更新、查询、启停和配置同步已有证据。 |
+| AC-008 | covered | 集中查询模板、schema、字段映射、脱敏策略和数据源约束有证据。 |
+| AC-009 | covered | 无权限创建或下载返回 403 并记录审计。 |
+| AC-010 | covered | 审计字段、action/result/errorCode 枚举和 cleanup 失败路径已对齐公开契约。 |
+| AC-011 | covered | 过期标记、不可下载、删除失败重试和 cleanup audit 有证据。 |
+| AC-012 | covered | PENDING 可取消、FAILED 可重试、EXECUTING 批次边界收口有证据。 |
+| AC-013 | covered | taskId 串联幂等、执行尝试、锁租约和快照证据可追踪。 |
+| AC-014 | covered | 幂等范围和参数摘要一致/冲突行为有证据。 |
+| AC-015 | covered | attemptNo、lockOwner、lockExpireAt 和租约续租证据存在。 |
+| AC-016 | covered | 已创建任务和失败重试沿用创建时 configSnapshot。 |
+| AC-017 | covered | 采购订单样板注册与查询条件、字段和格式契约已覆盖。 |
+| AC-018 | covered | 0/1/20000/20001/100000/100001 边界证据已覆盖。 |
+| AC-019 | covered | 查询执行上下文、批次检查点和审计串联有证据。 |
+| AC-020 | covered | `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 有持久化事件证据。 |
+| AC-021 | covered | 临时对象到已发布对象的交付模型和校验失败处置有证据。 |
+
+## AC-E Coverage Matrix
+
+| AC-E ID | Status | Notes |
+| --- | --- | --- |
+| AC-E001 | covered | 空数据生成仅表头文件。 |
+| AC-E002 | covered | 未注册任务创建失败，不落无效任务。 |
+| AC-E003 | covered | 任务禁用返回 `TASK_DISABLED`。 |
+| AC-E004 | covered | 短暂失败后重试成功的批次 retry loop 有实现和测试证据。 |
+| AC-E005 | covered | object storage put/publish 错误映射为 `FILE_VERIFY_ERROR`。 |
+| AC-E006 | covered | 权限不足返回 403，不泄露文件和任务详情。 |
+| AC-E007 | covered | 文件过期返回 410 或等价失效结果。 |
+| AC-E008 | covered | 多实例重复抢锁仅一个实例成功执行。 |
+| AC-E009 | covered | 请求参数过长返回 400。 |
+| AC-E010 | covered | 超大导出按配置拒绝或进入更严格控制流。 |
+| AC-E011 | covered | 查询模板不存在或不合法收口为 `QUERY_TEMPLATE_INVALID`。 |
+| AC-E012 | covered | 数据源不可用或凭证不可用收口为 `DATASOURCE_UNAVAILABLE`。 |
+| AC-E013 | covered | 查询执行失败的 retry loop 与最终失败路径有证据。 |
+| AC-E014 | covered | 字段映射不合法收口为 `FIELD_MAPPING_INVALID`。 |
+| AC-E015 | covered | 非法或重复重试请求返回非法状态错误。 |
+| AC-E016 | covered | 认证上下文缺少最小字段可返回权限/参数错误并记录 requestId。 |
+| AC-E017 | covered | 文件校验值不匹配拒绝交付并进入失败处置链路。 |
+| AC-E018 | covered | 幂等键冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+| AC-E019 | covered | 锁租约过期接管、attemptNo 延续和批次检查点有证据。 |
+| AC-E020 | covered | 查询批次重试耗尽已有 retry loop 和耗尽测试路径。 |
+| AC-E021 | covered | 超过默认最大导出量的拒绝/更严格控制流有证据。 |
+| AC-E022 | covered | 采购订单样板敏感字段脱敏有覆盖。 |
+| AC-E023 | covered | 游标不稳定有查询层测试与契约证据。 |
+| AC-E024 | covered | 查询模板或字段映射与任务快照冲突有证据。 |
+| AC-E025 | covered | 批次字段、顺序和脱敏校验有实现与失败收口证据。 |
+| AC-E026 | covered | 文件发布前失败不会生成下载地址，且错误码映射为 `FILE_VERIFY_ERROR`。 |
+| AC-E027 | gap | 契约声明 `EXPORT_RENDER_ERROR`，但当前实现和测试没有证明真实 XLSX/ZIP renderer 失败会收口为该错误码并记录渲染输入摘要。 |
+
+## Findings
+
+### RCR-001
+
+- Severity: P0
+- Title: task detail progress/error contract is not implemented to AC-002
+- Evidence:
+  - `docs/product/acceptance-criteria.md`: `AC-002` 要求可查询任务状态、总数、已处理数、进度和错误信息。
+  - `contracts/openapi.yaml:1364-1428` 将 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage` 和 `recentEvents` 建模在任务详情响应中。
+  - `src/task-api/service.ts:479-485` 固定返回 `totalCount: null`、`progressPercent: 0`、`errorCode: null`、`errorMessage: null`，且字段名为 `events` 而不是契约中的 `recentEvents`。
+  - `tests/api/export-http-api.test.mjs:369-375` 任务详情 API 测试只断言 `taskId`，未断言进度、失败信息或 `recentEvents` 契约。
+- Risk: P0 的任务进度查询只能证明接口存在，不能证明调用方可获得真实总数、进度百分比和失败原因；`FR-002 / AC-002` 不能声明完全覆盖。
+- Suggested next task id: `TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001`
+
+### RCR-002
+
+- Severity: P1
+- Title: XLSX/ZIP render failure is only contracted, not verified by production error mapping
+- Evidence:
+  - `docs/product/acceptance-criteria.md`: `AC-E027` 要求 XLSX/ZIP 渲染失败时任务 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。
+  - `contracts/openapi.yaml:1178-1187` 声明了 `EXPORT_RENDER_ERROR` 响应。
+  - `src/file-service/index.ts:133` 调用 `renderFileBody(...)`，`src/file-service/index.ts:320-329` 直接调用 `renderExportPackage(...)`，没有把 renderer 抛出的真实异常显式映射为 `EXPORT_RENDER_ERROR`。
+  - `rg -n "EXPORT_RENDER_ERROR" tests` 未发现 file/worker/sample 测试断言真实渲染失败收口。
+- Risk: 文件渲染层异常可能被 worker 按默认错误路径收口，而不是产品定义的 `EXPORT_RENDER_ERROR`；`AC-E027` 目前只有契约文字，没有 fresh implementation/test evidence。
+- Suggested next task id: `FILE-RENDER-ERROR-CONTRACT-REPAIR-001`
+
+## Closed Previous Findings
+
+| Previous Finding | Status | Fresh evidence |
+| --- | --- | --- |
+| AUDIT-CONTRACT-ALIGN-001 | closed | `tests/contract/openapi-route-mapping.contract.test.mjs` 守护审计 action/result/errorCode 枚举；API/worker 测试覆盖失败审计。 |
+| TASK-HISTORY-ADMIN-SCOPE-001 | closed | `tests/api/export-http-api.test.mjs` 覆盖普通用户只见本人任务、管理员历史查询可见跨租户全局任务。 |
+| CONFIG-SNAPSHOT-REPLAY-001 | closed | API/query/worker 测试覆盖创建时完整 configSnapshot 和旧任务按快照执行。 |
+| QUERY-BATCH-RETRY-001 | closed | worker 测试覆盖 retryCount/backoffMs、短暂失败后成功和耗尽失败。 |
+| DATASOURCE-ADAPTER-ERROR-001 | closed | query/worker 测试覆盖连接/凭证错误收口为 `DATASOURCE_UNAVAILABLE`。 |
+| FILE-STORAGE-ERROR-MAPPING-001 | closed | file/worker 测试覆盖 put/publish 失败映射为 `FILE_VERIFY_ERROR`。 |
+| CLEANUP-AUDIT-ERROR-CODE-001 | closed | OpenAPI enum、contract guard 和 worker cleanup failure 测试已覆盖 `FILE_CLEANUP_DELETE_ERROR`。 |
+
+## Evidence Boundary
+
+- `RELEASE-001` 是 docker/mock release gate，已通过。
+- `npm run test:mock-local` 是本任务 test_command 的 local/dev 守护，不替代 docker/mock release gate，也不证明 live。
+- 本次 review 不声明外部生产 MySQL 或 live OSS/S3 已验证。
+- `docs/architecture/constraints.md` 已明确当前 Definition of Done 不要求 live evidence，但禁止把 mock/local/docker evidence 写成 live evidence。
+
+## Architecture Constraints
+
+- `truth_source=docs/product/* + docs/architecture/constraints.md`: PASS - 本 review 以上述文件作为判定基线。
+- `review_only_no_business_fix`: PASS - 本任务只更新 review 产物，不修改业务实现。
+- `mock/local/docker/live evidence separated`: PASS - 结论只声明 docker/mock release gate 和 local/dev 守护，不升级为 live evidence。
+- `forbidden_implementations`: PASS - 未以 InMemory/mock/fixture 作为生产实现完成证据。
+
+## Knowledge References
+
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - used_in: review 输出 knowledge references/outputs - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - used_in: review 以 truth source 和验证边界给出 findings - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+
+- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+- `GUIDELINE-CONTRACT-RESPONSE-001`: guideline - API 测试必须断言 OpenAPI 中的关键响应字段而非只断言状态码/taskId - suggested - `docs/knowledge/guidelines/GUIDELINE-CONTRACT-RESPONSE-001.md`
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'src/scheduler/worker.ts' | Select-Object -Skip 390 -First 210" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "EXPORT_RENDER_ERROR|FILE_VERIFY_ERROR|ErrorResponse|errorCode|ExportTaskErrorCode|enum" contracts/openapi.yaml | Select-Object -First 120' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "FILE-RENDER-ERROR-CONTRACT-REPAIR-001|knowledge_references|knowledge_outputs|docs/knowledge|required_truth_sources|archive" task.json docs/knowledge/knowledge-catalog.md docs/knowledge/catalog.md docs/testing/verify-matrix.md -S' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 352ms:
+docs/knowledge/catalog.md:5:| DECISION-HARNESS-001 | decision | draft | Harness 从执行闭环扩展为知识闭环 | harness, knowledge | `docs/knowledge/decisions/DECISION-HARNESS-001.md` |
+docs/knowledge/catalog.md:6:| GUIDELINE-RULES-001 | guideline | draft | 规则必须短入口、深文档、可验证 | rules, governance | `docs/knowledge/guidelines/GUIDELINE-RULES-001.md` |
+docs/knowledge/knowledge-catalog.md:8:2. 需要查找已有经验时，读 `docs/knowledge/catalog.md`。
+docs/knowledge/knowledge-catalog.md:21:| Models | `docs/knowledge/models/` | 实体、结构、关系 |
+docs/knowledge/knowledge-catalog.md:22:| Decisions | `docs/knowledge/decisions/` | 架构决策、取舍和原因 |
+docs/knowledge/knowledge-catalog.md:23:| Guidelines | `docs/knowledge/guidelines/` | 推荐做法、禁止做法和替代方案 |
+docs/knowledge/knowledge-catalog.md:24:| Pitfalls | `docs/knowledge/pitfalls/` | 已知风险、失败模式、排查步骤 |
+docs/knowledge/knowledge-catalog.md:25:| Processes | `docs/knowledge/processes/` | 可重复工作流和操作步骤 |
+docs/knowledge/knowledge-catalog.md:26:| Archive | `docs/knowledge/archive/` | 过时、低置信或待合并条目 |
+docs/knowledge/knowledge-catalog.md:37:| archive | 所有类型 |
+docs/testing/verify-matrix.md:38:| FILE-RENDER-ERROR-CONTRACT-REPAIR-001 | FR-006 / AC-E027 | repaired | `npm run test:file` 覆盖 XLSX 与 ZIP renderer 失败在 object storage 写入前映射为 `EXPORT_RENDER_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + EXPORT_RENDER_ERROR` 审计；同一命令继续覆盖 object storage put/publish 失败保持 `FILE_VERIFY_ERROR` | local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3 |
+task.json:92:                      "required_truth_sources":  [
+task.json:146:                      "required_truth_sources":  [
+task.json:202:                      "required_truth_sources":  [
+task.json:262:                      "required_truth_sources":  [
+task.json:370:                      "required_truth_sources":  [
+task.json:439:                      "required_truth_sources":  [
+task.json:516:                      "required_truth_sources":  [
+task.json:584:                      "required_truth_sources":  [
+task.json:641:                      "required_truth_sources":  [
+task.json:712:                      "required_truth_sources":  [
+task.json:780:                      "required_truth_sources":  [
+task.json:847:                      "required_truth_sources":  [
+task.json:917:                      "required_truth_sources":  [
+task.json:997:                      "required_truth_sources":  [
+task.json:1080:                      "required_truth_sources":  [
+task.json:1164:                      "required_truth_sources":  [
+task.json:1241:                      "required_truth_sources":  [
+task.json:1317:                      "required_truth_sources":  [
+task.json:1391:                      "required_truth_sources":  [
+task.json:1478:                      "required_truth_sources":  [
+task.json:1592:                      "required_truth_sources":  [
+task.json:1675:                      "required_truth_sources":  [
+task.json:1742:                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+task.json:1747:                      "required_truth_sources":  [
+task.json:1806:                                    "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
+task.json:1822:                      "required_truth_sources":  [
+task.json:1834:                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+
+ succeeded in 365ms:
+
+    return undefined;
+  });
+}
+
+async function processAcquiredLease(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  lease: ExportTaskLeaseRecord;
+  requestId: string;
+  leaseDurationSeconds: number;
+  maxQueryBatchRetries: number;
+  queryBatchBackoffBaseMs: number;
+  batchProcessor: SchedulerBatchProcessor;
+  fileService?: SchedulerWorkerOptions["fileService"];
+}): Promise<Omit<SchedulerPollResult, "dispatched">> {
+  const result = {
+    renewed: 0,
+    canceled: 0,
+    completed: 0,
+    failed: 0
+  };
+
+  try {
+    const checkpoints = createCheckpointRepository(input.db);
+    const checkpoint = await checkpoints.findLatestCheckpoint(
+      input.task.taskId,
+      input.lease.attemptNo
+    );
+    let batch: SchedulerBatchResult;
+    try {
+      batch = await input.batchProcessor({
+        db: input.db,
+        task: input.task,
+        lease: input.lease,
+        checkpoint,
+        requestId: input.requestId
+      });
+    } catch (error) {
+      if (
+        isRetryableBatchError(error) &&
+        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+      ) {
+        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+        const now = await getDatabaseTime(input.db);
+        await checkpoints.saveCheckpoint({
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lastCursor: checkpoint?.lastCursor ?? null,
+          processedCount: checkpoint?.processedCount ?? 0,
+          filePartNo: checkpoint?.filePartNo ?? 1,
+          retryCount,
+          batchSize: checkpoint?.batchSize ?? null,
+          batchRowCount: checkpoint?.batchRowCount ?? 0,
+          backoffMs,
+          now
+        });
+        const renewed = await renewLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        result.renewed = renewed ? 1 : 0;
+        return result;
+      }
+      throw error;
+    }
+    const now = await getDatabaseTime(input.db);
+
+    if (batch.checkpoint) {
+      await checkpoints.saveCheckpoint({
+        taskId: input.task.taskId,
+        attemptNo: input.lease.attemptNo,
+        ...batch.checkpoint,
+        now
+      });
+    }
+
+    if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+      const canceledAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "CANCELED"
+      });
+      await appendWorkerAudit({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        action: "CANCEL_DONE",
+        result: "SUCCESS",
+        requestId: input.requestId,
+        now: canceledAt
+      });
+      result.canceled = 1;
+      return result;
+    }
+
+    if (batch.outcome === "completed") {
+      if (Array.isArray(batch.rows)) {
+        const registry =
+          batch.registry ??
+          resolveTaskRegistrySnapshot(input.task) ??
+          (await createExportRegistryRepository(input.db).findRegistryByTaskCode(input.task.taskCode));
+        if (!registry) {
+          throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
+        }
+        const fileService = input.fileService ?? createExportFileService({ db: input.db });
+        await ensureLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        await fileService.publishRows({
+          task: input.task,
+          registry,
+          attemptNo: input.lease.attemptNo,
+          requestId: input.requestId,
+          rows: batch.rows
+        });
+      }
+      const completedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "COMPLETED"
+      });
+      await appendWorkerAudit({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        action: "EXECUTE_SUCCESS",
+        result: "SUCCESS",
+        requestId: input.requestId,
+        now: completedAt
+      });
+      result.completed = 1;
+      return result;
+    }
+
+    const renewed = await renewLeaseAtBatchBoundary({
+      db: input.db,
+      taskId: input.task.taskId,
+      attemptNo: input.lease.attemptNo,
+      lockOwner: input.lease.lockOwner,
+      leaseDurationSeconds: input.leaseDurationSeconds
+    });
+
+    result.renewed = renewed ? 1 : 0;
+    return result;
+  } catch (error) {
+    if (isLeaseLostError(error)) {
+      return result;
+    }
+
+    let failedAt: Date;
+    try {
+      failedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "FAILED"
+      });
+    } catch (terminalError) {
+      if (isLeaseLostError(terminalError)) {
+        return result;
+      }
+      throw terminalError;
+    }
+
+    await appendWorkerAudit({
+      db: input.db,
+      task: input.task,
+      attemptNo: input.lease.attemptNo,
+      action: "EXECUTE_FAILED",
+      result: "FAILED",
+      errorCode: normalizePublicResponseCode(
+        error instanceof Error && error.name !== "Error" ? error.name : null,
+        "QUERY_EXECUTION_ERROR"
+      ),
+      requestId: input.requestId,
+      now: failedAt
+    });
+    result.failed = 1;
+    return result;
+  }
+}
+
+async function ensureLeaseAtBatchBoundary(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  taskId: string;
+  attemptNo: number;
+  lockOwner: string;
+  leaseDurationSeconds: number;
+}): Promise<void> {
+  const renewed = await renewLeaseAtBatchBoundary(input);
+  if (!renewed) {
+    throw leaseLostError(
+      `worker ${input.lockOwner} no longer owns an active lease for task ${input.taskId}`
+    );
+  }
+}
+
+ succeeded in 400ms:
+406:                      errorCode: null
+462:                enum: [SHA-256]
+506:        - FILE_VERIFY_ERROR
+507:        - EXPORT_RENDER_ERROR
+1089:                code: FILE_VERIFY_ERROR
+1189:                code: EXPORT_RENDER_ERROR
+1220:      enum:
+1233:        - FILE_VERIFY_ERROR
+1240:        - EXPORT_RENDER_ERROR
+1248:      enum:
+1261:        - FILE_VERIFY_ERROR
+1268:        - EXPORT_RENDER_ERROR
+1277:      enum: [PENDING, EXECUTING, COMPLETED, FAILED, CANCELED, EXPIRED]
+1280:      enum: [XLSX, ZIP]
+1283:      enum: [SIGNED_URL, STREAM]
+1362:          enum: [PENDING]
+1398:        - errorCode
+1434:        errorCode:
+1547:          enum: [SHA-256]
+1759:          enum: [STRING, NUMBER, DECIMAL, DATETIME, DATE, BOOLEAN]
+1777:          enum: [ASC, DESC]
+1829:        - errorCode
+1843:          enum:
+1865:          enum: [SUCCESS, FAILED, ACCEPTED]
+1866:        errorCode:
+1883:          enum:
+
+codex
+worker 失败路径只把公开 errorCode 写入审计，暂未看到 errorMessage 或渲染输入摘要字段；我会快速检查审计 schema/契约字段，避免把已有字段漏判。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "export_audit_logs|error_message|errorMessage|message|reason|batch_checkpoint|input summary|render" migrations src/repositories src/audit-log contracts/openapi.yaml tests -S' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'src/repositories/export-audit.repository.ts' | Select-Object -First 120" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 338ms:
+contracts/openapi.yaml:41:      db: [export_tasks, export_task_idempotency, export_registries, export_audit_logs]
+contracts/openapi.yaml:56:      db: [export_tasks, export_task_files, export_audit_logs]
+contracts/openapi.yaml:86:      db: [export_tasks, export_task_files, export_audit_logs]
+contracts/openapi.yaml:101:      db: [export_tasks, export_task_events, export_audit_logs]
+contracts/openapi.yaml:116:      db: [export_tasks, export_task_events, export_audit_logs]
+contracts/openapi.yaml:131:      db: [export_registries, export_registry_versions, export_audit_logs]
+contracts/openapi.yaml:176:      db: [export_registries, export_registry_versions, export_audit_logs]
+contracts/openapi.yaml:191:      db: [export_registries, export_audit_logs]
+contracts/openapi.yaml:206:      db: [export_registries, export_audit_logs]
+contracts/openapi.yaml:268:                    message: success
+contracts/openapi.yaml:397:                    message: success
+contracts/openapi.yaml:407:                      errorMessage: null
+contracts/openapi.yaml:474:                    message: success
+contracts/openapi.yaml:945:                message: auth context missing
+contracts/openapi.yaml:957:                message: permission denied
+contracts/openapi.yaml:969:                message: task not found
+contracts/openapi.yaml:981:                message: task code not registered
+contracts/openapi.yaml:993:                message: validation failed
+contracts/openapi.yaml:997:                    reason: required
+contracts/openapi.yaml:1001:                message: task code is disabled
+contracts/openapi.yaml:1007:                message: queryParams exceeds 32768 bytes
+contracts/openapi.yaml:1012:                message: export limit exceeded
+contracts/openapi.yaml:1025:                message: clientRequestId conflicts with a different request digest
+contracts/openapi.yaml:1038:                message: current task status does not allow this operation
+contracts/openapi.yaml:1051:                message: active execution attempt already exists
+contracts/openapi.yaml:1065:                message: file expired
+contracts/openapi.yaml:1077:                message: file is not ready for download
+contracts/openapi.yaml:1090:                message: file verification failed
+contracts/openapi.yaml:1103:                message: datasource unavailable
+contracts/openapi.yaml:1116:                message: query execution failed
+contracts/openapi.yaml:1129:                message: validation failed
+contracts/openapi.yaml:1134:                message: export limit exceeded
+contracts/openapi.yaml:1140:                message: field mapping invalid
+contracts/openapi.yaml:1146:                message: masking rule error
+contracts/openapi.yaml:1159:                message: query template invalid
+contracts/openapi.yaml:1165:                message: datasource unavailable
+contracts/openapi.yaml:1171:                message: field mapping invalid
+contracts/openapi.yaml:1177:                message: masking rule error
+contracts/openapi.yaml:1181:      description: XLSX or ZIP render failed.
+contracts/openapi.yaml:1187:            renderFailed:
+contracts/openapi.yaml:1190:                message: export render error
+contracts/openapi.yaml:1203:                message: taskCode already exists
+contracts/openapi.yaml:1215:                message: internal error
+contracts/openapi.yaml:1286:      required: [code, message]
+contracts/openapi.yaml:1290:        message:
+contracts/openapi.yaml:1307:      required: [field, reason]
+contracts/openapi.yaml:1311:        reason:
+contracts/openapi.yaml:1399:        - errorMessage
+contracts/openapi.yaml:1436:        errorMessage:
+contracts/openapi.yaml:1563:        reason:
+src/audit-log\auth-context.ts:15:    message: string,
+src/audit-log\auth-context.ts:18:    super(message);
+src/repositories\export-audit.repository.ts:53:        .insertInto("export_audit_logs")
+src/repositories\export-audit.repository.ts:73:        .selectFrom("export_audit_logs")
+src/repositories\export-task-event.repository.ts:37:  batch_checkpoint: string | null;
+src/repositories\export-task-event.repository.ts:48:    batchCheckpoint: row.batch_checkpoint,
+src/repositories\export-task-event.repository.ts:66:          batch_checkpoint: input.batchCheckpoint ?? null,
+migrations\002_registry_payload_and_task_events.ts:27:    .addColumn("batch_checkpoint", "text")
+migrations\002_registry_payload_and_task_events.sql:20:  batch_checkpoint TEXT,
+migrations\001_initial_export_platform_schema.sql:98:CREATE TABLE export_audit_logs (
+migrations\001_initial_export_platform.ts:138:    .createTable("export_audit_logs")
+migrations\001_initial_export_platform.ts:157:  await db.schema.dropTable("export_audit_logs").ifExists().execute();
+tests\worker\scheduler-worker.test.mjs:78:  await db.deleteFrom("export_audit_logs").execute();
+tests\query\query-executor.test.mjs:91:  await db.deleteFrom("export_audit_logs").execute();
+tests\db\export-repositories.test.mjs:86:      "export_audit_logs"
+tests\db\export-repositories.test.mjs:93:      "export_audit_logs",
+tests\contract\openapi-route-mapping.contract.test.mjs:163:    "errorMessage",
+tests\contract\openapi-route-mapping.contract.test.mjs:207:  assert.doesNotMatch(checkpointSchema, /\n\s{8}errorMessage:\n/);
+tests\sample\purchase-order-sample.test.mjs:92:  await db.deleteFrom("export_audit_logs").execute();
+tests\sample\purchase-order-sample.test.mjs:326:    .selectFrom("export_audit_logs")
+tests\file\export-file-service.test.mjs:108:  await db.deleteFrom("export_audit_logs").execute();
+tests\file\export-file-service.test.mjs:567:test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+tests\file\export-file-service.test.mjs:583:        requestId: "req-file-render-failed-xlsx",
+tests\file\export-file-service.test.mjs:595:test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+tests\file\export-file-service.test.mjs:612:        requestId: "req-file-render-failed-zip",
+tests\file\export-file-service.test.mjs:705:    .selectFrom("export_audit_logs")
+tests\file\export-file-service.test.mjs:719:test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+tests\file\export-file-service.test.mjs:730:    workerId: "worker-file-render-failure",
+tests\file\export-file-service.test.mjs:752:    .selectFrom("export_audit_logs")
+tests\api\export-http-api.test.mjs:167:    .selectFrom("export_audit_logs")
+tests\api\export-http-api.test.mjs:383:  assert.equal(pendingDetailResponse.json().data.errorMessage, null);
+tests\api\export-http-api.test.mjs:453:  assert.equal(detailResponse.json().data.errorMessage, null);
+tests\api\export-http-api.test.mjs:464:  assert.equal("errorMessage" in detailResponse.json().data.recentEvents[0].batchCheckpoint, false);
+tests\api\export-http-api.test.mjs:578:  assert.equal(failedDetailResponse.json().data.errorMessage, "query execution error");
+tests\api\export-http-api.test.mjs:618:      errorMessage: "datasource credentials unavailable"
+tests\api\export-http-api.test.mjs:641:    eventOnlyFailedDetailResponse.json().data.errorMessage,
+tests\api\export-http-api.test.mjs:653:    "errorMessage" in eventOnlyFailedDetailResponse.json().data.recentEvents[0].batchCheckpoint,
+tests\api\export-http-api.test.mjs:725:    internalFailureDetailResponse.json().data.errorMessage,
+tests\mock-local\mock-integration-flow.test.mjs:99:      errorMessage: "partially completed in local/dev evidence only"
+tests\mock-local\mock-integration-flow.test.mjs:111:    assert.equal(detail.errorMessage, "partially completed in local/dev evidence only");
+tests\mock-local\mock-integration-flow.test.mjs:393:    assert.match(blockedReleaseEnv.reason, /live release env missing/i);
+tests\mock-local\mock-integration-flow.test.mjs:555:        errorMessage: null,
+tests\mock-local\mock-integration-flow.test.mjs:604:      task.errorMessage = patch.errorMessage ?? null;
+tests\mock-local\mock-integration-flow.test.mjs:629:        errorMessage: task.errorMessage,
+tests\mock-local\mock-integration-flow.test.mjs:791:      task.errorMessage = failure.errorCode;
+tests\mock-local\mock-integration-flow.test.mjs:1016:        reason: "live release env missing or blocked"
+
+ succeeded in 371ms:
+import type { Kysely } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+
+export type AppendAuditLogInput = {
+  auditId: string;
+  taskId: string | null;
+  attemptNo: number | null;
+  taskCode: string | null;
+  subsystemCode: string | null;
+  operatorId: string;
+  action: string;
+  result: string;
+  errorCode: string;
+  requestId: string;
+  occurredAt: Date;
+  now: Date;
+};
+
+export type AuditLogRecord = Omit<AppendAuditLogInput, "now">;
+
+function toAuditLogRecord(row: {
+  audit_id: string;
+  task_id: string | null;
+  attempt_no: number | null;
+  task_code: string | null;
+  subsystem_code: string | null;
+  operator_id: string;
+  action: string;
+  result: string;
+  error_code: string;
+  request_id: string;
+  occurred_at: Date;
+}): AuditLogRecord {
+  return {
+    auditId: row.audit_id,
+    taskId: row.task_id,
+    attemptNo: row.attempt_no,
+    taskCode: row.task_code,
+    subsystemCode: row.subsystem_code,
+    operatorId: row.operator_id,
+    action: row.action,
+    result: row.result,
+    errorCode: row.error_code,
+    requestId: row.request_id,
+    occurredAt: row.occurred_at
+  };
+}
+
+export function createExportAuditRepository(db: Kysely<ExportPlatformDatabase>) {
+  return {
+    async appendAuditLog(input: AppendAuditLogInput): Promise<void> {
+      await db
+        .insertInto("export_audit_logs")
+        .values({
+          audit_id: input.auditId,
+          task_id: input.taskId,
+          attempt_no: input.attemptNo,
+          task_code: input.taskCode,
+          subsystem_code: input.subsystemCode,
+          operator_id: input.operatorId,
+          action: input.action,
+          result: input.result,
+          error_code: input.errorCode,
+          request_id: input.requestId,
+          occurred_at: input.occurredAt,
+          created_at: input.now
+        })
+        .execute();
+    },
+
+    async listAuditLogsForTask(taskId: string): Promise<AuditLogRecord[]> {
+      const rows = await db
+        .selectFrom("export_audit_logs")
+        .selectAll()
+        .where("task_id", "=", taskId)
+        .orderBy("occurred_at", "asc")
+        .execute();
+
+      return rows.map(toAuditLogRecord);
+    }
+  };
+}
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'contracts/openapi.yaml' | Select-Object -Skip 1810 -First 100" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 375ms:
+          format: date-time
+          description: Last successful lease renewal time based on database time.
+        databaseTime:
+          type: string
+          format: date-time
+          description: Database clock snapshot used for lock acquisition, renewal and takeover decisions.
+        takeoverRule:
+          type: string
+          description: Workers may take over only after database time is later than lockExpireAt; takeover keeps the same attemptNo.
+    AuditEvent:
+      type: object
+      required:
+        - taskId
+        - taskCode
+        - subsystemCode
+        - operatorId
+        - action
+        - result
+        - errorCode
+        - requestId
+        - occurredAt
+      properties:
+        taskId:
+          type: string
+        taskCode:
+          type: string
+        subsystemCode:
+          type: string
+        operatorId:
+          type: string
+        action:
+          type: string
+          enum:
+            - CREATE
+            - QUERY_HISTORY
+            - DETAIL_VIEW
+            - DISPATCH
+            - EXECUTE_START
+            - EXECUTE_SUCCESS
+            - EXECUTE_FAILED
+            - CANCEL_REQUEST
+            - CANCEL_DONE
+            - RETRY_REQUEST
+            - DOWNLOAD
+            - EXPIRE_MARK
+            - CLEANUP_FAILED
+            - REGISTRY_CREATE
+            - REGISTRY_QUERY
+            - REGISTRY_DETAIL
+            - REGISTRY_UPDATE
+            - REGISTRY_ENABLE
+            - REGISTRY_DISABLE
+        result:
+          type: string
+          enum: [SUCCESS, FAILED, ACCEPTED]
+        errorCode:
+          $ref: "#/components/schemas/ResponseCode"
+        requestId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    TaskEvent:
+      type: object
+      required: [taskId, attemptNo, eventType, requestId, occurredAt]
+      properties:
+        taskId:
+          type: string
+        attemptNo:
+          type: integer
+        eventType:
+          type: string
+          enum:
+            - QUERY_READY
+            - QUERY_BATCH_DONE
+            - FILE_PART_WRITTEN
+            - PACKAGE_DONE
+            - FILE_VERIFIED
+            - DELIVERY_READY
+        requestId:
+          type: string
+        datasourceCode:
+          type: string
+        queryTemplateVersion:
+          type: string
+        batchCheckpoint:
+          $ref: "#/components/schemas/BatchCheckpoint"
+        occurredAt:
+          type: string
+          format: date-time
+
+codex
+取证结果确认：错误码映射和失败状态已补上，但“渲染输入摘要和失败原因”的可持久化证据没有落在 file event、audit 或测试断言里。接下来我会按指定表格输出 Stage 1 finding，不修改代码。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"void summary|function renderFileBody|throw toExportRenderError|function toExportRenderError|errorCode: normalizePublicResponseCode|action: \\\"EXECUTE_FAILED\\\"|error_code: input.errorCode|xlsx renderer failure|zip renderer failure|scheduler maps renderer failure|AC-E027|FILE-RENDER-ERROR-CONTRACT-REPAIR-001\" src/file-service/index.ts src/scheduler/worker.ts src/repositories/export-audit.repository.ts tests/file/export-file-service.test.mjs docs/product/acceptance-criteria.md docs/testing/verify-matrix.md task.json" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "renderFailed|EXPORT_RENDER_ERROR|XLSX or ZIP render failed|ResponseCode|ErrorResponse" contracts/openapi.yaml | Select-Object -First 80' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "交付形态|API Boundary|Data Boundary|Async And Worker Boundary|Test Double Policy|Forbidden Implementations|Definition Of Done|feature_impl" docs/architecture/constraints.md' in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T11:28:51.182506Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+rg: regex parse error:
+    (?:void summary|function renderFileBody|throw toExportRenderError|function toExportRenderError|errorCode: normalizePublicResponseCode|action: \)
+    ^
+error: unclosed group
+
+ exited 1 in 381ms:
+rg: regex parse error:
+    (?:void summary|function renderFileBody|throw toExportRenderError|function toExportRenderError|errorCode: normalizePublicResponseCode|action: \)
+    ^
+error: unclosed group
+
+ succeeded in 380ms:
+507:        - EXPORT_RENDER_ERROR
+1181:      description: XLSX or ZIP render failed.
+1187:            renderFailed:
+1189:                code: EXPORT_RENDER_ERROR
+1218:    ResponseCode:
+1240:        - EXPORT_RENDER_ERROR
+1245:    NullableResponseCode:
+1268:        - EXPORT_RENDER_ERROR
+1289:          $ref: "#/components/schemas/ResponseCode"
+1435:          $ref: "#/components/schemas/NullableResponseCode"
+1867:          $ref: "#/components/schemas/ResponseCode"
+
+ succeeded in 422ms:
+3:本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+7:- 交付形态：`independent_microservice`。
+13:## 2. API Boundary
+20:## 3. Data Boundary
+27:## 4. Async And Worker Boundary
+35:## 5. Test Double Policy
+42:## 6. Forbidden Implementations
+47:- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+48:- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+60:- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+62:## 8. Definition Of Done
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n 'void summary|function renderFileBody|throw toExportRenderError|function toExportRenderError|errorCode: normalizePublicResponseCode|error_code: input.errorCode' src/file-service/index.ts src/scheduler/worker.ts src/repositories/export-audit.repository.ts" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n 'xlsx renderer failure|zip renderer failure|scheduler maps renderer failure|EXPORT_RENDER_ERROR|FILE_VERIFY_ERROR' tests/file/export-file-service.test.mjs" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n 'AC-E027|文件渲染失败|FILE-RENDER-ERROR-CONTRACT-REPAIR-001|render renderer|renderer 失败|渲染失败' docs/product/acceptance-criteria.md docs/testing/verify-matrix.md task.json" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 355ms:
+502:    /FILE_VERIFY_ERROR/
+510:test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata", async (t) => {
+529:    (error) => error.name === "FILE_VERIFY_ERROR"
+538:test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed", async (t) => {
+557:    (error) => error.name === "FILE_VERIFY_ERROR"
+567:test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+586:    (error) => error.name === "EXPORT_RENDER_ERROR"
+595:test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write", async (t) => {
+619:    (error) => error.name === "EXPORT_RENDER_ERROR"
+672:test("scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit", async (t) => {
+714:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "FILE_VERIFY_ERROR"
+719:test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit", async (t) => {
+762:      (audit) => audit.action === "EXECUTE_FAILED" && audit.error_code === "EXPORT_RENDER_ERROR"
+
+ succeeded in 416ms:
+src/repositories/export-audit.repository.ts:63:          error_code: input.errorCode,
+src/scheduler/worker.ts:575:      errorCode: normalizePublicResponseCode(
+src/file-service/index.ts:320:async function renderFileBody(
+src/file-service/index.ts:328:  void summary;
+src/file-service/index.ts:335:    throw toExportRenderError(error, "export package render failed");
+src/file-service/index.ts:426:function toExportRenderError(error: unknown, fallbackMessage: string): Error {
+
+ succeeded in 418ms:
+docs/testing/verify-matrix.md:38:| FILE-RENDER-ERROR-CONTRACT-REPAIR-001 | FR-006 / AC-E027 | repaired | `npm run test:file` 覆盖 XLSX 与 ZIP renderer 失败在 object storage 写入前映射为 `EXPORT_RENDER_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + EXPORT_RENDER_ERROR` 审计；同一命令继续覆盖 object storage put/publish 失败保持 `FILE_VERIFY_ERROR` | local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3 |
+docs/testing/verify-matrix.md:129:| FR-006 | query / file / worker | query executor production-path wired / file-service production-path wired with temp object / checksum / publish / ZIP metadata guard; renderer failures mapped to `EXPORT_RENDER_ERROR`; sample boundary coverage executable-by `SAMPLE-PURCHASE-ORDER-001` | `src/query-executor/`、`src/file-service/index.ts`、`src/scheduler/worker.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:file`、`npm run test:sample`；`npm run test:file` 覆盖 XLSX/ZIP renderer 失败收口 `EXPORT_RENDER_ERROR`、object storage put/publish 失败保持 `FILE_VERIFY_ERROR`，并覆盖 env-backed HTTP adapter 的发布与下载 URL 流程；`npm run test:sample` 覆盖默认批次 10 万行不丢批次；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+docs/product/acceptance-criteria.md:61:| AC-E027 | 文件渲染失败 | XLSX/ZIP 文件渲染失败时，任务置为 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。 |
+docs/product/acceptance-criteria.md:69:- 对外响应不得使用旧接入缺口标签、旧渲染失败标签、取消请求内部标记作为正式状态、错误码或验收口径。
+task.json:1551:                                              "AC-E027"
+task.json:1742:                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+task.json:1743:                      "description":  "修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据",
+task.json:1761:                                                       "必须以 docs/product/acceptance-criteria.md AC-E027、contracts/openapi.yaml、src/file-service/index.ts、tests/file/export-file-service.test.mjs、tests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth source",
+task.json:1791:                                              "AC-E027"
+task.json:1805:                                    "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
+task.json:1806:                                    "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
+task.json:1812:                                         "file 或 worker 测试覆盖渲染失败的 errorCode / audit / 失败状态证据",
+task.json:1834:                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
+task.json:1896:                                         "FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027 均有 covered / partially_covered / gap / not_applicable 判定",
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | HIGH | missing_requirement | backend | `docs/product/acceptance-criteria.md:61` 要求 AC-E027 记录渲染输入摘要和失败原因；`src/file-service/index.ts:320` / `:328` / `:335` 中 `summary` 被丢弃，仅映射 `EXPORT_RENDER_ERROR`；`src/scheduler/worker.ts:575` 与 `src/repositories/export-audit.repository.ts:63` 只持久化 `errorCode`；`tests/file/export-file-service.test.mjs:567`、`:595`、`:719`、`:762` 只断言错误码、失败状态、无 object storage 写入，未断言输入摘要或失败原因。 | 在真实 `renderFileBody -> renderExportPackage` 失败路径中记录可追溯的渲染输入摘要和失败原因，例如 taskId/taskCode、attemptNo、fileName、format、totalRowCount、partCount、singleFileMaxRows、sanitized failure reason；同步 file/worker 测试断言该证据已落库或进入任务事件/审计证据路径。 | `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| FILE-RENDER-ERROR-CONTRACT-REPAIR-001-S1-F001 | backend | backend-worker | 1 | yes |
+ERROR: The process with PID 33756 (child process of PID 22888) could not be terminated.
+Reason: The operation attempted is not supported.
+ERROR: The process with PID 26600 (child process of PID 3732) could not be terminated.
+Reason: There is no running instance of the task.
+tokens used
+81,396

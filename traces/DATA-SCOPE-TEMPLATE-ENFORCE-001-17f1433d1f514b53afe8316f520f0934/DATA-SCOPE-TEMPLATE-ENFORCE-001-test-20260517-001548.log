@@ -1,0 +1,112 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:64612 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.7837ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (281.7733ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (227.8649ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (189.3071ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (172.5455ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (220.1438ms)
+✔ query executor replays the task config snapshot after the current registry changes (240.9511ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (307.9859ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (224.7167ms)
+✔ query executor rejects missing masking rules for sensitive exportable fields (160.625ms)
+✔ query executor rejects field mappings that do not match selected columns (191.3937ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (189.2532ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.3639ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2882.7251
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7835ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (226.7768ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (328.0271ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (273.5857ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (282.0541ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (194.6874ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (250.9577ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (207.1893ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (224.8747ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (199.3537ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (247.4024ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (261.7005ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (165.5612ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (256.9966ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (225.498ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (232.7838ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (162.1529ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (151.2098ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (155.1824ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (164.9398ms)
+✔ worker integration tests (4213.3776ms)
+ℹ tests 20
+ℹ suites 1
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4751.2084
+
+> export-platform-service@0.1.0 test:sample
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs
+
+▶ sample purchase-order integration tests
+  ✔ sample suite blocks env-backed live object storage when config is missing and keeps adapter evidence scoped as production-equivalent (0.7233ms)
+  ✔ sample purchase-order registry contract is registered through the public registry service (247.4192ms)
+  ✔ sample boundary 0 rows completes through the public create and worker chain (380.2634ms)
+  ✔ sample boundary 1 row keeps final file masked and records create/query/file/audit/download evidence (487.5802ms)
+  ✔ sample boundary 20000 rows completes with a single-file package (7988.143ms)
+  ✔ sample boundary 20001 rows packages ZIP evidence without losing rows (7707.4947ms)
+  ✔ sample boundary 100000 rows stays on the default batch path and publishes every row (74524.9331ms)
+  ✔ sample boundary 100001 rows must be rejected under the default export limit (46204.7159ms)
+  ✔ sample masking failure leaves the task failed and does not publish a file (322.5451ms)
+✔ sample purchase-order integration tests (137865.0803ms)
+ℹ tests 9
+ℹ suites 1
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 138408.1958
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.2168ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3139ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.3883ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.8879ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2061ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4324ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5589ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3894ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2479ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.9056

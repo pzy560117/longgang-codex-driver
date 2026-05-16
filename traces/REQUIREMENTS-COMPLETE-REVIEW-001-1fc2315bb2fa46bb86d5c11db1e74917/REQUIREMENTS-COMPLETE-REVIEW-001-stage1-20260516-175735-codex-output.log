@@ -1,0 +1,29 @@
+SUCCESS: The process with PID 36020 (child process of PID 37080) has been terminated.
+SUCCESS: The process with PID 37080 (child process of PID 36688) has been terminated.
+SUCCESS: The process with PID 36688 (child process of PID 26096) has been terminated.
+SUCCESS: The process with PID 26096 (child process of PID 30136) has been terminated.
+SUCCESS: The process with PID 26128 (child process of PID 34700) has been terminated.
+SUCCESS: The process with PID 29888 (child process of PID 34892) has been terminated.
+SUCCESS: The process with PID 34892 (child process of PID 15456) has been terminated.
+SUCCESS: The process with PID 15456 (child process of PID 32464) has been terminated.
+SUCCESS: The process with PID 32464 (child process of PID 9344) has been terminated.
+SUCCESS: The process with PID 9344 (child process of PID 30136) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | missing_requirement | controller | `docs/reviews/requirements-complete-review.md` 为 `Verdict: FAIL` 且列出 RCR-001/RCR-002；但 `docs/reviews/requirements-complete-review.findings.json` 为 `"verdict": "PASS"`、`findings: []`，并把 FR/AC/AC-E 全部标为 covered。 | 统一 review Markdown 与 JSON 产物，以 fresh evidence 为准；不得让 JSON 把未修复 gap 升级为 PASS。 | `git diff --check -- docs/reviews task.json` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | contract_gap | backend | `contracts/openapi.yaml` 要求任务详情返回 `totalCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`；`src/task-api/service.ts` 当前固定返回 `totalCount: null`、`progressPercent: 0`、`errorCode: null`、`errorMessage: null`，且使用 `events` 字段；`tests/api/export-http-api.test.mjs` 详情测试只断言 `taskId`。 | 新建 repair task 补齐任务详情进度/失败字段实现与 API 测试，并对齐 OpenAPI 字段名 `recentEvents`。 | `npm run test:api; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | MEDIUM | missing_requirement | backend | `docs/product/acceptance-criteria.md` 的 `AC-E027` 要求 XLSX/ZIP 渲染失败收口为 `EXPORT_RENDER_ERROR`；`src/file-service/index.ts` 直接调用 `renderExportPackage(...)`，未显式把 renderer 抛错映射为该错误码；`rg "EXPORT_RENDER_ERROR" tests` 未发现渲染失败测试。 | 新建 repair task 覆盖真实 renderer 抛错映射、任务失败状态、审计/错误码和渲染输入摘要测试。 | `npm run test:file; npm run test:worker` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | controller | docs-worker | 1 | Yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | Yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 2 | No |

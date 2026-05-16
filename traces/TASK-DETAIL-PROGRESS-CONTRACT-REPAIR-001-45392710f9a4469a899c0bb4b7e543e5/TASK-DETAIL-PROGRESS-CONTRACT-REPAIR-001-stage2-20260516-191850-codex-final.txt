@@ -1,0 +1,26 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+  - `npm run typecheck`
+  - 任务指定验证命令：`docker-test-env.ps1` + `npm run test:api` + `npm run test:contract` + scoped `git diff --check`
+  - 受影响补充验证：`docker-test-env.ps1` + `npm run test:query`
+- 结果摘要:
+  - TypeScript 类型检查通过。
+  - API 测试 2/2 通过，覆盖 PENDING、checkpoint 进度、FAILED 错误字段、`recentEvents` 与禁止 `events` 字段。
+  - Contract 测试 8/8 通过，覆盖 OpenAPI task detail required/properties、公开枚举、BatchCheckpoint 不暴露内部错误字段。
+  - Query affected tests 10/10 通过，覆盖本次 `src/query-executor` 相关变更。
+  - `git diff --check` 通过。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

@@ -1829,7 +1829,7 @@
                       "dependencies":  [
                                            "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 / RCR-P0-002：query executor 必须强制 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate 数据范围约束",
@@ -1891,7 +1891,7 @@
                                     "补 query 与 worker 测试，覆盖越权数据被阻断、模板参数注入正确和调度执行链路不回退",
                                     "同步 verify-matrix 记录 DATA-SCOPE-TEMPLATE-ENFORCE-001 的 Docker MySQL / query / worker 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "query executor 生产路径会强制使用 operatorId、roleCodes、orgScope 与 registry dataScopeTemplate 约束数据范围",
                                          "tests/query/ 与 tests/worker/ 覆盖数据范围模板、生效参数和越权阻断负向场景",
@@ -1974,7 +1974,7 @@
                                     "补 file 与 API 测试，覆盖 TTL、生效签名、伪造签名、过期签名和下载审计负向路径",
                                     "同步 verify-matrix 记录 DOWNLOAD-SIGNED-URL-GUARD-001 的 Docker MySQL / 本地 object storage mock 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service src/task-api tests/file tests/api docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "下载 URL 采用不可伪造签名，默认 TTL 为 10 分钟且与文件保留期分离",
                                          "验签失败、签名过期或权限不足时下载被拒绝并记录审计，不泄露可复用链接",
@@ -2001,7 +2001,7 @@
                       "passes":  false,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
-                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / RCR-P0-004：create API 必须在落库前按 canonical JSON UTF-8 bytes 校验 queryParams <= 32768",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / RCR-P0-004：create API 必须在落库前按 canonical JSON UTF-8 bytes 校验 queryParams \u003c= 32768",
                                                        "必须以 docs/product/prd-lite.md、docs/product/acceptance-criteria.md、docs/architecture/constraints.md、docs/reviews/requirements-complete-review.md、docs/reviews/requirements-complete-review.findings.json 与最新 Stage1 finding 为 truth source",
                                                        "超限请求必须返回契约声明的错误结果且不得写入任务、审计或后续执行链路",
                                                        "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
@@ -2055,9 +2055,9 @@
                                     "补 API 与 contract 测试，覆盖边界值、超限失败、错误码和不落任务断言",
                                     "同步 verify-matrix 记录 QUERY-PARAMS-SIZE-LIMIT-001 的 Docker MySQL / API / contract 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
                       "acceptance":  [
-                                         "create API 在落库前按 canonical JSON UTF-8 bytes 强制校验 queryParams <= 32768",
+                                         "create API 在落库前按 canonical JSON UTF-8 bytes 强制校验 queryParams \u003c= 32768",
                                          "超限请求返回契约声明的错误码且不创建任务、不写入后续执行链路",
                                          "tests/api/ 与 tests/contract/ 覆盖边界值和超限负向场景",
                                          "arch:check、Docker MySQL 下的 test:api、test:contract 与 git diff --check 全部通过"
@@ -2144,7 +2144,7 @@
                                     "补 API 与 contract 负向测试，覆盖缺少最小字段、伪造 EXPORT_ADMIN、跨租户历史/下载/配置访问被拒绝",
                                     "同步 verify-matrix 记录 AUTH-CONTEXT-TRUST-BOUNDARY-001 的 Docker MySQL / API / contract 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "生产入口不再直接信任可伪造请求头，伪造 EXPORT_ADMIN 或跨租户上下文会被拒绝并记录审计",
                                          "认证上下文缺少最小字段或可信来源证明时，请求返回权限/参数错误且不泄露任务或文件信息",
@@ -2235,7 +2235,7 @@
                                     "补未注册任务创建失败且不落任务断言，以及 query executor 对缺失/重复/非递增游标的负向测试",
                                     "同步 verify-matrix 记录 P0-ACCEPTANCE-EVIDENCE-REPAIR-001 的 Docker MySQL / API / query 证据边界"
                                 ],
-                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "历史查询对 status/subsystemCode 筛选、registry get/list/update/重复 taskCode/未授权配置、未注册创建不落任务均有 API 证据",
                                          "query 测试覆盖游标缺失、重复和非递增负向场景，错误收口符合产品真相源",

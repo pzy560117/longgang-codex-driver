@@ -1,0 +1,41 @@
+## Requirement IDs
+- FR-002
+- AC-002
+
+## Summary
+- 本轮未写入文件；现有代码、契约、API 测试和验证矩阵已覆盖该任务要求。
+- 已用 fresh verification 确认 `GET /api/export/tasks/{taskId}` 返回 `totalCount`、`processedCount`、`progressPercent`、`errorCode`、`errorMessage`、`recentEvents`，且不返回未声明的 `events` 字段。
+
+## Files Changed
+- 无。本轮 scoped diff 为空。
+
+## Validation
+- `npm run test:contract`: PASS - 7/7 passed。
+- Driver 指定完整命令: PASS - Docker MySQL 环境准备成功，`test:api` 2/2 passed，`test:contract` 7/7 passed，scoped `git diff --check` passed。
+
+## Evidence
+- `src/task-api/service.ts`: detail 响应从 checkpoint / task events / audit 计算进度、失败字段和 `recentEvents`。
+- `tests/api/export-http-api.test.mjs`: 覆盖 PENDING、checkpoint、FAILED、event-only failure，并断言无 `events` 字段。
+- `contracts/openapi.yaml`: `ExportTaskDetail` required/properties 包含目标字段。
+- `docs/testing/verify-matrix.md`: 已记录本任务 local/Docker MySQL + contract 边界，不声明外部 live MySQL。
+
+## Architecture Constraints
+- `API Boundary`: PASS - API 测试经过 Fastify + service + MySQL repository 路径。
+- `Data Boundary`: PASS - 验证使用 Docker MySQL，不以内存 repository 冒充生产路径。
+- `Test Double Policy`: PASS - evidence 边界限定为 local/Docker MySQL + contract。
+- `Forbidden Implementations`: PASS - 本轮未引入 `InMemory*`、mock repository 或领域原型。
+
+## Knowledge References
+- 无直接 `docs/knowledge/*` 条目引用；已按规则读取 knowledge catalog，当前无与 FR-002 detail 契约直接相关条目。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区已有多条 `traces/` dirty/untracked 运行产物，本轮未触碰。
+- 未执行 commit：Driver Context 明确禁止 `git add` / `git commit`，且本轮没有 tracked 文件改动可提交。
