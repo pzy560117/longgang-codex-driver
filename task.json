@@ -1754,7 +1754,7 @@
                       "dependencies":  [
                                            "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：真实 XLSX/ZIP renderer 抛错必须收口为 EXPORT_RENDER_ERROR",
