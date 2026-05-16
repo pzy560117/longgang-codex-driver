@@ -2093,3 +2093,21 @@
 
 ### 备注：
 - 请先修复 Spec / 设计 / 状态偏差，再重新运行 driver。
+## [2026-05-17 06:05] - Task: HISTORY-PAGINATION-TOTAL-001 修复历史任务分页 total 返回筛选条件真实总量
+
+### 完成的工作：
+- 未进入实现阶段，前置 truth source 检查未通过。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - truth source precheck 未通过。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- 缺少前置 truth sources: design
+- [OK] product: present=docs\product\prd-lite.md, docs\product\page-inventory.md, docs\product\state-matrix.yaml, docs\product\acceptance-criteria.md, docs\product\requirement-interface-matrix.md, docs\product\difficulty-research.md; missing=无
+- [MISSING] design: present=无; missing=docs\design\design-brief.md; docs\design\component-map.md; docs\design\screen-states.md; docs\design\design-tokens.json; docs\design\ai-image-brief.md; docs\design\ui-image-review.md; docs\design\image-to-frontend-spec.md
+- [OK] plan: present=plans\features\export-platform.dev-plan.md; missing=无
+- [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
