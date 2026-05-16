@@ -1,0 +1,54 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9951ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4829ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.452ms)
+✔ audit action and result literals written by production code stay within OpenAPI public enums (1.1275ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 70.8477
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6624ms)
+✖ registry/task HTTP flow persists through Fastify + MySQL production path (0.4203ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 665.4848
+
+✖ failing tests:
+
+test at tests\api\export-http-api.test.mjs:265:1
+✖ registry/task HTTP flow persists through Fastify + MySQL production path (0.4203ms)
+  Error: BLOCKED - 需要人工介入: tests/api requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.
+      at getTestDatabaseUrl (file:///E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:21:11)
+      at createTestDatabase (file:///E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:62:33)
+      at TestContext.<anonymous> (file:///E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:266:20)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Test.postRun (node:internal/test_runner/test:1232:19)
+      at Test.run (node:internal/test_runner/test:1160:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)

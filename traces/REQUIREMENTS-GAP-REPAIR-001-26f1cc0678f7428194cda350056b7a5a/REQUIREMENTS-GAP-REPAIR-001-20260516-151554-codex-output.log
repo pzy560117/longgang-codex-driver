@@ -1,0 +1,61 @@
+SUCCESS: The process with PID 24628 (child process of PID 24712) has been terminated.
+SUCCESS: The process with PID 24712 (child process of PID 24884) has been terminated.
+SUCCESS: The process with PID 24884 (child process of PID 25088) has been terminated.
+SUCCESS: The process with PID 25088 (child process of PID 17768) has been terminated.
+SUCCESS: The process with PID 17768 (child process of PID 24556) has been terminated.
+SUCCESS: The process with PID 24796 (child process of PID 24992) has been terminated.
+SUCCESS: The process with PID 24992 (child process of PID 25136) has been terminated.
+SUCCESS: The process with PID 25136 (child process of PID 9928) has been terminated.
+SUCCESS: The process with PID 9928 (child process of PID 24556) has been terminated.
+SUCCESS: The process with PID 24720 (child process of PID 11804) has been terminated.
+SUCCESS: The process with PID 11804 (child process of PID 25144) has been terminated.
+SUCCESS: The process with PID 25144 (child process of PID 2664) has been terminated.
+SUCCESS: The process with PID 2664 (child process of PID 24556) has been terminated.
+## Requirement IDs
+- FR-004, FR-008, FR-009, FR-010, FR-011, FR-013
+- AC-004, AC-010, AC-011, AC-016, AC-019
+- AC-E004, AC-E005, AC-E012, AC-E013, AC-E020, AC-E024, AC-E026, AC-E027
+
+## Summary
+- 当前工作树已经包含六个 repair finding 的实现与测试证据；本轮未产生新的 tracked diff。
+- 已用本机 Docker MySQL `mysql://root@127.0.0.1:33306/export_platform_test` 自举后重跑任务指定验证命令，全部 PASS。
+- 未执行 commit：本任务模板明确禁止 `git add` / `git commit`，且本轮没有可提交的 tracked 变更。
+
+## Files Changed
+- 本轮无 tracked 文件改动。
+- 现有证据集中在 `contracts/openapi.yaml`、`src/task-api/`、`src/query-executor/`、`src/scheduler/`、`src/file-service/`、`tests/api/`、`tests/query/`、`tests/worker/`、`tests/file/`、`tests/contract/`、`docs/testing/verify-matrix.md`。
+
+## Validation
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\docker-test-env.ps1 -RunValidation`: PASS - Docker MySQL、本地对象存储 mock、API/DB/worker/query/file/sample/object-storage 验证通过。
+- 任务指定命令: PASS - `arch:check`、`typecheck`、`test:contract`、`test:api`、`test:query`、`test:worker`、`test:file`、`test:mock-local`、scoped `git diff --check` 全部通过。
+- 说明: 首次未设置 `EXPORT_PLATFORM_TEST_DATABASE_URL` 时 `test:api` 按预期 BLOCKED；自举 Docker MySQL 后复验通过。
+
+## Evidence
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 审计 action/result 枚举与 OpenAPI 契约一致。
+- `tests/api/export-http-api.test.mjs`: 管理员全局历史、普通用户本人可见、创建时 `configSnapshot` 持久化。
+- `tests/query/query-executor.test.mjs`: 旧任务按创建时配置快照重放，adapter/凭证错误映射为 `DATASOURCE_UNAVAILABLE`。
+- `tests/worker/scheduler-worker.test.mjs`: 查询批次 retry/backoff/retryCount、耗尽失败、worker 收口 `DATASOURCE_UNAVAILABLE`、cleanup 审计。
+- `tests/file/export-file-service.test.mjs`: object storage put/publish 失败映射为 `FILE_VERIFY_ERROR`，不生成可下载 metadata。
+- `docs/testing/verify-matrix.md`: 六个 repair finding 的 fresh evidence 与 mock/local/docker/live 边界已记录。
+
+## Architecture Constraints
+- `independent_microservice`: PASS - HTTP service、worker、cleanup job 入口由 `npm run arch:check` 验证。
+- `production DB boundary`: PASS - API/query/worker/file 测试连接本机 Docker MySQL，不以内存 repository 冒充生产路径。
+- `test double policy`: PASS - 对象存储只声明 production-equivalent adapter / local mock evidence，不声明 live OSS/S3。
+- `forbidden implementations`: PASS - 本轮未引入 `InMemory*`、fixture repository 或仅文档完成路径。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - repair evidence 输出边界 - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - truth source 与验证证据检查 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- none: 本轮未新增可复用知识条目；沿用既有 evidence 分层规则。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL 与 live OSS/S3 未验证，当前证据仅为本机 Docker MySQL + 本地对象存储 mock / production-equivalent adapter。
+- 工作区仍有未跟踪 `traces/REQUIREMENTS-GAP-REPAIR-001-*` 目录；按任务边界未修改、未纳入提交。
