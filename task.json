@@ -1667,6 +1667,153 @@
                                      ]
                   },
                   {
+                      "id":  "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+                      "description":  "修复任务详情进度与失败字段响应契约，覆盖 FR-002 / AC-002",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.82,
+                      "dependencies":  [
+                                           "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：任务详情必须按 OpenAPI 和 AC-002 返回 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+                                                       "必须以 contracts/openapi.yaml、src/task-api/service.ts、tests/api/export-http-api.test.mjs 和最新 requirements complete review finding 为 truth source",
+                                                       "详情响应必须走生产 MySQL repository、checkpoint/event/audit/task 状态数据，不得用内存或固定占位值冒充进度",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止继续固定返回 totalCount=null、progressPercent=0、errorCode=null、errorMessage=null 来规避 AC-002",
+                                                        "禁止返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+                                                        "禁止只改测试或文档而不修生产 API 响应",
+                                                        "禁止把 mock/local evidence 写成 live evidence"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "src/task-api/service.ts",
+                                            "tests/api/export-http-api.test.mjs",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/task-api/",
+                                          "tests/api/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-002",
+                                              "AC-002"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "tests/api/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "对齐 ExportTaskDetail OpenAPI required/properties 与 task detail 实际响应",
+                                    "从 checkpoint / task events / audit / task 状态计算 detail 的 totalCount、processedCount、progressPercent、失败 errorCode/errorMessage 和 recentEvents",
+                                    "补 API 测试断言 PENDING / 有 checkpoint / FAILED 任务详情关键字段，并禁止 events 字段替代 recentEvents",
+                                    "同步 verify-matrix 记录 TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001 的 local/Docker MySQL 证据边界"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+                      "acceptance":  [
+                                         "GET /api/export/tasks/{taskId} 响应包含 OpenAPI 声明的 totalCount、processedCount、progressPercent、errorCode、errorMessage、recentEvents",
+                                         "任务详情不得返回 OpenAPI 未声明的 events 字段替代 recentEvents",
+                                         "失败任务详情能暴露最近失败审计或任务事件中的 errorCode/errorMessage，进度字段来自持久化 checkpoint / task 状态",
+                                         "API 与契约测试均通过，且 evidence 边界不声明外部 live MySQL"
+                                     ]
+                  },
+                  {
+                      "id":  "FILE-RENDER-ERROR-CONTRACT-REPAIR-001",
+                      "description":  "修复 XLSX/ZIP 渲染失败 EXPORT_RENDER_ERROR 实现映射与测试证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.84,
+                      "dependencies":  [
+                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：真实 XLSX/ZIP renderer 抛错必须收口为 EXPORT_RENDER_ERROR",
+                                                       "必须以 docs/product/acceptance-criteria.md AC-E027、contracts/openapi.yaml、src/file-service/index.ts、tests/file/export-file-service.test.mjs、tests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth source",
+                                                       "不得破坏 object storage put/read/publish 失败映射为 FILE_VERIFY_ERROR 的既有行为",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只在 OpenAPI 中声明 EXPORT_RENDER_ERROR 而不提供生产实现路径",
+                                                        "禁止把 renderer 抛错继续按 QUERY_EXECUTION_ERROR、FILE_VERIFY_ERROR 或 INTERNAL_ERROR 收口",
+                                                        "禁止用 mock renderer 绕过生产 renderExportPackage / renderFileBody 路径",
+                                                        "禁止把本地 object storage mock 证据写成 live OSS/S3 证据"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "src/file-service/index.ts",
+                                            "tests/file/export-file-service.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "src/file-service/",
+                                          "tests/file/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-006",
+                                              "AC-E027"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/file-service/",
+                                                 "tests/file/",
+                                                 "tests/worker/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "识别 renderFileBody / renderExportPackage 真实渲染异常边界",
+                                    "将 renderer 抛错映射为 EXPORT_RENDER_ERROR，同时保留 object storage put/read/publish 的 FILE_VERIFY_ERROR 映射",
+                                    "补 file 或 worker 测试证明渲染失败最终失败 errorCode / audit 为 EXPORT_RENDER_ERROR",
+                                    "同步 verify-matrix 记录 FILE-RENDER-ERROR-CONTRACT-REPAIR-001 的 local/Docker MySQL 与本地 object storage mock 证据边界"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+                      "acceptance":  [
+                                         "真实 renderer 抛错时生产 file-service/worker 路径按 EXPORT_RENDER_ERROR 收口",
+                                         "object storage put/read/publish 失败仍按 FILE_VERIFY_ERROR 收口，既有测试不回退",
+                                         "file 或 worker 测试覆盖渲染失败的 errorCode / audit / 失败状态证据",
+                                         "证据边界只声明 local/Docker MySQL 与本地 object storage mock，不声明 live OSS/S3"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -1682,7 +1829,9 @@
                       "dependencies":  [
                                            "DOCKER-TEST-DATA-AUTOMATION-001",
                                            "REQUIREMENTS-GAP-REPAIR-001",
-                                           "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
+                                           "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
+                                           "TASK-DETAIL-PROGRESS-CONTRACT-REPAIR-001",
+                                           "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [
