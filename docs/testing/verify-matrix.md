@@ -46,7 +46,7 @@
 
 | 证据项 | 覆盖需求 | 状态 | 验证命令 | 边界 |
 | --- | --- | --- | --- | --- |
-| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内；`npm run test:worker` 断言 cleanup 删除失败写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL；不声明 live object storage evidence |
+| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
 | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |

@@ -1599,7 +1599,7 @@
                       "dependencies":  [
                                            "REQUIREMENTS-GAP-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001：cleanup 失败审计 errorCode 必须与公开 ResponseCode 契约一致",
@@ -1658,7 +1658,7 @@
                                     "补 worker cleanup failure 测试，断言 CLEANUP_FAILED 审计的 errorCode 为公开契约允许值且保持失败结果",
                                     "同步 verify-matrix 记录该修复的本地 contract / worker 证据边界"
                                 ],
-                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
                       "acceptance":  [
                                          "src/cleanup-job/index.ts 写入的 cleanup 失败 audit errorCode 必须在 contracts/openapi.yaml components.schemas.ResponseCode enum 中公开",
                                          "tests/contract/openapi-route-mapping.contract.test.mjs 能守护生产审计 action/result/errorCode literals 均不漂移出公开枚举",

@@ -1,0 +1,69 @@
+SUCCESS: The process with PID 36776 (child process of PID 24256) has been terminated.
+SUCCESS: The process with PID 24256 (child process of PID 28084) has been terminated.
+SUCCESS: The process with PID 28084 (child process of PID 5560) has been terminated.
+SUCCESS: The process with PID 5560 (child process of PID 33692) has been terminated.
+SUCCESS: The process with PID 33692 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 21600 (child process of PID 3144) has been terminated.
+SUCCESS: The process with PID 1196 (child process of PID 32712) has been terminated.
+SUCCESS: The process with PID 32712 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 6252 (child process of PID 35824) has been terminated.
+SUCCESS: The process with PID 35824 (child process of PID 20728) has been terminated.
+SUCCESS: The process with PID 20728 (child process of PID 29596) has been terminated.
+SUCCESS: The process with PID 29596 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 30980 (child process of PID 6616) has been terminated.
+SUCCESS: The process with PID 6616 (child process of PID 31548) has been terminated.
+SUCCESS: The process with PID 31548 (child process of PID 8772) has been terminated.
+SUCCESS: The process with PID 8772 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 32480 (child process of PID 8088) has been terminated.
+SUCCESS: The process with PID 30964 (child process of PID 2912) has been terminated.
+SUCCESS: The process with PID 2912 (child process of PID 27784) has been terminated.
+SUCCESS: The process with PID 28008 (child process of PID 33468) has been terminated.
+SUCCESS: The process with PID 33468 (child process of PID 2452) has been terminated.
+SUCCESS: The process with PID 2452 (child process of PID 32920) has been terminated.
+SUCCESS: The process with PID 32920 (child process of PID 24828) has been terminated.
+SUCCESS: The process with PID 24828 (child process of PID 27784) has been terminated.
+## Requirement IDs
+- FR-010
+- FR-011
+- AC-010
+- AC-011
+
+## Summary
+- cleanup 删除失败审计已收口为公开 `ResponseCode`：`FILE_CLEANUP_DELETE_ERROR`，不再透传 raw `Error.name`。
+- 已补 contract 守护和 worker 失败态测试；完整任务验证通过。
+- 子代理已创建提交 `ba5df87`。另有 `docs/testing/verify-matrix.md` 的本任务证据边界更新仍在工作区，`traces/` 为运行产物。
+
+## Files Changed
+- [src/cleanup-job/index.ts](</E:/2026/alpha-project/longgang-codex-driver/src/cleanup-job/index.ts:117>): 固定 cleanup 失败 audit `errorCode`。
+- [tests/contract/openapi-route-mapping.contract.test.mjs](</E:/2026/alpha-project/longgang-codex-driver/tests/contract/openapi-route-mapping.contract.test.mjs:125>): 增加 raw `Error.name` 防漂移守护。
+- [tests/worker/scheduler-worker.test.mjs](</E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:1162>): 覆盖供应商自定义异常名仍写公开错误码。
+- [docs/testing/verify-matrix.md](</E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:49>): 同步本任务验证边界。
+
+## Validation
+- `npm run test:contract`: PASS - 5/5。
+- `.\scripts\docker-test-env.ps1` + `npm run test:worker`: PASS - worker 18/18。
+- `git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt`: PASS。
+
+## Evidence
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明生产审计 errorCode 字面量不漂移出 OpenAPI enum。
+- `tests/worker/scheduler-worker.test.mjs`: 证明 cleanup 删除失败保持 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR`。
+
+## Architecture Constraints
+- `production error contract`: PASS - 使用公开 OpenAPI `ResponseCode`。
+- `worker + scheduled_job`: PASS - 通过 Docker MySQL worker 集成测试验证。
+- `test double policy`: PASS - 未引入内存生产替身；对象存储失败态仅在测试中模拟。
+
+## Knowledge References
+- 无具体知识条目引用；仅读取 knowledge catalog 判断本任务无需展开条目。
+
+## Knowledge Outputs
+- `PITFALL-CLEANUP-AUDIT-ERRORCODE-001`: pitfall - 不要把 raw `Error.name` 写入公开 audit errorCode - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `docs/testing/verify-matrix.md` 当前仍未提交；我没有追加提交以避免继续扩大 Driver Context 中的 git 边界冲突。
+- 工作区还有未跟踪 `traces/` 运行产物。

@@ -1,0 +1,59 @@
+SUCCESS: The process with PID 10964 (child process of PID 31828) has been terminated.
+SUCCESS: The process with PID 31828 (child process of PID 37312) has been terminated.
+SUCCESS: The process with PID 37312 (child process of PID 24772) has been terminated.
+SUCCESS: The process with PID 24772 (child process of PID 16956) has been terminated.
+SUCCESS: The process with PID 16956 (child process of PID 31008) has been terminated.
+SUCCESS: The process with PID 32028 (child process of PID 32076) has been terminated.
+SUCCESS: The process with PID 13208 (child process of PID 33408) has been terminated.
+SUCCESS: The process with PID 33408 (child process of PID 31008) has been terminated.
+SUCCESS: The process with PID 27924 (child process of PID 24992) has been terminated.
+SUCCESS: The process with PID 24992 (child process of PID 28188) has been terminated.
+SUCCESS: The process with PID 28188 (child process of PID 20600) has been terminated.
+SUCCESS: The process with PID 20600 (child process of PID 31008) has been terminated.
+## Requirement IDs
+- FR-010
+- FR-011
+- AC-010
+- AC-011
+
+## Summary
+- 将 cleanup 删除失败审计固定写入公开 `ResponseCode`：`FILE_CLEANUP_DELETE_ERROR`，不再透传供应商或底层异常的 raw `Error.name`。
+- 补 contract 守护，确保 cleanup 失败审计 errorCode 是公开字面量。
+- 补 worker 失败路径用例，模拟 `UnexpectedStorageVendorError`，断言仍落为 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR`。
+- 同步 `verify-matrix` 的本任务证据边界。
+
+## Files Changed
+- [src/cleanup-job/index.ts](E:/2026/alpha-project/longgang-codex-driver/src/cleanup-job/index.ts:117): 固定 cleanup 失败 audit `errorCode`。
+- [tests/contract/openapi-route-mapping.contract.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/contract/openapi-route-mapping.contract.test.mjs:125): 新增 cleanup errorCode raw `Error.name` 防漂移守护。
+- [tests/worker/scheduler-worker.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:1166): 覆盖自定义异常名删除失败场景。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:49): 更新本地 contract / worker 证据边界。
+
+## Validation
+- `npm run test:contract`: PASS - 5/5 passed。
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ...; npm run test:worker'`: PASS - Docker/MySQL test env ready，worker 18/18 passed。
+- full task command with scoped `git diff --check`: PASS - 无空白错误；仅有 Windows LF/CRLF warning。
+
+## Evidence
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 cleanup 失败审计不能从 raw `Error.name` 透传。
+- `tests/worker/scheduler-worker.test.mjs`: 证明删除失败保持失败结果与公开错误码。
+- `docs/testing/verify-matrix.md`: 记录本任务验证命令和 local/Docker MySQL + 本地 object storage mock 边界。
+
+## Architecture Constraints
+- `independent_microservice / worker / cleanup job`: PASS - 只修改 cleanup job 生产路径和对应测试。
+- `ResponseCode public contract`: PASS - `FILE_CLEANUP_DELETE_ERROR` 已在 OpenAPI `ResponseCode` enum 中公开，生产审计写入对齐。
+- `no InMemory/mock production implementation`: PASS - 未新增生产替身；测试替身仅用于 worker 集成测试注入失败。
+
+## Knowledge References
+- none: 当前知识库无 cleanup 审计错误码相关条目。
+
+## Knowledge Outputs
+- `PITFALL-AUDIT-ERRORCODE-RAW-ERROR-NAME`: pitfall - 生产审计错误码不得透传底层异常名 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `REQUIREMENTS-COMPLETE-REVIEW-001` 复跑；本任务只完成其前置修复。
+- 按当前单任务模板要求未执行 `git add` / `git commit` / `git push`。

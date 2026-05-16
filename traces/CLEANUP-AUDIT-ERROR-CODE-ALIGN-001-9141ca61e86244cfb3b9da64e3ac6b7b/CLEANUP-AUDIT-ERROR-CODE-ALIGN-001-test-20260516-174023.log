@@ -1,0 +1,54 @@
+﻿
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9228ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3994ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4556ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.0467ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2529ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.6335
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:62278 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7605ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (260.5786ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (266.8417ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (274.9565ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (211.6694ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (273.957ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (233.4153ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (235.9224ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (196.8907ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (247.5016ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (268.5346ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (195.6289ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (284.8043ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (243.1475ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (257.6494ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (184.977ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (164.5516ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (157.5978ms)
+✔ worker integration tests (3960.9851ms)
+ℹ tests 18
+ℹ suites 1
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4510.1189
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it

@@ -1,0 +1,835 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3028-899c-7751-8173-05580d9a2925
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: CLEANUP-AUDIT-ERROR-CODE-ALIGN-001
+- 描述: 对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试
+- Requirement IDs:
+- FR-010
+- FR-011
+- AC-010
+- AC-011
+- 测试命令: npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- src/cleanup-job/index.ts
+- tests/contract/openapi-route-mapping.contract.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- docs/testing/verify-matrix.md
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-final.txt
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9228ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3994ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4556ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.0467ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2529ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.6335
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:62278 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7605ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (260.5786ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (266.8417ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (274.9565ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (211.6694ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (273.957ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (233.4153ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (235.9224ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (196.8907ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (247.5016ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (268.5346ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (195.6289ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (284.8043ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (243.1475ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (257.6494ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (184.977ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (164.5516ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (157.5978ms)
+✔ worker integration tests (3960.9851ms)
+ℹ tests 18
+ℹ suites 1
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4510.1189
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 2 reviewer 口径做只读审查：先读取对应评审技能和当前 diff，再抽查契约、生产代码、测试与验证证据是否互相闭合。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage2-reviewer\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T09:40:36.233651Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Path 'E:\2026\alpha-project\longgang-codex-driver\.agent[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 444ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Path 'E:\2026\alpha-project\longgang-codex-driver\.agent[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+codex
+指定的 Stage 2 reviewer 技能路径在仓库内不存在，我会改用用户给出的模板和仓库当前证据继续审查。接下来会看工作区改动、相关文件和测试覆盖点。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- contracts/openapi.yaml src/cleanup-job/index.ts tests/contract/openapi-route-mapping.contract.test.mjs tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md task.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "if (Test-Path 'C:\\Users\\pzy666\\.codex\\skills\\.system') { Get-ChildItem -Path 'C:\\Users\\pzy666\\.codex\\skills' -Recurse -Filter 'SKILL.md' | Where-Object { "'$_.FullName -match '"'stage2|review' } | Select-Object -ExpandProperty FullName }" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 427ms:
+ succeeded in 430ms:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index fc80bcd..a364579 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -46,7 +46,7 @@
+ 
+ | 证据项 | 覆盖需求 | 状态 | 验证命令 | 边界 |
+ | --- | --- | --- | --- | --- |
+-| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内；`npm run test:worker` 断言 cleanup 删除失败写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL；不声明 live object storage evidence |
++| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
+ | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
+ | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
+ | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 500ms:
+ M docs/testing/verify-matrix.md
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2/
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b/
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-171459.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/
+
+codex
+当前可见未提交 diff 只改了验证矩阵一行，核心代码和测试改动很可能已经在 HEAD 或 trace 中。我会继续抽查 HEAD 中的 cleanup 实现、OpenAPI 枚举和测试断言，避免只根据摘要下结论。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path 'src/cleanup-job/index.ts' -Pattern 'errorCode|CLEANUP_FAILED|FILE_CLEANUP_DELETE_ERROR|Error.name|audit|delete' -Context 4,4" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path 'tests/contract/openapi-route-mapping.contract.test.mjs' -Pattern 'cleanup failure|errorCode|ResponseCode|Error.name|audit action|OpenAPI public enums' -Context 4,6" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path 'tests/worker/scheduler-worker.test.mjs' -Pattern 'cleanup job poll once records retry audit|FILE_CLEANUP_DELETE_ERROR|CLEANUP_FAILED|delete fails|Error.name|Vendor|custom' -Context 6,8" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 363ms:
+
+  src\cleanup-job\index.ts:1:import { randomUUID } from "node:crypto";
+  src\cleanup-job\index.ts:2:import type { Kysely } from "kysely";
+  src\cleanup-job\index.ts:3:import type { ExportPlatformDatabase } from "../db/schema.ts";
+  src\cleanup-job\index.ts:4:import {
+> src\cleanup-job\index.ts:5:  createExport[7mAudit[0mRepository,[0m
+[7m[0m  src\cleanup-job\index.ts:6:  createExportFileRepository,[0m
+[7m[0m  src\cleanup-job\index.ts:7:  createExportTaskEventRepository,[0m
+[7m[0m  src\cleanup-job\index.ts:8:  getDatabaseTime[0m
+[7m[0m  src\cleanup-job\index.ts:9:} from "../repositories/index.ts";[0m
+  src\cleanup-job\index.ts:16:};
+  src\cleanup-job\index.ts:17:
+  src\cleanup-job\index.ts:18:export type CleanupPollResult = {
+  src\cleanup-job\index.ts:19:  scanned: number;
+> src\cleanup-job\index.ts:20:  [7mdelete[0md: number;[0m
+[7m[0m  src\cleanup-job\index.ts:21:  retried: number;[0m
+[7m[0m  src\cleanup-job\index.ts:22:};[0m
+[7m[0m  src\cleanup-job\index.ts:23:[0m
+[7m[0m  src\cleanup-job\index.ts:24:export type CleanupObjectStorage = {[0m
+> src\cleanup-job\index.ts:25:  [7mdelete[0mObject(storageKey: string): Promise<void>;[0m
+[7m[0m  src\cleanup-job\index.ts:26:};[0m
+[7m[0m  src\cleanup-job\index.ts:27:[0m
+[7m[0m  src\cleanup-job\index.ts:28:export function createCleanupJob(options: CleanupJobOptions) {[0m
+[7m[0m  src\cleanup-job\index.ts:29:  const files = createExportFileRepository(options.db);[0m
+> src\cleanup-job\index.ts:30:  const [7maudit[0ms = createExportAuditRepository(options.db);[0m
+[7m[0m  src\cleanup-job\index.ts:31:  const events = createExportTaskEventRepository(options.db);[0m
+[7m[0m  src\cleanup-job\index.ts:32:  const storage = options.storage ?? createCleanupObjectStorage[0m
+[7m[0mFromEnv();[0m
+[7m[0m  src\cleanup-job\index.ts:33:  const maxFilesPerPoll = options.maxFilesPerPoll ?? 10;[0m
+[7m[0m  src\cleanup-job\index.ts:34:[0m
+  src\cleanup-job\index.ts:39:      limit: maxFilesPerPoll
+  src\cleanup-job\index.ts:40:    });
+  src\cleanup-job\index.ts:41:    const result: CleanupPollResult = {
+  src\cleanup-job\index.ts:42:      scanned: candidates.length,
+> src\cleanup-job\index.ts:43:      [7mdelete[0md: 0,[0m
+[7m[0m  src\cleanup-job\index.ts:44:      retried: 0[0m
+[7m[0m  src\cleanup-job\index.ts:45:    };[0m
+[7m[0m  src\cleanup-job\index.ts:46:[0m
+[7m[0m  src\cleanup-job\index.ts:47:    for (const candidate of candidates) {[0m
+  src\cleanup-job\index.ts:52:        now: invalidatedAt
+  src\cleanup-job\index.ts:53:      });
+  src\cleanup-job\index.ts:54:
+  src\cleanup-job\index.ts:55:      try {
+> src\cleanup-job\index.ts:56:        await storage.[7mdelete[0mObject(candidate.publishedStorageKe[0m
+[7m[0my);[0m
+[7m[0m  src\cleanup-job\index.ts:57:        if (candidate.tempStorageKey) {[0m
+> src\cleanup-job\index.ts:58:          await storage.[7mdelete[0mObject(candidate.tempStorageKey);[0m
+[7m[0m  src\cleanup-job\index.ts:59:        }[0m
+> src\cleanup-job\index.ts:60:        const [7mdelete[0mdAt = await getDatabaseTime(options.db);
+> src\cleanup-job\index.ts:61:        await files.markObject[7mDelete[0md({[0m
+[7m[0m  src\cleanup-job\index.ts:62:          taskId: candidate.taskId,[0m
+[7m[0m  src\cleanup-job\index.ts:63:          attemptNo: candidate.attemptNo,[0m
+> src\cleanup-job\index.ts:64:          now: [7mdelete[0mdAt[0m
+[7m[0m  src\cleanup-job\index.ts:65:        });[0m
+[7m[0m  src\cleanup-job\index.ts:66:        await appendCleanupEvent({[0m
+[7m[0m  src\cleanup-job\index.ts:67:          events,[0m
+[7m[0m  src\cleanup-job\index.ts:68:          candidate,[0m
+  src\cleanup-job\index.ts:69:          eventType: "FILE_CLEANUP_DONE",
+  src\cleanup-job\index.ts:70:          requestId: cleanupRequestId(options.workerId),
+> src\cleanup-job\index.ts:71:          now: [7mdelete[0mdAt,[0m
+[7m[0m  src\cleanup-job\index.ts:72:          checkpoint: {[0m
+[7m[0m  src\cleanup-job\index.ts:73:            storageKey: candidate.publishedStorageKey,[0m
+[7m[0m  src\cleanup-job\index.ts:74:            tempStorageKey: candidate.tempStorageKey,[0m
+> src\cleanup-job\index.ts:75:            cleanupResult: "[7mdelete[0md"[0m
+[7m[0m  src\cleanup-job\index.ts:76:          }[0m
+[7m[0m  src\cleanup-job\index.ts:77:        });[0m
+> src\cleanup-job\index.ts:78:        await [7maudit[0ms.appendAuditLog({
+> src\cleanup-job\index.ts:79:          [7maudit[0mId: `audit_${randomUUID()}`,[0m
+[7m[0m  src\cleanup-job\index.ts:80:          taskId: candidate.taskId,[0m
+[7m[0m  src\cleanup-job\index.ts:81:          attemptNo: candidate.attemptNo,[0m
+[7m[0m  src\cleanup-job\index.ts:82:          taskCode: candidate.taskCode,[0m
+[7m[0m  src\cleanup-job\index.ts:83:          subsystemCode: candidate.subsystemCode,[0m
+  src\cleanup-job\index.ts:84:          operatorId: candidate.operatorId,
+  src\cleanup-job\index.ts:85:          action: "EXPIRE_MARK",
+  src\cleanup-job\index.ts:86:          result: "SUCCESS",
+> src\cleanup-job\index.ts:87:          [7merrorCode[0m: "SUCCESS",[0m
+[7m[0m  src\cleanup-job\index.ts:88:          requestId: cleanupRequestId(options.workerId),[0m
+> src\cleanup-job\index.ts:89:          occurredAt: [7mdelete[0mdAt,
+> src\cleanup-job\index.ts:90:          now: [7mdelete[0mdAt[0m
+[7m[0m  src\cleanup-job\index.ts:91:        });[0m
+> src\cleanup-job\index.ts:92:        result.[7mdelete[0md += 1;[0m
+[7m[0m  src\cleanup-job\index.ts:93:      } catch (error) {[0m
+[7m[0m  src\cleanup-job\index.ts:94:        const failedAt = await getDatabaseTime(options.db);[0m
+[7m[0m  src\cleanup-job\index.ts:95:        await appendCleanupEvent({[0m
+[7m[0m  src\cleanup-job\index.ts:96:          events,[0m
+  src\cleanup-job\index.ts:104:            cleanupResult: "retry",
+  src\cleanup-job\index.ts:105:            error: error instanceof Error ? error.message : St
+ring(error)
+  src\cleanup-job\index.ts:106:          }
+  src\cleanup-job\index.ts:107:        });
+> src\cleanup-job\index.ts:108:        await [7maudit[0ms.appendAuditLog({[0m
+> src\cleanup-job\index.ts:109:          [7maudit[0mId: `audit_${randomUUID()}`,[0m
+[7m[0m  src\cleanup-job\index.ts:110:          taskId: candidate.taskId,[0m
+[7m[0m  src\cleanup-job\index.ts:111:          attemptNo: candidate.attemptNo,[0m
+[7m[0m  src\cleanup-job\index.ts:112:          taskCode: candidate.taskCode,[0m
+[7m[0m  src\cleanup-job\index.ts:113:          subsystemCode: candidate.subsystemCode,[0m
+  src\cleanup-job\index.ts:114:          operatorId: candidate.operatorId,
+> src\cleanup-job\index.ts:115:          action: "[7mCLEANUP_FAILED[0m",[0m
+[7m[0m  src\cleanup-job\index.ts:116:          result: "FAILED",[0m
+> src\cleanup-job\index.ts:117:          [7merrorCode[0m: "FILE_CLEANUP_DELETE_ERROR",[0m
+[7m[0m  src\cleanup-job\index.ts:118:          requestId: cleanupRequestId(options.workerId),[0m
+[7m[0m  src\cleanup-job\index.ts:119:          occurredAt: failedAt,[0m
+[7m[0m  src\cleanup-job\index.ts:120:          now: failedAt[0m
+[7m[0m  src\cleanup-job\index.ts:121:        });[0m
+  src\cleanup-job\index.ts:141:
+  src\cleanup-job\index.ts:142:  const normalizedEndpoint = endpoint.replace(/\/+$/, "");
+  src\cleanup-job\index.ts:143:
+  src\cleanup-job\index.ts:144:  return {
+> src\cleanup-job\index.ts:145:    async [7mdelete[0mObject(storageKey) {[0m
+[7m[0m  src\cleanup-job\index.ts:146:      const response = await fetch([0m
+[7m[0m  src\cleanup-job\index.ts:147:        `${normalizedEndpoint}/${encodeURIComponent(bucket)}/$[0m
+[7m[0m{encodeStorageKey(storageKey)}`,[0m
+[7m[0m  src\cleanup-job\index.ts:148:        {[0m
+> src\cleanup-job\index.ts:149:          method: "[7mDELETE[0m"[0m
+[7m[0m  src\cleanup-job\index.ts:150:        }[0m
+[7m[0m  src\cleanup-job\index.ts:151:      );[0m
+[7m[0m  src\cleanup-job\index.ts:152:      if (!response.ok && response.status !== 404) {[0m
+> src\cleanup-job\index.ts:153:        const error = new Error(`object storage [7mdelete[0m failed:[0m
+[7m[0m ${response.status}`);[0m
+> src\cleanup-job\index.ts:154:        [7merror.name[0m = "FILE_CLEANUP_DELETE_ERROR";[0m
+[7m[0m  src\cleanup-job\index.ts:155:        throw error;[0m
+[7m[0m  src\cleanup-job\index.ts:156:      }[0m
+[7m[0m  src\cleanup-job\index.ts:157:    }[0m
+[7m[0m  src\cleanup-job\index.ts:158:  };[0m
+
+
+ succeeded in 376ms:
+
+  tests\contract\openapi-route-mapping.contract.test.mjs:28:  const [, values] = openapi.matc
+h(/result:\s*\n\s+type:\s+string\s*\n\s+enum:\s+\[([^\]]+)\]/) ?? [];
+  tests\contract\openapi-route-mapping.contract.test.mjs:29:  return new Set(values.split(","
+).map((value) => value.trim()));
+  tests\contract\openapi-route-mapping.contract.test.mjs:30:}
+  tests\contract\openapi-route-mapping.contract.test.mjs:31:
+> tests\contract\openapi-route-mapping.contract.test.mjs:32:function parse[7mResponseCode[0mEnum() [0m
+[7m[0m{[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:33:  const openapi = readFileSync("c[0m
+[7m[0montracts/openapi.yaml", "utf8");[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:34:  const [, block] = openapi.match
+(/[7mResponseCode[0m:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{4}TaskStatus:/) ?? [];[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:35:  return new Set([...block.matchA[0m
+[7m[0mll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:36:}[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:37:[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:38:function sourceAuditLiterals() {[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:39:  const sources = [[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:40:    "src/task-api/service.ts",[0m
+  tests\contract\openapi-route-mapping.contract.test.mjs:53:      sources.flatMap((source) =>
+  tests\contract\openapi-route-mapping.contract.test.mjs:54:        [...source.matchAll(/resu
+lt:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+  tests\contract\openapi-route-mapping.contract.test.mjs:55:      )
+  tests\contract\openapi-route-mapping.contract.test.mjs:56:    ),
+> tests\contract\openapi-route-mapping.contract.test.mjs:57:    [7merrorCode[0ms: new Set([0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:58:      sources.flatMap((source) =>[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:59:        [...source.matchAll(/[7merro[0m
+[7mrCode[0m:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)][0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:60:          .flatMap((match) => [ma[0m
+[7m[0mtch[1], match[2]])[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:61:          .filter(Boolean)[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:62:      )[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:63:    )[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:64:  };[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:65:}[0m
+  tests\contract\openapi-route-mapping.contract.test.mjs:101:
+  tests\contract\openapi-route-mapping.contract.test.mjs:102:  assert.equal(apiEvidenceCount,
+ parseOpenApiOperationIds().length);
+  tests\contract\openapi-route-mapping.contract.test.mjs:103:});
+  tests\contract\openapi-route-mapping.contract.test.mjs:104:
+> tests\contract\openapi-route-mapping.contract.test.mjs:105:test("[7maudit action[0m, result, and [0m
+[7m[0merrorCode literals written by production code stay within OpenAPI public enums", () => {[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:106:  const actionEnum = parseAuditA[0m
+[7m[0mctionEnum();[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:107:  const resultEnum = parseAuditR[0m
+[7m[0mesultEnum();[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:108:  const [7mresponseCode[0mEnum = parse[0m
+[7m[0mResponseCodeEnum();[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:109:  const literals = sourceAuditLi[0m
+[7m[0mterals();[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:110:[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:111:  assert.deepEqual([0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:112:    [...literals.actions].filter[0m
+[7m[0m((action) => !actionEnum.has(action)),[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:113:    [][0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:114:  );[0m
+  tests\contract\openapi-route-mapping.contract.test.mjs:116:    [...literals.results].filter
+((result) => !resultEnum.has(result)),
+  tests\contract\openapi-route-mapping.contract.test.mjs:117:    []
+  tests\contract\openapi-route-mapping.contract.test.mjs:118:  );
+  tests\contract\openapi-route-mapping.contract.test.mjs:119:  assert.deepEqual(
+> tests\contract\openapi-route-mapping.contract.test.mjs:120:    [...literals.[7merrorCode[0ms].fil[0m
+[7m[0mter((errorCode) => !responseCodeEnum.has(errorCode)),[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:121:    [][0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:122:  );[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:123:});[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:124:[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:125:test("[7mcleanup failure[0m audit erro[0m
+[7m[0mrCode is a public ResponseCode literal, not raw Error.name", () => {[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:126:  const cleanupJob = readFileSyn[0m
+[7m[0mc("src/cleanup-job/index.ts", "utf8");[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:127:  assert.doesNotMatch(cleanupJob
+, /[7merrorCode[0m:\s*[\s\S]{0,120}\.name/);[0m
+> tests\contract\openapi-route-mapping.contract.test.mjs:128:  assert.match(cleanupJob, /[7merro[0m
+[7mrCode[0m:\s*"FILE_CLEANUP_DELETE_ERROR"/);[0m
+[7m[0m  tests\contract\openapi-route-mapping.contract.test.mjs:129:});[0m
+
+
+ succeeded in 409ms:
+
+  tests\worker\scheduler-worker.test.mjs:760:    maxQueryBatchRetries: 2,
+  tests\worker\scheduler-worker.test.mjs:761:    queryBatchBackoffBaseMs: 25,
+  tests\worker\scheduler-worker.test.mjs:762:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:763:      calls += 1;
+  tests\worker\scheduler-worker.test.mjs:764:      if (calls === 1) {
+  tests\worker\scheduler-worker.test.mjs:765:        const error = new Error("temporary datas
+ource timeout");
+> tests\worker\scheduler-worker.test.mjs:766:        [7merror.name[0m = "QUERY_EXECUTION_ERROR";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:767:        throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:768:      }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:769:      return {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:770:        checkpoint: {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:771:          lastCursor: "order-retry-success",[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:772:          processedCount: 10,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:773:          filePartNo: 1,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:774:          retryCount: 1,[0m
+  tests\worker\scheduler-worker.test.mjs:828:    maxQueryBatchRetries: 2,
+  tests\worker\scheduler-worker.test.mjs:829:    queryBatchBackoffBaseMs: 60_000,
+  tests\worker\scheduler-worker.test.mjs:830:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:831:      calls += 1;
+  tests\worker\scheduler-worker.test.mjs:832:      if (calls === 1) {
+  tests\worker\scheduler-worker.test.mjs:833:        const error = new Error("temporary datas
+ource timeout");
+> tests\worker\scheduler-worker.test.mjs:834:        [7merror.name[0m = "QUERY_EXECUTION_ERROR";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:835:        throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:836:      }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:837:      return {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:838:        checkpoint: {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:839:          lastCursor: "order-retry-success",[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:840:          processedCount: 10,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:841:          filePartNo: 1,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:842:          retryCount: 1,[0m
+  tests\worker\scheduler-worker.test.mjs:891:    maxQueryBatchRetries: 2,
+  tests\worker\scheduler-worker.test.mjs:892:    queryBatchBackoffBaseMs: 1000,
+  tests\worker\scheduler-worker.test.mjs:893:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:894:      calls += 1;
+  tests\worker\scheduler-worker.test.mjs:895:      if (calls === 1) {
+  tests\worker\scheduler-worker.test.mjs:896:        const error = new Error("temporary datas
+ource timeout");
+> tests\worker\scheduler-worker.test.mjs:897:        [7merror.name[0m = "QUERY_EXECUTION_ERROR";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:898:        throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:899:      }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:900:      return {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:901:        checkpoint: {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:902:          lastCursor: "order-retry-ready",[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:903:          processedCount: 10,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:904:          filePartNo: 1,[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:905:          retryCount: 1,[0m
+  tests\worker\scheduler-worker.test.mjs:949:    leaseDurationSeconds: 300,
+  tests\worker\scheduler-worker.test.mjs:950:    maxTasksPerPoll: 1,
+  tests\worker\scheduler-worker.test.mjs:951:    maxQueryBatchRetries: 1,
+  tests\worker\scheduler-worker.test.mjs:952:    queryBatchBackoffBaseMs: 1000,
+  tests\worker\scheduler-worker.test.mjs:953:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:954:      const error = new Error("query still unava
+ilable");
+> tests\worker\scheduler-worker.test.mjs:955:      [7merror.name[0m = "QUERY_EXECUTION_ERROR";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:956:      throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:957:    }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:958:  });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:959:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:960:  const firstPoll = await worker.pollAndProcessO[0m
+[7m[0mnce();[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:961:  await db[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:962:    .updateTable("export_task_checkpoints")[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:963:    .set({[0m
+  tests\worker\scheduler-worker.test.mjs:1003:    maxTasksPerPoll: 1,
+  tests\worker\scheduler-worker.test.mjs:1004:    maxQueryBatchRetries: 1,
+  tests\worker\scheduler-worker.test.mjs:1005:    queryBatchBackoffBaseMs: 60_000,
+  tests\worker\scheduler-worker.test.mjs:1006:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:1007:      calls += 1;
+  tests\worker\scheduler-worker.test.mjs:1008:      const error = new Error("query still unav
+ailable");
+> tests\worker\scheduler-worker.test.mjs:1009:      [7merror.name[0m = "QUERY_EXECUTION_ERROR";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1010:      throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1011:    }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1012:  });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1013:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1014:  const firstPoll = await worker.pollAndProcess[0m
+[7m[0mOnce();[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1015:  const prematurePoll = await worker.pollAndPro[0m
+[7m[0mcessOnce();[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1016:  const callsAfterPrematurePoll = calls;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1017:  await db[0m
+  tests\worker\scheduler-worker.test.mjs:1052:    workerId: "worker-datasource-unavailable",
+  tests\worker\scheduler-worker.test.mjs:1053:    leaseDurationSeconds: 300,
+  tests\worker\scheduler-worker.test.mjs:1054:    maxTasksPerPoll: 1,
+  tests\worker\scheduler-worker.test.mjs:1055:    maxQueryBatchRetries: 0,
+  tests\worker\scheduler-worker.test.mjs:1056:    batchProcessor: async () => {
+  tests\worker\scheduler-worker.test.mjs:1057:      const error = new Error("credential unava
+ilable");
+> tests\worker\scheduler-worker.test.mjs:1058:      [7merror.name[0m = "DATASOURCE_UNAVAILABLE";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1059:      throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1060:    }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1061:  });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1062:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1063:  const result = await worker.pollAndProcessOnc[0m
+[7m[0me();[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1064:  const task = await createExportTaskRepository[0m
+[7m[0m(db).findTaskById(taskId);[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1065:  const audits = await createExportAuditReposit[0m
+[7m[0mory(db).listAuditLogsForTask(taskId);[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1066:[0m
+  tests\worker\scheduler-worker.test.mjs:1124:  assert.deepEqual(deletes, ["exports/published
+/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
+  tests\worker\scheduler-worker.test.mjs:1125:  assert.ok(audits.some((audit) => audit.action
+ === "EXPIRE_MARK" && audit.result === "SUCCESS"));
+  tests\worker\scheduler-worker.test.mjs:1126:  assert.ok(events.some((event) => event.eventT
+ype === "FILE_CLEANUP_DONE"));
+  tests\worker\scheduler-worker.test.mjs:1127:  assert.equal(task.taskCode, taskCode);
+  tests\worker\scheduler-worker.test.mjs:1128:});
+  tests\worker\scheduler-worker.test.mjs:1129:
+> tests\worker\scheduler-worker.test.mjs:1130:serialTest("[7mcleanup job poll once records retry[0m
+[7m audit[0m and does not mark cleanup done when delete fails", async (t) => {[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1131:  const db = await createTestDatabase(t);[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1132:  const { taskCode, subsystemCode, runId } = aw[0m
+[7m[0mait seedRegistry(db, { concurrencyLimit: 1 });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1133:  const taskId = "cleanup-failed-01";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1134:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1135:  await seedTask(db, { taskId, taskCode, subsys[0m
+[7m[0mtemCode });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1136:  const now = await getDatabaseTime(db);[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1137:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1138:  await createExportTaskRepository(db).updateTa[0m
+[7m[0mskStatus({[0m
+  tests\worker\scheduler-worker.test.mjs:1160:  const cleanupJob = createCleanupJob({
+  tests\worker\scheduler-worker.test.mjs:1161:    db,
+  tests\worker\scheduler-worker.test.mjs:1162:    workerId: "cleanup-worker",
+  tests\worker\scheduler-worker.test.mjs:1163:    storage: {
+  tests\worker\scheduler-worker.test.mjs:1164:      async deleteObject() {
+  tests\worker\scheduler-worker.test.mjs:1165:        const error = new Error("delete failed"
+);
+> tests\worker\scheduler-worker.test.mjs:1166:        [7merror.name[0m = "UnexpectedStorageVendorEr[0m
+[7m[0mror";[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1167:        throw error;[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1168:      }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1169:    }[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1170:  });[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1171:[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1172:  const result = await cleanupJob.pollOnce();[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1173:  const audits = await createExportAuditReposit[0m
+[7m[0mory(db).listAuditLogsForTask(taskId);[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1174:  const events = await createExportTaskEventRep[0m
+[7m[0mository(db).listRecentTaskEvents(taskId);[0m
+  tests\worker\scheduler-worker.test.mjs:1177:  assert.equal(result.scanned, 1);
+  tests\worker\scheduler-worker.test.mjs:1178:  assert.equal(result.deleted, 0);
+  tests\worker\scheduler-worker.test.mjs:1179:  assert.equal(result.retried, 1);
+  tests\worker\scheduler-worker.test.mjs:1180:  assert.ok(
+  tests\worker\scheduler-worker.test.mjs:1181:    audits.some(
+  tests\worker\scheduler-worker.test.mjs:1182:      (audit) =>
+> tests\worker\scheduler-worker.test.mjs:1183:        audit.action === "[7mCLEANUP_FAILED[0m" &&[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1184:        audit.result === "FAILED" &&[0m
+> tests\worker\scheduler-worker.test.mjs:1185:        audit.errorCode === "[7mFILE_CLEANUP_DELET[0m
+[7mE_ERROR[0m"[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1186:    )[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1187:  );[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1188:  assert.ok(events.some((event) => event.eventT[0m
+[7m[0mype === "FILE_CLEANUP_RETRY"));[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1189:  assert.ok(!events.some((event) => event.event[0m
+[7m[0mType === "FILE_CLEANUP_DONE"));[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1190:  assert.equal(metadata.publishedStorageKey, "e[0m
+[7m[0mxports/published/cleanup.xlsx");[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1191:  assert.equal(metadata.tempStorageKey, "export[0m
+[7m[0ms/tmp/cleanup.xlsx");[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1192:});[0m
+[7m[0m  tests\worker\scheduler-worker.test.mjs:1193:[0m
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path 'contracts/openapi.yaml' -Pattern 'ResponseCode|FILE_CLEANUP_DELETE_ERROR|CLEANUP_FAILED|errorCode' -Context 3,8" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 371ms:
+
+  contracts\openapi.yaml:1212:                message: internal error
+  contracts\openapi.yaml:1213:                data: null
+  contracts\openapi.yaml:1214:  schemas:
+> contracts\openapi.yaml:1215:    [7mResponseCode[0m:[0m
+[7m[0m  contracts\openapi.yaml:1216:      type: string[0m
+[7m[0m  contracts\openapi.yaml:1217:      enum:[0m
+[7m[0m  contracts\openapi.yaml:1218:        - SUCCESS[0m
+[7m[0m  contracts\openapi.yaml:1219:        - VALIDATION_ERROR[0m
+[7m[0m  contracts\openapi.yaml:1220:        - AUTH_CONTEXT_MISSING[0m
+[7m[0m  contracts\openapi.yaml:1221:        - PERMISSION_DENIED[0m
+[7m[0m  contracts\openapi.yaml:1222:        - TASK_NOT_FOUND[0m
+[7m[0m  contracts\openapi.yaml:1223:        - TASK_NOT_REGISTERED[0m
+  contracts\openapi.yaml:1228:        - FILE_EXPIRED
+  contracts\openapi.yaml:1229:        - FILE_NOT_READY
+  contracts\openapi.yaml:1230:        - FILE_VERIFY_ERROR
+> contracts\openapi.yaml:1231:        - [7mFILE_CLEANUP_DELETE_ERROR[0m
+[7m[0m  contracts\openapi.yaml:1232:        - QUERY_TEMPLATE_INVALID[0m
+[7m[0m  contracts\openapi.yaml:1233:        - DATASOURCE_UNAVAILABLE[0m
+[7m[0m  contracts\openapi.yaml:1234:        - QUERY_EXECUTION_ERROR[0m
+[7m[0m  contracts\openapi.yaml:1235:        - FIELD_MAPPING_INVALID[0m
+[7m[0m  contracts\openapi.yaml:1236:        - MASKING_RULE_ERROR[0m
+[7m[0m  contracts\openapi.yaml:1237:        - EXPORT_RENDER_ERROR[0m
+[7m[0m  contracts\openapi.yaml:1238:        - EXPORT_LIMIT_EXCEEDED[0m
+[7m[0m  contracts\openapi.yaml:1239:        - REGISTRY_CONFLICT[0m
+  contracts\openapi.yaml:1254:      required: [code, message]
+  contracts\openapi.yaml:1255:      properties:
+  contracts\openapi.yaml:1256:        code:
+> contracts\openapi.yaml:1257:          $ref: "#/components/schemas/[7mResponseCode[0m"[0m
+[7m[0m  contracts\openapi.yaml:1258:        message:[0m
+[7m[0m  contracts\openapi.yaml:1259:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1260:    ErrorEnvelope:[0m
+[7m[0m  contracts\openapi.yaml:1261:      allOf:[0m
+[7m[0m  contracts\openapi.yaml:1262:        - $ref: "#/components/schemas/Envelope"[0m
+[7m[0m  contracts\openapi.yaml:1263:        - type: object[0m
+[7m[0m  contracts\openapi.yaml:1264:          properties:[0m
+[7m[0m  contracts\openapi.yaml:1265:            data:[0m
+  contracts\openapi.yaml:1396:        attemptNo:
+  contracts\openapi.yaml:1397:          type: integer
+  contracts\openapi.yaml:1398:          minimum: 0
+> contracts\openapi.yaml:1399:        [7merrorCode[0m:[0m
+> contracts\openapi.yaml:1400:          $ref: "#/components/schemas/[7mResponseCode[0m"[0m
+[7m[0m  contracts\openapi.yaml:1401:        errorMessage:[0m
+[7m[0m  contracts\openapi.yaml:1402:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1403:        failureStage:[0m
+[7m[0m  contracts\openapi.yaml:1404:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1405:        lastSuccessStage:[0m
+[7m[0m  contracts\openapi.yaml:1406:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1407:        requestId:[0m
+[7m[0m  contracts\openapi.yaml:1408:          type: string[0m
+  contracts\openapi.yaml:1792:        - operatorId
+  contracts\openapi.yaml:1793:        - action
+  contracts\openapi.yaml:1794:        - result
+> contracts\openapi.yaml:1795:        - [7merrorCode[0m
+[7m[0m  contracts\openapi.yaml:1796:        - requestId[0m
+[7m[0m  contracts\openapi.yaml:1797:        - occurredAt[0m
+[7m[0m  contracts\openapi.yaml:1798:      properties:[0m
+[7m[0m  contracts\openapi.yaml:1799:        taskId:[0m
+[7m[0m  contracts\openapi.yaml:1800:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1801:        taskCode:[0m
+[7m[0m  contracts\openapi.yaml:1802:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1803:        subsystemCode:[0m
+  contracts\openapi.yaml:1819:            - RETRY_REQUEST
+  contracts\openapi.yaml:1820:            - DOWNLOAD
+  contracts\openapi.yaml:1821:            - EXPIRE_MARK
+> contracts\openapi.yaml:1822:            - [7mCLEANUP_FAILED[0m
+[7m[0m  contracts\openapi.yaml:1823:            - REGISTRY_CREATE[0m
+[7m[0m  contracts\openapi.yaml:1824:            - REGISTRY_QUERY[0m
+[7m[0m  contracts\openapi.yaml:1825:            - REGISTRY_DETAIL[0m
+[7m[0m  contracts\openapi.yaml:1826:            - REGISTRY_UPDATE[0m
+[7m[0m  contracts\openapi.yaml:1827:            - REGISTRY_ENABLE[0m
+[7m[0m  contracts\openapi.yaml:1828:            - REGISTRY_DISABLE[0m
+[7m[0m  contracts\openapi.yaml:1829:        result:[0m
+[7m[0m  contracts\openapi.yaml:1830:          type: string[0m
+  contracts\openapi.yaml:1831:          enum: [SUCCESS, FAILED, ACCEPTED]
+> contracts\openapi.yaml:1832:        [7merrorCode[0m:[0m
+> contracts\openapi.yaml:1833:          $ref: "#/components/schemas/[7mResponseCode[0m"[0m
+[7m[0m  contracts\openapi.yaml:1834:        requestId:[0m
+[7m[0m  contracts\openapi.yaml:1835:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1836:        occurredAt:[0m
+[7m[0m  contracts\openapi.yaml:1837:          type: string[0m
+[7m[0m  contracts\openapi.yaml:1838:          format: date-time[0m
+[7m[0m  contracts\openapi.yaml:1839:    TaskEvent:[0m
+[7m[0m  contracts\openapi.yaml:1840:      type: object[0m
+[7m[0m  contracts\openapi.yaml:1841:      required: [taskId, attemptNo, eventType, requestId, occur[0m
+[7m[0mredAt][0m
+
+
+codex
+从抽查结果看，生产失败审计已固定写入公开 `ResponseCode`，worker 测试也用供应商自定义异常名验证没有透传 `Error.name`。我再跑一遍轻量契约和 diff 检查，确认本地证据没有漂移。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:contract' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 497ms:
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 849ms:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.0352ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.635ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4583ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.8785ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2108ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64.167
+
+codex
+轻量复验通过，`git diff --check` 只有换行格式 warning，不是空白错误。为了让 Verdict 依据更扎实，我会再按任务给出的完整测试命令复跑一次。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '"'. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 7943ms:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.6808ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.3317ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4431ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.8019ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2031ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.7375
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:65405 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7972ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (262.8828ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (274.1962ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (274.6207ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (220.4994ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (249.4546ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (213.6019ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (228.9822ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (194.083ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (258.6401ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (258.6577ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (172.0346ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (266.6416ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (545.1164ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (240.9424ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (174.148ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (163.7515ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (160.4858ms)
+✔ worker integration tests (4161.2742ms)
+ℹ tests 18
+ℹ suites 1
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4681.4504
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | 已审查 `src/cleanup-job/index.ts`、`contracts/openapi.yaml`、`tests/contract/openapi-route-mapping.contract.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md` | 无需修复 | 无 |
+
+## Verification
+
+- 已检查命令:
+  - `npm run test:contract`
+  - 完整任务测试命令：`npm run test:contract; ...; npm run test:worker; ...; git diff --check -- ...`
+- 结果摘要:
+  - contract: 5/5 通过
+  - worker: 18/18 通过
+  - `git diff --check`: 退出码 0
+  - 仅有 `docs/testing/verify-matrix.md` 的 LF/CRLF warning，不构成空白错误或阻塞问题
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |
+ERROR: The process with PID 35908 (child process of PID 38012) could not be terminated.
+Reason: The operation attempted is not supported.
+ERROR: The process with PID 39020 (child process of PID 39360) could not be terminated.
+Reason: There is no running instance of the task.
+tokens used
+43,596

@@ -1,0 +1,2129 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3027-eed6-7311-b5f2-a28429954eeb
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: CLEANUP-AUDIT-ERROR-CODE-ALIGN-001
+- 描述: 对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试
+- Requirement IDs:
+- FR-010
+- FR-011
+- AC-010
+- AC-011
+- 测试命令: npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- src/cleanup-job/index.ts
+- tests/contract/openapi-route-mapping.contract.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- docs/testing/verify-matrix.md
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-final.txt
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9862ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4326ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5228ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9766ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2197ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64.609
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:49925 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.8857ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (247.0678ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (266.8569ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (270.8032ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (204.5311ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (265.2746ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (215.6699ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (219.6038ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (194.0251ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (249.9906ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (262.0988ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (181.7569ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (260.5375ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (246.8755ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (239.3048ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (174.7246ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (171.8237ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (164.0494ms)
+✔ worker integration tests (3837.4432ms)
+ℹ tests 18
+ℹ suites 1
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4372.8841
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 2 的范围做代码审查：先读取本地 code-review 指南，然后看本次 diff、关键实现和测试证据；不重新裁判需求设计。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw C:\\Users\\pzy666\\.codex\\skills\\code-review\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-16T09:40:01.317004Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw C:\Users\pzy666\.codex\skills\code-review\SKILL.md[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\code-review\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 429ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw C:\Users\pzy666\.codex\skills\code-review\SKILL.md[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\code-review\SKILL.md' because it does not exist.[0m
+
+codex
+本地用户 skills 路径里没有 `code-review`，我切到本仓库声明的共享 agent skill 路径继续读取对应指南。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 369ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+
+codex
+已加载 `code-review` skill。接下来我会先看工作区状态和本次变更范围，再逐项核对实现、契约测试、worker 测试和验证矩阵。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 447ms:
+ docs/testing/verify-matrix.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 447ms:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index fc80bcd..a364579 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -46,7 +46,7 @@
+ 
+ | 证据项 | 覆盖需求 | 状态 | 验证命令 | 边界 |
+ | --- | --- | --- | --- | --- |
+-| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内；`npm run test:worker` 断言 cleanup 删除失败写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL；不声明 live object storage evidence |
++| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
+ | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
+ | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
+ | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 494ms:
+ M docs/testing/verify-matrix.md
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2/
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b/
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-171459.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/
+
+codex
+当前未提交的代码层面只有验证矩阵 1 行变更，另有 trace 产物未跟踪；但该任务可能已有提交进入 HEAD。我会继续查看最近提交和相关文件内容，确认实际实现与测试是否已经落库。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log --oneline -5' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --cached --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"FILE_CLEANUP_DELETE_ERROR|CLEANUP_FAILED|errorCode|Error\\.name|name\" src/cleanup-job tests/contract tests/worker contracts/openapi.yaml docs/testing/verify-matrix.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Recurse -File traces | Select-Object -ExpandProperty FullName' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 362ms:
+ succeeded in 407ms:
+ba5df87 Align cleanup audit error code
+c764c1a fix(contract): align cleanup audit error code
+dbb1df7 feat: 修复 Requirements Complete Review Stage 1 repair queue 的 P0/P1 缺口，并为完整复审准备新证据 - completed REQUIREMENTS-GAP-REPAIR-001
+d7532c9 fix(worker): respect snapshots and retry backoff
+91d4731 docs(plan): align release evidence status
+
+ succeeded in 401ms:
+docs/testing/verify-matrix.md:31:| AUDIT-CONTRACT-ALIGN-001 | FR-010 / AC-010 | repaired | `npm run test:contract` 新增审计 action/result 枚举守护；`npm run test:api` 断言失败审计结果为 `FAILED`；`npm run test:worker` 断言 cleanup 成功使用 `EXPIRE_MARK`、失败使用 `CLEANUP_FAILED` | local contract + local/Docker MySQL；不声明 live evidence |
+docs/testing/verify-matrix.md:49:| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内，并禁止 cleanup 失败审计从 raw `Error.name` 透传；`npm run test:worker` 断言 cleanup 删除失败即使收到供应商自定义异常名，也写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL + 本地 object storage mock；不声明 live object storage evidence |
+contracts/openapi.yaml:6:    name: Internal
+contracts/openapi.yaml:17:  - name: ExportTasks
+contracts/openapi.yaml:19:  - name: ExportRegistries
+contracts/openapi.yaml:318:        - name: taskCode
+contracts/openapi.yaml:322:        - name: status
+contracts/openapi.yaml:326:        - name: createdBy
+contracts/openapi.yaml:330:        - name: createdAtFrom
+contracts/openapi.yaml:335:        - name: createdAtTo
+contracts/openapi.yaml:340:        - name: fileFormat
+contracts/openapi.yaml:344:        - name: subsystemCode
+contracts/openapi.yaml:348:        - name: page
+contracts/openapi.yaml:354:        - name: pageSize
+contracts/openapi.yaml:437:        - name: mode
+contracts/openapi.yaml:697:        - name: taskCode
+contracts/openapi.yaml:701:        - name: subsystemCode
+contracts/openapi.yaml:705:        - name: enabled
+contracts/openapi.yaml:709:        - name: page
+contracts/openapi.yaml:715:        - name: pageSize
+contracts/openapi.yaml:861:      name: X-Operator-Id
+contracts/openapi.yaml:866:      name: X-Tenant-Id
+contracts/openapi.yaml:871:      name: X-Role-Codes
+contracts/openapi.yaml:876:      name: X-Org-Scope
+contracts/openapi.yaml:881:      name: X-Request-Id
+contracts/openapi.yaml:885:      name: X-Operator-Id
+contracts/openapi.yaml:892:      name: X-Tenant-Id
+contracts/openapi.yaml:899:      name: X-Role-Codes
+contracts/openapi.yaml:906:      name: X-Org-Scope
+contracts/openapi.yaml:913:      name: X-Request-Id
+contracts/openapi.yaml:920:      name: taskId
+contracts/openapi.yaml:926:      name: taskCode
+contracts/openapi.yaml:1231:        - FILE_CLEANUP_DELETE_ERROR
+contracts/openapi.yaml:1399:        errorCode:
+contracts/openapi.yaml:1795:        - errorCode
+contracts/openapi.yaml:1822:            - CLEANUP_FAILED
+contracts/openapi.yaml:1832:        errorCode:
+tests/contract\openapi-route-mapping.contract.test.mjs:57:    errorCodes: new Set(
+tests/contract\openapi-route-mapping.contract.test.mjs:59:        [...source.matchAll(/errorCode:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)]
+tests/contract\openapi-route-mapping.contract.test.mjs:105:test("audit action, result, and errorCode literals written by production code stay within OpenAPI public enums", () => {
+tests/contract\openapi-route-mapping.contract.test.mjs:120:    [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
+tests/contract\openapi-route-mapping.contract.test.mjs:125:test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+tests/contract\openapi-route-mapping.contract.test.mjs:127:  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+tests/contract\openapi-route-mapping.contract.test.mjs:128:  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+src/cleanup-job\index.ts:87:          errorCode: "SUCCESS",
+src/cleanup-job\index.ts:115:          action: "CLEANUP_FAILED",
+src/cleanup-job\index.ts:117:          errorCode: "FILE_CLEANUP_DELETE_ERROR",
+src/cleanup-job\index.ts:154:        error.name = "FILE_CLEANUP_DELETE_ERROR";
+tests/worker\scheduler-worker.test.mjs:17:function serialTest(name, fn) {
+tests/worker\scheduler-worker.test.mjs:18:  return test(name, { concurrency: false }, fn);
+tests/worker\scheduler-worker.test.mjs:676:        errorCode: "SUCCESS",
+tests/worker\scheduler-worker.test.mjs:766:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker\scheduler-worker.test.mjs:834:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker\scheduler-worker.test.mjs:897:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker\scheduler-worker.test.mjs:955:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker\scheduler-worker.test.mjs:987:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker\scheduler-worker.test.mjs:1009:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker\scheduler-worker.test.mjs:1039:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker\scheduler-worker.test.mjs:1058:      error.name = "DATASOURCE_UNAVAILABLE";
+tests/worker\scheduler-worker.test.mjs:1072:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker\scheduler-worker.test.mjs:1166:        error.name = "UnexpectedStorageVendorError";
+tests/worker\scheduler-worker.test.mjs:1183:        audit.action === "CLEANUP_FAILED" &&
+tests/worker\scheduler-worker.test.mjs:1185:        audit.errorCode === "FILE_CLEANUP_DELETE_ERROR"
+
+ succeeded in 452ms:
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-JOB-001-20260515-000701.json
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-20260514-133355.json
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-20260514-135553.json
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-20260514-135951.json
+E:\2026\alpha-project\longgang-codex-driver\traces\DB-SCHEMA-001-20260514-180239.json
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-20260514-122103.json
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-20260515-124319.json
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-20260515-124959.json
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-20260515-133938.json
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-20260515-140245.json
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-20260515-142858.json
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-20260515-083637.json
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-20260515-084412.json
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-20260515-084959.json
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-20260515-085603.json
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-20260515-115521.json
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-EXECUTOR-001-20260514-223042.json
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-20260514-213939.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260514-214947.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-031752.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-033353.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-035634.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-042342.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-043529.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-044009.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-044503.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-044955.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-045449.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-050354.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-051500.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-052100.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-052715.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-053237.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-053654.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-054046.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-054721.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-055042.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-055625.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-060646.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-061659.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-062033.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-062550.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-063107.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-063508.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-063850.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-064517.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-065031.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-065622.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-070016.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-070412.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-085931.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-090537.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-090952.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-091419.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-092215.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-092903.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-093417.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-094137.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-094555.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-094952.json
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-20260515-095651.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-111838.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-112326.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-171459.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-115513.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-152904.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-155253.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-155846.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-161922.json
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-20260516-170132.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-20260515-004903.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-20260514-211310.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-144738.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-150750.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-152130.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-153435.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-160103.json
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-20260514-174446.json
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-20260514-132106.json
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-20260514-195053.json
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172927-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172927-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172927-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172927-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173545-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173545-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173545-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173545-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-173943-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-173943-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-173943-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-test-20260516-173943.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172843-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172843-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172843-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-20260516-172843-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173805-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173805-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173805-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage1-20260516-173805-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-174023-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-174023-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-stage2-20260516-174023-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b\CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-test-20260516-174023.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-JOB-001-71f6a2bca49b4dab9e5f8a04b4bc10d0\CLEANUP-JOB-001-20260514-235028-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-JOB-001-71f6a2bca49b4dab9e5f8a04b4bc10d0\CLEANUP-JOB-001-20260514-235028-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-JOB-001-71f6a2bca49b4dab9e5f8a04b4bc10d0\CLEANUP-JOB-001-20260514-235028-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CLEANUP-JOB-001-71f6a2bca49b4dab9e5f8a04b4bc10d0\CLEANUP-JOB-001-20260514-235028-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-20260514-132239-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-35b7a012038f4980a371fe2596333c94\CONTRACT-REVIEW-001-stage1-20260514-133144-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-20260514-134200-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage1-20260514-134822-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-stage2-20260514-135026-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-5ac4c5fd20db4b67a8197bc60811e224\CONTRACT-REVIEW-001-test-20260514-135026.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-20260514-134803-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage1-20260514-135455-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-stage2-20260514-135649-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\CONTRACT-REVIEW-001-df1bd05a29b74c58a61d1c97365c49bd\CONTRACT-REVIEW-001-test-20260514-135649.log
+E:\2026\alpha-project\longgang-codex-driver\traces\DB-SCHEMA-001-a3b1a66736fa40fb998facbeeb5131b5\DB-SCHEMA-001-20260514-174556-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\DB-SCHEMA-001-a3b1a66736fa40fb998facbeeb5131b5\DB-SCHEMA-001-20260514-174556-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\DB-SCHEMA-001-a3b1a66736fa40fb998facbeeb5131b5\DB-SCHEMA-001-20260514-174556-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\DB-SCHEMA-001-a3b1a66736fa40fb998facbeeb5131b5\DB-SCHEMA-001-20260514-174556-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FILE-SERVICE-001-87c91d64b6fc42c1a27cd2ff82d92bc5\FILE-SERVICE-001-20260514-224418-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FILE-SERVICE-001-87c91d64b6fc42c1a27cd2ff82d92bc5\FILE-SERVICE-001-20260514-224418-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FILE-SERVICE-001-87c91d64b6fc42c1a27cd2ff82d92bc5\FILE-SERVICE-001-20260514-224418-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-20260514-121350-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage1-20260514-121657-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-stage2-20260514-121842-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-96d95ffeac16453b84eed6676656413e\FRESH-INIT-001-test-20260514-121842.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\FRESH-INIT-001-e7ee09b5d3ca4d2ebd7d09cbac67c88d\FRESH-INIT-001-20260514-121153-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-20260515-140735-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-20260515-140735-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-20260515-140735-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-20260515-140735-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-141835-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-141835-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-141835-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-141835-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-142637-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-142637-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-142637-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-142637-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-6d7fbaeed992492c97ca30e9f4f44a0c\LOCAL-RELEASE-REHEARSAL-001-test-20260515-142637.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-87d380b00ba842e8b37180a6030d6c0e\LOCAL-RELEASE-REHEARSAL-001-20260515-124700-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-87d380b00ba842e8b37180a6030d6c0e\LOCAL-RELEASE-REHEARSAL-001-20260515-124700-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-87d380b00ba842e8b37180a6030d6c0e\LOCAL-RELEASE-REHEARSAL-001-20260515-124700-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-87d380b00ba842e8b37180a6030d6c0e\LOCAL-RELEASE-REHEARSAL-001-20260515-124700-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-20260515-134449-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-20260515-134449-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-20260515-134449-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-20260515-134449-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-135356-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-135356-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-135356-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-135356-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-135952-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-135952-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-135952-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-135952-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-d2d3bd2b1c044ffdaef2c34403bb359b\LOCAL-RELEASE-REHEARSAL-001-test-20260515-135952.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-20260515-131927-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-20260515-131927-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-20260515-131927-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-20260515-131927-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-132755-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-132755-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-132755-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage1-20260515-132755-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-133653-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-133653-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-133653-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-stage2-20260515-133653-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-e5beedd9a4b14e179b03224803bb53a1\LOCAL-RELEASE-REHEARSAL-001-test-20260515-133653.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-eaaf55d209934e84920a0c916dc30267\LOCAL-RELEASE-REHEARSAL-001-20260515-123601-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-eaaf55d209934e84920a0c916dc30267\LOCAL-RELEASE-REHEARSAL-001-20260515-123601-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-eaaf55d209934e84920a0c916dc30267\LOCAL-RELEASE-REHEARSAL-001-20260515-123601-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\LOCAL-RELEASE-REHEARSAL-001-eaaf55d209934e84920a0c916dc30267\LOCAL-RELEASE-REHEARSAL-001-20260515-123601-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-20260515-083043-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-20260515-083043-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-20260515-083043-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-20260515-083043-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-stage1-20260515-083500-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-stage1-20260515-083500-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-stage1-20260515-083500-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-28499d77116749a98163afee04f6b500\MOCK-FIRST-001-stage1-20260515-083500-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-20260515-085109-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-20260515-085109-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-20260515-085109-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-20260515-085109-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage1-20260515-085300-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage1-20260515-085300-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage1-20260515-085300-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage1-20260515-085300-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage2-20260515-085425-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage2-20260515-085425-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage2-20260515-085425-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-stage2-20260515-085425-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-465fbe5fbe184a41a9dbb49c0d58306a\MOCK-FIRST-001-test-20260515-085425.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-20260515-084538-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-20260515-084538-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-20260515-084538-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-20260515-084538-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-stage1-20260515-084807-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-stage1-20260515-084807-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-stage1-20260515-084807-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-stage1-20260515-084807-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-82b7a701fb1d415aac2b754dcd4b5e0a\MOCK-FIRST-001-test-20260515-084959.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-20260515-083744-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-20260515-083744-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-20260515-083744-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-20260515-083744-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-stage1-20260515-084202-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-stage1-20260515-084202-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-stage1-20260515-084202-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-stage1-20260515-084202-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-FIRST-001-fd0f00f13a224003ad90de661ab3ab38\MOCK-FIRST-001-test-20260515-084412.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-20260515-114609-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-20260515-114609-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-20260515-114609-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-20260515-114609-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage1-20260515-115144-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage1-20260515-115144-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage1-20260515-115144-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage1-20260515-115144-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage2-20260515-115340-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage2-20260515-115340-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage2-20260515-115340-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-stage2-20260515-115340-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\MOCK-INTEGRATION-001-3906db64f4ee48c8ac05ae73e90b3bd1\MOCK-INTEGRATION-001-test-20260515-115340.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-EXECUTOR-001-6e26bc2061b04110a80f915d5ad20c9b\QUERY-EXECUTOR-001-20260514-220214-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-EXECUTOR-001-6e26bc2061b04110a80f915d5ad20c9b\QUERY-EXECUTOR-001-20260514-220214-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-EXECUTOR-001-6e26bc2061b04110a80f915d5ad20c9b\QUERY-EXECUTOR-001-20260514-220214-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-EXECUTOR-001-6e26bc2061b04110a80f915d5ad20c9b\QUERY-EXECUTOR-001-20260514-220214-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-20260514-212506-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-20260514-212506-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-20260514-212506-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-20260514-212506-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage1-20260514-213527-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage1-20260514-213527-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage1-20260514-213527-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage1-20260514-213527-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage2-20260514-213816-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage2-20260514-213816-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage2-20260514-213816-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-stage2-20260514-213816-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\QUERY-FILE-SAMPLE-PLAN-001-3147d0e5a35648e98efe575b0f943da1\QUERY-FILE-SAMPLE-PLAN-001-test-20260514-213816.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0247eb6eef574d24afd19784a8075bfa\RELEASE-001-20260515-053751-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0247eb6eef574d24afd19784a8075bfa\RELEASE-001-20260515-053751-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0247eb6eef574d24afd19784a8075bfa\RELEASE-001-20260515-053751-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0247eb6eef574d24afd19784a8075bfa\RELEASE-001-20260515-053751-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-20260515-060208-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-20260515-060208-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-20260515-060208-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-20260515-060208-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-stage1-20260515-060451-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-stage1-20260515-060451-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-stage1-20260515-060451-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-0b30e8c513854beca47dd9c7ed3cc6bb\RELEASE-001-stage1-20260515-060451-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-20260515-041637-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-20260515-041637-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-20260515-041637-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-20260515-041637-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-stage1-20260515-042104-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-stage1-20260515-042104-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-stage1-20260515-042104-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-stage1-20260515-042104-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-11d121e1f55b4f05ba80cb12fc222b01\RELEASE-001-test-20260515-042342.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-141e9c2f04a1414fbc012eb21ad55b96\RELEASE-001-20260515-044935-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-141e9c2f04a1414fbc012eb21ad55b96\RELEASE-001-20260515-044935-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-141e9c2f04a1414fbc012eb21ad55b96\RELEASE-001-20260515-044935-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-141e9c2f04a1414fbc012eb21ad55b96\RELEASE-001-20260515-044935-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-16b6ee62c43545fb832e26b0d5f10513\RELEASE-001-20260515-053345-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-16b6ee62c43545fb832e26b0d5f10513\RELEASE-001-20260515-053345-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-16b6ee62c43545fb832e26b0d5f10513\RELEASE-001-20260515-053345-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-16b6ee62c43545fb832e26b0d5f10513\RELEASE-001-20260515-053345-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-1d2a5f175550406fac3ef1407e4d6b51\RELEASE-001-20260515-085606-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-1d2a5f175550406fac3ef1407e4d6b51\RELEASE-001-20260515-085606-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-1d2a5f175550406fac3ef1407e4d6b51\RELEASE-001-20260515-085606-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-1d2a5f175550406fac3ef1407e4d6b51\RELEASE-001-20260515-085606-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-20260515-064638-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-20260515-064638-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-20260515-064638-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-20260515-064638-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-stage1-20260515-064920-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-stage1-20260515-064920-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-stage1-20260515-064920-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-23345de4956a483faee74bc50b398662\RELEASE-001-stage1-20260515-064920-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-234b4ee6011f45e2a117ac8bde0ec117\RELEASE-001-20260515-090644-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-234b4ee6011f45e2a117ac8bde0ec117\RELEASE-001-20260515-090644-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-234b4ee6011f45e2a117ac8bde0ec117\RELEASE-001-20260515-090644-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-234b4ee6011f45e2a117ac8bde0ec117\RELEASE-001-20260515-090644-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40\RELEASE-001-20260515-063617-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40\RELEASE-001-20260515-063617-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40\RELEASE-001-20260515-063617-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-295f7a48b9cd4ff0b9f7c4cb62ee6b40\RELEASE-001-20260515-063617-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-2e4691beecee48b589832d3ccf6027a4\RELEASE-001-20260515-094659-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-2e4691beecee48b589832d3ccf6027a4\RELEASE-001-20260515-094659-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-2e4691beecee48b589832d3ccf6027a4\RELEASE-001-20260515-094659-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-2e4691beecee48b589832d3ccf6027a4\RELEASE-001-20260515-094659-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-35352ba264f24f90ac69a4facb497907\RELEASE-001-20260515-052148-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-35352ba264f24f90ac69a4facb497907\RELEASE-001-20260515-052148-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-35352ba264f24f90ac69a4facb497907\RELEASE-001-20260515-052148-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-35352ba264f24f90ac69a4facb497907\RELEASE-001-20260515-052148-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3b40a3c122634f8d91e16537e4a8e3f6\RELEASE-001-20260515-031433-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3b40a3c122634f8d91e16537e4a8e3f6\RELEASE-001-20260515-031433-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3b40a3c122634f8d91e16537e4a8e3f6\RELEASE-001-20260515-031433-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3b40a3c122634f8d91e16537e4a8e3f6\RELEASE-001-20260515-031433-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-20260515-064001-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-20260515-064001-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-20260515-064001-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-20260515-064001-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-stage1-20260515-064300-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-stage1-20260515-064300-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-stage1-20260515-064300-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-3e0aed10c1934af1bde4b182881e4e84\RELEASE-001-stage1-20260515-064300-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-41a1e6a0ba4542419ab7f48d716cedcd\RELEASE-001-20260515-054146-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-41a1e6a0ba4542419ab7f48d716cedcd\RELEASE-001-20260515-054146-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-41a1e6a0ba4542419ab7f48d716cedcd\RELEASE-001-20260515-054146-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-41a1e6a0ba4542419ab7f48d716cedcd\RELEASE-001-20260515-054146-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-20260515-061153-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-20260515-061153-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-20260515-061153-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-20260515-061153-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-stage1-20260515-061448-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-stage1-20260515-061448-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-stage1-20260515-061448-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-436c8edc82414725be787fcce9a5ba96\RELEASE-001-stage1-20260515-061448-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-20260515-050453-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-20260515-050453-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-20260515-050453-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-20260515-050453-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-stage1-20260515-051035-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-stage1-20260515-051035-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-stage1-20260515-051035-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-stage1-20260515-051035-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-473442420ad0450a8e8b95151c886ee7\RELEASE-001-test-20260515-051500.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-20260514-213941-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-20260514-213941-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-20260514-213941-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-20260514-213941-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-stage1-20260514-214711-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-stage1-20260514-214711-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-stage1-20260514-214711-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-47805ce3c91347a0be61271a230d7426\RELEASE-001-stage1-20260514-214711-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-20260515-093515-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-20260515-093515-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-20260515-093515-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-20260515-093515-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-stage1-20260515-093936-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-stage1-20260515-093936-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-stage1-20260515-093936-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-stage1-20260515-093936-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-68ca594d98e840aebe3739cc36a00000\RELEASE-001-test-20260515-094137.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-6ac1ada9e6d24055873e994172476907\RELEASE-001-20260515-044530-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-6ac1ada9e6d24055873e994172476907\RELEASE-001-20260515-044530-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-6ac1ada9e6d24055873e994172476907\RELEASE-001-20260515-044530-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-6ac1ada9e6d24055873e994172476907\RELEASE-001-20260515-044530-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-7b194b33dd1a48949621b002c187bd31\RELEASE-001-20260515-045602-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-7b194b33dd1a48949621b002c187bd31\RELEASE-001-20260515-045602-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-7b194b33dd1a48949621b002c187bd31\RELEASE-001-20260515-045602-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-7b194b33dd1a48949621b002c187bd31\RELEASE-001-20260515-045602-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-815718d0fa69418588c4d32ab4dc4459\RELEASE-001-20260515-054828-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-815718d0fa69418588c4d32ab4dc4459\RELEASE-001-20260515-054828-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-815718d0fa69418588c4d32ab4dc4459\RELEASE-001-20260515-054828-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-815718d0fa69418588c4d32ab4dc4459\RELEASE-001-20260515-054828-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-20260515-091512-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-20260515-091512-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-20260515-091512-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-20260515-091512-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-stage1-20260515-091949-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-stage1-20260515-091949-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-stage1-20260515-091949-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-863103947544448a83e2bde370e2d542\RELEASE-001-stage1-20260515-091949-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-20260515-034432-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-20260515-034432-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-20260515-034432-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-20260515-034432-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-stage1-20260515-035347-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-stage1-20260515-035347-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-stage1-20260515-035347-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-88acf1f5599f490fa46ada2be12e49f1\RELEASE-001-stage1-20260515-035347-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-8c5440178e824740887de66239fe2a2a\RELEASE-001-20260515-063231-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-8c5440178e824740887de66239fe2a2a\RELEASE-001-20260515-063231-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-8c5440178e824740887de66239fe2a2a\RELEASE-001-20260515-063231-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-8c5440178e824740887de66239fe2a2a\RELEASE-001-20260515-063231-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-20260515-031921-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-20260515-031921-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-20260515-031921-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-20260515-031921-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-stage1-20260515-032600-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-stage1-20260515-032600-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-stage1-20260515-032600-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9961cef817164a1d8900d16998366f75\RELEASE-001-stage1-20260515-032600-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9a6575b85f38467599a102f740107483\RELEASE-001-20260515-090208-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9a6575b85f38467599a102f740107483\RELEASE-001-20260515-090208-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9a6575b85f38467599a102f740107483\RELEASE-001-20260515-090208-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9a6575b85f38467599a102f740107483\RELEASE-001-20260515-090208-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc\RELEASE-001-20260515-051603-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc\RELEASE-001-20260515-051603-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc\RELEASE-001-20260515-051603-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9b3d80fa13a642978e8a56df9a82a9bc\RELEASE-001-20260515-051603-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-20260515-065149-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-20260515-065149-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-20260515-065149-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-20260515-065149-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-stage1-20260515-065450-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-stage1-20260515-065450-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-stage1-20260515-065450-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9fd350f846e84cf8aff53ec5c8b4c053\RELEASE-001-stage1-20260515-065450-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-20260515-055144-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-20260515-055144-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-20260515-055144-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-20260515-055144-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-stage1-20260515-055417-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-stage1-20260515-055417-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-stage1-20260515-055417-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-9ffd6979ea8c4b919d5b98df9463ec2a\RELEASE-001-stage1-20260515-055417-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-20260515-044031-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-20260515-044031-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-20260515-044031-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-20260515-044031-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-stage1-20260515-044308-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-stage1-20260515-044308-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-stage1-20260515-044308-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a0439ee7cb2c46ed8613f78677673fd5\RELEASE-001-stage1-20260515-044308-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c\RELEASE-001-20260515-061812-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c\RELEASE-001-20260515-061812-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c\RELEASE-001-20260515-061812-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-a6eb2545db114f4a9a55cffa9c21be5c\RELEASE-001-20260515-061812-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-b54303f77cd54c20b1f29420276fcd7f\RELEASE-001-20260515-091044-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-b54303f77cd54c20b1f29420276fcd7f\RELEASE-001-20260515-091044-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-b54303f77cd54c20b1f29420276fcd7f\RELEASE-001-20260515-091044-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-b54303f77cd54c20b1f29420276fcd7f\RELEASE-001-20260515-091044-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-20260515-062152-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-20260515-062152-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-20260515-062152-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-20260515-062152-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-stage1-20260515-062435-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-stage1-20260515-062435-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-stage1-20260515-062435-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-c20e3f83e14246ae99e0d52c377ca834\RELEASE-001-stage1-20260515-062435-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d3b71c250e284080811858f710dad0d5\RELEASE-001-20260515-094252-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d3b71c250e284080811858f710dad0d5\RELEASE-001-20260515-094252-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d3b71c250e284080811858f710dad0d5\RELEASE-001-20260515-094252-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d3b71c250e284080811858f710dad0d5\RELEASE-001-20260515-094252-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d7ee79f7cec84abe9f27694fe2f3d96c\RELEASE-001-20260515-095759-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d7ee79f7cec84abe9f27694fe2f3d96c\RELEASE-001-20260515-095759-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-d7ee79f7cec84abe9f27694fe2f3d96c\RELEASE-001-20260515-095759-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-20260515-042800-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-20260515-042800-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-20260515-042800-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-20260515-042800-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-stage1-20260515-043306-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-stage1-20260515-043306-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-stage1-20260515-043306-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-dd874607cc7249b4bbb05302dc86373a\RELEASE-001-stage1-20260515-043306-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e0b6288d3bec44db96737f7fc93b7932\RELEASE-001-20260515-062828-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e0b6288d3bec44db96737f7fc93b7932\RELEASE-001-20260515-062828-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e0b6288d3bec44db96737f7fc93b7932\RELEASE-001-20260515-062828-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e0b6288d3bec44db96737f7fc93b7932\RELEASE-001-20260515-062828-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344\RELEASE-001-20260515-070128-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344\RELEASE-001-20260515-070128-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344\RELEASE-001-20260515-070128-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5b34ad7c4354a38bb4cc9b93449b344\RELEASE-001-20260515-070128-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5d066872e814d7da4341f145533f6cc\RELEASE-001-20260515-052946-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5d066872e814d7da4341f145533f6cc\RELEASE-001-20260515-052946-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5d066872e814d7da4341f145533f6cc\RELEASE-001-20260515-052946-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-e5d066872e814d7da4341f145533f6cc\RELEASE-001-20260515-052946-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-20260515-093009-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-20260515-093009-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-20260515-093009-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-20260515-093009-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-stage1-20260515-093216-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-stage1-20260515-093216-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-stage1-20260515-093216-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f1bbfc9e5525454093cd3c81dbb2a439\RELEASE-001-stage1-20260515-093216-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49\RELEASE-001-20260515-065745-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49\RELEASE-001-20260515-065745-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49\RELEASE-001-20260515-065745-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-f6a216e6c2f244f49f50b8ae692e7d49\RELEASE-001-20260515-065745-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-20260515-095059-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-20260515-095059-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-20260515-095059-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-20260515-095059-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-stage1-20260515-095434-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-stage1-20260515-095434-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-stage1-20260515-095434-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fc540edcfbca40ae967a3d456ed88507\RELEASE-001-stage1-20260515-095434-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fd29d092b07d462792c44947c941349f\RELEASE-001-20260515-043800-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fd29d092b07d462792c44947c941349f\RELEASE-001-20260515-043800-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fd29d092b07d462792c44947c941349f\RELEASE-001-20260515-043800-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-fd29d092b07d462792c44947c941349f\RELEASE-001-20260515-043800-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-20260515-092337-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-20260515-092337-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-20260515-092337-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-20260515-092337-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-stage1-20260515-092740-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-stage1-20260515-092740-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-stage1-20260515-092740-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\RELEASE-001-ffc6c86e68754592ac3abee915e8f724\RELEASE-001-stage1-20260515-092740-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-110748-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111939-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-a28bcba6374c4f81bdff11bd9f07e3d5\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-110334-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-a28bcba6374c4f81bdff11bd9f07e3d5\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111511-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-170133-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-170133-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-170133-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-20260516-170133-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b\REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-0517f0da6cbb4904802817d3f5bcb239\REQUIREMENTS-GAP-REPAIR-001-20260516-120545-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-0517f0da6cbb4904802817d3f5bcb239\REQUIREMENTS-GAP-REPAIR-001-20260516-120545-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-0517f0da6cbb4904802817d3f5bcb239\REQUIREMENTS-GAP-REPAIR-001-20260516-120545-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-20260516-151554-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-20260516-151554-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-20260516-151554-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-20260516-151554-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-152341-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-152341-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-152341-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-152341-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-26f1cc0678f7428194cda350056b7a5a\REQUIREMENTS-GAP-REPAIR-001-test-20260516-152904.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-20260516-164711-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-20260516-164711-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-20260516-164711-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-20260516-164711-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-165234-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-165234-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-165234-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-165234-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-165817-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-165817-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-165817-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-165817-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-52254e2e87084e3e80e2f25884881329\REQUIREMENTS-GAP-REPAIR-001-test-20260516-165817.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-80f7327641354e099d18b61145ee50b8\REQUIREMENTS-GAP-REPAIR-001-20260516-154027-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-80f7327641354e099d18b61145ee50b8\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-154753-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-20260516-160145-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-20260516-160145-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-20260516-160145-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-20260516-160145-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-160945-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-160945-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-160945-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-160945-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-161539-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-161539-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-161539-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-stage2-20260516-161539-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-9ab61aae5baf4fd0bcf5f86e968784c3\REQUIREMENTS-GAP-REPAIR-001-test-20260516-161539.log
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-a435d12656b045c4957738e7e1f62cf5\REQUIREMENTS-GAP-REPAIR-001-20260516-113303-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\REQUIREMENTS-GAP-REPAIR-001-a435d12656b045c4957738e7e1f62cf5\REQUIREMENTS-GAP-REPAIR-001-stage1-20260516-115112-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-20260515-002159-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-20260515-002159-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-20260515-002159-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-20260515-002159-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-stage1-20260515-004507-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-stage1-20260515-004507-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-stage1-20260515-004507-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SAMPLE-PURCHASE-ORDER-001-fcca0662b72947a9acc939f35a6676ef\SAMPLE-PURCHASE-ORDER-001-stage1-20260515-004507-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-20260514-204642-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-20260514-204642-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-20260514-204642-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-20260514-204642-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-stage1-20260514-210859-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-stage1-20260514-210859-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-stage1-20260514-210859-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SCHEDULER-WORKER-001-ed45985fa4a64ba5bc040b437ae2e36e\SCHEDULER-WORKER-001-stage1-20260514-210859-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-1f165adae22843ed92aaea032b7a00a0\SERVICE-SCAFFOLD-001-20260514-135553-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-20260514-154104-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage1-20260514-155003-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-stage2-20260514-155338-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-340a0e0370f94d4d8c48a8b3b5682570\SERVICE-SCAFFOLD-001-test-20260514-155338.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-20260514-145625-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-37814c09d63442bbb3cd376f06cf0afb\SERVICE-SCAFFOLD-001-stage1-20260514-150447-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-20260514-173310-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage1-20260514-173627-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage2-20260514-173947-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage2-20260514-173947-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage2-20260514-173947-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-stage2-20260514-173947-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-74ab07c130af49779151ebde4050f3b3\SERVICE-SCAFFOLD-001-test-20260514-173947.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-20260514-151213-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-stage1-20260514-151559-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-84025276828a4236883e19c6b296f8e6\SERVICE-SCAFFOLD-001-test-20260514-152130.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-8f2c3bc56a0f4c84b3ff70d6b126fba0\SERVICE-SCAFFOLD-001-20260514-135952-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-20260514-143454-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-b3d143efc9734dacb4f13a74d272de4b\SERVICE-SCAFFOLD-001-stage1-20260514-143940-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-20260514-152220-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage1-20260514-152708-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-stage2-20260514-153013-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-c2ad56082a3940f4af1fabf00b3d2b8c\SERVICE-SCAFFOLD-001-test-20260514-153013.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-20260514-160250-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\SERVICE-SCAFFOLD-001-eb284e3327154c74a350686423570d39\SERVICE-SCAFFOLD-001-stage1-20260514-160513-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-2bbfa65a84144eb1bb903673a6a8c9cc\STACK-ADR-001-20260514-125742-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-20260514-130707-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage1-20260514-131527-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-stage2-20260514-131716-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\STACK-ADR-001-d5b30ccad6a4482f899d23e937eb5410\STACK-ADR-001-test-20260514-131716.log
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-20260514-191749-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-20260514-191749-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-20260514-191749-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-20260514-191749-prompt.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-stage1-20260514-194411-codex-error.log
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-stage1-20260514-194411-codex-final.txt
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-stage1-20260514-194411-codex-output.log
+E:\2026\alpha-project\longgang-codex-driver\traces\TASK-API-HTTP-001-793b43371aa7439985d89bb4f7775a0c\TASK-API-HTTP-001-stage1-20260514-194411-prompt.txt
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline --name-only ba5df87' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 377ms:
+ba5df87 Align cleanup audit error code
+src/cleanup-job/index.ts
+tests/contract/openapi-route-mapping.contract.test.mjs
+tests/worker/scheduler-worker.test.mjs
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline --name-only c764c1a' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show -- task.json contracts/openapi.yaml src/cleanup-job/index.ts tests/contract/openapi-route-mapping.contract.test.mjs tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 355ms:
+commit ba5df87113008a78ce85c0ede2bd982fbffc9597
+Author: 潘宗友 <panzongyou@v380max.com>
+Date:   Sat May 16 17:35:09 2026 +0800
+
+    Align cleanup audit error code
+
+diff --git a/src/cleanup-job/index.ts b/src/cleanup-job/index.ts
+index bfc1630..d96f3e9 100644
+--- a/src/cleanup-job/index.ts
++++ b/src/cleanup-job/index.ts
+@@ -114,10 +114,7 @@ export function createCleanupJob(options: CleanupJobOptions) {
+           operatorId: candidate.operatorId,
+           action: "CLEANUP_FAILED",
+           result: "FAILED",
+-          errorCode:
+-            error instanceof Error && error.name !== "Error"
+-              ? error.name
+-              : "FILE_CLEANUP_DELETE_ERROR",
++          errorCode: "FILE_CLEANUP_DELETE_ERROR",
+           requestId: cleanupRequestId(options.workerId),
+           occurredAt: failedAt,
+           now: failedAt
+diff --git a/tests/contract/openapi-route-mapping.contract.test.mjs b/tests/contract/openapi-route-mapping.contract.test.mjs
+index 1c4713a..83c12bb 100644
+--- a/tests/contract/openapi-route-mapping.contract.test.mjs
++++ b/tests/contract/openapi-route-mapping.contract.test.mjs
+@@ -121,3 +121,9 @@ test("audit action, result, and errorCode literals written by production code st
+     []
+   );
+ });
++
++test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
++  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
++  assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
++  assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
++});
+diff --git a/tests/worker/scheduler-worker.test.mjs b/tests/worker/scheduler-worker.test.mjs
+index 917c7dd..57ea30b 100644
+--- a/tests/worker/scheduler-worker.test.mjs
++++ b/tests/worker/scheduler-worker.test.mjs
+@@ -1162,7 +1162,9 @@ serialTest("cleanup job poll once records retry audit and does not mark cleanup
+     workerId: "cleanup-worker",
+     storage: {
+       async deleteObject() {
+-        throw new Error("delete failed");
++        const error = new Error("delete failed");
++        error.name = "UnexpectedStorageVendorError";
++        throw error;
+       }
+     }
+   });
+
+ succeeded in 397ms:
+c764c1a fix(contract): align cleanup audit error code
+contracts/openapi.yaml
+docs/reviews/requirements-complete-review.findings.json
+docs/reviews/requirements-complete-review.md
+docs/testing/verify-matrix.md
+progress.txt
+task.json
+tests/contract/openapi-route-mapping.contract.test.mjs
+tests/worker/scheduler-worker.test.mjs
+
+codex
+最近 HEAD 的任务提交把 cleanup 失败审计从 `error.name` 改成固定公开码，并新增契约守护和 worker 异常名回归场景；我现在核对这些测试是否真的绑定了生产路径，而不是只做字符串检查。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content src'"\\cleanup-job\\index.ts | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 190) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content tests'"\\contract\\openapi-route-mapping.contract.test.mjs | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 150) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content tests'"\\worker\\scheduler-worker.test.mjs | ForEach-Object { "'$i++; if ($i -ge 1120 -and $i -le 1205) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content contracts'"\\openapi.yaml | ForEach-Object { "'$i++; if (($i -ge 1200 -and $i -le 1245) -or ($i -ge 1815 -and $i -le 1840)) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 363ms:
+   1: import assert from "node:assert/strict";
+   2: import { readFileSync } from "node:fs";
+   3: import test from "node:test";
+   4: 
+   5: function parseOpenApiOperationIds() {
+   6:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+   7:   return [...openapi.matchAll(/operationId:\s*([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+   8: }
+   9: 
+  10: function parseRouteManifestOperationIds() {
+  11:   const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  12:   return [...manifest.matchAll(/operationId:\s*"([A-Za-z0-9_]+)"/g)].map((match) => match[1]);
+  13: }
+  14: 
+  15: function parseHandlerPaths() {
+  16:   const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  17:   return [...manifest.matchAll(/handlerPath:\s*"([^"]+)"/g)].map((match) => match[1]);
+  18: }
+  19: 
+  20: function parseAuditActionEnum() {
+  21:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  22:   const [, block] = openapi.match(/action:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{8}result:/) ?? [];
+  23:   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+  24: }
+  25: 
+  26: function parseAuditResultEnum() {
+  27:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  28:   const [, values] = openapi.match(/result:\s*\n\s+type:\s+string\s*\n\s+enum:\s+\[([^\]]+)\]/) ?? [];
+  29:   return new Set(values.split(",").map((value) => value.trim()));
+  30: }
+  31: 
+  32: function parseResponseCodeEnum() {
+  33:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  34:   const [, block] = openapi.match(/ResponseCode:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{4}TaskStatus:/) ?? [];
+  35:   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+  36: }
+  37: 
+  38: function sourceAuditLiterals() {
+  39:   const sources = [
+  40:     "src/task-api/service.ts",
+  41:     "src/registry-config/service.ts",
+  42:     "src/scheduler/worker.ts",
+  43:     "src/cleanup-job/index.ts"
+  44:   ].map((path) => readFileSync(path, "utf8"));
+  45: 
+  46:   return {
+  47:     actions: new Set(
+  48:       sources.flatMap((source) =>
+  49:         [...source.matchAll(/action:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+  50:       )
+  51:     ),
+  52:     results: new Set(
+  53:       sources.flatMap((source) =>
+  54:         [...source.matchAll(/result:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+  55:       )
+  56:     ),
+  57:     errorCodes: new Set(
+  58:       sources.flatMap((source) =>
+  59:         [...source.matchAll(/errorCode:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)]
+  60:           .flatMap((match) => [match[1], match[2]])
+  61:           .filter(Boolean)
+  62:       )
+  63:     )
+  64:   };
+  65: }
+  66: 
+  67: test("OpenAPI operationIds are represented by route manifest entries", () => {
+  68:   assert.deepEqual(
+  69:     new Set(parseRouteManifestOperationIds()),
+  70:     new Set(parseOpenApiOperationIds())
+  71:   );
+  72: });
+  73: 
+  74: test("OpenAPI handlers are production handlers with service and DB repository evidence", () => {
+  75:   for (const handlerPath of parseHandlerPaths()) {
+  76:     const handler = readFileSync(handlerPath, "utf8");
+  77:     assert.doesNotMatch(handler, /createScaffoldHandler|createNotImplementedHandler/);
+  78:     assert.match(handler, /requireAuthContext/);
+  79:     assert.match(handler, /sendSuccess/);
+  80:   }
+  81: 
+  82:   const taskService = readFileSync("src/task-api/service.ts", "utf8");
+  83:   const registryService = readFileSync("src/registry-config/service.ts", "utf8");
+  84:   const auditService = readFileSync("src/audit-log/service.ts", "utf8");
+  85: 
+  86:   assert.match(taskService, /createExportTaskRepository/);
+  87:   assert.match(taskService, /createExportRegistryRepository/);
+  88:   assert.match(taskService, /createExportFileRepository/);
+  89:   assert.match(taskService, /appendAudit/);
+  90:   assert.match(registryService, /createExportRegistryRepository/);
+  91:   assert.match(registryService, /appendAudit/);
+  92:   assert.match(auditService, /createExportAuditRepository/);
+  93: });
+  94: 
+  95: test("route manifest maps operations to HTTP API integration evidence", () => {
+  96:   const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  97:   assert.match(manifest, /const httpApiTest = "tests\/api\/export-http-api\.test\.mjs"/);
+  98: 
+  99:   const apiEvidenceCount = [...manifest.matchAll(/tests:\s*\[routeContractTest, httpApiTest\]/g)]
+ 100:     .length;
+ 101: 
+ 102:   assert.equal(apiEvidenceCount, parseOpenApiOperationIds().length);
+ 103: });
+ 104: 
+ 105: test("audit action, result, and errorCode literals written by production code stay within OpenAPI public enums", () => {
+ 106:   const actionEnum = parseAuditActionEnum();
+ 107:   const resultEnum = parseAuditResultEnum();
+ 108:   const responseCodeEnum = parseResponseCodeEnum();
+ 109:   const literals = sourceAuditLiterals();
+ 110: 
+ 111:   assert.deepEqual(
+ 112:     [...literals.actions].filter((action) => !actionEnum.has(action)),
+ 113:     []
+ 114:   );
+ 115:   assert.deepEqual(
+ 116:     [...literals.results].filter((result) => !resultEnum.has(result)),
+ 117:     []
+ 118:   );
+ 119:   assert.deepEqual(
+ 120:     [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
+ 121:     []
+ 122:   );
+ 123: });
+ 124: 
+ 125: test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
+ 126:   const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
+ 127:   assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
+ 128:   assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
+ 129: });
+
+ succeeded in 428ms:
+   1: import { randomUUID } from "node:crypto";
+   2: import type { Kysely } from "kysely";
+   3: import type { ExportPlatformDatabase } from "../db/schema.ts";
+   4: import {
+   5:   createExportAuditRepository,
+   6:   createExportFileRepository,
+   7:   createExportTaskEventRepository,
+   8:   getDatabaseTime
+   9: } from "../repositories/index.ts";
+  10: 
+  11: export type CleanupJobOptions = {
+  12:   db: Kysely<ExportPlatformDatabase>;
+  13:   workerId: string;
+  14:   storage?: CleanupObjectStorage;
+  15:   maxFilesPerPoll?: number;
+  16: };
+  17: 
+  18: export type CleanupPollResult = {
+  19:   scanned: number;
+  20:   deleted: number;
+  21:   retried: number;
+  22: };
+  23: 
+  24: export type CleanupObjectStorage = {
+  25:   deleteObject(storageKey: string): Promise<void>;
+  26: };
+  27: 
+  28: export function createCleanupJob(options: CleanupJobOptions) {
+  29:   const files = createExportFileRepository(options.db);
+  30:   const audits = createExportAuditRepository(options.db);
+  31:   const events = createExportTaskEventRepository(options.db);
+  32:   const storage = options.storage ?? createCleanupObjectStorageFromEnv();
+  33:   const maxFilesPerPoll = options.maxFilesPerPoll ?? 10;
+  34: 
+  35:   async function pollOnce(): Promise<CleanupPollResult> {
+  36:     const now = await getDatabaseTime(options.db);
+  37:     const candidates = await files.listExpiredPublishedFiles({
+  38:       now,
+  39:       limit: maxFilesPerPoll
+  40:     });
+  41:     const result: CleanupPollResult = {
+  42:       scanned: candidates.length,
+  43:       deleted: 0,
+  44:       retried: 0
+  45:     };
+  46: 
+  47:     for (const candidate of candidates) {
+  48:       const invalidatedAt = await getDatabaseTime(options.db);
+  49:       await files.invalidateDownloadMetadata({
+  50:         taskId: candidate.taskId,
+  51:         attemptNo: candidate.attemptNo,
+  52:         now: invalidatedAt
+  53:       });
+  54: 
+  55:       try {
+  56:         await storage.deleteObject(candidate.publishedStorageKey);
+  57:         if (candidate.tempStorageKey) {
+  58:           await storage.deleteObject(candidate.tempStorageKey);
+  59:         }
+  60:         const deletedAt = await getDatabaseTime(options.db);
+  61:         await files.markObjectDeleted({
+  62:           taskId: candidate.taskId,
+  63:           attemptNo: candidate.attemptNo,
+  64:           now: deletedAt
+  65:         });
+  66:         await appendCleanupEvent({
+  67:           events,
+  68:           candidate,
+  69:           eventType: "FILE_CLEANUP_DONE",
+  70:           requestId: cleanupRequestId(options.workerId),
+  71:           now: deletedAt,
+  72:           checkpoint: {
+  73:             storageKey: candidate.publishedStorageKey,
+  74:             tempStorageKey: candidate.tempStorageKey,
+  75:             cleanupResult: "deleted"
+  76:           }
+  77:         });
+  78:         await audits.appendAuditLog({
+  79:           auditId: `audit_${randomUUID()}`,
+  80:           taskId: candidate.taskId,
+  81:           attemptNo: candidate.attemptNo,
+  82:           taskCode: candidate.taskCode,
+  83:           subsystemCode: candidate.subsystemCode,
+  84:           operatorId: candidate.operatorId,
+  85:           action: "EXPIRE_MARK",
+  86:           result: "SUCCESS",
+  87:           errorCode: "SUCCESS",
+  88:           requestId: cleanupRequestId(options.workerId),
+  89:           occurredAt: deletedAt,
+  90:           now: deletedAt
+  91:         });
+  92:         result.deleted += 1;
+  93:       } catch (error) {
+  94:         const failedAt = await getDatabaseTime(options.db);
+  95:         await appendCleanupEvent({
+  96:           events,
+  97:           candidate,
+  98:           eventType: "FILE_CLEANUP_RETRY",
+  99:           requestId: cleanupRequestId(options.workerId),
+ 100:           now: failedAt,
+ 101:           checkpoint: {
+ 102:             storageKey: candidate.publishedStorageKey,
+ 103:             tempStorageKey: candidate.tempStorageKey,
+ 104:             cleanupResult: "retry",
+ 105:             error: error instanceof Error ? error.message : String(error)
+ 106:           }
+ 107:         });
+ 108:         await audits.appendAuditLog({
+ 109:           auditId: `audit_${randomUUID()}`,
+ 110:           taskId: candidate.taskId,
+ 111:           attemptNo: candidate.attemptNo,
+ 112:           taskCode: candidate.taskCode,
+ 113:           subsystemCode: candidate.subsystemCode,
+ 114:           operatorId: candidate.operatorId,
+ 115:           action: "CLEANUP_FAILED",
+ 116:           result: "FAILED",
+ 117:           errorCode: "FILE_CLEANUP_DELETE_ERROR",
+ 118:           requestId: cleanupRequestId(options.workerId),
+ 119:           occurredAt: failedAt,
+ 120:           now: failedAt
+ 121:         });
+ 122:         result.retried += 1;
+ 123:       }
+ 124:     }
+ 125: 
+ 126:     return result;
+ 127:   }
+ 128: 
+ 129:   return { pollOnce };
+ 130: }
+ 131: 
+ 132: export function createCleanupObjectStorageFromEnv(): CleanupObjectStorage {
+ 133:   const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
+ 134:   const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+ 135: 
+ 136:   if (!endpoint || !bucket) {
+ 137:     throw new Error(
+ 138:       "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for cleanup."
+ 139:     );
+ 140:   }
+ 141: 
+ 142:   const normalizedEndpoint = endpoint.replace(/\/+$/, "");
+ 143: 
+ 144:   return {
+ 145:     async deleteObject(storageKey) {
+ 146:       const response = await fetch(
+ 147:         `${normalizedEndpoint}/${encodeURIComponent(bucket)}/${encodeStorageKey(storageKey)}`,
+ 148:         {
+ 149:           method: "DELETE"
+ 150:         }
+ 151:       );
+ 152:       if (!response.ok && response.status !== 404) {
+ 153:         const error = new Error(`object storage delete failed: ${response.status}`);
+ 154:         error.name = "FILE_CLEANUP_DELETE_ERROR";
+ 155:         throw error;
+ 156:       }
+ 157:     }
+ 158:   };
+ 159: }
+ 160: 
+ 161: async function appendCleanupEvent(input: {
+ 162:   events: ReturnType<typeof createExportTaskEventRepository>;
+ 163:   candidate: {
+ 164:     taskId: string;
+ 165:     attemptNo: number;
+ 166:     taskCode: string;
+ 167:     subsystemCode: string;
+ 168:   };
+ 169:   eventType: string;
+ 170:   requestId: string;
+ 171:   now: Date;
+ 172:   checkpoint: unknown;
+ 173: }): Promise<void> {
+ 174:   await input.events.appendTaskEvent({
+ 175:     eventId: `event_${randomUUID()}`,
+ 176:     taskId: input.candidate.taskId,
+ 177:     attemptNo: input.candidate.attemptNo,
+ 178:     eventType: input.eventType,
+ 179:     requestId: input.requestId,
+ 180:     queryTemplateVersion: "cleanup-job",
+ 181:     batchCheckpoint: JSON.stringify(input.checkpoint),
+ 182:     occurredAt: input.now,
+ 183:     now: input.now
+ 184:   });
+ 185: }
+ 186: 
+ 187: function cleanupRequestId(workerId: string): string {
+ 188:   return `cleanup:${workerId}`;
+ 189: }
+ 190: 
+
+ succeeded in 391ms:
+1120: 
+1121:   assert.equal(result.scanned, 1);
+1122:   assert.equal(result.deleted, 1);
+1123:   assert.equal(result.retried, 0);
+1124:   assert.deepEqual(deletes, ["exports/published/cleanup.xlsx", "exports/tmp/cleanup.xlsx"]);
+1125:   assert.ok(audits.some((audit) => audit.action === "EXPIRE_MARK" && audit.result === "SUCCESS"));
+1126:   assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
+1127:   assert.equal(task.taskCode, taskCode);
+1128: });
+1129: 
+1130: serialTest("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+1131:   const db = await createTestDatabase(t);
+1132:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+1133:   const taskId = "cleanup-failed-01";
+1134: 
+1135:   await seedTask(db, { taskId, taskCode, subsystemCode });
+1136:   const now = await getDatabaseTime(db);
+1137: 
+1138:   await createExportTaskRepository(db).updateTaskStatus({
+1139:     taskId,
+1140:     status: "COMPLETED",
+1141:     now
+1142:   });
+1143:   await createExportFileRepository(db).saveFileMetadata({
+1144:     taskId,
+1145:     attemptNo: 0,
+1146:     fileName: "cleanup.xlsx",
+1147:     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+1148:     fileSize: 1024,
+1149:     checksum: "sha256:cleanup",
+1150:     checksumAlgorithm: "SHA-256",
+1151:     tempStorageKey: "exports/tmp/cleanup.xlsx",
+1152:     publishedStorageKey: "exports/published/cleanup.xlsx",
+1153:     expiresAt: new Date(now.getTime() - 60_000),
+1154:     publishedAt: now,
+1155:     deliveryReadyAt: now,
+1156:     checksumVerifiedAt: now,
+1157:     now
+1158:   });
+1159: 
+1160:   const cleanupJob = createCleanupJob({
+1161:     db,
+1162:     workerId: "cleanup-worker",
+1163:     storage: {
+1164:       async deleteObject() {
+1165:         const error = new Error("delete failed");
+1166:         error.name = "UnexpectedStorageVendorError";
+1167:         throw error;
+1168:       }
+1169:     }
+1170:   });
+1171: 
+1172:   const result = await cleanupJob.pollOnce();
+1173:   const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+1174:   const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+1175:   const metadata = await createExportFileRepository(db).findFileMetadata(taskId, 0);
+1176: 
+1177:   assert.equal(result.scanned, 1);
+1178:   assert.equal(result.deleted, 0);
+1179:   assert.equal(result.retried, 1);
+1180:   assert.ok(
+1181:     audits.some(
+1182:       (audit) =>
+1183:         audit.action === "CLEANUP_FAILED" &&
+1184:         audit.result === "FAILED" &&
+1185:         audit.errorCode === "FILE_CLEANUP_DELETE_ERROR"
+1186:     )
+1187:   );
+1188:   assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_RETRY"));
+1189:   assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
+1190:   assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");
+1191:   assert.equal(metadata.tempStorageKey, "exports/tmp/cleanup.xlsx");
+1192: });
+1193: 
+1194: });
+
+ succeeded in 419ms:
+1200:                 message: taskCode already exists
+1201:                 data: null
+1202:     InternalError:
+1203:       description: Unclassified server-side error. Specific platform errors should use a more precise response when known.
+1204:       content:
+1205:         application/json:
+1206:           schema:
+1207:             $ref: "#/components/schemas/ErrorEnvelope"
+1208:           examples:
+1209:             internalError:
+1210:               value:
+1211:                 code: INTERNAL_ERROR
+1212:                 message: internal error
+1213:                 data: null
+1214:   schemas:
+1215:     ResponseCode:
+1216:       type: string
+1217:       enum:
+1218:         - SUCCESS
+1219:         - VALIDATION_ERROR
+1220:         - AUTH_CONTEXT_MISSING
+1221:         - PERMISSION_DENIED
+1222:         - TASK_NOT_FOUND
+1223:         - TASK_NOT_REGISTERED
+1224:         - TASK_DISABLED
+1225:         - QUERY_PARAMS_TOO_LARGE
+1226:         - IDEMPOTENCY_CONFLICT
+1227:         - INVALID_TASK_STATE
+1228:         - FILE_EXPIRED
+1229:         - FILE_NOT_READY
+1230:         - FILE_VERIFY_ERROR
+1231:         - FILE_CLEANUP_DELETE_ERROR
+1232:         - QUERY_TEMPLATE_INVALID
+1233:         - DATASOURCE_UNAVAILABLE
+1234:         - QUERY_EXECUTION_ERROR
+1235:         - FIELD_MAPPING_INVALID
+1236:         - MASKING_RULE_ERROR
+1237:         - EXPORT_RENDER_ERROR
+1238:         - EXPORT_LIMIT_EXCEEDED
+1239:         - REGISTRY_CONFLICT
+1240:         - ACTIVE_ATTEMPT_CONFLICT
+1241:         - INTERNAL_ERROR
+1242:     TaskStatus:
+1243:       type: string
+1244:       description: Official public task status. Internal cancel flags are not valid values.
+1245:       enum: [PENDING, EXECUTING, COMPLETED, FAILED, CANCELED, EXPIRED]
+1815:             - EXECUTE_SUCCESS
+1816:             - EXECUTE_FAILED
+1817:             - CANCEL_REQUEST
+1818:             - CANCEL_DONE
+1819:             - RETRY_REQUEST
+1820:             - DOWNLOAD
+1821:             - EXPIRE_MARK
+1822:             - CLEANUP_FAILED
+1823:             - REGISTRY_CREATE
+1824:             - REGISTRY_QUERY
+1825:             - REGISTRY_DETAIL
+1826:             - REGISTRY_UPDATE
+1827:             - REGISTRY_ENABLE
+1828:             - REGISTRY_DISABLE
+1829:         result:
+1830:           type: string
+1831:           enum: [SUCCESS, FAILED, ACCEPTED]
+1832:         errorCode:
+1833:           $ref: "#/components/schemas/ResponseCode"
+1834:         requestId:
+1835:           type: string
+1836:         occurredAt:
+1837:           type: string
+1838:           format: date-time
+1839:     TaskEvent:
+1840:       type: object
+
+codex
+实现路径本身比较小：生产代码固定写公开 `FILE_CLEANUP_DELETE_ERROR`，worker 集成测试通过真实 cleanup job、DB repository 和审计查询验证结果。为确认 fresh evidence，我会复跑任务给出的验证命令。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '"'. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 7944ms:
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9775ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.5508ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4913ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.0039ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2356ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69.9171
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:65270 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7252ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (243.9301ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (296.3681ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (282.9292ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (198.6738ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.5454ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (205.6239ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (228.0657ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (199.2495ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (256.5861ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (272.3131ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (184.2718ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (266.4939ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (288.1156ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (249.0822ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (161.2264ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (159.072ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (164.5537ms)
+✔ worker integration tests (3901.3654ms)
+ℹ tests 18
+ℹ suites 1
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4408.1122
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+codex
+复验命令通过。还需要补一眼项目脚本和类型检查入口，确认当前测试组合是否覆盖 TypeScript 编译层面的逃逸风险。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content -Raw package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "noImplicitAny|strict|tsc|typecheck|type-check|tsx" package.json tsconfig*.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 366ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+
+2026-05-16T09:41:36.719921Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+package.json:17:    "tsx": "^4.19.2",
+package.json:21:    "start": "tsx src/server.ts",
+package.json:22:    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+package.json:23:    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+package.json:24:    "arch:check": "tsx scripts/arch-check.ts",
+package.json:25:    "typecheck": "tsc --noEmit",
+package.json:26:    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+package.json:28:    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+package.json:29:    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+package.json:30:    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+package.json:31:    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+package.json:32:    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+package.json:33:    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+package.json:34:    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+package.json:35:    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+rg: tsconfig*.json: 文件名、目录名或卷标语法不正确。 (os error 123)
+
+ exited 1 in 387ms:
+package.json:17:    "tsx": "^4.19.2",
+package.json:21:    "start": "tsx src/server.ts",
+package.json:22:    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+package.json:23:    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+package.json:24:    "arch:check": "tsx scripts/arch-check.ts",
+package.json:25:    "typecheck": "tsc --noEmit",
+package.json:26:    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+package.json:28:    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+package.json:29:    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+package.json:30:    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+package.json:31:    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+package.json:32:    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+package.json:33:    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+package.json:34:    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+package.json:35:    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+rg: tsconfig*.json: 文件名、目录名或卷标语法不正确。 (os error 123)
+
+ succeeded in 440ms:
+ M docs/testing/verify-matrix.md
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-61aa5da7f5874b48b965b8fcb45ae8b2/
+?? traces/CLEANUP-AUDIT-ERROR-CODE-ALIGN-001-9141ca61e86244cfb3b9da64e3ac6b7b/
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260516-171459.json
+?? traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2134ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --name-only --pretty=format: ba5df87 c764c1a | Sort-Object -Unique' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "git show ba5df87 c764c1a -- | Select-String -Pattern \"docs/knowledge|knowledge_outputs|knowledge_references|console\\.log|debugger|TODO|FIXME|password|token|secret\" -CaseSensitive:"'$false' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 397ms:
+
+contracts/openapi.yaml
+docs/reviews/requirements-complete-review.findings.json
+docs/reviews/requirements-complete-review.md
+docs/testing/verify-matrix.md
+progress.txt
+src/cleanup-job/index.ts
+task.json
+tests/contract/openapi-route-mapping.contract.test.mjs
+tests/worker/scheduler-worker.test.mjs
+
+ succeeded in 426ms:
+
+-      "path": "[7mdocs/knowledge[0m/decisions/DECISION-HARNESS-001.md",
++      "path": "[7mdocs/knowledge[0m/decisions/DECISION-HARNESS-001.md"
+-      "path": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-RULES-001.md",
++      "path": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-RULES-001.md"
+-      "target": "[7mdocs/knowledge[0m/pitfalls/PITFALL-REVIEW-001.md",
+-      "pathOrTarget": "[7mdocs/knowledge[0m/pitfalls/PITFALL-REVIEW-001.md"
++      "target": "[7mdocs/knowledge[0m/pitfalls/PITFALL-REVIEW-001.md"
+-      "target": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-EVIDENCE-001.md",
+-      "pathOrTarget": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-EVIDENCE-001.md"
++      "target": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-EVIDENCE-001.md"
++      "target": "[7mdocs/knowledge[0m/guidelines/GUIDELINE-AUDIT-CONTRACT-001.md"
+-- `PITFALL-REVIEW-001`: draft, “release gate 通过不能替代逐项异常验收 review”, target `[7mdocs/[0m
+[7mknowledge[0m/pitfalls/PITFALL-REVIEW-001.md`[0m
+-- `GUIDELINE-EVIDENCE-001`: draft, “mock/local/docker/live evidence 分层命名”, target `[7mdocs/[0m
+[7mknowledge[0m/guidelines/GUIDELINE-EVIDENCE-001.md`[0m
++- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested -
+ `[7mdocs/knowledge[0m/pitfalls/PITFALL-REVIEW-001.md`[0m
++- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested
+ - `[7mdocs/knowledge[0m/guidelines/GUIDELINE-EVIDENCE-001.md`[0m
++- `GUIDELINE-AUDIT-CONTRACT-001`: guideline - 审计 errorCode 必须由契约枚举守护 - suggested 
+- `[7mdocs/knowledge[0m/guidelines/GUIDELINE-AUDIT-CONTRACT-001.md`[0m
+
+
+codex
+额外核对没有发现调试输出、硬编码密钥或类型检查问题；提交里已有 knowledge 输出建议，未发现需要阻塞的知识归档缺口。剩下一个工作区整洁度问题，我会在结论里按 LOW artifact gap 处理。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content docs'"\\reviews\\requirements-complete-review.md | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 120) { '"'{0,4}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Select-String -Path docs\\reviews\\requirements-complete-review.findings.json -Pattern \"knowledge_outputs|knowledge_references|GUIDELINE-AUDIT-CONTRACT-001\" -Context 2,3" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 363ms:
+   1: # Requirements Complete Review: REQUIREMENTS-COMPLETE-REVIEW-001
+   2: 
+   3: Verdict: PASS_WITH_GAPS
+   4: 
+   5: ## Truth Source
+   6: 
+   7: - `docs/product/prd-lite.md`
+   8: - `docs/product/acceptance-criteria.md`
+   9: - `docs/product/requirement-interface-matrix.md`
+  10: - `docs/product/state-matrix.yaml`
+  11: - `docs/architecture/constraints.md`
+  12: 
+  13: ## Evidence Source
+  14: 
+  15: - `contracts/openapi.yaml`
+  16: - `src/`
+  17: - `tests/`
+  18: - `docs/testing/verify-matrix.md`
+  19: - `task.json`
+  20: 
+  21: ## Summary
+  22: 
+  23: 本轮复审结论为 `PASS_WITH_GAPS`。
+  24: 
+  25: 原先六个 RCR findings 中，除 `CLEANUP-AUDIT-ERROR-CODE-001` 外，其余主漂移均已通过修复证据关闭：
+  26: 
+  27: - 审计 action/result 主漂移已修：`src/task-api/service.ts`、`src/registry-config/service.ts` 使用 `FAILED`，registry 查询使用 `REGISTRY_QUERY`；cleanup action 使用 `EXPIRE_MARK` / `CLEANUP_FAILED`。
+  28: - 管理员历史全局查询已修：`src/task-api/service.ts:385-400` 管理员 list 不传 `tenantId`；`tests/api/export-http-api.test.mjs:419-443` 断言跨租户管理员 list 可见、detail 仍 403。
+  29: - 配置快照回放已修：`src/task-api/service.ts:320-356` 创建任务持久化完整 `configSnapshot`；`src/query-executor/index.ts:222-233` 优先使用 task requestPayload 中 snapshot；`tests/query/query-executor.test.mjs:406-476`、`tests/worker/scheduler-worker.test.mjs:515-600` 覆盖 registry 更新/禁用后旧任务仍按创建时快照执行。
+  30: - 查询批次 retry 已修：`src/scheduler/worker.ts:428-455` 写入 `retryCount` / `backoffMs` 并续租；`src/scheduler/worker.ts:773-777` 将 `QUERY_EXECUTION_ERROR` / `DATASOURCE_UNAVAILABLE` 作为可重试批次错误；`tests/worker/scheduler-worker.test.mjs:750-790`、`:816-855`、`:982-1040` 覆盖短暂失败、backoff 和耗尽。
+  31: - 数据源不可用已修：`src/query-executor/index.ts:780-795` 映射连接/凭证类错误为 `DATASOURCE_UNAVAILABLE`；`tests/query/query-executor.test.mjs:731-740` 和 `tests/worker/scheduler-worker.test.mjs:1044-1075` 覆盖 query/worker 收口。
+  32: - 文件 put/publish 失败映射已修：`src/file-service/index.ts:78-105` 和 `:412-420` 将 put/read/publish 映射为 `FILE_VERIFY_ERROR`；`tests/file/export-file-service.test.mjs:510-558`、`:611-655` 覆盖不发布 metadata 与 worker audit `FILE_VERIFY_ERROR`。
+  33: 
+  34: 仍有一个 P1 gap：
+  35: 
+  36: - `CLEANUP-AUDIT-ERROR-CODE-001`
+  37: - cleanup 失败审计写入 `FILE_CLEANUP_DELETE_ERROR`，但 `contracts/openapi.yaml` 的 `ResponseCode` enum 不包含该值，而 `AuditEvent.errorCode` 引用的是 `ResponseCode`。
+  38: - 当前测试只断言 `CLEANUP_FAILED` + `FAILED`，未断言 cleanup audit errorCode 落在公开契约枚举内。
+  39: - 这会让 FR-010 / FR-011、AC-010 / AC-011 的审计契约边界仍存在 P1 缺口，因此 release gate 不应声明 cleanup 失败路径完全契约一致。
+  40: 
+  41: ## FR Coverage Matrix
+  42: 
+  43: | FR ID | Status | Notes |
+  44: | --- | --- | --- |
+  45: | FR-001 | covered | 创建任务接口、PENDING 返回和幂等链路已有契约、服务和测试证据。 |
+  46: | FR-002 | covered | 任务详情/进度查询有 API、服务和测试映射。 |
+  47: | FR-003 | covered | 下载链路、签名 URL/stream 元信息和文件元数据证据已覆盖。 |
+  48: | FR-004 | covered | 历史查询筛选维度、同租户权限边界和管理员全局可见性证据已修正。 |
+  49: | FR-005 | covered | 调度和 DB 锁边界已有 worker / repository / test 证据。 |
+  50: | FR-006 | covered | 分片、打包和样板批次链路已有证据。 |
+  51: | FR-007 | covered | 注册、启停和配置链路已有 API / service / repository 证据。 |
+  52: | FR-008 | covered | 集中查询模板、字段映射、脱敏策略、数据源不可用与批次重试证据已补齐。 |
+  53: | FR-009 | covered | 权限、脱敏和下载保护有覆盖，审计 result contract 已与实现收敛。 |
+  54: | FR-010 | partially_covered | 审计主漂移已修，但 cleanup 失败路径的 errorCode 仍未与公开契约枚举完全对齐。 |
+  55: | FR-011 | partially_covered | cleanup 行为链路已修正，但 cleanup 失败审计 errorCode 仍有契约缺口。 |
+  56: | FR-012 | covered | 取消与重试边界、非法状态错误和 worker 收口已有证据。 |
+  57: | FR-013 | covered | 幂等、执行尝试和 DB 锁租约已有证据，配置快照回放也已修正。 |
+  58: | FR-014 | covered | 采购订单样板的集中查询合同、样板链路和压测边界已有证据。 |
+  59: 
+  60: ## AC Coverage Matrix
+  61: 
+  62: | AC ID | Status | Notes |
+  63: | --- | --- | --- |
+  64: | AC-001 | covered | 创建任务 1 秒返回 taskId、PENDING 状态的证据齐备。 |
+  65: | AC-002 | covered | 任务状态、总数、已处理数、进度和错误信息可查询。 |
+  66: | AC-003 | covered | 下载响应、文件元信息和过期前下载保护有证据。 |
+  67: | AC-004 | covered | 历史分页筛选与管理员全局查询已按产品口径落实。 |
+  68: | AC-005 | covered | 同子系统并发控制有 scheduler / lease 证据。 |
+  69: | AC-006 | covered | 超阈值分片打包和空数据表头文件已覆盖。 |
+  70: | AC-007 | covered | 注册创建、更新、查询、启停和配置同步已有证据。 |
+  71: | AC-008 | covered | 集中查询模板、schema、字段映射、脱敏策略和数据源约束有证据。 |
+  72: | AC-009 | covered | 无权限创建或下载返回 403 并记录审计。 |
+  73: | AC-010 | partially_covered | 审计日志契约主漂移已修，但 cleanup 失败路径 errorCode 仍未完全对齐。 |
+  74: | AC-011 | partially_covered | 过期标记、不可下载和清理失败记录有链路，但 cleanup 失败审计 errorCode 仍有缺口。 |
+  75: | AC-012 | covered | PENDING 可取消、FAILED 可重试、EXECUTING 批次边界收口有证据。 |
+  76: | AC-013 | covered | taskId 串联幂等、执行尝试、锁租约和快照证据可追踪。 |
+  77: | AC-014 | covered | 幂等范围和参数摘要一致/冲突行为有证据。 |
+  78: | AC-015 | covered | attemptNo、lockOwner、lockExpireAt 和租约续租证据存在。 |
+  79: | AC-016 | covered | 创建任务时持久化完整 configSnapshot，旧任务和失败重试沿用创建时快照。 |
+  80: | AC-017 | covered | 采购订单样板注册与查询条件、字段和格式契约已覆盖。 |
+  81: | AC-018 | covered | 0/1/20000/20001/100000/100001 边界证据已覆盖。 |
+  82: | AC-019 | covered | 批次检查点、重试和失败上下文有证据，且短暂失败和耗尽链路已补齐。 |
+  83: | AC-020 | covered | 阶段事件链路可追踪。 |
+  84: | AC-021 | covered | 临时对象到已发布对象的交付模型和校验失败处置有证据。 |
+  85: 
+  86: ## AC-E Coverage Matrix
+  87: 
+  88: | AC-E ID | Status | Notes |
+  89: | --- | --- | --- |
+  90: | AC-E001 | covered | 空数据生成仅表头文件。 |
+  91: | AC-E002 | covered | 未注册任务创建失败，不落无效任务。 |
+  92: | AC-E003 | covered | 任务禁用返回 `TASK_DISABLED`。 |
+  93: | AC-E004 | covered | 短暂失败后重试成功的批次 retry loop 已有实现和测试证据。 |
+  94: | AC-E005 | covered | object storage put/publish 错误已映射为 `FILE_VERIFY_ERROR`。 |
+  95: | AC-E006 | covered | 权限不足返回 403。 |
+  96: | AC-E007 | covered | 文件过期返回 410 或等价失效结果。 |
+  97: | AC-E008 | covered | 多实例重复抢锁仅一个实例成功执行。 |
+  98: | AC-E009 | covered | 请求参数过长返回 400。 |
+  99: | AC-E010 | covered | 超大导出按配置拒绝或进入更严格控制流。 |
+ 100: | AC-E011 | covered | 查询模板不存在或不合法收口为 `QUERY_TEMPLATE_INVALID`。 |
+ 101: | AC-E012 | covered | `DATASOURCE_UNAVAILABLE` 已有契约与可执行路径。 |
+ 102: | AC-E013 | covered | 查询执行失败的 retry loop 与耗尽路径已有证据。 |
+ 103: | AC-E014 | covered | 字段映射不合法收口为 `FIELD_MAPPING_INVALID`。 |
+ 104: | AC-E015 | covered | 非法或重复重试请求返回非法状态错误。 |
+ 105: | AC-E016 | covered | 认证上下文缺少最小字段可返回权限/参数错误并记录 requestId。 |
+ 106: | AC-E017 | covered | 文件校验值不匹配拒绝交付并进入失败处置链路。 |
+ 107: | AC-E018 | covered | 幂等键冲突返回 `IDEMPOTENCY_CONFLICT`。 |
+ 108: | AC-E019 | covered | 锁租约过期接管、attemptNo 延续和批次检查点有证据。 |
+ 109: | AC-E020 | covered | 查询批次重试耗尽已有明确 retry loop 和耗尽测试路径。 |
+ 110: | AC-E021 | covered | 超过默认最大导出量的拒绝/更严格控制流有证据。 |
+ 111: | AC-E022 | covered | 采购订单样板敏感字段脱敏有覆盖。 |
+ 112: | AC-E023 | covered | 游标不稳定有查询层测试与契约证据。 |
+ 113: | AC-E024 | covered | 配置快照沿用创建时完整快照后的冲突判定证据已补齐。 |
+ 114: | AC-E025 | covered | 批次字段/顺序/脱敏校验有实现与失败收口证据。 |
+ 115: | AC-E026 | covered | 文件发布前失败不会生成下载地址，且错误码映射已与 `FILE_VERIFY_ERROR` 对齐。 |
+ 116: | AC-E027 | covered | `EXPORT_RENDER_ERROR` 有实现映射并配套渲染失败测试。 |
+ 117: 
+ 118: ## Findings
+ 119: 
+ 120: ### RCR-001
+
+ succeeded in 374ms:
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 413ms:
+
+  docs\reviews\requirements-complete-review.findings.json:135:    },
+  docs\reviews\requirements-complete-review.findings.json:136:    {
+> docs\reviews\requirements-complete-review.findings.json:137:      "id": "[7mGUIDELINE-AUDIT-CO[0m
+[7mNTRACT-001[0m",[0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:138:      "type": "guideline",[0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:139:      "title": "审计 errorCode [0m
+[7m[0m必须由契约枚举守护",[0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:140:      "action": "suggested",[0m
+> docs\reviews\requirements-complete-review.findings.json:141:      "target": "docs/knowledge
+/guidelines/[7mGUIDELINE-AUDIT-CONTRACT-001[0m.md"[0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:142:    }[0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:143:  ][0m
+[7m[0m  docs\reviews\requirements-complete-review.findings.json:144:}[0m
+
+

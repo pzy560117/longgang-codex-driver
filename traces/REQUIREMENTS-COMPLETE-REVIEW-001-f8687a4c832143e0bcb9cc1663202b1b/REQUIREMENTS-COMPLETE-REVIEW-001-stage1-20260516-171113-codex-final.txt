@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | contract | [src/cleanup-job/index.ts:115](E:/2026/alpha-project/longgang-codex-driver/src/cleanup-job/index.ts:115) 写入 `FILE_CLEANUP_DELETE_ERROR`；[contracts/openapi.yaml:1215](E:/2026/alpha-project/longgang-codex-driver/contracts/openapi.yaml:1215) `ResponseCode` 未包含该值；[contracts/openapi.yaml:1831](E:/2026/alpha-project/longgang-codex-driver/contracts/openapi.yaml:1831) `AuditEvent.errorCode` 引用 `ResponseCode`；[tests/worker/scheduler-worker.test.mjs:1178](E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:1178) 只断言 action/result，未守护 errorCode 枚举 | 对齐 cleanup 失败审计错误码：要么把实现映射到已确认的公开 `ResponseCode`，要么先把 `FILE_CLEANUP_DELETE_ERROR` 回填到产品错误映射、OpenAPI、测试矩阵和契约守护测试；补充 worker/contract 测试断言 cleanup audit `errorCode` 必须落在 `ResponseCode` 枚举内 | `npm run test:contract; npm run test:worker; git diff --check -- contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing docs/reviews` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | contract | backend-worker | 1 | yes |
