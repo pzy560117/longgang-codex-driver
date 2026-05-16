@@ -61,12 +61,94 @@ function jsonCoverageMap(report) {
   );
 }
 
+const allowedCoverageStatuses = new Set([
+  "covered",
+  "partially_covered",
+  "gap",
+  "not_applicable"
+]);
+
+const expectedRequirementIds = Array.from({ length: 14 }, (_item, index) =>
+  `FR-${String(index + 1).padStart(3, "0")}`
+);
+
+const expectedAcceptanceIds = Array.from({ length: 21 }, (_item, index) =>
+  `AC-${String(index + 1).padStart(3, "0")}`
+);
+
+const expectedExceptionIds = Array.from({ length: 27 }, (_item, index) =>
+  `AC-E${String(index + 1).padStart(3, "0")}`
+);
+
+const expectedTruthSources = [
+  "docs/product/prd-lite.md",
+  "docs/product/page-inventory.md",
+  "docs/product/difficulty-research.md",
+  "docs/product/acceptance-criteria.md",
+  "docs/product/requirement-interface-matrix.md",
+  "docs/product/state-matrix.yaml",
+  "docs/architecture/constraints.md"
+];
+
+const expectedEvidenceSources = [
+  "contracts/openapi.yaml",
+  "src/",
+  "tests/",
+  "docs/testing/ACCEPTANCE_CRITERIA.md",
+  "docs/testing/ACCEPTANCE_EXAMPLES.md",
+  "docs/testing/TRACEABILITY_MATRIX.md",
+  "docs/testing/TEST_DATA_MATRIX.md",
+  "docs/testing/test-matrix.md",
+  "docs/testing/verify-matrix.md",
+  "task.json"
+];
+
+function assertCoverageGroup(entries, expectedIds, label) {
+  assert.deepEqual(
+    entries.map((entry) => entry.id),
+    expectedIds,
+    `${label} coverage must enumerate every required id in order`
+  );
+
+  for (const entry of entries) {
+    assert.ok(
+      allowedCoverageStatuses.has(entry.status),
+      `${entry.id} uses unsupported coverage status ${entry.status}`
+    );
+  }
+}
+
 test("requirements review Markdown and JSON artifacts stay consistent", async () => {
   const { markdown, report } = await readReviewArtifacts();
+
+  for (const truthSource of expectedTruthSources) {
+    assert.ok(markdown.includes(`- \`${truthSource}\``), `${truthSource} must be listed in Markdown truth sources`);
+  }
+  assert.deepEqual(report.truthSources, expectedTruthSources);
+  for (const evidenceSource of expectedEvidenceSources) {
+    assert.ok(markdown.includes(`- \`${evidenceSource}\``), `${evidenceSource} must be listed in Markdown evidence sources`);
+  }
+  assert.deepEqual(report.evidenceSources, expectedEvidenceSources);
 
   const markdownFindingIds = extractMarkdownFindingIds(markdown);
   const jsonFindingIds = report.findings.map((finding) => finding.id).sort();
   assert.deepEqual(jsonFindingIds, markdownFindingIds);
+
+  assertCoverageGroup(report.coverage.requirements, expectedRequirementIds, "FR");
+  assertCoverageGroup(report.coverage.acceptance, expectedAcceptanceIds, "AC");
+  assertCoverageGroup(report.coverage.exceptions, expectedExceptionIds, "AC-E");
+
+  for (const finding of report.findings) {
+    assert.match(finding.severity, /^P[01]$/, `${finding.id} must be P0/P1`);
+    assert.ok(finding.requirementIds.length > 0, `${finding.id} must list requirement ids`);
+    assert.ok(finding.evidence.length > 0, `${finding.id} must list file evidence`);
+    assert.ok(finding.risk.trim().length > 0, `${finding.id} must explain risk`);
+    assert.equal(
+      finding.suggestedNextTaskId,
+      finding.id,
+      `${finding.id} must be directly actionable as a follow-up task id`
+    );
+  }
 
   assert.equal(report.verdict, extractMarkdownVerdict(markdown));
   assert.ok(
@@ -82,6 +164,11 @@ test("requirements review Markdown and JSON artifacts stay consistent", async ()
     "external production MySQL",
     "live OSS/S3"
   ]);
+  assert.doesNotMatch(
+    report.evidenceBoundary.notes.join("\n"),
+    /promote .* to live evidence as verified|claim .* live evidence/u,
+    "Evidence boundary notes must not promote docker/mock evidence to verified live evidence"
+  );
 
   const markdownCoverage = new Map([
     ...extractCoverage(markdown, "## FR Coverage Matrix"),
