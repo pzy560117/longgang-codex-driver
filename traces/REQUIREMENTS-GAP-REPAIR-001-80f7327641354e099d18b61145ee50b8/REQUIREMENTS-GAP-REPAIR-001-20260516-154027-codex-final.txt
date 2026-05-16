@@ -1,0 +1,48 @@
+## Requirement IDs
+- FR-004, FR-008, FR-009, FR-010, FR-011, FR-013
+- AC-004, AC-010, AC-011, AC-016, AC-019
+- AC-E004, AC-E005, AC-E012, AC-E013, AC-E020, AC-E024, AC-E026, AC-E027
+
+## Summary
+- 已核对六个 repair finding 的实现与测试证据：审计契约、管理员全局历史、配置快照重放、查询批次 retry、`DATASOURCE_UNAVAILABLE`、文件存储错误映射。
+- 当前仓库已有对应修复实现，本轮未产生新的 tracked diff。
+- 未执行 git commit：Driver Context 明确禁止 `git add` / `git commit`，且当前无 tracked 文件变更可提交。
+
+## Files Changed
+- 无 tracked 文件变更。
+
+## Validation
+- `npm run test:contract`: PASS - 4/4 passed
+- `npm run test:mock-local`: PASS - 31/31 passed
+- `npm run test:docker-local`: PASS - 自动运行 `arch:check`、`typecheck`、API/DB/worker/query/file/sample/object-storage smoke，全部通过
+- `git diff --check -- ...`: PASS - exit 0
+
+## Evidence
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 审计 action/result 枚举与 OpenAPI 对齐
+- `tests/api/export-http-api.test.mjs`: 管理员跨租户历史可见、详情/下载仍隔离、创建持久化完整 config snapshot
+- `tests/query/query-executor.test.mjs`: 旧任务按创建时快照执行，datasource/凭证错误分类为 `DATASOURCE_UNAVAILABLE`
+- `tests/worker/scheduler-worker.test.mjs`: 批次 retry/backoff、耗尽失败、`DATASOURCE_UNAVAILABLE` worker 收口、cleanup audit
+- `tests/file/export-file-service.test.mjs`: put/publish 失败映射为 `FILE_VERIFY_ERROR`
+- `docs/testing/verify-matrix.md`: 已记录 fresh repair evidence 与 mock/local/docker/live 边界
+
+## Architecture Constraints
+- `independent_microservice`: PASS - HTTP/API、worker、cleanup job 验证链路通过
+- `production persistence boundary`: PASS - docker-local 使用本机 Docker MySQL，不以内存 repository 冒充
+- `test double policy`: PASS - object storage 为本地 mock / production-equivalent adapter，不声明 live OSS
+- `forbidden implementations`: PASS - 未发现用 `InMemory*`、mock repository 或纯文档替代生产路径完成
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - repair evidence/report boundary - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - truth source and verification boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL 与 live OSS/S3 未验证，且不属于当前 release gate。
+- 工作区仍有未跟踪 trace 目录，按 Driver 边界本轮未修改：`traces/REQUIREMENTS-GAP-REPAIR-001-*`。

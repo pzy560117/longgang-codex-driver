@@ -1,0 +1,17 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-GAP-REPAIR-001-S1-F001 | HIGH | truth_source_missing | controller | `plans/features/export-platform.dev-plan.md:9` 仍声明 `RELEASE-001 当前状态为 BLOCKED`；但 `docs/testing/verify-matrix.md:31-36` 已声明 6 个 repair finding repaired，`docs/testing/verify-matrix.md:92` 又声明 `RELEASE-001` docker/mock release gate 已通过。DEV-PLAN 与测试证据边界不一致。 | 修正 DEV-PLAN 顶部“当前实现与验证状态”，明确最新状态以 docker/mock release gate 为准，同时保留 live OSS/S3 / 外部生产 MySQL 不属于当前完成条件，避免把 mock/docker 证据写成 live evidence。 | `git diff --check -- plans/features/export-platform.dev-plan.md docs/testing/verify-matrix.md task.json`; 修复后再跑 `npm run test:contract; npm run test:mock-local; npm run test:docker-local` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-GAP-REPAIR-001-S1-F001 | controller | docs-worker | 1 | true |
+
+补充审查结果：6 个原始功能缺口本轮都有实现与测试证据；我抽查了审计枚举、管理员全局历史、配置快照重放、批次 retry、`DATASOURCE_UNAVAILABLE`、`FILE_VERIFY_ERROR` 映射。已运行 `npm run test:contract`、`npm run arch:check`、scoped `git diff --check`，均通过。

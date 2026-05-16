@@ -6,8 +6,9 @@
 
 ## 当前实现与验证状态
 
-- RELEASE-001 当前状态为 BLOCKED：基础项已通过，但 `npm run test:api` 因缺少 `EXPORT_PLATFORM_TEST_DATABASE_URL` 停止，DB / worker / query / file / sample 本轮未执行，live object storage 也仍然 blocked。
-- 历史 历史通过记录 结果可保留为旧证据，但不能作为当前 latest release evidence 或 completion/pass 依据。
+- RELEASE-001 当前 release gate 已通过：证据来自本机 Docker MySQL + 本地 object storage mock 的 docker/mock release gate，而不是外部生产 MySQL、live OSS/S3 或外部业务数据源。
+- `REQUIREMENTS-GAP-REPAIR-001` 的六个 P0/P1 repair 已有 fresh evidence；但完整需求复审仍需由 `REQUIREMENTS-COMPLETE-REVIEW-001` 后续重跑确认，不能直接等同于最终复审完成。
+- 历史通过记录可以保留为旧证据，但不能覆盖当前 docker/mock release evidence，也不能把 live evidence 写成已验证。
 - 以下内容保留计划分层和任务入口，但其中的历史扩展措辞应理解为原始计划背景，不是当前 truth source。
 
 ## 1. 计划目标
