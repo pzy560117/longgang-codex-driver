@@ -1,0 +1,25 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | contract | `AC-010` 要求审计 `result` 字段可稳定追踪；但 `contracts/openapi.yaml:1828-1830` 只允许 `SUCCESS/FAILED/ACCEPTED`，`src/task-api/service.ts:104-114`、`src/registry-config/service.ts:61-72` 写入 `FAILURE`；`src/registry-config/service.ts:218-223` 使用 `REGISTRY_LIST`，但契约枚举是 `REGISTRY_QUERY`。 | 新增 `AUDIT-CONTRACT-ALIGN-001`：统一 OpenAPI、审计写入和测试断言中的 action/result/errorCode；要么扩展契约，要么改实现，不能双轨。 | `npm run test:api; npm run test:worker; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `AC-004` 要求管理员按权限看全局；`src/task-api/service.ts:363-383` 对列表查询固定传入 `tenantId: auth.tenantId`；`tests/api/export-http-api.test.mjs:412-423` 还断言跨租户管理员看不到目标任务。 | 新增 `TASK-HISTORY-ADMIN-SCOPE-001`：实现或重新定义管理员全局可见性。如果产品只允许同租户全局，必须先回写 truth source。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | architecture_gap | backend | `AC-016` 要求已创建任务和失败重试沿用原配置快照；创建时只保存 `configSnapshotDigest`（`src/task-api/service.ts:320-331`），执行时读取当前 registry 并在 digest 不一致时失败（`src/query-executor/index.ts:87-96`），无法证明“沿用原完整快照”。 | 新增 `CONFIG-SNAPSHOT-REPLAY-001`：持久化可执行 registry/query/mapping/masking 快照，并让 worker/retry 使用任务快照执行；补配置变更后旧任务仍成功、冲突仍失败的测试。 | `npm run test:query; npm run test:worker; npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | missing_requirement | backend | `AC-E004`、`AC-E020` 要求批次短暂失败重试成功和重试耗尽；`src/scheduler/worker.ts:484-515` 捕获非租约错误后直接标记 `FAILED` 并写 `EXECUTE_FAILED`，`src/query-executor/index.ts:162-170` 仅回传当前 `retryCount`，没有 retry loop。 | 新增 `QUERY-BATCH-RETRY-001`：实现批次级 retry/backoff/retryCount 持久化，覆盖短暂失败后完成、重试耗尽后 `QUERY_EXECUTION_ERROR`。 | `npm run test:query; npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | HIGH | contract_gap | backend | `AC-E012` 和 OpenAPI 都定义 `DATASOURCE_UNAVAILABLE`（`contracts/openapi.yaml:249-256`），但 `src/query-executor/index.ts` 只有通用 `QUERY_EXECUTION_ERROR` 构造（`src/query-executor/index.ts:746-754`），缺少数据源/凭证不可用的可执行分支和测试证据。 | 新增 `DATASOURCE-ADAPTER-ERROR-001`：为 datasource adapter 增加不可用/凭证错误分类，worker 最终落 `DATASOURCE_UNAVAILABLE`，补 contract/query/worker 测试。 | `npm run test:query; npm run test:worker; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | contract_gap | backend | `AC-E005`、`AC-E026` 要求 OSS 上传/发布失败收口为 `FILE_VERIFY_ERROR`；`src/file-service/index.ts:78-105` 把 `putObject`/`publishObject` 失败映射为 `EXPORT_RENDER_ERROR`；现有文件测试只覆盖 checksum `FILE_VERIFY_ERROR`（`tests/file/export-file-service.test.mjs:480-497`）。 | 新增 `FILE-STORAGE-ERROR-MAPPING-001`：把对象存储写入/发布失败映射到产品要求的文件校验/发布错误口径，并补 put/publish 失败测试。 | `npm run test:file; npm run test:worker` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | contract | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 3 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | backend-worker | 3 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | no |

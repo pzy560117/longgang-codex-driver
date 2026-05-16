@@ -1,0 +1,208 @@
+{
+  "taskId": "REQUIREMENTS-COMPLETE-REVIEW-001",
+  "verdict": "FAIL",
+  "reviewedAt": "2026-05-16",
+  "truthSources": [
+    "docs/product/prd-lite.md",
+    "docs/product/acceptance-criteria.md",
+    "docs/product/requirement-interface-matrix.md",
+    "docs/product/state-matrix.yaml",
+    "docs/architecture/constraints.md",
+    "contracts/openapi.yaml",
+    "docs/testing/verify-matrix.md",
+    "task.json"
+  ],
+  "findings": [
+    {
+      "id": "RCR-001",
+      "severity": "P0",
+      "title": "audit action/result/errorCode contract drift",
+      "evidence": [
+        "docs/product/prd-lite.md",
+        "contracts/openapi.yaml",
+        "src/task-api/service.ts",
+        "src/registry-config/service.ts",
+        "src/cleanup-job/index.ts",
+        "tests/worker/scheduler-worker.test.mjs"
+      ],
+      "risk": "FR-010/AC-010 的审计契约无法稳定消费，公开契约与真实审计实现不一致，后续查询、归档和联调都会出现口径漂移。",
+      "suggestedNextTaskId": "AUDIT-CONTRACT-ALIGN-001"
+    },
+    {
+      "id": "RCR-002",
+      "severity": "P0",
+      "title": "admin global task history visibility missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/task-api/service.ts",
+        "tests/api/export-http-api.test.mjs"
+      ],
+      "risk": "FR-004/AC-004 的管理员全局历史查询合同未实现，跨租户或全局运营场景会被错误过滤；如果产品实际只允许同租户全局，需要回写产品真相源收窄口径。",
+      "suggestedNextTaskId": "TASK-HISTORY-ADMIN-SCOPE-001"
+    },
+    {
+      "id": "RCR-003",
+      "severity": "P0",
+      "title": "config snapshot replay missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/task-api/service.ts",
+        "src/query-executor/index.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "FR-013/AC-016/AC-E024 的快照隔离无法证明，配置变更可能破坏已创建任务或失败重试的执行口径。",
+      "suggestedNextTaskId": "CONFIG-SNAPSHOT-REPLAY-001"
+    },
+    {
+      "id": "RCR-004",
+      "severity": "P0",
+      "title": "query batch retry policy missing",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/scheduler/worker.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "短暂数据源/查询失败无法按产品口径重试，FR-008/FR-010/FR-013 的证据不足，批次级恢复能力不可验证。",
+      "suggestedNextTaskId": "QUERY-BATCH-RETRY-001"
+    },
+    {
+      "id": "RCR-005",
+      "severity": "P0",
+      "title": "datasource unavailable execution path missing",
+      "evidence": [
+        "contracts/openapi.yaml",
+        "src/query-executor/index.ts",
+        "tests/query/query-executor.test.mjs"
+      ],
+      "risk": "只读数据源或凭证不可用时无法按 AC-E012 收口，实际可能被误归类为 QUERY_EXECUTION_ERROR，影响 FR-008 的异常合同。",
+      "suggestedNextTaskId": "DATASOURCE-ADAPTER-ERROR-001"
+    },
+    {
+      "id": "RCR-006",
+      "severity": "P1",
+      "title": "object storage upload/publish failure error mapping partial",
+      "evidence": [
+        "docs/product/acceptance-criteria.md",
+        "src/file-service/index.ts",
+        "tests/file/export-file-service.test.mjs"
+      ],
+      "risk": "文件依赖失败错误码与验收口径不一致，外部调用方会收到不同于产品要求的错误分类。",
+      "suggestedNextTaskId": "FILE-STORAGE-ERROR-MAPPING-001"
+    }
+  ],
+  "coverage": {
+    "requirements": [
+      { "id": "FR-001", "status": "covered" },
+      { "id": "FR-002", "status": "covered" },
+      { "id": "FR-003", "status": "covered" },
+      { "id": "FR-004", "status": "partially_covered" },
+      { "id": "FR-005", "status": "covered" },
+      { "id": "FR-006", "status": "covered" },
+      { "id": "FR-007", "status": "covered" },
+      { "id": "FR-008", "status": "partially_covered" },
+      { "id": "FR-009", "status": "partially_covered" },
+      { "id": "FR-010", "status": "gap" },
+      { "id": "FR-011", "status": "partially_covered" },
+      { "id": "FR-012", "status": "covered" },
+      { "id": "FR-013", "status": "partially_covered" },
+      { "id": "FR-014", "status": "covered" }
+    ],
+    "acceptance": [
+      { "id": "AC-001", "status": "covered" },
+      { "id": "AC-002", "status": "covered" },
+      { "id": "AC-003", "status": "covered" },
+      { "id": "AC-004", "status": "gap" },
+      { "id": "AC-005", "status": "covered" },
+      { "id": "AC-006", "status": "covered" },
+      { "id": "AC-007", "status": "covered" },
+      { "id": "AC-008", "status": "covered" },
+      { "id": "AC-009", "status": "covered" },
+      { "id": "AC-010", "status": "gap" },
+      { "id": "AC-011", "status": "partially_covered" },
+      { "id": "AC-012", "status": "covered" },
+      { "id": "AC-013", "status": "covered" },
+      { "id": "AC-014", "status": "covered" },
+      { "id": "AC-015", "status": "covered" },
+      { "id": "AC-016", "status": "gap" },
+      { "id": "AC-017", "status": "covered" },
+      { "id": "AC-018", "status": "covered" },
+      { "id": "AC-019", "status": "partially_covered" },
+      { "id": "AC-020", "status": "covered" },
+      { "id": "AC-021", "status": "covered" }
+    ],
+    "exceptions": [
+      { "id": "AC-E001", "status": "covered" },
+      { "id": "AC-E002", "status": "covered" },
+      { "id": "AC-E003", "status": "covered" },
+      { "id": "AC-E004", "status": "gap" },
+      { "id": "AC-E005", "status": "partially_covered" },
+      { "id": "AC-E006", "status": "covered" },
+      { "id": "AC-E007", "status": "covered" },
+      { "id": "AC-E008", "status": "covered" },
+      { "id": "AC-E009", "status": "covered" },
+      { "id": "AC-E010", "status": "covered" },
+      { "id": "AC-E011", "status": "covered" },
+      { "id": "AC-E012", "status": "gap" },
+      { "id": "AC-E013", "status": "partially_covered" },
+      { "id": "AC-E014", "status": "covered" },
+      { "id": "AC-E015", "status": "covered" },
+      { "id": "AC-E016", "status": "covered" },
+      { "id": "AC-E017", "status": "covered" },
+      { "id": "AC-E018", "status": "covered" },
+      { "id": "AC-E019", "status": "partially_covered" },
+      { "id": "AC-E020", "status": "gap" },
+      { "id": "AC-E021", "status": "covered" },
+      { "id": "AC-E022", "status": "partially_covered" },
+      { "id": "AC-E023", "status": "partially_covered" },
+      { "id": "AC-E024", "status": "gap" },
+      { "id": "AC-E025", "status": "partially_covered" },
+      { "id": "AC-E026", "status": "partially_covered" },
+      { "id": "AC-E027", "status": "partially_covered" }
+    ]
+  },
+  "evidenceBoundary": {
+    "releaseId": "RELEASE-001",
+    "type": "docker/mock release gate",
+    "notes": [
+      "不得声明外部生产 MySQL 已验证",
+      "不得声明 live OSS/S3 已验证",
+      "当前 architecture constraints 中 live evidence 不是完成条件"
+    ]
+  },
+  "knowledgeReferences": [
+    {
+      "id": "DECISION-HARNESS-001",
+      "title": "release gate 与逐项异常验收分层",
+      "path": "docs/knowledge/decisions/DECISION-HARNESS-001.md",
+      "usedIn": "Review boundary",
+      "note": "release gate 与逐项异常验收必须分层"
+    },
+    {
+      "id": "GUIDELINE-RULES-001",
+      "title": "truth source、验证边界和 review 结论必须可追溯",
+      "path": "docs/knowledge/guidelines/GUIDELINE-RULES-001.md",
+      "usedIn": "Review boundary",
+      "note": "truth source、验证边界和 review 结论必须可追溯"
+    }
+  ],
+  "knowledgeOutputs": [
+    {
+      "id": "PITFALL-REVIEW-001",
+      "type": "pitfall",
+      "title": "release gate 通过不能替代逐项异常验收 review",
+      "action": "draft",
+      "draft": "release gate 通过不能替代逐项异常验收 review",
+      "target": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md",
+      "pathOrTarget": "docs/knowledge/pitfalls/PITFALL-REVIEW-001.md"
+    },
+    {
+      "id": "GUIDELINE-EVIDENCE-001",
+      "type": "guideline",
+      "title": "mock/local/docker/live evidence 分层命名",
+      "action": "draft",
+      "draft": "mock/local/docker/live evidence 分层命名",
+      "target": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md",
+      "pathOrTarget": "docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md"
+    }
+  ]
+}

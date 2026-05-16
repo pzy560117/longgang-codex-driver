@@ -1,0 +1,41 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已完成需求完整 review，结论为 `FAIL`。
+- 发现 4 个 P0/P1 缺口：审计契约漂移、查询批次重试缺失、`DATASOURCE_UNAVAILABLE` 可执行路径缺失、对象存储上传/发布失败错误映射不一致。
+- 未修改业务实现，未修改 `task.json`，未提交 commit。按本任务强制边界禁止 `git add/commit`。
+
+## Files Changed
+- [requirements-complete-review.md](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.md): review 报告、覆盖矩阵、findings、证据边界。
+- [requirements-complete-review.findings.json](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.findings.json): 结构化 findings 与覆盖结果。
+
+## Validation
+- `npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md`: PASS - 31 tests passed, diff check passed.
+- `ConvertFrom-Json`: PASS - JSON 可解析；覆盖数量为 FR 14、AC 21、AC-E 27、findings 4。
+
+## Evidence
+- `docs/reviews/requirements-complete-review.md`: 证明逐项 review 结论与缺口说明。
+- `docs/reviews/requirements-complete-review.findings.json`: 证明机器可读 findings、coverage 和 evidence boundary。
+
+## Architecture Constraints
+- `truth source`: PASS - 以 `docs/product/*` 与 `docs/architecture/constraints.md` 为基准。
+- `no business implementation`: PASS - 只输出 review 产物。
+- `mock/local/docker/live evidence separated`: PASS - 明确 `RELEASE-001` 仅为 docker/mock release gate，不升级为 live evidence。
+
+## Knowledge References
+- `DECISION-HARNESS-001`: release gate 与逐项异常验收分层 - used_in: Review boundary - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: truth source、验证边界和 review 结论必须可追溯 - used_in: Review boundary - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 外部生产 MySQL 与 live OSS/S3 不属于当前完成条件；真实依赖验证需要另开专项任务。
+- 当前 review 结论为 `FAIL`，后续应按建议 task id 修复缺口后再复审。

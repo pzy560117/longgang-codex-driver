@@ -1,0 +1,44 @@
+## Requirement IDs
+- FR-001 至 FR-014
+
+## Summary
+- 已完成需求完整性 review，结论为 `FAIL`：当前主路径大多有 docker/mock 证据，但存在 6 个 P0/P1 缺口。
+- 输出覆盖矩阵：FR 14/14、AC 21/21、AC-E 27/27 均已判定。
+- 主要 findings：审计契约漂移、管理员全局历史查询缺失、配置快照沿用缺失、查询批次重试缺失、`DATASOURCE_UNAVAILABLE` 路径缺失、对象存储错误码映射不一致。
+
+## Files Changed
+- [requirements-complete-review.md](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.md): review 报告
+- [requirements-complete-review.findings.json](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.findings.json): 机器可读 findings 和覆盖状态
+
+## Validation
+- `node JSON.parse(...)`: PASS - findings JSON 可解析
+- 覆盖计数脚本: PASS - FR 14、AC 21、AC-E 27 无缺失/重复
+- `npm run test:mock-local; ...; git diff --check -- task.json docs/reviews docs/testing plans/features/requirements-complete-review.plan.md`: PASS - 31 tests passed, diff check passed
+
+## Evidence
+- [requirements-complete-review.md](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.md): 人工可读 review、矩阵、6 个 finding
+- [requirements-complete-review.findings.json](E:/2026/alpha-project/longgang-codex-driver/docs/reviews/requirements-complete-review.findings.json): JSON evidence、suggested task ids、evidence boundary
+
+## Architecture Constraints
+- `truth_source=docs/product/* + docs/architecture/constraints.md`: PASS
+- `只输出缺口和后续任务建议，不修业务代码`: PASS
+- `mock/local/docker/live evidence 分开判定`: PASS
+- `禁止把 docker/mock evidence 写成 live evidence`: PASS
+
+## Knowledge References
+- `DECISION-HARNESS-001`: Harness 从执行闭环扩展为知识闭环 - review 输出 knowledge references/outputs - `docs/knowledge/decisions/DECISION-HARNESS-001.md`
+- `GUIDELINE-RULES-001`: 规则必须短入口、深文档、可验证 - truth source 和验证边界 - `docs/knowledge/guidelines/GUIDELINE-RULES-001.md`
+
+## Knowledge Outputs
+- `PITFALL-REVIEW-001`: pitfall - release gate 通过不能替代逐项异常验收 review - suggested - `docs/knowledge/pitfalls/PITFALL-REVIEW-001.md`
+- `GUIDELINE-EVIDENCE-001`: guideline - mock/local/docker/live evidence 分层命名 - suggested - `docs/knowledge/guidelines/GUIDELINE-EVIDENCE-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- Review 结论为 `FAIL`，后续应按 JSON 中 6 个 suggested task id 排修。
+- 当前证据仍是 docker/mock release gate，不是外部生产 MySQL 或 live OSS/S3 evidence。
+- 按本任务强制边界未执行 `git add/commit/push`。

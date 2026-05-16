@@ -1,0 +1,25 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | contract_gap | contract | `docs/reviews/requirements-complete-review.md:103-115`; `docs/product/prd-lite.md:111-112`; `contracts/openapi.yaml:1814-1830`; `src/task-api/service.ts` / `src/registry-config/service.ts` 写入 `FAILURE` | 对齐 audit action/result/errorCode：统一 OpenAPI、service、cleanup job、测试断言；补齐 `EXPIRE_MARK`、`CLEANUP_FAILED` 等产品要求动作 | `npm run test:api; npm run test:worker; npm run test:contract` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | missing_requirement | backend | `docs/reviews/requirements-complete-review.md:117-126`; `docs/product/acceptance-criteria.md:12`; `src/task-api/service.ts:377`; `tests/api/export-http-api.test.mjs:417-430` | 实现管理员按权限查看全局历史任务，或回写产品真相源收窄为同租户全局 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | missing_requirement | backend | `docs/reviews/requirements-complete-review.md:128-138`; `docs/product/acceptance-criteria.md:24`; `src/query-executor/index.ts:87-96` | 持久化并执行创建时完整配置快照，失败重试沿用原快照；补“创建后 registry 更新旧任务仍按旧快照执行”测试 | `npm run test:query; npm run test:worker; npm run test:db` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | missing_requirement | backend | `docs/reviews/requirements-complete-review.md:140-149`; `docs/product/acceptance-criteria.md:38,54`; `docs/product/difficulty-research.md:90-91`; `src/scheduler/worker.ts:491-511` | 实现批次级 retry loop、重试次数/退避记录、短暂失败后成功和重试耗尽失败路径 | `npm run test:query; npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | HIGH | contract_gap | backend | `docs/reviews/requirements-complete-review.md:151-160`; `docs/product/acceptance-criteria.md:46`; `contracts/openapi.yaml:1099,1161`; `src/query-executor/index.ts` 无 `DATASOURCE_UNAVAILABLE` 分支 | 增加数据源/凭证不可用分类与测试，避免被误归类为 `QUERY_EXECUTION_ERROR` | `npm run test:query; npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | contract_gap | backend | `docs/reviews/requirements-complete-review.md:162-171`; `docs/product/acceptance-criteria.md:39,60`; `src/file-service/index.ts:85,103`; `tests/file/export-file-service.test.mjs` | 将 object storage put/publish 失败按产品口径收口为 `FILE_VERIFY_ERROR`，补 put/publish 失败测试 | `npm run test:file` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | contract | backend-worker | 1 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 1 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | backend-worker | 2 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | backend-worker | 1 | yes |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | no |

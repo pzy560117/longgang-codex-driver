@@ -1470,6 +1470,120 @@
                                      ]
                   },
                   {
+                      "id":  "REQUIREMENTS-GAP-REPAIR-001",
+                      "description":  "修复 Requirements Complete Review Stage 1 repair queue 的 P0/P1 缺口，并为完整复审准备新证据",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.5,
+                      "dependencies":  [
+                                           "DOCKER-TEST-DATA-AUTOMATION-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 必须同时覆盖 AUDIT-CONTRACT-ALIGN-001、TASK-HISTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QUERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-ERROR-001、FILE-STORAGE-ERROR-MAPPING-001",
+                                                       "修复必须以 docs/product/*、docs/architecture/constraints.md、contracts/openapi.yaml、docs/reviews/requirements-complete-review.md 和 Stage 1 findings 为 truth source",
+                                                       "必须修复审计契约漂移、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射，不得只补文档或只补单层测试",
+                                                       "query / file / worker 验证必须运行在本机 local 或 Docker MySQL 证据链上；docker/mock 只能作为本机验证依赖，不能写成 live evidence"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把测试改成适配当前错误行为而不修实现或契约",
+                                                        "禁止降级产品 truth source、通过回写需求收窄来规避本轮 findings，除非先新增独立 truth-source 变更任务并获批",
+                                                        "禁止把 docker/mock/local 验证写成外部 live evidence",
+                                                        "禁止继续只保存 digest 冒充配置快照重放完成",
+                                                        "禁止把 DATASOURCE_UNAVAILABLE、FILE_VERIFY_ERROR 或审计 action/result drift 继续收口到通用错误码"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/product/requirement-interface-matrix.md",
+                                            "docs/product/state-matrix.yaml",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-4d0a36ee99494f8bb149e41b752298af/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-111939-codex-final.txt",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "contracts/openapi.yaml",
+                                          "src/task-api/",
+                                          "src/registry-config/",
+                                          "src/query-executor/",
+                                          "src/scheduler/",
+                                          "src/file-service/",
+                                          "tests/api/",
+                                          "tests/query/",
+                                          "tests/worker/",
+                                          "tests/file/",
+                                          "tests/contract/",
+                                          "tests/mock-local/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-004",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-013",
+                                              "AC-004",
+                                              "AC-010",
+                                              "AC-011",
+                                              "AC-016",
+                                              "AC-019",
+                                              "AC-E004",
+                                              "AC-E005",
+                                              "AC-E012",
+                                              "AC-E013",
+                                              "AC-E020",
+                                              "AC-E024",
+                                              "AC-E026",
+                                              "AC-E027"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "src/task-api/",
+                                                 "src/registry-config/",
+                                                 "src/query-executor/",
+                                                 "src/scheduler/",
+                                                 "src/file-service/",
+                                                 "tests/api/",
+                                                 "tests/query/",
+                                                 "tests/worker/",
+                                                 "tests/file/",
+                                                 "tests/contract/",
+                                                 "tests/mock-local/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "统一审计 action/result/errorCode 的公开契约、实现写入和测试断言，修复 AUDIT-CONTRACT-ALIGN-001 指向的 contract drift",
+                                    "修复管理员全局历史查询范围，落实 TASK-HISTORY-ADMIN-SCOPE-001；如果实现依赖额外授权判断，必须在 API、service 和测试中完整体现",
+                                    "持久化并重放任务创建时的完整配置快照，确保旧任务和失败重试不依赖当前 registry，覆盖 CONFIG-SNAPSHOT-REPLAY-001",
+                                    "为查询批次实现 retry/backoff/retryCount 持久化及耗尽收口，覆盖 QUERY-BATCH-RETRY-001，并补短暂失败后成功与耗尽失败路径",
+                                    "补齐 datasource adapter 不可用/凭证错误分类，确保 worker 最终按 DATASOURCE_UNAVAILABLE 收口，覆盖 DATASOURCE-ADAPTER-ERROR-001",
+                                    "把对象存储 put/publish 失败映射到产品要求的文件错误口径并补测试，覆盖 FILE-STORAGE-ERROR-MAPPING-001"
+                                ],
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "AUDIT-CONTRACT-ALIGN-001、TASK-HISTORY-ADMIN-SCOPE-001、CONFIG-SNAPSHOT-REPLAY-001、QUERY-BATCH-RETRY-001、DATASOURCE-ADAPTER-ERROR-001、FILE-STORAGE-ERROR-MAPPING-001 六个 findings 均有实现与测试证据",
+                                         "审计契约、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射不再依赖 review 文档中的已知 gap 行为",
+                                         "验证输出明确区分 mock/local/docker/live evidence，且本任务不会把 docker/mock 当作 live evidence",
+                                         "REQUIREMENTS-COMPLETE-REVIEW-001 下一轮可基于修复后的 fresh evidence 重跑"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -1483,7 +1597,8 @@
                                                  ],
                       "priority":  92,
                       "dependencies":  [
-                                           "DOCKER-TEST-DATA-AUTOMATION-001"
+                                           "DOCKER-TEST-DATA-AUTOMATION-001",
+                                           "REQUIREMENTS-GAP-REPAIR-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [
