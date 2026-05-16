@@ -69,6 +69,19 @@ test("requirements review Markdown and JSON artifacts stay consistent", async ()
   assert.deepEqual(jsonFindingIds, markdownFindingIds);
 
   assert.equal(report.verdict, extractMarkdownVerdict(markdown));
+  assert.ok(
+    report.evidenceBoundary.notes.every((note) => !/\boverall verdict (PASS|FAIL)\b/.test(note)),
+    "Evidence boundary notes must not contradict or restate the machine verdict with a different PASS/FAIL label"
+  );
+  assert.ok(
+    report.evidenceBoundary.notes.some((note) => note.includes(report.verdict)),
+    "Evidence boundary notes should name the same verdict when summarizing new gaps"
+  );
+  assert.deepEqual(report.evidenceBoundary.notClaimed.sort(), [
+    "external business datasource live access",
+    "external production MySQL",
+    "live OSS/S3"
+  ]);
 
   const markdownCoverage = new Map([
     ...extractCoverage(markdown, "## FR Coverage Matrix"),

@@ -243,7 +243,7 @@
     "notClaimed": ["external production MySQL", "external business datasource live access", "live OSS/S3"],
     "notes": [
       "Current review does not promote local/Docker/mock evidence to live evidence.",
-      "Repaired findings remain closed, but new production-boundary gaps make the overall verdict FAIL."
+      "Repaired findings remain closed, but new production-boundary gaps keep the overall verdict at PASS_WITH_GAPS."
     ]
   },
   "architectureConstraints": [
