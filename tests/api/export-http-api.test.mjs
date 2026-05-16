@@ -792,27 +792,6 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.deepEqual(listedTask.recentEvents, []);
   assert.equal("events" in listedTask, false);
 
-  const statusSubsystemListResponse = await app.inject({
-    method: "GET",
-    url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}&status=PENDING&subsystemCode=purchase`,
-    headers: createHeaders(`req-list-status-subsystem-${runId}`)
-  });
-
-  assert.equal(statusSubsystemListResponse.statusCode, 200);
-  assert.ok(
-    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
-  );
-  assert.ok(
-    statusSubsystemListResponse
-      .json()
-      .data.items.every(
-        (item) =>
-          item.taskCode === taskCode &&
-          item.status === "PENDING" &&
-          item.subsystemCode === "purchase"
-      )
-  );
-
   const secondTaskResponse = await app.inject({
     method: "POST",
     url: "/api/export/tasks",
@@ -874,6 +853,54 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     status: "FAILED",
     now: new Date(failedDetailNow.getTime() + 1)
   });
+
+  const otherSubsystemTaskCode = `${taskCode}-inventory`;
+  const createOtherSubsystemRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-registry-other-subsystem-${runId}`),
+    payload: {
+      ...createRegistryPayload(otherSubsystemTaskCode),
+      subsystemCode: "inventory",
+      displayName: "Inventory Export"
+    }
+  });
+  assert.equal(createOtherSubsystemRegistryResponse.statusCode, 201);
+  const otherSubsystemTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-other-subsystem-${runId}`),
+    payload: {
+      ...createTaskPayload(otherSubsystemTaskCode, "client-other-subsystem"),
+      subsystemCode: "inventory"
+    }
+  });
+  assert.equal(otherSubsystemTaskResponse.statusCode, 201);
+  const otherSubsystemTaskId = otherSubsystemTaskResponse.json().data.taskId;
+
+  const statusSubsystemListResponse = await app.inject({
+    method: "GET",
+    url: "/api/export/tasks?status=PENDING&subsystemCode=purchase",
+    headers: createHeaders(`req-list-status-subsystem-${runId}`)
+  });
+
+  assert.equal(statusSubsystemListResponse.statusCode, 200);
+  assert.ok(
+    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
+  );
+  assert.ok(
+    statusSubsystemListResponse.json().data.items.every(
+      (item) => item.status === "PENDING" && item.subsystemCode === "purchase"
+    )
+  );
+  assert.equal(
+    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === failedTaskId),
+    false
+  );
+  assert.equal(
+    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === otherSubsystemTaskId),
+    false
+  );
   await auditRepository.appendAuditLog({
     auditId: `audit-failed-${runId}`,
     taskId: failedTaskId,

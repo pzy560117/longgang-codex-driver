@@ -772,7 +772,7 @@ test("query executor rejects rows with missing or null cursor values", async (t)
   );
 });
 
-test("query executor rejects duplicate or non-increasing cursor values", async (t) => {
+test("query executor rejects duplicate cursor values", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);
   const { taskCode, subsystemCode } = await seedRegistry(db, {
@@ -815,6 +815,54 @@ test("query executor rejects duplicate or non-increasing cursor values", async (
         },
         checkpoint: undefined,
         requestId: "req-query-cursor-duplicate"
+      }),
+    /QUERY_EXECUTION_ERROR/
+  );
+});
+
+test("query executor rejects non-increasing cursor values without duplicates", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, {
+    runId: "cursor-non-increasing",
+    queryTemplate: {
+      queryTemplateVersion: "v-cursor-non-increasing",
+      templateText:
+        "SELECT CASE order_id WHEN 'order-001' THEN 'A' WHEN 'order-002' THEN 'a' ELSE order_id END AS orderId, tenant_id AS tenantId, org_id AS orgId, owner_operator_id AS operatorId, allowed_role_code AS roleCode, order_no AS orderNo, contact_phone AS contactPhone FROM purchase_orders WHERE created_at >= :createdAtFrom AND created_at <= :createdAtTo",
+      allowedParameters: ["createdAtFrom", "createdAtTo"]
+    }
+  });
+  await seedPurchaseOrders(db, now);
+  const task = await seedTask(db, {
+    taskId: "exp-query-cursor-non-increasing",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor();
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-cursor-non-increasing"
       }),
     /QUERY_EXECUTION_ERROR/
   );
