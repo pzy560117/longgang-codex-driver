@@ -1752,14 +1752,16 @@ test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes bef
       parameterSchema: {
         type: "object",
         properties: {
-          payload: { type: "string" }
+          payload: { type: "string" },
+          a: { type: "string" },
+          z: { type: "array" }
         },
         required: ["payload"]
       },
       queryTemplate: {
         queryTemplateVersion: "v1",
         templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
-        allowedParameters: ["payload"]
+        allowedParameters: ["payload", "a", "z"]
       }
     }
   });
@@ -1851,4 +1853,180 @@ test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes bef
 
   const oversizedAudits = await auditLogsByRequestId(db, `req-query-size-oversized-${runId}`);
   assert.equal(oversizedAudits.length, 0);
+});
+
+test("create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue", async (t) => {
+  const db = await createTestDatabase(t);
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+  const app = await createServer(t, objectStorageServer);
+  const taskRepository = createExportTaskRepository(db);
+  const runId = `${Date.now()}-${process.pid}-registry-guard`;
+  const taskCode = `purchase-order-registry-guard-${runId}`;
+
+  const createRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-registry-guard-registry-${runId}`),
+    payload: createRegistryPayload(taskCode)
+  });
+
+  assert.equal(createRegistryResponse.statusCode, 201);
+
+  const rejectionCases = [
+    {
+      label: "unsupported-format",
+      clientRequestId: "client-registry-guard-format",
+      requestId: `req-registry-guard-format-${runId}`,
+      payload: {
+        ...createTaskPayload(taskCode, "client-registry-guard-format"),
+        fileFormat: "ZIP"
+      }
+    },
+    {
+      label: "missing-required-query-param",
+      clientRequestId: "client-registry-guard-missing-required",
+      requestId: `req-registry-guard-missing-required-${runId}`,
+      payload: {
+        ...createTaskPayload(taskCode, "client-registry-guard-missing-required"),
+        queryParams: {
+          createdAtFrom: "2026-05-01T00:00:00+08:00"
+        }
+      }
+    },
+    {
+      label: "undeclared-query-param",
+      clientRequestId: "client-registry-guard-undeclared",
+      requestId: `req-registry-guard-undeclared-${runId}`,
+      payload: {
+        ...createTaskPayload(taskCode, "client-registry-guard-undeclared"),
+        queryParams: {
+          createdAtFrom: "2026-05-01T00:00:00+08:00",
+          createdAtTo: "2026-05-13T23:59:59+08:00",
+          unexpected: "should-not-enter-queue"
+        }
+      }
+    },
+    {
+      label: "wrong-query-param-type",
+      clientRequestId: "client-registry-guard-wrong-type",
+      requestId: `req-registry-guard-wrong-type-${runId}`,
+      payload: {
+        ...createTaskPayload(taskCode, "client-registry-guard-wrong-type"),
+        queryParams: {
+          createdAtFrom: 20260501,
+          createdAtTo: "2026-05-13T23:59:59+08:00"
+        }
+      }
+    }
+  ];
+
+  for (const rejectionCase of rejectionCases) {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/export/tasks",
+      headers: createHeaders(rejectionCase.requestId),
+      payload: rejectionCase.payload
+    });
+
+    assert.equal(response.statusCode, 400, rejectionCase.label);
+    assert.equal(response.json().code, "QUERY_TEMPLATE_INVALID", rejectionCase.label);
+    assert.equal(response.json().data?.taskId, undefined, rejectionCase.label);
+    assert.equal(response.json().data?.status, undefined, rejectionCase.label);
+
+    const rows = await db
+      .selectFrom("export_tasks")
+      .select("task_id")
+      .where("task_code", "=", taskCode)
+      .where("client_request_id", "=", rejectionCase.clientRequestId)
+      .execute();
+    assert.equal(rows.length, 0, rejectionCase.label);
+
+    const idempotencyScope = `tenant-001:u001:${taskCode}:${rejectionCase.clientRequestId}`;
+    assert.equal(await taskRepository.findByIdempotencyScope(idempotencyScope), undefined);
+
+    const audits = await auditLogsByRequestId(db, rejectionCase.requestId);
+    assert.equal(audits.length, 1, rejectionCase.label);
+    assert.equal(audits[0].result, "FAILED", rejectionCase.label);
+    assert.equal(audits[0].error_code, "QUERY_TEMPLATE_INVALID", rejectionCase.label);
+  }
+
+  const pendingRows = await db
+    .selectFrom("export_tasks")
+    .select("task_id")
+    .where("task_code", "=", taskCode)
+    .where("status", "=", "PENDING")
+    .execute();
+  assert.equal(pendingRows.length, 0);
+});
+
+test("create task idempotent replay returns existing task after registry guard changes", async (t) => {
+  const db = await createTestDatabase(t);
+  const objectStorageServer = await createLocalObjectStorageServer(t);
+  const app = await createServer(t, objectStorageServer);
+  const runId = `${Date.now()}-${process.pid}-registry-guard-replay`;
+  const taskCode = `purchase-order-registry-guard-replay-${runId}`;
+  const clientRequestId = "client-registry-guard-replay";
+  const payload = createTaskPayload(taskCode, clientRequestId);
+
+  const createRegistryResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/registries",
+    headers: createHeaders(`req-registry-guard-replay-registry-${runId}`),
+    payload: createRegistryPayload(taskCode)
+  });
+
+  assert.equal(createRegistryResponse.statusCode, 201);
+
+  const createTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-registry-guard-replay-create-${runId}`),
+    payload
+  });
+
+  assert.equal(createTaskResponse.statusCode, 201);
+  assert.equal(createTaskResponse.json().data.idempotencyHit, false);
+  const taskId = createTaskResponse.json().data.taskId;
+
+  const rowsBeforeReplay = await db
+    .selectFrom("export_tasks")
+    .select("task_id")
+    .where("task_code", "=", taskCode)
+    .execute();
+  assert.equal(rowsBeforeReplay.length, 1);
+
+  const updateRegistryResponse = await app.inject({
+    method: "PUT",
+    url: `/api/export/registries/${taskCode}`,
+    headers: createHeaders(`req-registry-guard-replay-update-${runId}`),
+    payload: {
+      ...createRegistryPayload(taskCode),
+      supportedFormats: ["ZIP"]
+    }
+  });
+
+  assert.equal(updateRegistryResponse.statusCode, 200);
+
+  const replayRequestId = `req-registry-guard-replay-replay-${runId}`;
+  const replayResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(replayRequestId),
+    payload
+  });
+
+  assert.equal(replayResponse.statusCode, 200);
+  assert.equal(replayResponse.json().code, "SUCCESS");
+  assert.equal(replayResponse.json().data.taskId, taskId);
+  assert.equal(replayResponse.json().data.idempotencyHit, true);
+
+  const rowsAfterReplay = await db
+    .selectFrom("export_tasks")
+    .select("task_id")
+    .where("task_code", "=", taskCode)
+    .execute();
+  assert.equal(rowsAfterReplay.length, rowsBeforeReplay.length);
+
+  const replayAudits = await auditLogsByRequestId(db, replayRequestId);
+  assert.equal(replayAudits.length, 0);
 });

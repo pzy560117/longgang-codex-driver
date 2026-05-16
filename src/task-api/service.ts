@@ -12,6 +12,7 @@ import {
   getDatabaseTime,
   type AuditLogRecord,
   type CheckpointRecord,
+  type ExportRegistryRecord,
   type ExportTaskRecord,
   type TaskEventRecord
 } from "../repositories/index.ts";
@@ -78,6 +79,13 @@ type SignedDownloadQuery = {
 
 const QUERY_PARAMS_MAX_BYTES = 32768;
 
+type RegistryParameterSchema = {
+  type?: string;
+  required?: string[];
+  additionalProperties?: boolean;
+  properties?: Record<string, { type?: string }>;
+};
+
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
@@ -102,6 +110,121 @@ function assertQueryParamsSize(value: unknown): void {
       queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
     });
   }
+}
+
+function parseRegistryJson<T>(value: string | null, label: string): T {
+  if (!value) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `${label} is missing`);
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `${label} is invalid`);
+  }
+}
+
+function assertRegistryFileFormat(registrySupportedFormats: string | null, fileFormat: string): void {
+  const supportedFormats = parseRegistryJson<unknown>(registrySupportedFormats, "supportedFormats");
+  if (
+    !Array.isArray(supportedFormats) ||
+    supportedFormats.length === 0 ||
+    !supportedFormats.every((format) => typeof format === "string")
+  ) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "registry supportedFormats is invalid");
+  }
+
+  if (!supportedFormats.includes(fileFormat)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "fileFormat is not supported by registry");
+  }
+}
+
+function normalizeCreateTaskQueryParams(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "queryParams must be an object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseRegistryParameterSchema(schemaPayload: string | null): RegistryParameterSchema {
+  const schema = parseRegistryJson<RegistryParameterSchema>(schemaPayload, "parameterSchema");
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema is invalid");
+  }
+  if (schema.type && schema.type !== "object") {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema must describe an object");
+  }
+  if (schema.required !== undefined && !Array.isArray(schema.required)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.required must be an array");
+  }
+  if (
+    schema.properties !== undefined &&
+    (!schema.properties || typeof schema.properties !== "object" || Array.isArray(schema.properties))
+  ) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.properties must be an object");
+  }
+  return schema;
+}
+
+function assertRegistryParameterValueType(key: string, value: unknown, expectedType: string): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  const valid =
+    (expectedType === "string" && typeof value === "string") ||
+    (expectedType === "number" && typeof value === "number" && Number.isFinite(value)) ||
+    (expectedType === "integer" && Number.isInteger(value)) ||
+    (expectedType === "boolean" && typeof value === "boolean") ||
+    (expectedType === "object" && typeof value === "object" && !Array.isArray(value)) ||
+    (expectedType === "array" && Array.isArray(value));
+
+  if (!valid) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} must be a ${expectedType}`);
+  }
+}
+
+function assertRegistryParameterSchema(schemaPayload: string | null, value: unknown): void {
+  const queryParams = normalizeCreateTaskQueryParams(value);
+  const schema = parseRegistryParameterSchema(schemaPayload);
+  const properties = schema.properties ?? {};
+
+  for (const required of schema.required ?? []) {
+    if (typeof required !== "string") {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.required must contain strings");
+    }
+    if (queryParams[required] === undefined || queryParams[required] === null) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `required parameter ${required} is missing`);
+    }
+  }
+
+  const declaredKeys = new Set(Object.keys(properties));
+  for (const key of Object.keys(queryParams)) {
+    if (
+      (declaredKeys.size > 0 && !declaredKeys.has(key)) ||
+      (declaredKeys.size === 0 && schema.additionalProperties === false)
+    ) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} is not declared`);
+    }
+  }
+
+  for (const [key, definition] of Object.entries(properties)) {
+    if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} schema is invalid`);
+    }
+    if (definition.type) {
+      assertRegistryParameterValueType(key, queryParams[key], definition.type);
+    }
+  }
+}
+
+function assertCreateTaskRegistryGuards(input: {
+  registry: ExportRegistryRecord;
+  fileFormat: string;
+  queryParams: unknown;
+}): void {
+  assertRegistryFileFormat(input.registry.supportedFormats, input.fileFormat);
+  assertRegistryParameterSchema(input.registry.parameterSchema, input.queryParams);
 }
 
 function digest(value: unknown): string {
@@ -627,7 +750,6 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
         subsystemCode: body.subsystemCode
       });
     }
-
     const requestDigest = digest({
       taskCode: body.taskCode,
       subsystemCode: body.subsystemCode,
@@ -672,6 +794,27 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody) 
           data: taskEnvelope(task, { idempotencyHit: true, requestId: auth.requestId })
         };
       }
+    }
+
+    try {
+      assertCreateTaskRegistryGuards({
+        registry,
+        fileFormat: body.fileFormat,
+        queryParams: body.queryParams ?? null
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "CREATE",
+          now,
+          taskCode: body.taskCode,
+          subsystemCode: body.subsystemCode
+        });
+      }
+      throw error;
     }
 
     const task = await tasks.createPendingTask({

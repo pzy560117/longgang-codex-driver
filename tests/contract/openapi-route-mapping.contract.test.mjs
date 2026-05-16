@@ -59,6 +59,15 @@ function parseCreateExportTaskOperationBlock() {
   return block;
 }
 
+function parseCreateExportTaskServiceBlock() {
+  const taskServiceSource = readFileSync("src/task-api/service.ts", "utf8");
+  const [, block] =
+    taskServiceSource.match(
+      /(export async function createExportTask[\s\S]*?)\nexport async function listExportTasks/
+    ) ?? [];
+  return block;
+}
+
 function parseExportRegistryUpsertSchemaBlock() {
   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
   const [, block] =
@@ -358,6 +367,29 @@ test("create task contract declares 32768-byte canonical queryParams limit and e
   assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
   assert.match(openapi, /queryParamsTooLarge:/);
   assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
+});
+
+test("create task contract guard is implemented before PENDING enqueue", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const operationBlock = parseCreateExportTaskOperationBlock();
+  const createTaskServiceBlock = parseCreateExportTaskServiceBlock();
+
+  assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
+  assert.match(operationBlock, /- QUERY_TEMPLATE_INVALID/);
+  assert.match(operationBlock, /QUERY_TEMPLATE_INVALID:\s+400/);
+  assert.match(createTaskServiceBlock, /findByIdempotencyScope/);
+  assert.match(createTaskServiceBlock, /assertCreateTaskRegistryGuards/);
+  assert.match(createTaskServiceBlock, /createPendingTask/);
+  assert.ok(
+    createTaskServiceBlock.indexOf("findByIdempotencyScope") <
+      createTaskServiceBlock.indexOf("assertCreateTaskRegistryGuards"),
+    "idempotency replay must be checked before registry guard"
+  );
+  assert.ok(
+    createTaskServiceBlock.indexOf("assertCreateTaskRegistryGuards") <
+      createTaskServiceBlock.indexOf("createPendingTask"),
+    "registry guard must still run before createPendingTask"
+  );
 });
 
 test("registry required fields and nested registry contract required fields stay aligned with production validation", () => {
