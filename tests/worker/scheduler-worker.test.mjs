@@ -1175,7 +1175,14 @@ serialTest("cleanup job poll once records retry audit and does not mark cleanup 
   assert.equal(result.scanned, 1);
   assert.equal(result.deleted, 0);
   assert.equal(result.retried, 1);
-  assert.ok(audits.some((audit) => audit.action === "CLEANUP_FAILED" && audit.result === "FAILED"));
+  assert.ok(
+    audits.some(
+      (audit) =>
+        audit.action === "CLEANUP_FAILED" &&
+        audit.result === "FAILED" &&
+        audit.errorCode === "FILE_CLEANUP_DELETE_ERROR"
+    )
+  );
   assert.ok(events.some((event) => event.eventType === "FILE_CLEANUP_RETRY"));
   assert.ok(!events.some((event) => event.eventType === "FILE_CLEANUP_DONE"));
   assert.equal(metadata.publishedStorageKey, "exports/published/cleanup.xlsx");

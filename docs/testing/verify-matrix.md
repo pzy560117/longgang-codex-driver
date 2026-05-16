@@ -41,6 +41,12 @@
 | --- | --- | --- |
 | 文档与队列重建 | `git diff --check` | 文档、JSON、任务队列无格式错误 |
 | 契约复核 | `npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml` | 契约可解析，公开 operation 与需求矩阵一致；`x-contract-implementation-trace` 必须保留 operation 到 handler、service、repository / adapter、DB、worker、audit、file 和测试的后续映射，且 `audit[]` 中每个 action 都必须存在于 `components.schemas.AuditEvent.properties.action.enum`，公开错误码必须来自 `components.schemas.ResponseCode` |
+
+## CLEANUP-AUDIT-ERROR-CODE-ALIGN-001 repair evidence（2026-05-16）
+
+| 证据项 | 覆盖需求 | 状态 | 验证命令 | 边界 |
+| --- | --- | --- | --- | --- |
+| cleanup 失败审计错误码契约对齐 | FR-010 / FR-011 / AC-010 / AC-011 | repaired | `npm run test:contract` 守护生产审计 action/result/errorCode literals 均在 OpenAPI 公开枚举内；`npm run test:worker` 断言 cleanup 删除失败写入 `CLEANUP_FAILED` / `FAILED` / `FILE_CLEANUP_DELETE_ERROR` | local contract + local/Docker MySQL；不声明 live object storage evidence |
 | 当前文档差异检查 | `git diff --check -- contracts docs/testing/verify-matrix.md` | 契约文档和验证矩阵无空白错误；该检查只能证明格式正确，不能证明 feature_impl 已完成 |
 | 脚手架架构检查 | `npm run arch:check` | `scripts/arch-check.ts` 必须校验 server / worker / job entry、OpenAPI route 映射、替身禁用、migration 覆盖和测试脚本完整性 |
 | 当前脚手架单测 | `npm test` | 只覆盖脚手架可静态验证的入口、脚本和矩阵声明，不把 DB/API/worker blocked 项写成必跑失败测试 |

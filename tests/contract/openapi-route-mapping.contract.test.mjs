@@ -29,6 +29,12 @@ function parseAuditResultEnum() {
   return new Set(values.split(",").map((value) => value.trim()));
 }
 
+function parseResponseCodeEnum() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/ResponseCode:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{4}TaskStatus:/) ?? [];
+  return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+}
+
 function sourceAuditLiterals() {
   const sources = [
     "src/task-api/service.ts",
@@ -46,6 +52,13 @@ function sourceAuditLiterals() {
     results: new Set(
       sources.flatMap((source) =>
         [...source.matchAll(/result:\s*"([A-Z_]+)"/g)].map((match) => match[1])
+      )
+    ),
+    errorCodes: new Set(
+      sources.flatMap((source) =>
+        [...source.matchAll(/errorCode:\s*(?:"([A-Z_]+)"|[\s\S]*?\?\s*[^\n]+\n\s+:\s*"([A-Z_]+)")/g)]
+          .flatMap((match) => [match[1], match[2]])
+          .filter(Boolean)
       )
     )
   };
@@ -89,9 +102,10 @@ test("route manifest maps operations to HTTP API integration evidence", () => {
   assert.equal(apiEvidenceCount, parseOpenApiOperationIds().length);
 });
 
-test("audit action and result literals written by production code stay within OpenAPI public enums", () => {
+test("audit action, result, and errorCode literals written by production code stay within OpenAPI public enums", () => {
   const actionEnum = parseAuditActionEnum();
   const resultEnum = parseAuditResultEnum();
+  const responseCodeEnum = parseResponseCodeEnum();
   const literals = sourceAuditLiterals();
 
   assert.deepEqual(
@@ -100,6 +114,10 @@ test("audit action and result literals written by production code stay within Op
   );
   assert.deepEqual(
     [...literals.results].filter((result) => !resultEnum.has(result)),
+    []
+  );
+  assert.deepEqual(
+    [...literals.errorCodes].filter((errorCode) => !responseCodeEnum.has(errorCode)),
     []
   );
 });

@@ -1584,6 +1584,89 @@
                                      ]
                   },
                   {
+                      "id":  "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001",
+                      "description":  "对齐 cleanup 失败审计 errorCode 与公开 ResponseCode 契约，并补齐守护测试",
+                      "task_kind":  "feature_impl",
+                      "phase":  "requirements-repair",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  91.75,
+                      "dependencies":  [
+                                           "REQUIREMENTS-GAP-REPAIR-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001：cleanup 失败审计 errorCode 必须与公开 ResponseCode 契约一致",
+                                                       "必须以 contracts/openapi.yaml、src/cleanup-job/index.ts、tests/contract/openapi-route-mapping.contract.test.mjs、tests/worker/scheduler-worker.test.mjs 和最新 requirements complete review finding 为 truth source",
+                                                       "修复必须同时覆盖公开契约枚举、生产审计写入路径、contract 守护测试和 worker cleanup 失败断言",
+                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 cleanup 失败 errorCode 改成未在产品或契约中可解释的通用错误码来规避 finding",
+                                                        "禁止只修改 OpenAPI 而不补 source audit errorCode literal 属于 ResponseCode enum 的契约守护",
+                                                        "禁止只修改测试来适配当前错误行为而不修契约或实现",
+                                                        "禁止把 review 文档手工改成 PASS 或手工标记 REQUIREMENTS-COMPLETE-REVIEW-001 passes=true"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/prd-lite.md",
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/architecture/constraints.md",
+                                            "contracts/openapi.yaml",
+                                            "src/cleanup-job/index.ts",
+                                            "tests/contract/openapi-route-mapping.contract.test.mjs",
+                                            "tests/worker/scheduler-worker.test.mjs",
+                                            "docs/testing/verify-matrix.md",
+                                            "docs/reviews/requirements-complete-review.md",
+                                            "docs/reviews/requirements-complete-review.findings.json",
+                                            "traces/REQUIREMENTS-COMPLETE-REVIEW-001-f8687a4c832143e0bcb9cc1663202b1b/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-171113-codex-final.txt",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "contracts/openapi.yaml",
+                                          "src/cleanup-job/",
+                                          "tests/contract/",
+                                          "tests/worker/",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-010",
+                                              "FR-011",
+                                              "AC-010",
+                                              "AC-011"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "contracts/openapi.yaml",
+                                                 "src/cleanup-job/",
+                                                 "tests/contract/",
+                                                 "tests/worker/",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "确认 cleanup 失败审计当前写入的 errorCode 和 ResponseCode enum 的差异",
+                                    "将 FILE_CLEANUP_DELETE_ERROR 纳入公开错误码契约，或在实现中映射到已有且产品语义匹配的公开错误码；若选择映射必须同步说明口径",
+                                    "补 contract 测试，断言生产审计写入的 errorCode literals 都属于 OpenAPI ResponseCode enum",
+                                    "补 worker cleanup failure 测试，断言 CLEANUP_FAILED 审计的 errorCode 为公开契约允许值且保持失败结果",
+                                    "同步 verify-matrix 记录该修复的本地 contract / worker 证据边界"
+                                ],
+                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+                      "acceptance":  [
+                                         "src/cleanup-job/index.ts 写入的 cleanup 失败 audit errorCode 必须在 contracts/openapi.yaml components.schemas.ResponseCode enum 中公开",
+                                         "tests/contract/openapi-route-mapping.contract.test.mjs 能守护生产审计 action/result/errorCode literals 均不漂移出公开枚举",
+                                         "tests/worker/scheduler-worker.test.mjs 覆盖 cleanup delete 失败时的 CLEANUP_FAILED、FAILED、FILE_CLEANUP_DELETE_ERROR 审计记录",
+                                         "REQUIREMENTS-COMPLETE-REVIEW-001 可在本任务完成后重新运行，不依赖手工修改 review 结论"
+                                     ]
+                  },
+                  {
                       "id":  "REQUIREMENTS-COMPLETE-REVIEW-001",
                       "description":  "基于产品需求真相源完整 review 当前实现、契约、测试和证据边界",
                       "task_kind":  "feature_plan",
@@ -1598,7 +1681,8 @@
                       "priority":  92,
                       "dependencies":  [
                                            "DOCKER-TEST-DATA-AUTOMATION-001",
-                                           "REQUIREMENTS-GAP-REPAIR-001"
+                                           "REQUIREMENTS-GAP-REPAIR-001",
+                                           "CLEANUP-AUDIT-ERROR-CODE-ALIGN-001"
                                        ],
                       "passes":  false,
                       "architecture_constraints":  [
