@@ -14,6 +14,7 @@ import {
   type ExportTaskLeaseRecord,
   type ExportTaskRecord
 } from "../repositories/index.ts";
+import { normalizePublicResponseCode } from "../contracts/public-enums.ts";
 
 export type SchedulerBatchCheckpoint = {
   lastCursor: string | null;
@@ -571,7 +572,10 @@ async function processAcquiredLease(input: {
       attemptNo: input.lease.attemptNo,
       action: "EXECUTE_FAILED",
       result: "FAILED",
-      errorCode: error instanceof Error && error.name !== "Error" ? error.name : "QUERY_EXECUTION_ERROR",
+      errorCode: normalizePublicResponseCode(
+        error instanceof Error && error.name !== "Error" ? error.name : null,
+        "QUERY_EXECUTION_ERROR"
+      ),
       requestId: input.requestId,
       now: failedAt
     });

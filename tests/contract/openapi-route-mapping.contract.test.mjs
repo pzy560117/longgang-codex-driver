@@ -35,6 +35,12 @@ function parseResponseCodeEnum() {
   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
 }
 
+function parseTaskEventTypeEnum() {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const [, block] = openapi.match(/eventType:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{8}requestId:/) ?? [];
+  return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
+}
+
 function parseExportTaskDetailSchemaBlock() {
   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
   const [, block] = openapi.match(/ExportTaskDetail:\s*\n([\s\S]*?)\n\s{4}ExportTaskPageEnvelope:/) ?? [];
@@ -156,4 +162,19 @@ test("task detail schema requires public progress, error, and recentEvents field
   }
 
   assert.doesNotMatch(detailSchema, /\n\s{8}events:\n/);
+});
+
+test("runtime public response and task event allow-lists match OpenAPI enums", () => {
+  const publicEnums = readFileSync("src/contracts/public-enums.ts", "utf8");
+  const sourceResponseCodes = new Set(
+    [...publicEnums.matchAll(/"([A-Z_]+)"/g)].map((match) => match[1])
+  );
+
+  for (const responseCode of parseResponseCodeEnum()) {
+    assert.equal(sourceResponseCodes.has(responseCode), true, `${responseCode} missing in runtime allow-list`);
+  }
+
+  for (const eventType of parseTaskEventTypeEnum()) {
+    assert.match(publicEnums, new RegExp(`"${eventType}"`), `${eventType} missing in runtime event allow-list`);
+  }
 });

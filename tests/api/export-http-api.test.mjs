@@ -639,6 +639,82 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   );
   assert.equal("events" in eventOnlyFailedDetailResponse.json().data, false);
 
+  const internalFailureTaskResponse = await app.inject({
+    method: "POST",
+    url: "/api/export/tasks",
+    headers: createHeaders(`req-create-task-internal-failed-${runId}`),
+    payload: createTaskPayload(taskCode, "client-internal-failed")
+  });
+
+  assert.equal(internalFailureTaskResponse.statusCode, 201);
+  const internalFailureTaskId = internalFailureTaskResponse.json().data.taskId;
+  const internalFailureAt = await getDatabaseTime(db);
+  await eventRepository.appendTaskEvent({
+    eventId: `event-internal-cleanup-${runId}`,
+    taskId: internalFailureTaskId,
+    attemptNo: 0,
+    eventType: "FILE_CLEANUP_RETRY",
+    requestId: `req-worker-internal-failed-${runId}`,
+    datasourceCode: null,
+    queryTemplateVersion: null,
+    batchCheckpoint: null,
+    occurredAt: internalFailureAt,
+    now: internalFailureAt
+  });
+  await eventRepository.appendTaskEvent({
+    eventId: `event-internal-public-${runId}`,
+    taskId: internalFailureTaskId,
+    attemptNo: 0,
+    eventType: "QUERY_BATCH_DONE",
+    requestId: `req-worker-internal-failed-${runId}`,
+    datasourceCode: "purchase-ro",
+    queryTemplateVersion: "v1",
+    batchCheckpoint: JSON.stringify({
+      processedCount: 1,
+      totalCount: 4,
+      errorCode: "UnexpectedQueryVendorError"
+    }),
+    occurredAt: new Date(internalFailureAt.getTime() + 1),
+    now: new Date(internalFailureAt.getTime() + 1)
+  });
+  await taskRepository.updateTaskStatus({
+    taskId: internalFailureTaskId,
+    status: "FAILED",
+    now: new Date(internalFailureAt.getTime() + 2)
+  });
+  await auditRepository.appendAuditLog({
+    auditId: `audit-internal-failed-${runId}`,
+    taskId: internalFailureTaskId,
+    attemptNo: 0,
+    taskCode,
+    subsystemCode: "purchase",
+    operatorId: "u001",
+    action: "EXECUTE_FAILED",
+    result: "FAILED",
+    errorCode: "UnexpectedQueryVendorError",
+    requestId: `req-worker-internal-failed-${runId}`,
+    occurredAt: new Date(internalFailureAt.getTime() + 3),
+    now: new Date(internalFailureAt.getTime() + 3)
+  });
+
+  const internalFailureDetailResponse = await app.inject({
+    method: "GET",
+    url: `/api/export/tasks/${internalFailureTaskId}`,
+    headers: createHeaders(`req-detail-internal-failed-${runId}`)
+  });
+
+  assert.equal(internalFailureDetailResponse.statusCode, 200);
+  assert.equal(internalFailureDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+  assert.equal(
+    internalFailureDetailResponse.json().data.errorMessage,
+    "query execution error"
+  );
+  assert.deepEqual(
+    internalFailureDetailResponse.json().data.recentEvents.map((event) => event.eventType),
+    ["QUERY_BATCH_DONE"]
+  );
+  assert.equal("events" in internalFailureDetailResponse.json().data, false);
+
   const ordinaryListResponse = await app.inject({
     method: "GET",
     url: `/api/export/tasks?taskCode=${encodeURIComponent(taskCode)}`,

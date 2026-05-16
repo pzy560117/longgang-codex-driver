@@ -17,6 +17,10 @@ import {
 } from "../repositories/index.ts";
 import { appendAudit } from "../audit-log/service.ts";
 import {
+  isPublicTaskEventType,
+  normalizePublicResponseCode
+} from "../contracts/public-enums.ts";
+import {
   ApiError,
   assertExportPermission,
   isExportAdmin,
@@ -229,16 +233,19 @@ function resolveTaskFailure(
     .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
     .map((audit) => ({
       occurredAt: audit.occurredAt,
-      errorCode: audit.errorCode,
-      errorMessage: responseCodeMessage(audit.errorCode)
+      errorCode: normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR"),
+      errorMessage: responseCodeMessage(
+        normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR")
+      )
     }));
 
   const eventFailures = events.flatMap((event) => {
     const checkpoint = parseJsonRecord(event.batchCheckpoint);
-    const errorCode = readNonEmptyString(checkpoint?.errorCode);
-    if (!errorCode || errorCode === "SUCCESS") {
+    const rawErrorCode = readNonEmptyString(checkpoint?.errorCode);
+    if (!rawErrorCode || rawErrorCode === "SUCCESS") {
       return [];
     }
+    const errorCode = normalizePublicResponseCode(rawErrorCode, "QUERY_EXECUTION_ERROR");
 
     return [
       {
@@ -277,6 +284,12 @@ function mapRecentTaskEvent(event: TaskEventRecord) {
     batchCheckpoint: parseJsonRecord(event.batchCheckpoint),
     occurredAt: event.occurredAt.toISOString()
   };
+}
+
+function mapPublicRecentTaskEvents(events: TaskEventRecord[]) {
+  return events
+    .filter((event) => isPublicTaskEventType(event.eventType))
+    .map(mapRecentTaskEvent);
 }
 
 async function rejectWithAudit(input: {
@@ -690,7 +703,7 @@ export async function getExportTask(auth: AuthContext, taskId: string) {
       errorCode: failure.errorCode,
       errorMessage: failure.errorMessage,
       requestId: auth.requestId,
-      recentEvents: events.map(mapRecentTaskEvent)
+      recentEvents: mapPublicRecentTaskEvents(events)
     });
   });
 }

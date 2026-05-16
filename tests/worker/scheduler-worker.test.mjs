@@ -1074,6 +1074,40 @@ serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after
   );
 });
 
+serialTest("unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-unknown-error-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-unknown-error",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 0,
+    batchProcessor: async () => {
+      const error = new Error("vendor-specific failure");
+      error.name = "UnexpectedQueryVendorError";
+      throw error;
+    }
+  });
+
+  const result = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(result.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.ok(
+    audits.some(
+      (audit) =>
+        audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+  assert.ok(!audits.some((audit) => audit.errorCode === "UnexpectedQueryVendorError"));
+});
+
 serialTest("cleanup job poll once records task event and audit after successful object deletion", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
