@@ -1,0 +1,1679 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e31f1-9d78-7b91-87c3-3c21aa547e26
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: QUERY-PARAMS-SIZE-LIMIT-001
+- 描述: 在创建任务落库前按 canonical JSON UTF-8 bytes 校验 queryParams 32KB 上限
+- Requirement IDs:
+- FR-001
+- AC-E009
+- RCR-P0-004
+- 测试命令: npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/acceptance-criteria.md
+- docs/architecture/constraints.md
+- docs/reviews/requirements-complete-review.md
+- docs/reviews/requirements-complete-review.findings.json
+- traces/REQUIREMENTS-COMPLETE-REVIEW-001-fda969f62f6b42ddbbde48ad66ca1f2d/REQUIREMENTS-COMPLETE-REVIEW-001-stage1-20260516-201803-codex-final.txt
+- contracts/openapi.yaml
+- src/task-api/service.ts
+- tests/api/export-http-api.test.mjs
+- tests/contract/openapi-route-mapping.contract.test.mjs
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:59068 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6569ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1190.1381ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (126.3834ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1988.9765
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.7597ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.392ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4406ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.4549ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.225ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4474ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5891ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3592ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2711ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4462ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.4211ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.5754
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 `code-review` 技能做 Stage 2 审查，只看实现质量、测试可信度、风险和可维护性，不重新裁判需求。先读取技能规则和当前 diff，再对相关实现与测试逐项核验。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 368ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+codex
+技能清单偏通用，我会结合本仓库 Stage 2 模板执行：先定位本次改动面，再重点看 `queryParams` 字节数校验是否在生产路径、测试是否能防止绕过。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --name-only' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "queryParams|32768|32KB|canonical|byte" src tests contracts docs task.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 407ms:
+ succeeded in 472ms:
+?? traces/QUERY-PARAMS-SIZE-LIMIT-001-126a5e8f27904a069fb975a5eb61ab80/
+?? traces/QUERY-PARAMS-SIZE-LIMIT-001-20260517-014820.json
+?? traces/QUERY-PARAMS-SIZE-LIMIT-001-20ea3d581ec64943867499ee7c63fa4f/
+
+ succeeded in 426ms:
+ succeeded in 416ms:
+task.json:1991:                      "description":  "在创建任务落库前按 canonical JSON UTF-8 bytes 校验 queryParams 32KB 上限",
+task.json:2008:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / RCR-P0-004：create API 必须在落库前按 canonical JSON UTF-8 bytes 校验 queryParams \u003c= 32768",
+task.json:2014:                                                        "禁止仅以字符串长度、对象键数或近似估算替代 canonical JSON UTF-8 bytes 校验",
+task.json:2017:                                                        "禁止把超长 queryParams 的失败证据写成 live 环境验收"
+task.json:2057:                                    "复核 OpenAPI 对 queryParams 32768 bytes 的契约声明与 create API 当前落库路径",
+task.json:2058:                                    "在创建任务生产路径中按 canonical JSON UTF-8 bytes 校验 queryParams 大小，并在落库前拒绝超限请求",
+task.json:2064:                                         "create API 在落库前按 canonical JSON UTF-8 bytes 强制校验 queryParams \u003c= 32768",
+contracts\README.md:94:| `QUERY_PARAMS_TOO_LARGE` | 400 | `queryParams` 超过 32KB 默认限制 |
+contracts\openapi.yaml:242:                  queryParams:
+contracts\openapi.yaml:1072:            queryParamsTooLarge:
+contracts\openapi.yaml:1075:                message: queryParams exceeds 32768 bytes
+contracts\openapi.yaml:1387:      required: [taskCode, subsystemCode, fileFormat, queryParams]
+contracts\openapi.yaml:1399:        queryParams:
+contracts\openapi.yaml:1402:          description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization.
+docs\context\feature-pack.md:30:| FR-001 | `task-api`、`registry-config` | 先契约后创建 | 证据入口: `AC-001`、`AC-E002`、`AC-E003`、`FR-001` 对应 `POST /api/export/tasks`；风险边界: 注册状态、权限、`clientRequestId` 幂等、32KB 参数上限；后续落点: `contracts/` 创建接口契约，`tests/` 创建/幂等/注册校验用例 |
+docs\context\architecture-brief.md:159:| 任务入口 | 创建、幂等、状态机、进度、历史、下载、取消、重试 | 调用 API，传递 `taskCode`、`queryParams`、`clientRequestId` 和认证上下文 | 子系统直接写平台任务表 |
+docs\context\architecture-brief.md:187:- 请求摘要：规范化后的 `taskCode + fileFormat + queryParams`，用于 `clientRequestId` 幂等冲突判断。
+tests\api\export-http-api.test.mjs:169:    queryParams: {
+tests\api\export-http-api.test.mjs:176:function canonicalJson(value) {
+tests\api\export-http-api.test.mjs:182:    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+tests\api\export-http-api.test.mjs:187:    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+tests\api\export-http-api.test.mjs:192:  const prefix = Buffer.byteLength('{"payload":"', "utf8");
+tests\api\export-http-api.test.mjs:193:  const suffix = Buffer.byteLength('"}', "utf8");
+tests\api\export-http-api.test.mjs:469:      queryParams: {
+tests\api\export-http-api.test.mjs:942:    fileSize: streamBody.byteLength,
+tests\api\export-http-api.test.mjs:1065:  assert.equal(streamDownloadResponse.headers["x-export-file-size"], String(streamBody.byteLength));
+tests\api\export-http-api.test.mjs:1090:    fileSize: streamBody.byteLength,
+tests\api\export-http-api.test.mjs:1139:test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
+tests\api\export-http-api.test.mjs:1170:  const boundaryQueryParams = createQueryParamsWithCanonicalSize(32768);
+tests\api\export-http-api.test.mjs:1171:  assert.equal(Buffer.byteLength(canonicalJson(boundaryQueryParams), "utf8"), 32768);
+tests\api\export-http-api.test.mjs:1178:      queryParams: boundaryQueryParams
+tests\api\export-http-api.test.mjs:1185:  const canonicalOrderCreateResponse = await app.inject({
+tests\api\export-http-api.test.mjs:1188:    headers: createHeaders(`req-query-size-canonical-create-${runId}`),
+tests\api\export-http-api.test.mjs:1190:      ...createTaskPayload(taskCode, "client-query-size-canonical"),
+tests\api\export-http-api.test.mjs:1191:      queryParams: {
+tests\api\export-http-api.test.mjs:1199:  assert.equal(canonicalOrderCreateResponse.statusCode, 201);
+tests\api\export-http-api.test.mjs:1200:  const canonicalOrderReplayResponse = await app.inject({
+tests\api\export-http-api.test.mjs:1203:    headers: createHeaders(`req-query-size-canonical-replay-${runId}`),
+tests\api\export-http-api.test.mjs:1205:      ...createTaskPayload(taskCode, "client-query-size-canonical"),
+tests\api\export-http-api.test.mjs:1206:      queryParams: {
+tests\api\export-http-api.test.mjs:1214:  assert.equal(canonicalOrderReplayResponse.statusCode, 200);
+tests\api\export-http-api.test.mjs:1216:    canonicalOrderReplayResponse.json().data.taskId,
+tests\api\export-http-api.test.mjs:1217:    canonicalOrderCreateResponse.json().data.taskId
+tests\api\export-http-api.test.mjs:1220:    canonicalOrderReplayResponse.json().data.requestDigest,
+tests\api\export-http-api.test.mjs:1221:    canonicalOrderCreateResponse.json().data.requestDigest
+tests\api\export-http-api.test.mjs:1225:  assert.equal(Buffer.byteLength(canonicalJson(oversizedQueryParams), "utf8"), 32769);
+tests\api\export-http-api.test.mjs:1232:      queryParams: oversizedQueryParams
+tests\api\export-http-api.test.mjs:1238:  assert.equal(oversizedResponse.json().data.queryParamsMaxBytes, 32768);
+tests\api\export-http-api.test.mjs:1239:  assert.equal(oversizedResponse.json().data.queryParamsBytes, 32769);
+tests\worker\scheduler-worker.test.mjs:167:        queryParams: {
+tests\worker\scheduler-worker.test.mjs:660:      queryParams: {
+docs\testing\ACCEPTANCE_CRITERIA.md:53:| AC-E009 | FR-001 | `queryParams` 超过 32KB 返回 400 | TM-001 |
+src\task-api\service.ts:36:  queryParams?: unknown;
+src\task-api\service.ts:78:const QUERY_PARAMS_MAX_BYTES = 32768;
+src\task-api\service.ts:80:function canonicalJson(value: unknown): string {
+src\task-api\service.ts:86:    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+src\task-api\service.ts:92:    .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
+src\task-api\service.ts:97:  const bytes = Buffer.byteLength(canonicalJson(value), "utf8");
+src\task-api\service.ts:98:  if (bytes > QUERY_PARAMS_MAX_BYTES) {
+src\task-api\service.ts:99:    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+src\task-api\service.ts:100:      queryParamsBytes: bytes,
+src\task-api\service.ts:101:      queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
+src\task-api\service.ts:107:  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+src\task-api\service.ts:566:  if (body.byteLength !== file.fileSize || checksum !== file.checksum) {
+src\task-api\service.ts:601:    assertQueryParamsSize(body.queryParams ?? null);
+src\task-api\service.ts:636:      queryParams: body.queryParams ?? null
+src\task-api\service.ts:691:        queryParams: body.queryParams ?? null,
+docs\testing\local-demo-runbook.md:52:  -d '{"taskCode":"purchase-order-export","subsystemCode":"purchase","fileFormat":"XLSX","clientRequestId":"local-demo-001","queryParams":{"createdAtFrom":"2026-05-01T00:00:00.000Z","createdAtTo":"2026-05-31T23:59:59.000Z","orderStatus":"APPROVED","supplierId":"SUP-DEMO-001","purchaseOrgId":"PO-DEMO","keyword":"DEMO-PO"}}'
+tests\sample\purchase-order-sample.test.mjs:263:    queryParams: {
+docs\testing\test-data-plan.md:21:| seed-create-base-001 | FR-001 | 任务创建 | 已注册启用 `taskCode`、合法 `queryParams`、`clientRequestId` | 清理任务和审计记录 | 未注册、禁用、权限不足 |
+tests\mock-local\mock-integration-flow.test.mjs:22:        queryParams: { tenantId: "tenant-a", keyword: "月结" },
+tests\mock-local\mock-integration-flow.test.mjs:41:        queryParams: { tenantId: "tenant-a", keyword: "月结" },
+tests\mock-local\mock-integration-flow.test.mjs:56:            queryParams: { tenantId: "tenant-a" },
+tests\mock-local\mock-integration-flow.test.mjs:71:            queryParams: { payload: "x".repeat(32 * 1024 + 1) },
+tests\mock-local\mock-integration-flow.test.mjs:88:        queryParams: { tenantId: "tenant-b", keyword: "跨租户" },
+tests\mock-local\mock-integration-flow.test.mjs:198:        queryParams: { tenantId: "tenant-a", keyword: "retry" },
+tests\mock-local\mock-integration-flow.test.mjs:232:        queryParams: { tenantId: "tenant-a", keyword: "takeover" },
+tests\mock-local\mock-integration-flow.test.mjs:402:            queryParams: { rowCount: 100001 },
+tests\mock-local\mock-integration-flow.test.mjs:520:      if (input.taskCode === "PURCHASE_ORDER_SAMPLE" && input.queryParams?.rowCount > 100000) {
+tests\mock-local\mock-integration-flow.test.mjs:523:      const queryParamsSize = Buffer.byteLength(JSON.stringify(input.queryParams ?? {}), "utf8");
+tests\mock-local\mock-integration-flow.test.mjs:524:      if (queryParamsSize > 32 * 1024) {
+tests\mock-local\mock-integration-flow.test.mjs:530:        queryParams: input.queryParams ?? {},
+docs\testing\TEST_DATA_MATRIX.md:15:| FR-001 | seed-create-base-001 | 历史基线：最初用来说明创建任务所需的最小认证上下文、`clientRequestId` 和合法 `queryParams`；当前已转为可执行回归数据入口 | 清理任务表和审计记录 | 0/1 次创建、幂等命中、未注册、禁用、权限不足 | RELEASE-001 |
+docs\reviews\requirements-complete-review.md:25:本轮复审以产品需求和架构约束为基准，逐项核对 FR-001 至 FR-014、AC-001 至 AC-021、AC-E001 至 AC-E027。当前结论为 `FAIL`：上一轮 `FR-002 / AC-002` 与 `AC-E027` 缺口已由 repair 任务关闭，但复审发现新的 P0/P1 缺口，主要集中在认证上下文可信边界、查询数据范围、下载签名 URL、32KB 参数限制和若干 P0 验收测试证据不足。
+docs\reviews\requirements-complete-review.md:33:| FR-001 | partially_covered | 创建、幂等和禁用任务有证据；`queryParams` 32KB 限制缺少生产校验与 API 测试。 |
+docs\reviews\requirements-complete-review.md:52:| AC-001 | partially_covered | 创建成功证据存在；超长 `queryParams` 未在生产创建路径拦截。 |
+docs\reviews\requirements-complete-review.md:86:| AC-E009 | gap | `contracts/openapi.yaml` 声明 32KB 限制，但 `src/task-api/service.ts` 创建路径未校验。 |
+docs\reviews\requirements-complete-review.md:141:### RCR-P0-004: queryParams 32KB limit is only contracted, not implemented
+docs\reviews\requirements-complete-review.md:146:  - `contracts/openapi.yaml` 声明 `queryParams` 不得超过 32768 bytes，错误码为 `QUERY_PARAMS_TOO_LARGE`。
+docs\reviews\requirements-complete-review.md:147:  - `src/task-api/service.ts:451-615` 创建任务路径计算 digest 并落库，但未检查序列化后的 `queryParams` 字节数。
+docs\reviews\requirements-complete-review.md:148:  - `tests/api/export-http-api.test.mjs` 未覆盖超长 `queryParams` 创建失败。
+docs\testing\ACCEPTANCE_EXAMPLES.md:15:- 负向示例: 给定 `taskCode` 未注册、已禁用、无权限或 `queryParams` 超过 32KB，当创建任务，则返回对应错误且不得落无效任务。
+docs\testing\verify-matrix.md:41:| QUERY-PARAMS-SIZE-LIMIT-001 | FR-001 / AC-E009 / RCR-P0-004 | repaired | `npm run test:api` 断言创建任务生产 HTTP + service + MySQL 路径按 canonical JSON UTF-8 bytes 允许 `queryParams` 32768 bytes、拒绝 32769 bytes，返回 `QUERY_PARAMS_TOO_LARGE`，并确认超限请求不创建 task/idempotency 记录、也不写入审计；`npm run test:contract` 守护 OpenAPI 对 `QUERY_PARAMS_TOO_LARGE`、32768 bytes 说明和 400 状态映射不漂移 | local/Docker MySQL API + contract evidence；限制发生在创建任务落库和后续执行链路前，不声明外部生产 MySQL live evidence |
+docs\reviews\requirements-complete-review.findings.json:64:      "title": "queryParams 32KB limit is only contracted, not implemented",
+docs\reviews\requirements-complete-review.findings.json:67:        "contracts/openapi.yaml:CreateExportTaskRequest.queryParams",
+docs\reviews\requirements-complete-review.findings.json:69:        "tests/api/export-http-api.test.mjs:no oversized queryParams assertion"
+tests\contract\openapi-route-mapping.contract.test.mjs:250:test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
+tests\contract\openapi-route-mapping.contract.test.mjs:254:  assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
+tests\contract\openapi-route-mapping.contract.test.mjs:257:  assert.match(openapi, /queryParamsTooLarge:/);
+tests\contract\openapi-route-mapping.contract.test.mjs:258:  assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
+tests\db\export-repositories.test.mjs:161:      queryParams: {
+tests\db\export-repositories.test.mjs:273:    JSON.parse(task?.requestPayload ?? "{}").queryParams.createdAtFrom,
+tests\file\export-file-service.test.mjs:166:    requestPayload: JSON.stringify({ queryParams: {} }),
+docs\harness\rule-governance.md:70:3. 如果改动影响模板或镜像，按 `harness-surface-sync` 同步 canonical source 和 mirrors。
+tests\query\query-executor.test.mjs:220:        queryParams: {
+tests\query\query-executor.test.mjs:404:      queryParams: {
+tests\query\query-executor.test.mjs:613:      queryParams: {
+docs\product\state-matrix.yaml:25:  query_params_max_bytes: 32768
+docs\product\state-matrix.yaml:45:  digest_fields: ["taskCode", "fileFormat", "queryParams"]
+docs\product\state-matrix.yaml:93:        description: "queryParams 超过限制"
+docs\product\state-matrix.yaml:95:          - "超过 32KB 时返回参数过长错误"
+docs\product\prd-lite.md:44:- 创建请求 `queryParams` 默认最大 32KB；单文件默认最大 20000 行；单任务默认最大导出量 100000 行，具体可由注册配置收紧。
+docs\product\page-inventory.md:33:- `queryParams` 默认最大 32KB；单文件默认最大 20000 行；单任务默认最大导出量 100000 行，注册配置可收紧。
+docs\product\difficulty-research.md:48:- `queryParams` 默认最大 32KB，单任务默认最大导出量 100000 行，超过阈值需拒绝或进入更严格控制流。
+docs\product\difficulty-research.md:86:| 参数摘要 | 规范化后的 `queryParams + fileFormat + taskCode` 摘要 | 同一幂等键但摘要不同返回 `IDEMPOTENCY_CONFLICT` |
+src\query-executor\index.ts:52:  queryParams?: Record<string, unknown>;
+src\query-executor\index.ts:139:    const queryParams = normalizeQueryParams(requestSnapshot.queryParams);
+src\query-executor\index.ts:141:    validateParameterSchema(parameterSchema, queryParams);
+src\query-executor\index.ts:156:      queryParams,
+src\query-executor\index.ts:199:            queryParams,
+src\query-executor\index.ts:289:  queryParams: Record<string, unknown>
+src\query-executor\index.ts:292:    if (queryParams[required] === undefined || queryParams[required] === null) {
+src\query-executor\index.ts:298:  for (const key of Object.keys(queryParams)) {
+src\query-executor\index.ts:305:    const value = queryParams[key];
+src\query-executor\index.ts:454:  queryParams: Record<string, unknown>;
+src\query-executor\index.ts:473:      const value = input.queryParams[name] ?? null;
+src\query-executor\index.ts:513:  queryParams: Record<string, unknown>;
+src\query-executor\index.ts:528:      queryParams: input.queryParams,
+src\file-service\index.ts:227:        fileSize: body.byteLength,
+src\file-service\index.ts:276:      fileSize: body.byteLength,
+src\file-service\index.ts:301:      fileSize: body.byteLength,
+src\file-service\index.ts:493:    body.byteOffset,
+src\file-service\index.ts:494:    body.byteOffset + body.byteLength
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log -1 --oneline --decorate' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\task-api\\service.ts' | ForEach-Object { "'$i++; if ($i -ge 70 -and $i -le 115) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\task-api\\service.ts' | ForEach-Object { "'$i++; if ($i -ge 580 -and $i -le 705) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\api\\export-http-api.test.mjs' | ForEach-Object { "'$i++; if (($i -ge 170 -and $i -le 205) -or ($i -ge 1130 -and $i -le 1255)) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 365ms:
+c6183fc (HEAD -> master) chore(runtime): record query params stage1 failure
+
+ succeeded in 353ms:
+  580:         return rejectWithAudit({
+  581:           db,
+  582:           auth,
+  583:           error,
+  584:           action: "CREATE",
+  585:           now,
+  586:           taskCode: body.taskCode ?? null,
+  587:           subsystemCode: body.subsystemCode ?? null
+  588:         });
+  589:       }
+  590:       throw error;
+  591:     }
+  592: 
+  593:     if (!body.taskCode || !body.subsystemCode || !body.fileFormat) {
+  594:       throw new ApiError(
+  595:         400,
+  596:         "QUERY_TEMPLATE_INVALID",
+  597:         "taskCode, subsystemCode and fileFormat are required"
+  598:       );
+  599:     }
+  600: 
+  601:     assertQueryParamsSize(body.queryParams ?? null);
+  602: 
+  603:     const registries = createExportRegistryRepository(db);
+  604:     const tasks = createExportTaskRepository(db);
+  605:     const registry = await registries.findRegistryByTaskCode(body.taskCode);
+  606: 
+  607:     if (!registry) {
+  608:       return rejectWithAudit({
+  609:         db,
+  610:         auth,
+  611:         error: new ApiError(404, "TASK_NOT_REGISTERED", "task code is not registered"),
+  612:         action: "CREATE",
+  613:         now,
+  614:         taskCode: body.taskCode,
+  615:         subsystemCode: body.subsystemCode
+  616:       });
+  617:     }
+  618:     if (!registry.enabled) {
+  619:       return rejectWithAudit({
+  620:         db,
+  621:         auth,
+  622:         error: new ApiError(400, "TASK_DISABLED", "task code is disabled", {
+  623:           taskCode: body.taskCode
+  624:         }),
+  625:         action: "CREATE",
+  626:         now,
+  627:         taskCode: body.taskCode,
+  628:         subsystemCode: body.subsystemCode
+  629:       });
+  630:     }
+  631: 
+  632:     const requestDigest = digest({
+  633:       taskCode: body.taskCode,
+  634:       subsystemCode: body.subsystemCode,
+  635:       fileFormat: body.fileFormat,
+  636:       queryParams: body.queryParams ?? null
+  637:     });
+  638:     const idempotencyScope = body.clientRequestId
+  639:       ? `${auth.tenantId}:${auth.operatorId}:${body.taskCode}:${body.clientRequestId}`
+  640:       : null;
+  641: 
+  642:     if (idempotencyScope) {
+  643:       const existing = await tasks.findByIdempotencyScope(idempotencyScope);
+  644:       if (existing) {
+  645:         if (existing.requestDigest !== requestDigest) {
+  646:           return rejectWithAudit({
+  647:             db,
+  648:             auth,
+  649:             error: new ApiError(409, "IDEMPOTENCY_CONFLICT", "clientRequestId conflicts", {
+  650:               idempotencyScope
+  651:             }),
+  652:             action: "CREATE",
+  653:             now,
+  654:             taskCode: body.taskCode,
+  655:             subsystemCode: body.subsystemCode
+  656:           });
+  657:         }
+  658: 
+  659:         const task = await tasks.findTaskById(existing.taskId);
+  660:         if (!task) {
+  661:           return rejectWithAudit({
+  662:             db,
+  663:             auth,
+  664:             error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+  665:             action: "CREATE",
+  666:             now,
+  667:             taskCode: body.taskCode,
+  668:             subsystemCode: body.subsystemCode
+  669:           });
+  670:         }
+  671:         return {
+  672:           statusCode: 200,
+  673:           data: taskEnvelope(task, { idempotencyHit: true, requestId: auth.requestId })
+  674:         };
+  675:       }
+  676:     }
+  677: 
+  678:     const task = await tasks.createPendingTask({
+  679:       taskId: `exp_${randomUUID()}`,
+  680:       taskCode: body.taskCode,
+  681:       subsystemCode: body.subsystemCode,
+  682:       tenantId: auth.tenantId,
+  683:       createdBy: auth.operatorId,
+  684:       fileFormat: body.fileFormat,
+  685:       clientRequestId: body.clientRequestId ?? null,
+  686:       idempotencyScope,
+  687:       requestDigest,
+  688:       configSnapshotDigest: registry.configSnapshotDigest,
+  689:       requestPayload: JSON.stringify({
+  690:         fileFormat: body.fileFormat,
+  691:         queryParams: body.queryParams ?? null,
+  692:         configSnapshot: {
+  693:           taskCode: registry.taskCode,
+  694:           subsystemCode: registry.subsystemCode,
+  695:           displayName: registry.displayName,
+  696:           enabled: registry.enabled,
+  697:           concurrencyLimit: registry.concurrencyLimit,
+  698:           fileRetentionDays: registry.fileRetentionDays,
+  699:           taskHistoryRetentionDays: registry.taskHistoryRetentionDays,
+  700:           singleFileMaxRows: registry.singleFileMaxRows,
+  701:           exportMaxRows: registry.exportMaxRows,
+  702:           datasourceCode: registry.datasourceCode,
+  703:           supportedFormats: registry.supportedFormats,
+  704:           parameterSchema: registry.parameterSchema,
+  705:           queryTemplate: registry.queryTemplate,
+
+ succeeded in 399ms:
+   70:   signatureAlgorithm?: unknown;
+   71:   operatorId?: unknown;
+   72:   tenantId?: unknown;
+   73:   roleCodes?: unknown;
+   74:   orgScope?: unknown;
+   75:   requestId?: unknown;
+   76: };
+   77: 
+   78: const QUERY_PARAMS_MAX_BYTES = 32768;
+   79: 
+   80: function canonicalJson(value: unknown): string {
+   81:   if (value === null || typeof value !== "object") {
+   82:     return JSON.stringify(value);
+   83:   }
+   84: 
+   85:   if (Array.isArray(value)) {
+   86:     return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+   87:   }
+   88: 
+   89:   return `{${Object.keys(value as Record<string, unknown>)
+   90:     .sort()
+   91:     .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
+   92:     .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
+   93:     .join(",")}}`;
+   94: }
+   95: 
+   96: function assertQueryParamsSize(value: unknown): void {
+   97:   const bytes = Buffer.byteLength(canonicalJson(value), "utf8");
+   98:   if (bytes > QUERY_PARAMS_MAX_BYTES) {
+   99:     throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+  100:       queryParamsBytes: bytes,
+  101:       queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
+  102:     });
+  103:   }
+  104: }
+  105: 
+  106: function digest(value: unknown): string {
+  107:   return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+  108: }
+  109: 
+  110: function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {}) {
+  111:   return {
+  112:     taskId: task.taskId,
+  113:     taskCode: task.taskCode,
+  114:     subsystemCode: task.subsystemCode,
+  115:     tenantId: task.tenantId,
+
+ succeeded in 352ms:
+  170:       createdAtFrom: "2026-05-01T00:00:00+08:00",
+  171:       createdAtTo: "2026-05-13T23:59:59+08:00"
+  172:     }
+  173:   };
+  174: }
+  175: 
+  176: function canonicalJson(value) {
+  177:   if (value === null || typeof value !== "object") {
+  178:     return JSON.stringify(value);
+  179:   }
+  180: 
+  181:   if (Array.isArray(value)) {
+  182:     return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  183:   }
+  184: 
+  185:   return `{${Object.keys(value)
+  186:     .sort()
+  187:     .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+  188:     .join(",")}}`;
+  189: }
+  190: 
+  191: function createQueryParamsWithCanonicalSize(size) {
+  192:   const prefix = Buffer.byteLength('{"payload":"', "utf8");
+  193:   const suffix = Buffer.byteLength('"}', "utf8");
+  194:   return {
+  195:     payload: "x".repeat(size - prefix - suffix)
+  196:   };
+  197: }
+  198: 
+  199: async function auditLogsByRequestId(db, requestId) {
+  200:   return db
+  201:     .selectFrom("export_audit_logs")
+  202:     .selectAll()
+  203:     .where("request_id", "=", requestId)
+  204:     .execute();
+  205: }
+ 1130:   assert.equal(deniedAudits[0].error_code, "PERMISSION_DENIED");
+ 1131:   const signedDeniedAudits = await auditLogsByRequestId(db, `req-signed-download-denied-${runId}`);
+ 1132:   assert.equal(signedDeniedAudits.length, 1);
+ 1133:   assert.equal(signedDeniedAudits[0].result, "FAILED");
+ 1134:   assert.equal(signedDeniedAudits[0].error_code, "PERMISSION_DENIED");
+ 1135:   const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
+ 1136:   assert.equal(forgedInvalidAudits.length, 0);
+ 1137: });
+ 1138: 
+ 1139: test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
+ 1140:   const db = await createTestDatabase(t);
+ 1141:   const objectStorageServer = await createLocalObjectStorageServer(t);
+ 1142:   const app = await createServer(t, objectStorageServer);
+ 1143:   const taskRepository = createExportTaskRepository(db);
+ 1144:   const runId = `${Date.now()}-${process.pid}-query-size`;
+ 1145:   const taskCode = `purchase-order-query-size-${runId}`;
+ 1146: 
+ 1147:   const createRegistryResponse = await app.inject({
+ 1148:     method: "POST",
+ 1149:     url: "/api/export/registries",
+ 1150:     headers: createHeaders(`req-registry-query-size-${runId}`),
+ 1151:     payload: {
+ 1152:       ...createRegistryPayload(taskCode),
+ 1153:       parameterSchema: {
+ 1154:         type: "object",
+ 1155:         properties: {
+ 1156:           payload: { type: "string" }
+ 1157:         },
+ 1158:         required: ["payload"]
+ 1159:       },
+ 1160:       queryTemplate: {
+ 1161:         queryTemplateVersion: "v1",
+ 1162:         templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
+ 1163:         allowedParameters: ["payload"]
+ 1164:       }
+ 1165:     }
+ 1166:   });
+ 1167: 
+ 1168:   assert.equal(createRegistryResponse.statusCode, 201);
+ 1169: 
+ 1170:   const boundaryQueryParams = createQueryParamsWithCanonicalSize(32768);
+ 1171:   assert.equal(Buffer.byteLength(canonicalJson(boundaryQueryParams), "utf8"), 32768);
+ 1172:   const boundaryResponse = await app.inject({
+ 1173:     method: "POST",
+ 1174:     url: "/api/export/tasks",
+ 1175:     headers: createHeaders(`req-query-size-boundary-${runId}`),
+ 1176:     payload: {
+ 1177:       ...createTaskPayload(taskCode, "client-query-size-boundary"),
+ 1178:       queryParams: boundaryQueryParams
+ 1179:     }
+ 1180:   });
+ 1181: 
+ 1182:   assert.equal(boundaryResponse.statusCode, 201);
+ 1183:   assert.equal(boundaryResponse.json().code, "SUCCESS");
+ 1184: 
+ 1185:   const canonicalOrderCreateResponse = await app.inject({
+ 1186:     method: "POST",
+ 1187:     url: "/api/export/tasks",
+ 1188:     headers: createHeaders(`req-query-size-canonical-create-${runId}`),
+ 1189:     payload: {
+ 1190:       ...createTaskPayload(taskCode, "client-query-size-canonical"),
+ 1191:       queryParams: {
+ 1192:         z: ["last", { b: 2, a: 1 }],
+ 1193:         a: "first",
+ 1194:         payload: "tiny"
+ 1195:       }
+ 1196:     }
+ 1197:   });
+ 1198: 
+ 1199:   assert.equal(canonicalOrderCreateResponse.statusCode, 201);
+ 1200:   const canonicalOrderReplayResponse = await app.inject({
+ 1201:     method: "POST",
+ 1202:     url: "/api/export/tasks",
+ 1203:     headers: createHeaders(`req-query-size-canonical-replay-${runId}`),
+ 1204:     payload: {
+ 1205:       ...createTaskPayload(taskCode, "client-query-size-canonical"),
+ 1206:       queryParams: {
+ 1207:         payload: "tiny",
+ 1208:         a: "first",
+ 1209:         z: ["last", { a: 1, b: 2 }]
+ 1210:       }
+ 1211:     }
+ 1212:   });
+ 1213: 
+ 1214:   assert.equal(canonicalOrderReplayResponse.statusCode, 200);
+ 1215:   assert.equal(
+ 1216:     canonicalOrderReplayResponse.json().data.taskId,
+ 1217:     canonicalOrderCreateResponse.json().data.taskId
+ 1218:   );
+ 1219:   assert.equal(
+ 1220:     canonicalOrderReplayResponse.json().data.requestDigest,
+ 1221:     canonicalOrderCreateResponse.json().data.requestDigest
+ 1222:   );
+ 1223: 
+ 1224:   const oversizedQueryParams = createQueryParamsWithCanonicalSize(32769);
+ 1225:   assert.equal(Buffer.byteLength(canonicalJson(oversizedQueryParams), "utf8"), 32769);
+ 1226:   const oversizedResponse = await app.inject({
+ 1227:     method: "POST",
+ 1228:     url: "/api/export/tasks",
+ 1229:     headers: createHeaders(`req-query-size-oversized-${runId}`),
+ 1230:     payload: {
+ 1231:       ...createTaskPayload(taskCode, "client-query-size-oversized"),
+ 1232:       queryParams: oversizedQueryParams
+ 1233:     }
+ 1234:   });
+ 1235: 
+ 1236:   assert.equal(oversizedResponse.statusCode, 400);
+ 1237:   assert.equal(oversizedResponse.json().code, "QUERY_PARAMS_TOO_LARGE");
+ 1238:   assert.equal(oversizedResponse.json().data.queryParamsMaxBytes, 32768);
+ 1239:   assert.equal(oversizedResponse.json().data.queryParamsBytes, 32769);
+ 1240: 
+ 1241:   const oversizedTasks = await db
+ 1242:     .selectFrom("export_tasks")
+ 1243:     .select("task_id")
+ 1244:     .where("task_code", "=", taskCode)
+ 1245:     .where("client_request_id", "=", "client-query-size-oversized")
+ 1246:     .execute();
+ 1247:   assert.equal(oversizedTasks.length, 0);
+ 1248: 
+ 1249:   const oversizedIdempotencyScope =
+ 1250:     `tenant-001:u001:${taskCode}:client-query-size-oversized`;
+ 1251:   assert.equal(await taskRepository.findByIdempotencyScope(oversizedIdempotencyScope), undefined);
+ 1252: 
+ 1253:   const oversizedAudits = await auditLogsByRequestId(db, `req-query-size-oversized-${runId}`);
+ 1254:   assert.equal(oversizedAudits.length, 0);
+ 1255: });
+
+codex
+当前工作树没有 tracked diff，只有本任务 trace 产物未跟踪；实现看起来已落在当前 HEAD 历史里。我会继续按当前文件内容审查，而不是依赖空 diff。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log --oneline -8' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'contracts\\openapi.yaml' | ForEach-Object { "'$i++; if (($i -ge 230 -and $i -le 255) -or ($i -ge 1065 -and $i -le 1082) -or ($i -ge 1390 -and $i -le 1408)) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'tests\\contract\\openapi-route-mapping.contract.test.mjs' | ForEach-Object { "'$i++; if ($i -ge 245 -and $i -le 264) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'docs\\testing\\verify-matrix.md' | ForEach-Object { "'$i++; if ($i -ge 35 -and $i -le 45) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 413ms:
+c6183fc chore(runtime): record query params stage1 failure
+0818a80 fix: reject oversized query params before audit
+d7b4931 feat: 修复下载签名 URL 不可伪造、10 分钟 TTL 与验签/下载审计边界 - completed DOWNLOAD-SIGNED-URL-GUARD-001
+08c5b1c fix(download): avoid trusting unsigned callback identity
+be6f42f fix(download): enforce signed callback visibility
+f66f89c fix(contract): declare signed download callback errors
+18fb317 fix(download): audit signed URL verification failures
+e488803 feat: 强制查询执行叠加 operatorId、roleCodes 和 dataScopeTemplate 数据范围约束 - completed DATA-SCOPE-TEMPLATE-ENFORCE-001
+
+ succeeded in 441ms:
+  230:         content:
+  231:           application/json:
+  232:             schema:
+  233:               $ref: "#/components/schemas/CreateExportTaskRequest"
+  234:             examples:
+  235:               purchaseOrder:
+  236:                 summary: Purchase order export task
+  237:                 value:
+  238:                   taskCode: purchase-order-export
+  239:                   subsystemCode: purchase
+  240:                   fileFormat: XLSX
+  241:                   clientRequestId: req-20260513-0001
+  242:                   queryParams:
+  243:                     createdAtFrom: "2026-05-01T00:00:00+08:00"
+  244:                     createdAtTo: "2026-05-13T23:59:59+08:00"
+  245:                     orderStatus: APPROVED
+  246:                     supplierId: SUP-001
+  247:                     purchaseOrgId: ORG-001
+  248:                     keyword: PO-2026
+  249:       x-contract-errorResponses:
+  250:         - TASK_DISABLED
+  251:         - QUERY_PARAMS_TOO_LARGE
+  252:         - EXPORT_LIMIT_EXCEEDED
+  253:         - QUERY_TEMPLATE_INVALID
+  254:         - DATASOURCE_UNAVAILABLE
+  255:         - FIELD_MAPPING_INVALID
+ 1065:                     reason: required
+ 1066:             taskDisabled:
+ 1067:               value:
+ 1068:                 code: TASK_DISABLED
+ 1069:                 message: task code is disabled
+ 1070:                 data:
+ 1071:                   taskCode: purchase-order-export
+ 1072:             queryParamsTooLarge:
+ 1073:               value:
+ 1074:                 code: QUERY_PARAMS_TOO_LARGE
+ 1075:                 message: queryParams exceeds 32768 bytes
+ 1076:                 data: null
+ 1077:             exportLimitExceeded:
+ 1078:               value:
+ 1079:                 code: EXPORT_LIMIT_EXCEEDED
+ 1080:                 message: export limit exceeded
+ 1081:                 data:
+ 1082:                   exportMaxRows: 100000
+ 1390:           type: string
+ 1391:         subsystemCode:
+ 1392:           type: string
+ 1393:         fileFormat:
+ 1394:           $ref: "#/components/schemas/FileFormat"
+ 1395:         clientRequestId:
+ 1396:           type: string
+ 1397:           maxLength: 128
+ 1398:           description: Optional idempotency key scoped by tenantId/operatorId/taskCode.
+ 1399:         queryParams:
+ 1400:           type: object
+ 1401:           additionalProperties: true
+ 1402:           description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization.
+ 1403:         deliveryPreference:
+ 1404:           $ref: "#/components/schemas/DeliveryMode"
+ 1405:     CreateExportTaskResponseEnvelope:
+ 1406:       allOf:
+ 1407:         - $ref: "#/components/schemas/Envelope"
+ 1408:         - type: object
+
+ succeeded in 355ms:
+   35: | QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+   36: | DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+   37: | FILE-STORAGE-ERROR-MAPPING-001 | FR-003 / FR-006 / AC-E005 / AC-E026 | repaired | `npm run test:file` 覆盖 object storage put/read/publish 失败均映射为 `FILE_VERIFY_ERROR`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + FILE_VERIFY_ERROR` | production-equivalent adapter + local/Docker MySQL；不声明 live OSS/S3 |
+   38: | FILE-RENDER-ERROR-CONTRACT-REPAIR-001 | FR-006 / AC-E027 | repaired | `npm run test:file` 覆盖 XLSX 与 ZIP renderer 失败在 object storage 写入前映射为 `EXPORT_RENDER_ERROR`、写入 `PACKAGE_FAILED` 事件中的 `renderInputSummary` 和 `failureReason`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + EXPORT_RENDER_ERROR` 审计；同一命令继续覆盖 object storage put/read/publish 失败保持 `FILE_VERIFY_ERROR` | local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3 |
+   39: | DATA-SCOPE-TEMPLATE-ENFORCE-001 | FR-008 / FR-009 / AC-008 / AC-009 / RCR-P0-002 | repaired | `npm run test:query` 断言 query executor 强制绑定 registry `dataScopeTemplate` 中的 `operatorId`、`roleCodes`、`orgScope` 与 `tenantId`，阻断同租户同组织但不同操作人或角色的数据，并拒绝非认证上下文白名单参数；`npm run test:worker` 断言 scheduler 默认 query processor 不回退到旧的硬编码数据范围，发布前只保留授权行 | local/Docker MySQL query + worker evidence；外部业务数据源以受控测试表模拟，不声明 live datasource evidence |
+   40: | DOWNLOAD-SIGNED-URL-GUARD-001 | FR-003 / FR-009 / AC-003 / AC-009 / RCR-P0-003 | repaired | `npm run test:file` 断言 env-backed object storage adapter 生成 HMAC-SHA256 签名 URL，默认 TTL 为 10 分钟且与文件保留期分离，篡改签名和过期签名均被本地 object storage mock 拒绝；`npm run test:api` 断言下载 API 返回平台可审计签名 URL，签名 URL 成功访问由平台验签后内部读取对象，伪造签名和过期签名均拒绝并写入 `SIGNATURE_INVALID` / `SIGNATURE_EXPIRED` 下载失败审计，权限不足下载仍写入失败审计，stream 模式保持 checksum guard | local/Docker MySQL + 本地 object storage mock；签名密钥仅来自进程环境变量，不写入仓库、trace 或验证文档；不声明 live OSS/S3 evidence |
+   41: | QUERY-PARAMS-SIZE-LIMIT-001 | FR-001 / AC-E009 / RCR-P0-004 | repaired | `npm run test:api` 断言创建任务生产 HTTP + service + MySQL 路径按 canonical JSON UTF-8 bytes 允许 `queryParams` 32768 bytes、拒绝 32769 bytes，返回 `QUERY_PARAMS_TOO_LARGE`，并确认超限请求不创建 task/idempotency 记录、也不写入审计；`npm run test:contract` 守护 OpenAPI 对 `QUERY_PARAMS_TOO_LARGE`、32768 bytes 说明和 400 状态映射不漂移 | local/Docker MySQL API + contract evidence；限制发生在创建任务落库和后续执行链路前，不声明外部生产 MySQL live evidence |
+   42: 
+   43: ## 计划验证入口
+   44: 
+   45: | 阶段 | 命令 / 证据 | 最低要求 |
+
+ succeeded in 408ms:
+  245:   assert.match(openapi, /"#\/components\/responses\/SignatureRejected"/);
+  246:   assert.match(openapi, /- SIGNATURE_INVALID/);
+  247:   assert.match(openapi, /- SIGNATURE_EXPIRED/);
+  248: });
+  249: 
+  250: test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
+  251:   const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  252:   const operationBlock = parseCreateExportTaskOperationBlock();
+  253: 
+  254:   assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
+  255:   assert.match(operationBlock, /- QUERY_PARAMS_TOO_LARGE/);
+  256:   assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
+  257:   assert.match(openapi, /queryParamsTooLarge:/);
+  258:   assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
+  259: });
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline 0818a80' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 393ms:
+0818a80 fix: reject oversized query params before audit
+ contracts/openapi.yaml                             |   1 +
+ docs/testing/verify-matrix.md                      |   1 +
+ src/task-api/service.ts                            |  32 ++++-
+ tests/api/export-http-api.test.mjs                 | 141 +++++++++++++++++++++
+ .../openapi-route-mapping.contract.test.mjs        |  17 +++
+ 5 files changed, 191 insertions(+), 1 deletion(-)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --format=short --find-renames --find-copies 0818a80 -- src/task-api/service.ts tests/api/export-http-api.test.mjs tests/contract/openapi-route-mapping.contract.test.mjs contracts/openapi.yaml docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 390ms:
+commit 0818a8086053d0a6e19dd81051d112aca778f97d
+Author: 潘宗友 <panzongyou@v380max.com>
+
+    fix: reject oversized query params before audit
+
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index b3fca0d..31d40dc 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -248,6 +248,7 @@ paths:
+                     keyword: PO-2026
+       x-contract-errorResponses:
+         - TASK_DISABLED
++        - QUERY_PARAMS_TOO_LARGE
+         - EXPORT_LIMIT_EXCEEDED
+         - QUERY_TEMPLATE_INVALID
+         - DATASOURCE_UNAVAILABLE
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index c2a15c8..6d76d98 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -38,6 +38,7 @@
+ | FILE-RENDER-ERROR-CONTRACT-REPAIR-001 | FR-006 / AC-E027 | repaired | `npm run test:file` 覆盖 XLSX 与 ZIP renderer 失败在 object storage 写入前映射为 `EXPORT_RENDER_ERROR`、写入 `PACKAGE_FAILED` 事件中的 `renderInputSummary` 和 `failureReason`、不生成可下载 metadata，并通过 scheduler 断言任务最终 `FAILED + EXPORT_RENDER_ERROR` 审计；同一命令继续覆盖 object storage put/read/publish 失败保持 `FILE_VERIFY_ERROR` | local/Docker MySQL + 本地 object storage mock / production-equivalent adapter；不声明 live OSS/S3 |
+ | DATA-SCOPE-TEMPLATE-ENFORCE-001 | FR-008 / FR-009 / AC-008 / AC-009 / RCR-P0-002 | repaired | `npm run test:query` 断言 query executor 强制绑定 registry `dataScopeTemplate` 中的 `operatorId`、`roleCodes`、`orgScope` 与 `tenantId`，阻断同租户同组织但不同操作人或角色的数据，并拒绝非认证上下文白名单参数；`npm run test:worker` 断言 scheduler 默认 query processor 不回退到旧的硬编码数据范围，发布前只保留授权行 | local/Docker MySQL query + worker evidence；外部业务数据源以受控测试表模拟，不声明 live datasource evidence |
+ | DOWNLOAD-SIGNED-URL-GUARD-001 | FR-003 / FR-009 / AC-003 / AC-009 / RCR-P0-003 | repaired | `npm run test:file` 断言 env-backed object storage adapter 生成 HMAC-SHA256 签名 URL，默认 TTL 为 10 分钟且与文件保留期分离，篡改签名和过期签名均被本地 object storage mock 拒绝；`npm run test:api` 断言下载 API 返回平台可审计签名 URL，签名 URL 成功访问由平台验签后内部读取对象，伪造签名和过期签名均拒绝并写入 `SIGNATURE_INVALID` / `SIGNATURE_EXPIRED` 下载失败审计，权限不足下载仍写入失败审计，stream 模式保持 checksum guard | local/Docker MySQL + 本地 object storage mock；签名密钥仅来自进程环境变量，不写入仓库、trace 或验证文档；不声明 live OSS/S3 evidence |
++| QUERY-PARAMS-SIZE-LIMIT-001 | FR-001 / AC-E009 / RCR-P0-004 | repaired | `npm run test:api` 断言创建任务生产 HTTP + service + MySQL 路径按 canonical JSON UTF-8 bytes 允许 `queryParams` 32768 bytes、拒绝 32769 bytes，返回 `QUERY_PARAMS_TOO_LARGE`，并确认超限请求不创建 task/idempotency 记录、也不写入审计；`npm run test:contract` 守护 OpenAPI 对 `QUERY_PARAMS_TOO_LARGE`、32768 bytes 说明和 400 状态映射不漂移 | local/Docker MySQL API + contract evidence；限制发生在创建任务落库和后续执行链路前，不声明外部生产 MySQL live evidence |
+ 
+ ## 计划验证入口
+ 
+diff --git a/src/task-api/service.ts b/src/task-api/service.ts
+index f0c9571..89997ae 100644
+--- a/src/task-api/service.ts
++++ b/src/task-api/service.ts
+@@ -75,8 +75,36 @@ type SignedDownloadQuery = {
+   requestId?: unknown;
+ };
+ 
++const QUERY_PARAMS_MAX_BYTES = 32768;
++
++function canonicalJson(value: unknown): string {
++  if (value === null || typeof value !== "object") {
++    return JSON.stringify(value);
++  }
++
++  if (Array.isArray(value)) {
++    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
++  }
++
++  return `{${Object.keys(value as Record<string, unknown>)
++    .sort()
++    .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
++    .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
++    .join(",")}}`;
++}
++
++function assertQueryParamsSize(value: unknown): void {
++  const bytes = Buffer.byteLength(canonicalJson(value), "utf8");
++  if (bytes > QUERY_PARAMS_MAX_BYTES) {
++    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
++      queryParamsBytes: bytes,
++      queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
++    });
++  }
++}
++
+ function digest(value: unknown): string {
+-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
++  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+ }
+ 
+ function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {}) {
+@@ -570,6 +598,8 @@ export async function createExportTask(auth: AuthContext, body: CreateTaskBody)
+       );
+     }
+ 
++    assertQueryParamsSize(body.queryParams ?? null);
++
+     const registries = createExportRegistryRepository(db);
+     const tasks = createExportTaskRepository(db);
+     const registry = await registries.findRegistryByTaskCode(body.taskCode);
+diff --git a/tests/api/export-http-api.test.mjs b/tests/api/export-http-api.test.mjs
+index 2379126..9095b7d 100644
+--- a/tests/api/export-http-api.test.mjs
++++ b/tests/api/export-http-api.test.mjs
+@@ -173,6 +173,29 @@ function createTaskPayload(taskCode, clientRequestId = "client-001") {
+   };
+ }
+ 
++function canonicalJson(value) {
++  if (value === null || typeof value !== "object") {
++    return JSON.stringify(value);
++  }
++
++  if (Array.isArray(value)) {
++    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
++  }
++
++  return `{${Object.keys(value)
++    .sort()
++    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
++    .join(",")}}`;
++}
++
++function createQueryParamsWithCanonicalSize(size) {
++  const prefix = Buffer.byteLength('{"payload":"', "utf8");
++  const suffix = Buffer.byteLength('"}', "utf8");
++  return {
++    payload: "x".repeat(size - prefix - suffix)
++  };
++}
++
+ async function auditLogsByRequestId(db, requestId) {
+   return db
+     .selectFrom("export_audit_logs")
+@@ -1112,3 +1135,121 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
+   const forgedInvalidAudits = await auditLogsByRequestId(db, forgedInvalidRequestId);
+   assert.equal(forgedInvalidAudits.length, 0);
+ });
++
++test("create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence", async (t) => {
++  const db = await createTestDatabase(t);
++  const objectStorageServer = await createLocalObjectStorageServer(t);
++  const app = await createServer(t, objectStorageServer);
++  const taskRepository = createExportTaskRepository(db);
++  const runId = `${Date.now()}-${process.pid}-query-size`;
++  const taskCode = `purchase-order-query-size-${runId}`;
++
++  const createRegistryResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/registries",
++    headers: createHeaders(`req-registry-query-size-${runId}`),
++    payload: {
++      ...createRegistryPayload(taskCode),
++      parameterSchema: {
++        type: "object",
++        properties: {
++          payload: { type: "string" }
++        },
++        required: ["payload"]
++      },
++      queryTemplate: {
++        queryTemplateVersion: "v1",
++        templateText: "SELECT * FROM purchase_orders WHERE tenant_id = :tenantId",
++        allowedParameters: ["payload"]
++      }
++    }
++  });
++
++  assert.equal(createRegistryResponse.statusCode, 201);
++
++  const boundaryQueryParams = createQueryParamsWithCanonicalSize(32768);
++  assert.equal(Buffer.byteLength(canonicalJson(boundaryQueryParams), "utf8"), 32768);
++  const boundaryResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-query-size-boundary-${runId}`),
++    payload: {
++      ...createTaskPayload(taskCode, "client-query-size-boundary"),
++      queryParams: boundaryQueryParams
++    }
++  });
++
++  assert.equal(boundaryResponse.statusCode, 201);
++  assert.equal(boundaryResponse.json().code, "SUCCESS");
++
++  const canonicalOrderCreateResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-query-size-canonical-create-${runId}`),
++    payload: {
++      ...createTaskPayload(taskCode, "client-query-size-canonical"),
++      queryParams: {
++        z: ["last", { b: 2, a: 1 }],
++        a: "first",
++        payload: "tiny"
++      }
++    }
++  });
++
++  assert.equal(canonicalOrderCreateResponse.statusCode, 201);
++  const canonicalOrderReplayResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-query-size-canonical-replay-${runId}`),
++    payload: {
++      ...createTaskPayload(taskCode, "client-query-size-canonical"),
++      queryParams: {
++        payload: "tiny",
++        a: "first",
++        z: ["last", { a: 1, b: 2 }]
++      }
++    }
++  });
++
++  assert.equal(canonicalOrderReplayResponse.statusCode, 200);
++  assert.equal(
++    canonicalOrderReplayResponse.json().data.taskId,
++    canonicalOrderCreateResponse.json().data.taskId
++  );
++  assert.equal(
++    canonicalOrderReplayResponse.json().data.requestDigest,
++    canonicalOrderCreateResponse.json().data.requestDigest
++  );
++
++  const oversizedQueryParams = createQueryParamsWithCanonicalSize(32769);
++  assert.equal(Buffer.byteLength(canonicalJson(oversizedQueryParams), "utf8"), 32769);
++  const oversizedResponse = await app.inject({
++    method: "POST",
++    url: "/api/export/tasks",
++    headers: createHeaders(`req-query-size-oversized-${runId}`),
++    payload: {
++      ...createTaskPayload(taskCode, "client-query-size-oversized"),
++      queryParams: oversizedQueryParams
++    }
++  });
++
++  assert.equal(oversizedResponse.statusCode, 400);
++  assert.equal(oversizedResponse.json().code, "QUERY_PARAMS_TOO_LARGE");
++  assert.equal(oversizedResponse.json().data.queryParamsMaxBytes, 32768);
++  assert.equal(oversizedResponse.json().data.queryParamsBytes, 32769);
++
++  const oversizedTasks = await db
++    .selectFrom("export_tasks")
++    .select("task_id")
++    .where("task_code", "=", taskCode)
++    .where("client_request_id", "=", "client-query-size-oversized")
++    .execute();
++  assert.equal(oversizedTasks.length, 0);
++
++  const oversizedIdempotencyScope =
++    `tenant-001:u001:${taskCode}:client-query-size-oversized`;
++  assert.equal(await taskRepository.findByIdempotencyScope(oversizedIdempotencyScope), undefined);
++
++  const oversizedAudits = await auditLogsByRequestId(db, `req-query-size-oversized-${runId}`);
++  assert.equal(oversizedAudits.length, 0);
++});
+diff --git a/tests/contract/openapi-route-mapping.contract.test.mjs b/tests/contract/openapi-route-mapping.contract.test.mjs
+index fca0b60..a68312a 100644
+--- a/tests/contract/openapi-route-mapping.contract.test.mjs
++++ b/tests/contract/openapi-route-mapping.contract.test.mjs
+@@ -53,6 +53,12 @@ function parseBatchCheckpointSchemaBlock() {
+   return block;
+ }
+ 
++function parseCreateExportTaskOperationBlock() {
++  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
++  const [, block] = openapi.match(/operationId: createExportTask\n([\s\S]*?)\n\s{4}get:/) ?? [];
++  return block;
++}
++
+ function parseYamlListFromBlock(block, key) {
+   const [, listBlock] = block.match(new RegExp(`${key}:\\s*\\n([\\s\\S]*?)\\n\\s{6}properties:`)) ?? [];
+   return new Set([...listBlock.matchAll(/-\s+([A-Za-z0-9_]+)/g)].map((match) => match[1]));
+@@ -240,3 +246,14 @@ test("download operation declares signed URL callback parameters and signature f
+   assert.match(openapi, /- SIGNATURE_INVALID/);
+   assert.match(openapi, /- SIGNATURE_EXPIRED/);
+ });
++
++test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
++  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
++  const operationBlock = parseCreateExportTaskOperationBlock();
++
++  assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
++  assert.match(operationBlock, /- QUERY_PARAMS_TOO_LARGE/);
++  assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
++  assert.match(openapi, /queryParamsTooLarge:/);
++  assert.match(openapi, /message: queryParams exceeds 32768 bytes/);
++});
+
+codex
+实现点位在 `createExportTask` 生产 service 内，校验发生在 repository 创建前；测试也覆盖了边界值、超限拒绝、不写 task/idempotency/audit，以及 canonical key order 的幂等摘要。我现在复跑任务给出的验证命令，确认不是只看历史输出。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '"'. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 6184ms:
+
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:59098 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6643ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (944.3697ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (117.7795ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1735.686
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.1314ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.4654ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.445ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (1.9459ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2051ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.5057ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.8925ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3372ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2945ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4721ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.4047ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.8321
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"createExportTask\\(|digest\\(|requestDigest|findByIdempotencyScope|QUERY_PARAMS_TOO_LARGE|QUERY_PARAMS_MAX_BYTES\" src tests contracts docs" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content package.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-Content tsconfig.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\task-api\\http.ts' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 220) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 321ms:
+{
+  "name": "export-platform-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "jszip": "^3.10.1",
+    "kysely": "^0.29.0",
+    "mysql2": "^3.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "worker:scheduler": "tsx src/workers/scheduler-worker.ts",
+    "job:cleanup": "tsx src/jobs/cleanup-job.ts",
+    "arch:check": "tsx scripts/arch-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/contract/*.test.mjs",
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
+    "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
+    "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",
+    "test:query": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs",
+    "test:file": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs",
+    "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
+    "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
+    "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
+    "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+  }
+}
+
+ succeeded in 341ms:
+contracts\README.md:41:| 创建幂等 | `contracts/api/` | `clientRequestId`、成功响应 `idempotencyScope=tenantId+operatorId+taskCode+clientRequestId`、`requestDigest`、`IDEMPOTENCY_CONFLICT` |
+contracts\README.md:71:| `/api/export/tasks` | `POST` | FR-001 / FR-009 / FR-013 | 创建任务、最小认证上下文、`clientRequestId` 幂等、成功响应 `idempotencyScope`、`requestDigest`、`configSnapshotDigest` |
+contracts\README.md:94:| `QUERY_PARAMS_TOO_LARGE` | 400 | `queryParams` 超过 32KB 默认限制 |
+contracts\openapi.yaml:251:        - QUERY_PARAMS_TOO_LARGE
+contracts\openapi.yaml:278:                      requestDigest: sha256:request-digest
+contracts\openapi.yaml:302:        QUERY_PARAMS_TOO_LARGE: 400
+contracts\openapi.yaml:413:                      requestDigest: sha256:request-digest
+contracts\openapi.yaml:1074:                code: QUERY_PARAMS_TOO_LARGE
+contracts\openapi.yaml:1296:        - QUERY_PARAMS_TOO_LARGE
+contracts\openapi.yaml:1326:        - QUERY_PARAMS_TOO_LARGE
+contracts\openapi.yaml:1421:        - requestDigest
+contracts\openapi.yaml:1442:        requestDigest:
+contracts\openapi.yaml:1475:        - requestDigest
+contracts\openapi.yaml:1517:        requestDigest:
+tests\contract\openapi-route-mapping.contract.test.mjs:255:  assert.match(operationBlock, /- QUERY_PARAMS_TOO_LARGE/);
+tests\contract\openapi-route-mapping.contract.test.mjs:256:  assert.match(operationBlock, /QUERY_PARAMS_TOO_LARGE:\s+400/);
+tests\api\export-http-api.test.mjs:304:  return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+tests\api\export-http-api.test.mjs:310:    .digest("hex");
+tests\api\export-http-api.test.mjs:353:    .digest("hex");
+tests\api\export-http-api.test.mjs:1220:    canonicalOrderReplayResponse.json().data.requestDigest,
+tests\api\export-http-api.test.mjs:1221:    canonicalOrderCreateResponse.json().data.requestDigest
+tests\api\export-http-api.test.mjs:1237:  assert.equal(oversizedResponse.json().code, "QUERY_PARAMS_TOO_LARGE");
+tests\api\export-http-api.test.mjs:1251:  assert.equal(await taskRepository.findByIdempotencyScope(oversizedIdempotencyScope), undefined);
+docs\reviews\requirements-complete-review.md:146:  - `contracts/openapi.yaml` 声明 `queryParams` 不得超过 32768 bytes，错误码为 `QUERY_PARAMS_TOO_LARGE`。
+tests\file\export-file-service.test.mjs:164:    requestDigest: `sha256:${runId}`,
+tests\file\export-file-service.test.mjs:343:    .digest("hex");
+docs\product\state-matrix.yaml:62:          - "记录 requestDigest 和 configSnapshotDigest"
+docs\context\architecture-brief.md:61:- 创建任务时必须固化 `requestDigest`、`configSnapshotDigest`、注册配置快照和认证上下文摘要。
+docs\product\page-inventory.md:65:- 创建证据：`clientRequestId`、`idempotencyScope`、`requestDigest`、`taskId`、`configSnapshotDigest`。
+docs\product\requirement-interface-matrix.md:48:| FR-013 | `clientRequestId`、`idempotencyScope`、`requestDigest`、`configSnapshotDigest`、`attemptNo`、`lockOwner`、`lockExpireAt`、`leaseRenewedAt` | 用于证明幂等、防重复执行、配置快照和锁租约行为 |
+tests\worker\scheduler-worker.test.mjs:161:    requestDigest: `sha256:${input.taskId}`,
+docs\testing\ACCEPTANCE_EXAMPLES.md:107:- 证据目标: idempotencyScope、requestDigest、冲突响应。
+tests\db\export-repositories.test.mjs:157:    requestDigest: "sha256:request-v1",
+tests\db\export-repositories.test.mjs:176:  const idempotent = await taskRepository.findByIdempotencyScope(
+tests\db\export-repositories.test.mjs:182:  assert.equal(idempotent?.requestDigest, "sha256:request-v1");
+tests\query\query-executor.test.mjs:216:    requestDigest: input.requestDigest ?? `sha256:${input.taskId}`,
+tests\sample\purchase-order-sample.test.mjs:258:  const response = await createExportTask(createUserAuth(input.requestId), {
+src\contracts\public-enums.ts:9:  "QUERY_PARAMS_TOO_LARGE",
+docs\testing\verify-matrix.md:41:| QUERY-PARAMS-SIZE-LIMIT-001 | FR-001 / AC-E009 / RCR-P0-004 | repaired | `npm run test:api` 断言创建任务生产 HTTP + service + MySQL 路径按 canonical JSON UTF-8 bytes 允许 `queryParams` 32768 bytes、拒绝 32769 bytes，返回 `QUERY_PARAMS_TOO_LARGE`，并确认超限请求不创建 task/idempotency 记录、也不写入审计；`npm run test:contract` 守护 OpenAPI 对 `QUERY_PARAMS_TOO_LARGE`、32768 bytes 说明和 400 状态映射不漂移 | local/Docker MySQL API + contract evidence；限制发生在创建任务落库和后续执行链路前，不声明外部生产 MySQL live evidence |
+src\file-service\index.ts:417:  return `sha256:${createHash("sha256").update(body).digest("hex")}`;
+src\file-service\index.ts:488:    .digest("hex");
+tests\mock-local\mock-integration-flow.test.mjs:78:      /QUERY_PARAMS_TOO_LARGE/
+tests\mock-local\mock-integration-flow.test.mjs:525:        throw new Error("QUERY_PARAMS_TOO_LARGE");
+tests\mock-local\mock-integration-flow.test.mjs:529:      const requestDigest = JSON.stringify({
+tests\mock-local\mock-integration-flow.test.mjs:538:        if (existingTask.requestDigest !== requestDigest) {
+tests\mock-local\mock-integration-flow.test.mjs:561:        requestDigest,
+src\registry-config\service.ts:39:function digest(value: unknown): string {
+src\registry-config\service.ts:40:  return `sha256:${createHash("sha256").update(stableText(value)).digest("hex")}`;
+src\registry-config\service.ts:116:    parameterSchemaDigest: digest(registry.parameterSchema),
+src\registry-config\service.ts:117:    fieldMappingDigest: digest(registry.fieldMappings),
+src\registry-config\service.ts:118:    maskingPolicyDigest: digest(registry.maskingPolicy),
+src\registry-config\service.ts:146:    const parameterSchemaDigest = digest(body.parameterSchema);
+src\registry-config\service.ts:147:    const fieldMappingDigest = digest(body.fieldMappings);
+src\registry-config\service.ts:148:    const maskingPolicyDigest = digest(body.maskingPolicy);
+src\registry-config\service.ts:149:    const configSnapshotDigest = digest({
+src\scheduler\worker.ts:114:    requestDigest: row.request_digest,
+src\repositories\export-task.repository.ts:13:  requestDigest: string;
+src\repositories\export-task.repository.ts:30:  requestDigest: string;
+src\repositories\export-task.repository.ts:45:  requestDigest: string;
+src\repositories\export-task.repository.ts:79:    requestDigest: row.request_digest,
+src\repositories\export-task.repository.ts:108:            request_digest: input.requestDigest,
+src\repositories\export-task.repository.ts:127:              request_digest: input.requestDigest,
+src\repositories\export-task.repository.ts:255:    async findByIdempotencyScope(
+src\repositories\export-task.repository.ts:268:            requestDigest: row.request_digest
+src\task-api\service.ts:78:const QUERY_PARAMS_MAX_BYTES = 32768;
+src\task-api\service.ts:98:  if (bytes > QUERY_PARAMS_MAX_BYTES) {
+src\task-api\service.ts:99:    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+src\task-api\service.ts:101:      queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
+src\task-api\service.ts:106:function digest(value: unknown): string {
+src\task-api\service.ts:107:  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+src\task-api\service.ts:121:    requestDigest: task.requestDigest,
+src\task-api\service.ts:500:    .digest("hex");
+src\task-api\service.ts:565:  const checksum = `sha256:${createHash("sha256").update(body).digest("hex")}`;
+src\task-api\service.ts:573:export async function createExportTask(auth: AuthContext, body: CreateTaskBody) {
+src\task-api\service.ts:632:    const requestDigest = digest({
+src\task-api\service.ts:643:      const existing = await tasks.findByIdempotencyScope(idempotencyScope);
+src\task-api\service.ts:645:        if (existing.requestDigest !== requestDigest) {
+src\task-api\service.ts:687:      requestDigest,
+src\routes\export\tasks\create-export-task.handler.ts:9:    const result = await createExportTask(auth, context.request.body ?? {});
+
+ succeeded in 356ms:
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "migrations/**/*.ts"]
+}
+
+2026-05-16T18:01:05.237202Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.5 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m $i=0; [36;1mGet-Content 'src\task-api\http.ts'[0m | ForEach-Object { $i++; if  …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\src\task-api\http.ts' because it does not exist.[0m
+
+ exited 1 in 473ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m $i=0; [36;1mGet-Content 'src\task-api\http.ts'[0m | ForEach-Object { $i++; if  …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\src\task-api\http.ts' because it does not exist.[0m
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\routes\\export\\tasks\\create-export-task.handler.ts' | ForEach-Object { "'$i++; '"'{0,5}: {1}' -f "'$i, $_ }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$i=0; Get-Content '"'src\\server.ts' | ForEach-Object { "'$i++; if ($i -ge 1 -and $i -le 180) { '"'{0,5}: {1}' -f "'$i, $_ } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"setErrorHandler|ApiError|error\\.code|QUERY_PARAMS_TOO_LARGE|create-export-task\" src" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 381ms:
+    1: import Fastify, { type FastifyInstance } from "fastify";
+    2: import { fileURLToPath } from "node:url";
+    3: import { loadConfig, type ExportPlatformConfig } from "./config/env.ts";
+    4: import { registerRoutes } from "./routes/register-routes.ts";
+    5: 
+    6: export function createExportPlatformServer(
+    7:   config: ExportPlatformConfig = loadConfig()
+    8: ): FastifyInstance {
+    9:   const app = Fastify({
+   10:     logger: false
+   11:   });
+   12: 
+   13:   app.addContentTypeParser(
+   14:     "application/json",
+   15:     { parseAs: "string" },
+   16:     (_request, body, done) => {
+   17:       const text = typeof body === "string" ? body : body.toString("utf8");
+   18:       if (text.trim().length === 0) {
+   19:         done(null, {});
+   20:         return;
+   21:       }
+   22: 
+   23:       try {
+   24:         done(null, JSON.parse(text));
+   25:       } catch (error) {
+   26:         done(error as Error, undefined);
+   27:       }
+   28:     }
+   29:   );
+   30: 
+   31:   app.get("/health", async () => ({
+   32:     status: "ok",
+   33:     service: config.serviceName,
+   34:     deliveryShape: config.deliveryShape,
+   35:     entries: {
+   36:       http: true,
+   37:       worker: true,
+   38:       cleanupJob: true
+   39:     }
+   40:   }));
+   41: 
+   42:   registerRoutes(app);
+   43: 
+   44:   app.setNotFoundHandler(async (_request, response) => {
+   45:     response.code(404).send({
+   46:       code: "TASK_NOT_FOUND",
+   47:       message: "route not found",
+   48:       data: null
+   49:     });
+   50:   });
+   51: 
+   52:   return app;
+   53: }
+   54: 
+   55: export async function startServer(
+   56:   config: ExportPlatformConfig = loadConfig()
+   57: ): Promise<FastifyInstance> {
+   58:   const server = createExportPlatformServer(config);
+   59:   await server.listen({ port: config.port, host: config.host });
+   60:   console.log(
+   61:     JSON.stringify({
+   62:       event: "export-platform.http.started",
+   63:       host: config.host,
+   64:       port: config.port
+   65:     })
+   66:   );
+   67:   return server;
+   68: }
+   69: 
+   70: if (process.argv[1] === fileURLToPath(import.meta.url)) {
+   71:   startServer().catch((error) => {
+   72:     console.error(error);
+   73:     process.exit(1);
+   74:   });
+   75: }
+
+ succeeded in 427ms:
+    1: import { requireAuthContext } from "../../../audit-log/auth-context.ts";
+    2: import { createExportTask } from "../../../task-api/service.ts";
+    3: import { sendError, sendSuccess } from "../../respond.ts";
+    4: import type { RouteHandler } from "../../types.ts";
+    5: 
+    6: export const handler: RouteHandler = async (context, response) => {
+    7:   try {
+    8:     const auth = requireAuthContext(context.request);
+    9:     const result = await createExportTask(auth, context.request.body ?? {});
+   10:     sendSuccess(response, result.statusCode, result.data);
+   11:   } catch (error) {
+   12:     sendError(response, error);
+   13:   }
+   14: };
+
+ succeeded in 430ms:
+src\audit-log\auth-context.ts:11:export class ApiError extends Error {
+src\audit-log\auth-context.ts:35:  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission", {
+src\audit-log\auth-context.ts:54:    throw new ApiError(401, "AUTH_CONTEXT_MISSING", "auth context missing");
+src\contracts\public-enums.ts:9:  "QUERY_PARAMS_TOO_LARGE",
+src\task-api\service.ts:24:  ApiError,
+src\task-api\service.ts:99:    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+src\task-api\service.ts:369:  error: ApiError;
+src\task-api\service.ts:386:    errorCode: input.error.code,
+src\task-api\service.ts:419:  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task", {
+src\task-api\service.ts:441:  throw new ApiError(400, "VALIDATION_ERROR", "mode must be SIGNED_URL or STREAM", {
+src\task-api\service.ts:464:    throw new ApiError(
+src\task-api\service.ts:544:function toStorageApiError(error: unknown, file: { checksumAlgorithm: string }): ApiError {
+src\task-api\service.ts:545:  if (error instanceof ApiError) {
+src\task-api\service.ts:550:    return new ApiError(502, "EXPORT_RENDER_ERROR", error.message);
+src\task-api\service.ts:554:    return new ApiError(500, "FILE_VERIFY_ERROR", error.message, {
+src\task-api\service.ts:559:  return new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+src\task-api\service.ts:567:    throw new ApiError(500, "FILE_VERIFY_ERROR", "streamed file verification failed", {
+src\task-api\service.ts:579:      if (error instanceof ApiError) {
+src\task-api\service.ts:594:      throw new ApiError(
+src\task-api\service.ts:611:        error: new ApiError(404, "TASK_NOT_REGISTERED", "task code is not registered"),
+src\task-api\service.ts:622:        error: new ApiError(400, "TASK_DISABLED", "task code is disabled", {
+src\task-api\service.ts:649:            error: new ApiError(409, "IDEMPOTENCY_CONFLICT", "clientRequestId conflicts", {
+src\task-api\service.ts:664:            error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:794:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:803:      if (error instanceof ApiError) {
+src\task-api\service.ts:880:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:889:      if (error instanceof ApiError) {
+src\task-api\service.ts:910:        error: new ApiError(400, "FILE_NOT_READY", "file is not ready"),
+src\task-api\service.ts:923:        error: new ApiError(410, "FILE_EXPIRED", "file expired"),
+src\task-api\service.ts:936:        error: new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+src\task-api\service.ts:983:        error: toStorageApiError(error, file),
+src\task-api\service.ts:1054:        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+src\task-api\service.ts:1061:        error: new ApiError(403, "SIGNATURE_INVALID", "download signature expiry is invalid")
+src\task-api\service.ts:1067:        error: new ApiError(403, "SIGNATURE_EXPIRED", "download signature expired")
+src\task-api\service.ts:1073:        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+src\task-api\service.ts:1091:        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+src\task-api\service.ts:1109:        error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
+src\task-api\service.ts:1115:        error: new ApiError(410, "FILE_EXPIRED", "file expired")
+src\task-api\service.ts:1121:      if (error instanceof ApiError) {
+src\task-api\service.ts:1152:        error: toStorageApiError(error, file)
+src\task-api\service.ts:1167:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:1176:      if (error instanceof ApiError) {
+src\task-api\service.ts:1195:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src\task-api\service.ts:1213:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:1250:        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+src\task-api\service.ts:1259:      if (error instanceof ApiError) {
+src\task-api\service.ts:1278:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src\task-api\service.ts:1295:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation"),
+src\registry-config\service.ts:11:import { ApiError, assertExportPermission, type AuthContext } from "../audit-log/auth-context.ts";
+src\registry-config\service.ts:55:  error: ApiError;
+src\registry-config\service.ts:70:    errorCode: input.error.code,
+src\registry-config\service.ts:87:    if (error instanceof ApiError) {
+src\registry-config\service.ts:142:      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "registry payload is incomplete");
+src\registry-config\service.ts:193:        error: new ApiError(404, "TASK_NOT_REGISTERED", "registry not found"),
+src\registry-config\service.ts:272:        error: new ApiError(404, "TASK_NOT_REGISTERED", "registry not found"),
+src\registry-config\service.ts:313:        error: new ApiError(404, "TASK_NOT_REGISTERED", "registry not found"),
+src\routes\registry.ts:9:import { createExportTaskRoute } from "./export/tasks/create-export-task.route.ts";
+src\routes\respond.ts:2:import { ApiError } from "../audit-log/auth-context.ts";
+src\routes\respond.ts:13:  if (error instanceof ApiError) {
+src\routes\respond.ts:15:      code: error.code,
+src\routes\route-manifest.ts:8:import { handler as createExportTask } from "./export/tasks/create-export-task.handler.ts";
+src\routes\route-manifest.ts:32:    handlerPath: "src/routes/export/tasks/create-export-task.handler.ts",
+
+codex
+验证命令已新鲜复跑通过。为覆盖 Stage 2 的类型项，我再补跑 `npm run typecheck`，因为任务命令没有包含 TypeScript 编译检查。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 2193ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | 未发现阻塞性代码质量、测试覆盖或维护性问题 | - | - |
+
+## Verification
+
+- 已检查命令:
+  - `git show --stat 0818a80`
+  - `npm run arch:check; ...; npm run test:api; ...; npm run test:contract; ...; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md`
+  - `npm run typecheck`
+- 结果摘要:
+  - `arch:check` 通过。
+  - `test:api` 3/3 通过，覆盖 32768 bytes 边界、32769 bytes 拒绝、落库前不写 task/idempotency/audit。
+  - `test:contract` 11/11 通过，覆盖 OpenAPI `QUERY_PARAMS_TOO_LARGE` 与 32768 canonical JSON 描述。
+  - `typecheck` 通过。
+  - 实现位于 `src/task-api/service.ts:78`、`src/task-api/service.ts:96`、`src/task-api/service.ts:601`，校验发生在 repository 创建和落库前。
+  - 当前 tracked diff 为空；工作区仅有本任务相关 untracked trace 产物，未发现无关源码或临时代码进入 tracked 改动。
+
+## Verdict
+
+Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | false |
+tokens used
+43,197

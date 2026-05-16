@@ -1,0 +1,59 @@
+SUCCESS: The process with PID 28608 (child process of PID 11532) has been terminated.
+SUCCESS: The process with PID 11532 (child process of PID 2384) has been terminated.
+SUCCESS: The process with PID 2384 (child process of PID 14624) has been terminated.
+SUCCESS: The process with PID 14624 (child process of PID 1540) has been terminated.
+SUCCESS: The process with PID 1540 (child process of PID 27800) has been terminated.
+SUCCESS: The process with PID 25444 (child process of PID 24812) has been terminated.
+SUCCESS: The process with PID 24812 (child process of PID 29900) has been terminated.
+SUCCESS: The process with PID 29900 (child process of PID 30124) has been terminated.
+SUCCESS: The process with PID 30124 (child process of PID 27800) has been terminated.
+SUCCESS: The process with PID 17248 (child process of PID 27696) has been terminated.
+SUCCESS: The process with PID 27696 (child process of PID 31576) has been terminated.
+SUCCESS: The process with PID 31576 (child process of PID 27872) has been terminated.
+SUCCESS: The process with PID 27872 (child process of PID 27800) has been terminated.
+## Requirement IDs
+- `FR-001`
+- `AC-E009`
+- `RCR-P0-004`
+
+## Summary
+- 已在创建任务落库前按 canonical JSON UTF-8 bytes 校验 `queryParams <= 32768`。
+- 超限请求返回 `QUERY_PARAMS_TOO_LARGE`，并通过 API 测试确认不创建 task/idempotency 记录，只写失败审计。
+- `requestDigest` 改为同一 canonical JSON 口径，避免 key 顺序不同导致幂等误冲突。
+
+## Files Changed
+- `src/task-api/service.ts`: 新增 canonical JSON、32KB 校验和 canonical digest。
+- `contracts/openapi.yaml`: create task 错误响应清单补 `QUERY_PARAMS_TOO_LARGE`。
+- `tests/api/export-http-api.test.mjs`: 覆盖 32768 成功、32769 失败、不落库、失败审计、canonical digest。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护契约声明。
+- `docs/testing/verify-matrix.md`: 记录本任务 Docker MySQL/API/contract 证据边界。
+
+## Validation
+- `npm run arch:check; ... npm run test:api; ... npm run test:contract; ... git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md`: PASS
+- `npm run typecheck`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明生产 HTTP + service + MySQL 路径拒绝超限且不落任务。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 证明 OpenAPI 32KB/error code/status 声明不漂移。
+- `docs/testing/verify-matrix.md`: 证明证据边界已同步。
+
+## Architecture Constraints
+- `independent_microservice / HTTP API boundary`: PASS - create API 生产 handler/service/repository 链路验证通过。
+- `Data boundary / MySQL`: PASS - API 测试经 Docker MySQL 执行。
+- `Forbidden InMemory/mock production path`: PASS - 未引入内存 repository 或 mock 生产实现。
+- `pre-persistence rejection`: PASS - 超限请求在 `createPendingTask` 前被拒绝。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- `GUIDELINE-API-CANONICAL-JSON-LIMIT-001`: guideline - 参数大小限制与幂等摘要应共享 canonical JSON 口径 - suggested - `docs/knowledge/guidelines/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 git commit：本任务 Driver 明确禁止 `git add` / `git commit` / `git push`，因此覆盖了入口 AGENTS 的自动提交规则。
+- 工作区仍有未跟踪 `traces/QUERY-PARAMS-SIZE-LIMIT-001-20ea3d581ec64943867499ee7c63fa4f/`，我未读取或修改。

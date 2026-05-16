@@ -1,0 +1,47 @@
+﻿
+> export-platform-service@0.1.0 arch:check
+> tsx scripts/arch-check.ts
+
+Architecture check passed.
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:59068 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6569ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1190.1381ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (126.3834ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1988.9765
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.7597ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.392ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.4406ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.4549ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.225ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.4474ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5891ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3592ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.2711ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4462ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.4211ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.5754

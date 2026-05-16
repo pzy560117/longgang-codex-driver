@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 4772 (child process of PID 11244) has been terminated.
+SUCCESS: The process with PID 11244 (child process of PID 28864) has been terminated.
+SUCCESS: The process with PID 28864 (child process of PID 11488) has been terminated.
+SUCCESS: The process with PID 11488 (child process of PID 1408) has been terminated.
+SUCCESS: The process with PID 1408 (child process of PID 2976) has been terminated.
+SUCCESS: The process with PID 20244 (child process of PID 16668) has been terminated.
+SUCCESS: The process with PID 16668 (child process of PID 10060) has been terminated.
+SUCCESS: The process with PID 10060 (child process of PID 11504) has been terminated.
+SUCCESS: The process with PID 11504 (child process of PID 2976) has been terminated.
+SUCCESS: The process with PID 30908 (child process of PID 31596) has been terminated.
+SUCCESS: The process with PID 31596 (child process of PID 29992) has been terminated.
+SUCCESS: The process with PID 29992 (child process of PID 27800) has been terminated.
+SUCCESS: The process with PID 27800 (child process of PID 2976) has been terminated.
+## Requirement IDs
+- FR-001
+- AC-E009
+- RCR-P0-004
+
+## Summary
+- 复核后确认当前仓库已包含本任务实现：`createExportTask` 在任务落库、idempotency 记录、审计写入前按 canonical JSON UTF-8 bytes 校验 `queryParams <= 32768`。
+- 超限请求返回 `QUERY_PARAMS_TOO_LARGE`，API 测试已断言不创建 task/idempotency 记录且不写审计。
+- 本轮未产生源码 diff；Driver Prompt 明确禁止 `git add/git commit/git push`，因此未自动提交。
+
+## Files Changed
+- 无。本轮未改文件。
+
+## Validation
+- `npm run arch:check; ... npm run test:api; ... npm run test:contract; ... git diff --check ...`: PASS
+  - `arch:check`: Architecture check passed
+  - `test:api`: 3/3 passed
+  - `test:contract`: 11/11 passed
+  - `git diff --check`: exit 0
+
+## Evidence
+- `src/task-api/service.ts`: `assertQueryParamsSize` 与创建任务生产路径校验。
+- `tests/api/export-http-api.test.mjs`: 覆盖 32768 bytes 成功、32769 bytes 失败、不落库、不写审计。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 守护 OpenAPI 32768 bytes 声明、错误码和 400 映射。
+- `docs/testing/verify-matrix.md`: 已记录本任务 API / contract / Docker MySQL 证据边界。
+
+## Architecture Constraints
+- `independent_microservice / HTTP API boundary`: PASS - 生产 HTTP + service + MySQL repository 路径验证通过。
+- `Data Boundary`: PASS - API 测试使用 Docker MySQL，不以内存 repository 替代生产路径。
+- `Forbidden Implementations`: PASS - 未使用 `InMemory*`、mock repository 或 fixture repository 冒充生产实现。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- 无。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 当前工作区仍有未跟踪 runtime trace：`traces/QUERY-PARAMS-SIZE-LIMIT-001-*`。本轮按任务边界未修改或清理它们。

@@ -2002,7 +2002,7 @@
                       "dependencies":  [
                                            "FILE-RENDER-ERROR-CONTRACT-REPAIR-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "delivery_shape=independent_microservice",
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 / RCR-P0-004：create API 必须在落库前按 canonical JSON UTF-8 bytes 校验 queryParams \u003c= 32768",
