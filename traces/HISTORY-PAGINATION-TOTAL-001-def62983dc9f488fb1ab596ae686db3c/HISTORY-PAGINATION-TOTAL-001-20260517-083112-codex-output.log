@@ -1,0 +1,52 @@
+SUCCESS: The process with PID 25452 (child process of PID 3176) has been terminated.
+SUCCESS: The process with PID 3176 (child process of PID 8044) has been terminated.
+SUCCESS: The process with PID 8044 (child process of PID 444) has been terminated.
+SUCCESS: The process with PID 444 (child process of PID 21984) has been terminated.
+SUCCESS: The process with PID 21984 (child process of PID 29884) has been terminated.
+SUCCESS: The process with PID 32716 (child process of PID 30504) has been terminated.
+SUCCESS: The process with PID 30504 (child process of PID 30536) has been terminated.
+SUCCESS: The process with PID 30536 (child process of PID 23868) has been terminated.
+SUCCESS: The process with PID 23868 (child process of PID 29884) has been terminated.
+SUCCESS: The process with PID 16824 (child process of PID 33064) has been terminated.
+SUCCESS: The process with PID 33064 (child process of PID 9228) has been terminated.
+SUCCESS: The process with PID 9228 (child process of PID 11512) has been terminated.
+SUCCESS: The process with PID 11512 (child process of PID 29884) has been terminated.
+## Requirement IDs
+- FR-004
+- AC-004
+
+## Summary
+- 已复核 `listExportTasks()` 使用同一筛选条件调用 `countTasks()`，分页 `limit/offset` 只影响 `items`，不影响 `total`。
+- 修正 API 回归测试的数据隔离：分页 total 场景改用本测试唯一 `subsystemCode`，避免共享 Docker MySQL 中历史 `purchase` 任务污染真实 count。
+
+## Files Changed
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:999): 新增隔离的两条 PENDING 历史任务，并断言 `pageSize=1` 时 `total=2`。
+
+## Validation
+- `npm run typecheck; ... npm run test:api; ... git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md`: PASS
+- `npm run test:api`: PASS，6/6 tests passed
+
+## Evidence
+- [src/task-api/service.ts](E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:906): list filters 复用于 `listTasks` 和 `countTasks`。
+- [src/repositories/export-task.repository.ts](E:/2026/alpha-project/longgang-codex-driver/src/repositories/export-task.repository.ts:99): repository 统一应用 taskCode/status/subsystem/tenant/createdBy/fileFormat/createdAt 筛选。
+- [tests/api/export-http-api.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:1054): Docker MySQL API 断言真实 total 不等于当前页数量。
+
+## Architecture Constraints
+- `independent_microservice / HTTP + MySQL repository`: PASS - 保持生产 HTTP + MySQL 路径测试。
+- `Test Double Policy`: PASS - 未用 InMemory/mock repository 冒充生产实现。
+- `Forbidden Implementations`: PASS - 未新增 fixture repository 或绕过生产 service/repository 边界。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: none
+- screenshot: none
+- parity report: none
+
+## Remaining Risks
+- 工作区仍有任务外未跟踪 `traces/` 运行产物，我未修改或清理。
+- 未执行 commit：本轮 Driver Context 明确禁止 `git add/git commit/git push`。

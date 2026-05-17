@@ -1,0 +1,39 @@
+SUCCESS: The process with PID 25928 (child process of PID 18504) has been terminated.
+SUCCESS: The process with PID 18504 (child process of PID 27348) has been terminated.
+SUCCESS: The process with PID 27348 (child process of PID 5420) has been terminated.
+SUCCESS: The process with PID 5420 (child process of PID 9208) has been terminated.
+SUCCESS: The process with PID 9208 (child process of PID 16180) has been terminated.
+SUCCESS: The process with PID 32372 (child process of PID 21164) has been terminated.
+SUCCESS: The process with PID 28988 (child process of PID 4680) has been terminated.
+SUCCESS: The process with PID 4680 (child process of PID 16180) has been terminated.
+SUCCESS: The process with PID 33880 (child process of PID 6404) has been terminated.
+SUCCESS: The process with PID 6404 (child process of PID 33992) has been terminated.
+SUCCESS: The process with PID 33992 (child process of PID 24244) has been terminated.
+SUCCESS: The process with PID 24244 (child process of PID 16180) has been terminated.
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | HIGH | missing_requirement | backend | `docs/reviews/requirements-complete-review.md`, `src/task-api/service.ts` | 修复历史查询分页 `total`，返回筛选条件下真实总量，而不是当前页数量。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | HIGH | state_gap | backend | `docs/reviews/requirements-complete-review.md`, `src/task-api/service.ts`, `src/repositories/export-task.repository.ts` | 取消任务更新增加原状态和 `attemptNo` CAS 条件，避免 worker 状态推进被覆盖。 | `npm run test:api && npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | HIGH | missing_requirement | backend | `docs/product/state-matrix.yaml`, `docs/reviews/requirements-complete-review.md`, `src/scheduler/worker.ts` | 将 scheduler 默认 query batch retry 与产品默认 `3` 对齐，并补回归断言。 | `npm run test:worker` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | HIGH | contract_gap | backend | `docs/reviews/requirements-complete-review.md`, `src/routes/respond.ts`, `src/query-executor/index.ts`, `src/file-service/index.ts` | 对公开错误响应和任务失败详情做脱敏映射，避免泄露 datasource、SQL、对象存储或内部实现消息。 | `npm run test:api && npm run test:query && npm run test:file` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | MEDIUM | missing_requirement | backend | `docs/reviews/requirements-complete-review.md`, `tests/api/export-http-api.test.mjs` | 为创建任务 1 秒响应 SLA 增加稳定验证或 release gate 样本。 | `npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | MEDIUM | contract_gap | backend | `src/registry-config/contract.ts`, `src/query-executor/index.ts` | 加严 registry-time query template 语义校验，提前阻断非法模板。 | `npm run test:query && npm run test:api` |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | MEDIUM | architecture_gap | backend | `src/query-executor/index.ts`, `src/sample-purchase-order/index.ts` | 将采购订单样板断言从通用 query executor 中解耦，改为通用 registry/query 合同校验。 | `npm run test:query && npm run test:sample` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F001 | backend | backend-worker | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002 | backend | backend-worker | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003 | backend | backend-worker | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004 | backend | backend-worker | 1 | true |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F005 | backend | test-runner | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F006 | backend | backend-worker | 1 | false |
+| REQUIREMENTS-COMPLETE-REVIEW-001-S1-F007 | backend | backend-worker | 1 | false |

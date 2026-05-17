@@ -1,0 +1,27 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff -- src/task-api/service.ts src/repositories/export-task.repository.ts tests/api/export-http-api.test.mjs docs/testing/verify-matrix.md task.json`
+  - `git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md`
+  - 审阅已提供的验证结果：`npm run arch:check`、`npm run typecheck`、Docker MySQL 下 `npm run test:api`
+- 结果摘要:
+  - `listExportTasks` 已改为使用同一 `listFilters` 分别执行分页查询与 `countTasks`，没有继续用 `items.length` 冒充 `total`。
+  - repository 通过 `applyListFilters` 复用 `taskCode/status/subsystemCode/tenantId/createdBy/fileFormat/createdAt` 过滤逻辑，未发现未参数化 SQL 或权限边界绕开。
+  - API 回归测试覆盖 `status + subsystemCode + pageSize=1` 下 `items.length=1` 且 `total=2`，能捕获本次历史回归。
+  - 已提供测试输出显示 `arch:check`、`typecheck`、`test:api` 全部通过，`git diff --check` 本地通过。
+  - 当前工作区仅见未跟踪 `traces/` 运行产物；未见相关源码/测试/文档未提交 diff。
+
+## Verdict
+
+- PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |

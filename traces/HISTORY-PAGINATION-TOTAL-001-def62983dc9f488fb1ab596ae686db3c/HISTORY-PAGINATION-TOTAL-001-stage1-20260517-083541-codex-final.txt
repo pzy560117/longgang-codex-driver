@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| HISTORY-PAGINATION-TOTAL-001-S1-F001 | HIGH | architecture_gap | controller | `docs/architecture/constraints.md:60` 要求 `feature_impl` 的 `test_command` 包含架构检查；`task.json:2563` 当前只包含 `npm run typecheck`、Docker MySQL 下 `npm run test:api` 和 scoped `git diff --check`，未包含 `npm run arch:check`。 | 下一轮 repair worker 更新 `HISTORY-PAGINATION-TOTAL-001.test_command`，在 typecheck/API 测试前加入 `npm run arch:check`，确保 feature_impl 架构形态闸门可执行。 | `npm run arch:check; npm run typecheck; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api'; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| HISTORY-PAGINATION-TOTAL-001-S1-F001 | controller | harness-writer | 1 | yes |

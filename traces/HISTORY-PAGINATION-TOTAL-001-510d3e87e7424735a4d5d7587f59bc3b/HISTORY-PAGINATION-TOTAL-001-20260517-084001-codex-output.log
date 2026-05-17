@@ -1,0 +1,49 @@
+SUCCESS: The process with PID 2264 (child process of PID 27796) has been terminated.
+SUCCESS: The process with PID 27796 (child process of PID 4860) has been terminated.
+SUCCESS: The process with PID 4860 (child process of PID 10256) has been terminated.
+SUCCESS: The process with PID 10256 (child process of PID 32664) has been terminated.
+SUCCESS: The process with PID 28940 (child process of PID 10828) has been terminated.
+SUCCESS: The process with PID 10828 (child process of PID 31108) has been terminated.
+SUCCESS: The process with PID 31108 (child process of PID 26120) has been terminated.
+SUCCESS: The process with PID 26120 (child process of PID 20780) has been terminated.
+SUCCESS: The process with PID 20780 (child process of PID 32664) has been terminated.
+SUCCESS: The process with PID 25240 (child process of PID 27124) has been terminated.
+SUCCESS: The process with PID 476 (child process of PID 20768) has been terminated.
+SUCCESS: The process with PID 20768 (child process of PID 32664) has been terminated.
+## Requirement IDs
+- FR-004
+- AC-004
+
+## Summary
+- 已复核历史查询链路：`listExportTasks()` 使用同一组筛选/权限条件分别查询 `items` 和 `total`。
+- 当前代码与测试已满足任务要求，无需新增文件改动；按 Driver 边界未执行 `git add/commit/push`。
+
+## Files Changed
+- 无
+
+## Validation
+- `npm run arch:check; npm run typecheck; docker-test-env + npm run test:api; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md`: PASS - API 测试 6/6 passed，架构检查与类型检查通过，diff check 通过
+
+## Evidence
+- `src/task-api/service.ts`: `total` 通过 repository count 查询，不受 limit/offset 影响
+- `src/repositories/export-task.repository.ts`: `listTasks` / `countTasks` 复用同一过滤逻辑
+- `tests/api/export-http-api.test.mjs`: 覆盖 `pageSize=1` 时 `items.length=1` 且 `total=2`
+
+## Architecture Constraints
+- `production repository boundary`: PASS - 使用 MySQL repository，不使用 InMemory/mock 生产替代
+- `HTTP API + service + repository`: PASS - Docker MySQL 下 `test:api` 通过
+- `feature_impl verification`: PASS - 已运行任务指定完整验证命令
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未提交变更：Driver Context 明确禁止本轮执行 `git add` / `git commit` / `git push`。
