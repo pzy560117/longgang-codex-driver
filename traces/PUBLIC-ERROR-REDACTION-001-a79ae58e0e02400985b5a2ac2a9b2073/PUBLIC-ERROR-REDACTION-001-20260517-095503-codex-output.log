@@ -1,0 +1,60 @@
+SUCCESS: The process with PID 26948 (child process of PID 35668) has been terminated.
+SUCCESS: The process with PID 35668 (child process of PID 34972) has been terminated.
+SUCCESS: The process with PID 34972 (child process of PID 6852) has been terminated.
+SUCCESS: The process with PID 6852 (child process of PID 26472) has been terminated.
+SUCCESS: The process with PID 25816 (child process of PID 26040) has been terminated.
+SUCCESS: The process with PID 26040 (child process of PID 36008) has been terminated.
+SUCCESS: The process with PID 36008 (child process of PID 36868) has been terminated.
+SUCCESS: The process with PID 36868 (child process of PID 26472) has been terminated.
+SUCCESS: The process with PID 31004 (child process of PID 35468) has been terminated.
+SUCCESS: The process with PID 35468 (child process of PID 24232) has been terminated.
+SUCCESS: The process with PID 24232 (child process of PID 34292) has been terminated.
+SUCCESS: The process with PID 34292 (child process of PID 31784) has been terminated.
+SUCCESS: The process with PID 31784 (child process of PID 26472) has been terminated.
+## Requirement IDs
+- FR-010
+- AC-010
+- AC-E012
+- AC-E013
+
+## Summary
+- 已盘点公开 HTTP 错误响应、任务详情 `errorMessage`、query executor 与 file service 的错误映射路径。
+- 当前代码、测试、OpenAPI 与 verify-matrix 已包含 `PUBLIC-ERROR-REDACTION-001` 修复内容；本轮无需新增 tracked 文件改动。
+
+## Files Changed
+- 无 tracked 文件改动。
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS
+- `powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; ... npm run test:api; ... npm run test:query; ... npm run test:file'`: PASS
+- `git diff --check -- task.json contracts src/routes src/task-api src/query-executor src/file-service tests/api tests/query tests/file docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `src/routes/respond.ts`: `sendError` 按公开 `errorCode` 返回安全消息，不回显底层 `Error.message`。
+- `src/task-api/service.ts`: 任务详情失败摘要从公开 `errorCode` 派生 `errorMessage`。
+- `tests/api/export-http-api.test.mjs`: 覆盖 ApiError/未知 Error 公开响应脱敏与任务详情脱敏。
+- `tests/query/query-executor.test.mjs`: 覆盖 datasource、credential、SQL 错误不泄露。
+- `tests/file/export-file-service.test.mjs`: 覆盖 object storage put/read/publish 失败统一安全文本。
+- `contracts/openapi.yaml`: 记录公开错误 message 与任务失败摘要脱敏约束。
+- `docs/testing/verify-matrix.md`: 记录 PUBLIC-ERROR-REDACTION-001 evidence。
+
+## Architecture Constraints
+- `independent_microservice/http_service production path`: PASS - 验证覆盖 HTTP route/service/query/file 生产路径。
+- `no InMemory/mock as production completion`: PASS - 测试使用 Docker MySQL 与本地 object storage mock 的受控 gate，未替代生产实现。
+- `forbidden_implementations`: PASS - 未引入内存 repository、fixture repository 或领域原型路径。
+
+## Knowledge References
+- 无业务相关知识条目引用；知识库当前仅有 harness/rules draft 条目。
+
+## Knowledge Outputs
+- `PITFALL-SECURITY-ERROR-REDACTION-001`: pitfall - 公开错误响应不得回显底层 Error.message - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- `git status` 仍显示未跟踪 `traces/PUBLIC-ERROR-REDACTION-001-*`，本轮未触碰。
+- 未执行 commit：当前单任务模板明确禁止 `git add` / `git commit`，且没有 tracked 变更可提交。

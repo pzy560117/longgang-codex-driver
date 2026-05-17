@@ -2729,7 +2729,7 @@
                       "dependencies":  [
                                            "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F004：公开错误响应和任务失败详情必须使用公开错误码对应的安全消息",
                                                        "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",

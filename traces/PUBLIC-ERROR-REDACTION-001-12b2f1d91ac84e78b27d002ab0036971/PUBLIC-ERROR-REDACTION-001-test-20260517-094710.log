@@ -1,0 +1,127 @@
+﻿
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (1.9941ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.2639ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.377ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.0239ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.2147ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.5663ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.5428ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.3598ms)
+✔ public error messages are documented and implemented as code-derived safe summaries (0.4336ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.5385ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.5694ms)
+✔ protected operations declare trusted auth context signature proof (0.6094ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.7245ms)
+✔ create task contract guard is implemented before PENDING enqueue (0.6114ms)
+✔ registry required fields and nested registry contract required fields stay aligned with production validation (1.5334ms)
+✔ registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields (0.5873ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 79.4252
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:63782 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.771ms)
+✔ public HTTP errors use safe messages instead of underlying Error.message (0.3588ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1970.3962ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (238.0426ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (116.3303ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (129.2931ms)
+✔ create task idempotent replay returns existing task after registry guard changes (113.9783ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3251.0371
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.7933ms)
+✔ seed registry uses the same contract validation as production persistence and rejects empty bypass values (277.7758ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (212.5766ms)
+✔ query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode (220.4861ms)
+✔ query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details (174.1375ms)
+✔ query executor maps provider failures to DATASOURCE_UNAVAILABLE without leaking adapter details (170.5376ms)
+✔ query executor maps invalid datasource URL failures to DATASOURCE_UNAVAILABLE (163.4822ms)
+✔ query executor maps SQL adapter failures without leaking SQL text or secrets (165.1488ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (218.4571ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (168.9115ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (187.7727ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (242.487ms)
+✔ query executor replays the task config snapshot after the current registry changes (237.485ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (226.7076ms)
+✔ query executor rejects rows with missing or null cursor values (199.3658ms)
+✔ query executor rejects duplicate cursor values (187.9198ms)
+✔ query executor rejects non-increasing cursor values without duplicates (175.5196ms)
+✔ query executor rejects checkpoints missing required cursor fields (186.6985ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (228.9449ms)
+✔ seed registry rejects missing masking rules for sensitive exportable fields before persistence (151.9317ms)
+✔ query executor rejects field mappings that do not match selected columns (161.8525ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (192.2519ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.314ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4650.4551
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (1.2972ms)
+✔ production object storage config is required outside injected test adapters (0.2302ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (233.8033ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (235.1707ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (138.1073ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (112.7852ms)
+✔ object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (147.8036ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (141.087ms)
+✔ xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (108.9067ms)
+✔ zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (113.2731ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (254.4868ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (247.9384ms)
+✔ scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit (242.3459ms)
+✔ scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit (221.0252ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (230.693ms)
+✔ cleanup job deletes only published object when temp storage key is null (229.4228ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (232.5285ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3471.4831
+warning: in the working copy of 'contracts/openapi.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/file-service/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/routes/respond.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/task-api/service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/api/export-http-api.test.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/file/export-file-service.test.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/query/query-executor.test.mjs', LF will be replaced by CRLF the next time Git touches it

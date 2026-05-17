@@ -1,0 +1,32 @@
+SUCCESS: The process with PID 28340 (child process of PID 30396) has been terminated.
+SUCCESS: The process with PID 29624 (child process of PID 30460) has been terminated.
+SUCCESS: The process with PID 30460 (child process of PID 37196) has been terminated.
+SUCCESS: The process with PID 5432 (child process of PID 36216) has been terminated.
+SUCCESS: The process with PID 36216 (child process of PID 28348) has been terminated.
+SUCCESS: The process with PID 28348 (child process of PID 37668) has been terminated.
+SUCCESS: The process with PID 37668 (child process of PID 37196) has been terminated.
+SUCCESS: The process with PID 29320 (child process of PID 36376) has been terminated.
+SUCCESS: The process with PID 36376 (child process of PID 34768) has been terminated.
+SUCCESS: The process with PID 34768 (child process of PID 35912) has been terminated.
+SUCCESS: The process with PID 35912 (child process of PID 15852) has been terminated.
+SUCCESS: The process with PID 15852 (child process of PID 37196) has been terminated.
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| PUBLIC-ERROR-REDACTION-001-S2-F001 | HIGH | security | backend | [src/task-api/service.ts](/E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:446) 的 `publicBatchCheckpoint()` 仍公开 `failureReason`；[src/file-service/index.ts](/E:/2026/alpha-project/longgang-codex-driver/src/file-service/index.ts:400) 将 renderer 底层异常经 `toExportRenderError()` 写入 `failureReason`，而 [src/file-service/index.ts](/E:/2026/alpha-project/longgang-codex-driver/src/file-service/index.ts:520) 只做空白压缩和截断，不做公开安全摘要。现有测试还在 [tests/file/export-file-service.test.mjs](/E:/2026/alpha-project/longgang-codex-driver/tests/file/export-file-service.test.mjs:740) 断言公开候选字段中保留 `/circular/i` 底层原因。 | 不要在公开任务详情 `recentEvents[].batchCheckpoint` 返回底层 `failureReason`，或将其按 `errorCode` 映射为固定安全摘要。同步更新 OpenAPI `BatchCheckpoint.failureReason` 描述/字段策略，并补 API 行为测试：构造 `PACKAGE_FAILED` 或真实 renderer 失败，断言 `GET /api/export/tasks/:id` 的 `recentEvents[].batchCheckpoint` 不包含 renderer 原始错误、SQL、credential、secret、storage path 等底层文本。 | `npm run typecheck; npm run test:contract; npm run test:api; npm run test:file; git diff --check -- contracts src/task-api src/file-service tests/api tests/file docs/testing/verify-matrix.md` |
+
+## Verification
+
+- 已检查命令: `git status --short`; `git diff --stat`; `git diff` 针对 `src/routes/respond.ts`、`src/task-api/service.ts`、`src/file-service/index.ts`、相关 API/query/file/contract 测试、OpenAPI 与 verify matrix；`rg` 检查 `error.message`、`errorMessage`、`failureReason`、`batchCheckpoint` 相关路径。
+- 结果摘要: 提供的验证摘要显示测试退出码为 0，但当前测试未覆盖公开 `recentEvents[].batchCheckpoint.failureReason` 的泄露路径；代码仍保留可公开底层 renderer 失败原因的通道。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| PUBLIC-ERROR-REDACTION-001-S2-F001 | backend | backend-worker | 1 | yes |

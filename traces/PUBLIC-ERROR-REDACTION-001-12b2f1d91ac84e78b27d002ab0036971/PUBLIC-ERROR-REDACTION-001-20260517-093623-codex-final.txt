@@ -1,0 +1,58 @@
+## Requirement IDs
+- FR-010
+- AC-010
+- AC-E012
+- AC-E013
+
+## Summary
+- 修复公开 HTTP 错误响应：`sendError` 不再回显 `Error.message`，统一按公开 `errorCode` 映射安全消息。
+- 修复任务详情失败文本：`errorMessage` 只从公开错误码派生，不再读取 checkpoint 原始 `errorMessage`。
+- 修复 file service object storage 失败文本：put/read/publish 失败统一收口为安全 `FILE_VERIFY_ERROR` 消息。
+- 同步 OpenAPI 与 verify-matrix，并补 API / query / file / contract 回归测试。
+
+## Files Changed
+- `src/routes/respond.ts`: 公开错误码到安全消息映射。
+- `src/task-api/service.ts`: 任务详情失败消息脱敏。
+- `src/file-service/index.ts`: object storage 失败消息脱敏。
+- `tests/api/export-http-api.test.mjs`: HTTP 与任务详情脱敏测试。
+- `tests/query/query-executor.test.mjs`: SQL/datasource 错误脱敏测试。
+- `tests/file/export-file-service.test.mjs`: object storage 错误脱敏测试。
+- `tests/contract/openapi-route-mapping.contract.test.mjs`: 契约脱敏守护。
+- `contracts/openapi.yaml`: 公开错误消息脱敏说明。
+- `docs/testing/verify-matrix.md`: PUBLIC-ERROR-REDACTION-001 evidence 记录。
+
+## Validation
+- `npm run typecheck`: PASS
+- `npm run test:contract`: PASS, 16/16
+- Docker MySQL 下 `npm run test:api`: PASS, 7/7
+- Docker MySQL 下 `npm run test:query`: PASS, 23/23
+- Docker MySQL 下 `npm run test:file`: PASS, 17/17
+- `git diff --check -- task.json contracts src/routes src/task-api src/query-executor src/file-service tests/api tests/query tests/file docs/testing/verify-matrix.md`: PASS
+- `git diff --check -- tests/contract/openapi-route-mapping.contract.test.mjs`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明 HTTP error response 和任务详情不泄露 datasource/secret。
+- `tests/query/query-executor.test.mjs`: 证明 datasource/SQL 底层异常收口为安全消息。
+- `tests/file/export-file-service.test.mjs`: 证明 object storage 失败不泄露底层文本。
+- `docs/testing/verify-matrix.md`: 记录本任务验证证据边界。
+
+## Architecture Constraints
+- `independent_microservice / HTTP API boundary`: PASS - 只改生产 HTTP/service/file/query 边界。
+- `no mock as production path`: PASS - 未新增生产替身；测试仍使用受控 Docker MySQL / 本地 object storage mock。
+- `public errorCode semantics`: PASS - 保留公开 errorCode 与审计 errorCode，仅脱敏 message。
+- `forbidden_implementations`: PASS - 未引入 InMemory、fixture repository 或绕过验证路径。
+
+## Knowledge References
+- 无；知识 catalog 已检查，未发现与本任务直接相关条目。
+
+## Knowledge Outputs
+- `PITFALL-ERROR-REDACTION-001`: pitfall - 公开错误文本不得复用底层异常 message - suggested - `docs/knowledge/pitfalls/PITFALL-ERROR-REDACTION-001.md`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未提交 commit：Driver Context 明确禁止 `git add` / `git commit` / `git push`。
+- 工作区仍有 driver 生成的未跟踪 `traces/PUBLIC-ERROR-REDACTION-001-12b2f1d91ac84e78b27d002ab0036971/`。

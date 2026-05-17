@@ -1,0 +1,119 @@
+﻿
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+
+> export-platform-service@0.1.0 test:contract
+> node --test tests/contract/*.test.mjs
+
+✔ OpenAPI operationIds are represented by route manifest entries (2.1753ms)
+✔ OpenAPI handlers are production handlers with service and DB repository evidence (1.5735ms)
+✔ route manifest maps operations to HTTP API integration evidence (0.5639ms)
+✔ audit action, result, and errorCode literals written by production code stay within OpenAPI public enums (2.769ms)
+✔ cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name (0.333ms)
+✔ task detail schema requires public progress, error, and recentEvents fields (0.7249ms)
+✔ runtime public response and task event allow-lists match OpenAPI enums (0.7181ms)
+✔ public BatchCheckpoint schema exposes progress fields without internal error fields (0.7986ms)
+✔ public error messages are documented and implemented as code-derived safe summaries (0.6648ms)
+✔ registry dataScopeTemplate example includes all auth scope placeholders (0.4374ms)
+✔ download operation declares signed URL callback parameters and signature failures (0.4577ms)
+✔ protected operations declare trusted auth context signature proof (0.5144ms)
+✔ create task contract declares 32768-byte canonical queryParams limit and error response (0.9563ms)
+✔ create task contract guard is implemented before PENDING enqueue (1.1575ms)
+✔ registry required fields and nested registry contract required fields stay aligned with production validation (2.2833ms)
+✔ registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields (0.6316ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 96.697
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:52142 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6751ms)
+✔ public HTTP errors use safe messages instead of underlying Error.message (0.3213ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1971.8454ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (236.4696ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (121.6393ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (129.7756ms)
+✔ create task idempotent replay returns existing task after registry guard changes (111.2981ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3262.3898
+
+> export-platform-service@0.1.0 test:query
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/query requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/query/*.test.mjs
+
+✔ query tests require an explicit test database URL (0.8414ms)
+✔ seed registry uses the same contract validation as production persistence and rejects empty bypass values (255.6748ms)
+✔ query executor binds template, enforces data scope, masks sensitive fields and emits QUERY_READY/QUERY_BATCH_DONE (196.4071ms)
+✔ query executor runs business SELECT through the readonly datasource adapter for registry datasourceCode (197.7549ms)
+✔ query executor maps unknown datasourceCode to DATASOURCE_UNAVAILABLE without leaking adapter details (179.5595ms)
+✔ query executor maps provider failures to DATASOURCE_UNAVAILABLE without leaking adapter details (160.0088ms)
+✔ query executor maps invalid datasource URL failures to DATASOURCE_UNAVAILABLE (173.4556ms)
+✔ query executor maps SQL adapter failures without leaking SQL text or secrets (180.6381ms)
+✔ query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows (241.6308ms)
+✔ query executor rejects dataScopeTemplate parameters outside the auth scope contract (204.4094ms)
+✔ query executor rejects dataScopeTemplate missing required auth scope placeholders (192.4734ms)
+✔ query executor rebuilds the completed export payload from prior checkpoints and preserves cumulative processedCount (257.3211ms)
+✔ query executor replays the task config snapshot after the current registry changes (230.7987ms)
+✔ query executor accepts legacy string checkpoint cursors while producing structured cursor tokens (221.1053ms)
+✔ query executor rejects rows with missing or null cursor values (192.8475ms)
+✔ query executor rejects duplicate cursor values (177.0353ms)
+✔ query executor rejects non-increasing cursor values without duplicates (185.1277ms)
+✔ query executor rejects checkpoints missing required cursor fields (185.6308ms)
+✔ query executor rejects unsafe template forms and undeclared placeholders (224.0027ms)
+✔ seed registry rejects missing masking rules for sensitive exportable fields before persistence (142.8927ms)
+✔ query executor rejects field mappings that do not match selected columns (162.3537ms)
+✔ query executor enforces exportMaxRows before crossing registry limit (201.7335ms)
+✔ query executor classifies datasource adapter and credential failures as DATASOURCE_UNAVAILABLE (0.2901ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4645.0617
+
+> export-platform-service@0.1.0 test:file
+> node -e "if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/file requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }" && node --import tsx --test --test-concurrency=1 tests/file/*.test.mjs
+
+✔ file tests require an explicit test database URL (0.8379ms)
+✔ production object storage config is required outside injected test adapters (0.1972ms)
+✔ file service writes temp object, verifies checksum, and publishes ZIP metadata through a production-equivalent storage adapter (222.284ms)
+✔ env-backed object storage adapter publishes ZIP metadata through a local HTTP endpoint and returns a downloadable URL (227.7896ms)
+✔ checksum failure prevents publish and metadata from becoming downloadable (142.3598ms)
+✔ object storage put failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (105.0103ms)
+✔ object storage read failure is mapped to FILE_VERIFY_ERROR and does not publish metadata (118.7867ms)
+✔ object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps metadata undisclosed (127.2615ms)
+✔ xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (113.5242ms)
+✔ zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storage write (103.1699ms)
+✔ scheduler publishes file metadata before marking a completed batch as COMPLETED (245.8258ms)
+✔ scheduler maps object storage put failure to FAILED task with FILE_VERIFY_ERROR audit (227.0799ms)
+✔ scheduler maps object storage read failure to FAILED task with FILE_VERIFY_ERROR audit (230.1747ms)
+✔ scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR audit (211.7064ms)
+✔ cleanup job invalidates expired metadata before deleting object and download is guarded (249.3763ms)
+✔ cleanup job deletes only published object when temp storage key is null (244.2693ms)
+✔ cleanup job keeps retry evidence when object delete fails and leaves download invalidated (242.9536ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3405.9978
