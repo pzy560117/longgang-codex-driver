@@ -224,6 +224,7 @@ test("arch:check 的生产替身扫描覆盖 API 和 DB 生产路径", () => {
       "src/scheduler/",
       "src/workers/",
       "src/query-executor/",
+      "src/datasource-adapters/",
       "src/file-service/",
       "src/cleanup-job/",
       "src/jobs/",

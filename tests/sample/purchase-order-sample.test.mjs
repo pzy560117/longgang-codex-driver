@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 import mysql from "mysql2";
 import { Kysely, MysqlDialect } from "kysely";
+import { createMysqlReadonlyDatasourceAdapter } from "../../src/datasource-adapters/index.ts";
 import { runMigrations } from "../../src/db/migrator.ts";
 import {
   createCheckpointRepository,
@@ -62,6 +63,7 @@ function toMysqlDateTimeLiteral(value) {
 process.env.EXPORT_PLATFORM_DATABASE_URL = getTestDatabaseUrl();
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT ??= "https://oss.example.test";
 process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET ??= "export-platform-test";
+process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET ??= "sample-test-download-signing-secret";
 
 function assertPlatformSignedDownloadUrl(downloadUrl, { taskId, expiresAt, auth }) {
   const url = new URL(downloadUrl);
@@ -155,6 +157,17 @@ function createProductionEquivalentObjectStorageAdapter() {
     },
     async createDownloadUrl(storageKey) {
       return `signed://adapter/${storageKey}`;
+    }
+  };
+}
+
+function createTestReadonlyDatasourceAdapterProvider() {
+  return {
+    async resolveReadonlyAdapter(datasourceCode) {
+      if (datasourceCode !== "purchase-ro") {
+        return undefined;
+      }
+      return createMysqlReadonlyDatasourceAdapter(getTestDatabaseUrl());
     }
   };
 }
@@ -284,6 +297,7 @@ async function processTaskUntilTerminal(db, taskId, storage) {
     workerId: "worker-sample",
     leaseDurationSeconds: 300,
     maxTasksPerPoll: 1,
+    datasourceAdapters: createTestReadonlyDatasourceAdapterProvider(),
     fileService: createExportFileService({ db, storage })
   });
   const totals = {
@@ -295,8 +309,10 @@ async function processTaskUntilTerminal(db, taskId, storage) {
     failed: 0
   };
   const startedAt = Date.now();
+  let idlePolls = 0;
+  let lastTaskStatus = "UNKNOWN";
 
-  for (let index = 0; index < 1000; index += 1) {
+  for (let index = 0; index < 1200; index += 1) {
     const pollResult = await worker.pollAndProcessOnce();
     totals.polls += 1;
     totals.dispatched += pollResult.dispatched;
@@ -306,6 +322,7 @@ async function processTaskUntilTerminal(db, taskId, storage) {
     totals.failed += pollResult.failed;
 
     const task = await createExportTaskRepository(db).findTaskById(taskId);
+    lastTaskStatus = task?.status ?? "MISSING";
     if (task && ["COMPLETED", "FAILED", "CANCELED"].includes(task.status)) {
       return {
         task,
@@ -316,18 +333,26 @@ async function processTaskUntilTerminal(db, taskId, storage) {
       };
     }
 
-    if (
+    const wasIdle =
       pollResult.dispatched === 0 &&
       pollResult.renewed === 0 &&
       pollResult.canceled === 0 &&
       pollResult.completed === 0 &&
-      pollResult.failed === 0
-    ) {
+      pollResult.failed === 0;
+    if (wasIdle) {
+      idlePolls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } else {
+      idlePolls = 0;
+    }
+    if (idlePolls >= 20) {
       break;
     }
   }
 
-  throw new Error(`worker did not reach a terminal state for task ${taskId}`);
+  throw new Error(
+    `worker did not reach a terminal state for task ${taskId}; last status=${lastTaskStatus}; polls=${totals.polls}; dispatched=${totals.dispatched}; renewed=${totals.renewed}; completed=${totals.completed}; failed=${totals.failed}`
+  );
 }
 
 async function listAuditsByRequestId(db, requestId) {

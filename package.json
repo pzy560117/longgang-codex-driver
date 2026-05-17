@@ -28,6 +28,7 @@
     "test:api": "node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs",
     "test:acceptance": "node --import tsx --test --test-concurrency=1 tests/acceptance/*.test.mjs",
     "test:acceptance:report": "node --import tsx scripts/run-acceptance-report.mjs",
+    "test:acceptance:full-report": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\full-acceptance-report.ps1",
     "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.mjs",
     "test:worker": "node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs",
     "test:mock-local": "node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs",

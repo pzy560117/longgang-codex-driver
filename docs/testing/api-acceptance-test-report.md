@@ -1,8 +1,8 @@
 # API 自动验收测试报告
 
 **结论**: PASS
-**开始时间**: 2026-05-17T02:41:38.246Z
-**结束时间**: 2026-05-17T02:41:39.440Z
+**开始时间**: 2026-05-17T03:30:29.735Z
+**结束时间**: 2026-05-17T03:30:30.850Z
 **验证命令**: `node --import tsx --test --test-concurrency=1 tests/acceptance/api-manual-acceptance.test.mjs`
 
 ## 覆盖范围
@@ -34,8 +34,8 @@
 ## 原始输出
 
 ```text
-✔ manual acceptance API flow creates, replays, lists, cancels, and audits tasks (310.2005ms)
-✔ manual acceptance API rejects unsigned, unauthorized, and invalid create requests safely (142.7459ms)
+✔ manual acceptance API flow creates, replays, lists, cancels, and audits tasks (293.2516ms)
+✔ manual acceptance API rejects unsigned, unauthorized, and invalid create requests safely (142.029ms)
 ℹ tests 2
 ℹ suites 0
 ℹ pass 2
@@ -43,6 +43,6 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1150.3385
+ℹ duration_ms 1074.1795
 
 ```
