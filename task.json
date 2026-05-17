@@ -2904,6 +2904,83 @@
                                          "P0/P1 gap 必须包含文件证据、风险说明和建议后续 task id",
                                          "结论不得把 docker/mock evidence 升级为 live evidence"
                                      ]
+                  },
+                  {
+                      "id":  "AUTO-CREATE-TASK-API-REPORT-001",
+                      "description":  "自动创建无前端 API 验收任务、测试用例并生成测试报告",
+                      "task_kind":  "test",
+                      "phase":  "acceptance",
+                      "gate_profile":  "verification_required",
+                      "required_truth_sources":  [
+                                                     "product",
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing"
+                                                 ],
+                      "priority":  95,
+                      "dependencies":  [
+                                           "REQUIREMENTS-COMPLETE-REVIEW-001"
+                                       ],
+                      "passes":  true,
+                      "architecture_constraints":  [
+                                                       "验收入口必须直接覆盖 HTTP API 边界、MySQL 持久化和审计记录，不依赖前端页面",
+                                                       "报告必须明确 local/Docker MySQL 与本地 object storage mock 证据边界，不声明 live evidence",
+                                                       "认证上下文签名仅来自测试进程环境变量，不能把 secret 写入仓库或报告"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止用纯文档或伪造 passes:true 替代可执行测试",
+                                                        "禁止把手工 curl 示例当成自动验收报告",
+                                                        "禁止在报告中记录 token、secret、密码或内部连接串"
+                                                    ],
+                      "context_files":  [
+                                            "docs/product/acceptance-criteria.md",
+                                            "docs/testing/ACCEPTANCE_EXAMPLES.md",
+                                            "docs/testing/TRACEABILITY_MATRIX.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "tests/acceptance/api-manual-acceptance.test.mjs",
+                                            "scripts/run-acceptance-report.mjs",
+                                            "package.json",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "package.json",
+                                          "tests/acceptance/api-manual-acceptance.test.mjs",
+                                          "scripts/run-acceptance-report.mjs",
+                                          "docs/testing/api-acceptance-test-report.md",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-012",
+                                              "FR-013"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "tests/acceptance/api-manual-acceptance.test.mjs",
+                                                 "scripts/run-acceptance-report.mjs",
+                                                 "docs/testing/api-acceptance-test-report.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "新增独立 API 验收测试，自动注册唯一 taskCode 并创建导出任务",
+                                    "覆盖幂等重放、幂等冲突、详情、历史分页、取消、缺签名、参数校验和禁用配置失败审计",
+                                    "新增报告生成脚本，运行 Node test 后生成 Markdown 测试报告",
+                                    "同步 verify-matrix 中的 AUTO-CREATE-TASK-API-REPORT-001 evidence 行"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:acceptance:report'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/acceptance scripts/run-acceptance-report.mjs docs/testing/verify-matrix.md docs/testing/api-acceptance-test-report.md",
+                      "acceptance":  [
+                                         "npm run test:acceptance:report 生成 docs/testing/api-acceptance-test-report.md 且结论为 PASS",
+                                         "API 验收覆盖创建任务、幂等、历史分页、取消、认证缺失和配置/参数拒绝",
+                                         "失败响应和报告不泄露 secret、password、SQL 或 object storage 内部路径",
+                                         "typecheck 与 scoped git diff --check 通过"
+                                     ]
                   }
               ]
 }
