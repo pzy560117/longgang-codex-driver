@@ -903,7 +903,8 @@ export async function listExportTasks(auth: AuthContext, query: Record<string, u
         ? query.createdBy
         : undefined
       : auth.operatorId;
-    const tasks = await createExportTaskRepository(db).listTasks({
+    const taskRepository = createExportTaskRepository(db);
+    const listFilters = {
       taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
       status: typeof query.status === "string" ? query.status : undefined,
       subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
@@ -911,10 +912,14 @@ export async function listExportTasks(auth: AuthContext, query: Record<string, u
       createdBy,
       fileFormat: typeof query.fileFormat === "string" ? query.fileFormat : undefined,
       createdAtFrom: parseDateFilter(query.createdAtFrom),
-      createdAtTo: parseDateFilter(query.createdAtTo),
+      createdAtTo: parseDateFilter(query.createdAtTo)
+    };
+    const tasks = await taskRepository.listTasks({
+      ...listFilters,
       limit: pageSize,
       offset: (page - 1) * pageSize
     });
+    const total = await taskRepository.countTasks(listFilters);
 
     await appendAudit({
       db,
@@ -931,7 +936,7 @@ export async function listExportTasks(auth: AuthContext, query: Record<string, u
       items: tasks.map((task) => taskEnvelope(task, { requestId: auth.requestId })),
       page,
       pageSize,
-      total: tasks.length
+      total
     };
   });
 }

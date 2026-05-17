@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, SelectQueryBuilder } from "kysely";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 
 export type CreatePendingTaskInput = {
@@ -43,6 +43,17 @@ export type ExportTaskIdempotencyRecord = {
   idempotencyScope: string;
   taskId: string;
   requestDigest: string;
+};
+
+type ExportTaskListFilters = {
+  taskCode?: string;
+  status?: string;
+  subsystemCode?: string;
+  tenantId?: string;
+  createdBy?: string;
+  fileFormat?: string;
+  createdAtFrom?: Date;
+  createdAtTo?: Date;
 };
 
 function toTaskRecord(row: {
@@ -90,6 +101,40 @@ function toTaskRecord(row: {
 }
 
 export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
+  function applyListFilters<O>(
+    query: SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O>,
+    filters: ExportTaskListFilters
+  ): SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O> {
+    let filtered = query;
+
+    if (filters.taskCode) {
+      filtered = filtered.where("task_code", "=", filters.taskCode);
+    }
+    if (filters.status) {
+      filtered = filtered.where("status", "=", filters.status);
+    }
+    if (filters.subsystemCode) {
+      filtered = filtered.where("subsystem_code", "=", filters.subsystemCode);
+    }
+    if (filters.tenantId) {
+      filtered = filtered.where("tenant_id", "=", filters.tenantId);
+    }
+    if (filters.createdBy) {
+      filtered = filtered.where("created_by", "=", filters.createdBy);
+    }
+    if (filters.fileFormat) {
+      filtered = filtered.where("file_format", "=", filters.fileFormat);
+    }
+    if (filters.createdAtFrom) {
+      filtered = filtered.where("created_at", ">=", filters.createdAtFrom);
+    }
+    if (filters.createdAtTo) {
+      filtered = filtered.where("created_at", "<=", filters.createdAtTo);
+    }
+
+    return filtered;
+  }
+
   return {
     async createPendingTask(input: CreatePendingTaskInput): Promise<ExportTaskRecord> {
       await db.transaction().execute(async (trx) => {
@@ -148,44 +193,11 @@ export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
       return row ? toTaskRecord(row) : undefined;
     },
 
-    async listTasks(filters: {
-      taskCode?: string;
-      status?: string;
-      subsystemCode?: string;
-      tenantId?: string;
-      createdBy?: string;
-      fileFormat?: string;
-      createdAtFrom?: Date;
-      createdAtTo?: Date;
+    async listTasks(filters: ExportTaskListFilters & {
       limit?: number;
       offset?: number;
     } = {}): Promise<ExportTaskRecord[]> {
-      let query = db.selectFrom("export_tasks").selectAll();
-
-      if (filters.taskCode) {
-        query = query.where("task_code", "=", filters.taskCode);
-      }
-      if (filters.status) {
-        query = query.where("status", "=", filters.status);
-      }
-      if (filters.subsystemCode) {
-        query = query.where("subsystem_code", "=", filters.subsystemCode);
-      }
-      if (filters.tenantId) {
-        query = query.where("tenant_id", "=", filters.tenantId);
-      }
-      if (filters.createdBy) {
-        query = query.where("created_by", "=", filters.createdBy);
-      }
-      if (filters.fileFormat) {
-        query = query.where("file_format", "=", filters.fileFormat);
-      }
-      if (filters.createdAtFrom) {
-        query = query.where("created_at", ">=", filters.createdAtFrom);
-      }
-      if (filters.createdAtTo) {
-        query = query.where("created_at", "<=", filters.createdAtTo);
-      }
+      const query = applyListFilters(db.selectFrom("export_tasks").selectAll(), filters);
 
       const rows = await query
         .orderBy("created_at", "desc")
@@ -194,6 +206,17 @@ export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
         .execute();
 
       return rows.map(toTaskRecord);
+    },
+
+    async countTasks(filters: ExportTaskListFilters = {}): Promise<number> {
+      const row = await applyListFilters(
+        db
+          .selectFrom("export_tasks")
+          .select((eb) => eb.fn.count<number>("task_id").as("task_count")),
+        filters
+      ).executeTakeFirst();
+
+      return Number(row?.task_count ?? 0);
     },
 
     async updateTaskStatus(input: {

@@ -920,6 +920,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(listResponse.statusCode, 200);
+  assert.equal(listResponse.json().data.total, 1);
   assert.ok(listResponse.json().data.items.some((item) => item.taskId === taskId));
   assert.equal(
     listResponse.json().data.items.find((item) => item.taskId === taskId).createdBy,
@@ -1029,6 +1030,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   });
 
   assert.equal(statusSubsystemListResponse.statusCode, 200);
+  assert.equal(statusSubsystemListResponse.json().data.total, 2);
   assert.ok(
     statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
   );
@@ -1041,6 +1043,16 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     statusSubsystemListResponse.json().data.items.some((item) => item.taskId === failedTaskId),
     false
   );
+
+  const pagedStatusSubsystemListResponse = await app.inject({
+    method: "GET",
+    url: "/api/export/tasks?status=PENDING&subsystemCode=purchase&page=1&pageSize=1",
+    headers: createHeaders(`req-list-status-subsystem-paged-${runId}`)
+  });
+
+  assert.equal(pagedStatusSubsystemListResponse.statusCode, 200);
+  assert.equal(pagedStatusSubsystemListResponse.json().data.items.length, 1);
+  assert.equal(pagedStatusSubsystemListResponse.json().data.total, 2);
   assert.equal(
     statusSubsystemListResponse.json().data.items.some((item) => item.taskId === otherSubsystemTaskId),
     false
