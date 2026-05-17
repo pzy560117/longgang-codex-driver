@@ -1222,6 +1222,70 @@ serialTest("query batch retry resumes only after checkpoint backoff elapses", as
   assert.equal(task.status, "COMPLETED");
 });
 
+serialTest("query batch default retry limit allows three checkpoint retries before final failure", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-default-${runId}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-default",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    queryBatchBackoffBaseMs: 100,
+    batchProcessor: async () => {
+      calls += 1;
+      const error = new Error("query still unavailable");
+      error.name = "QUERY_EXECUTION_ERROR";
+      throw error;
+    }
+  });
+
+  const retryPolls = [];
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    retryPolls.push(await worker.pollAndProcessOnce());
+    await db
+      .updateTable("export_task_checkpoints")
+      .set({
+        updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+      })
+      .where("task_id", "=", taskId)
+      .where("attempt_no", "=", 0)
+      .execute();
+  }
+
+  const finalPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.deepEqual(
+    retryPolls.map((poll) => ({ renewed: poll.renewed, failed: poll.failed })),
+    [
+      { renewed: 1, failed: 0 },
+      { renewed: 1, failed: 0 },
+      { renewed: 1, failed: 0 }
+    ]
+  );
+  assert.equal(finalPoll.failed, 1);
+  assert.equal(calls, 4);
+  assert.equal(task.status, "FAILED");
+  assert.equal(checkpoint.retry_count, 3);
+  assert.equal(checkpoint.backoff_ms, 400);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+});
+
 serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });

@@ -1,0 +1,1119 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3392-7450-7c40-a9a1-b598f5c7be19
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: DEFAULT-QUERY-RETRY-ALIGNMENT-001
+- 描述: 对齐 scheduler 默认 query batch retry 次数为产品默认 3
+- Requirement IDs:
+- FR-006
+- FR-010
+- AC-020
+- AC-E004
+- AC-E020
+- 测试命令: npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/state-matrix.yaml
+- docs/reviews/requirements-complete-review.md
+- src/scheduler/worker.ts
+- tests/worker/scheduler-worker.test.mjs
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:53238 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.9908ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (250.6212ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (348.8308ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (226.6002ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (281.6641ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (273.8688ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (205.7324ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (245.6879ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (213.2509ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (228.9764ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (244.3233ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (253.912ms)
+  ✔ stale executing cancel cannot overwrite a retried attempt (206.8663ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (284.5267ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (168.4863ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (277.0576ms)
+  ✔ query batch default retry limit allows three checkpoint retries before final failure (382.1404ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (241.267ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (257.8989ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (171.6194ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (154.4268ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (162.4683ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (162.8236ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (163.8782ms)
+✔ worker integration tests (5409.7599ms)
+ℹ tests 24
+ℹ suites 1
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5947.4801
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/scheduler/worker.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/worker/scheduler-worker.test.mjs', LF will be replaced by CRLF the next time Git touches it
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 `stage2-reviewer` 技能做只读审查，重点看本次 diff、测试证据和回归风险，不重新裁判需求范围。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\stage2-reviewer\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+2026-05-17T01:35:07.838987Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.5 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'E:\2026\alpha-project\longgang-codex-driver[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 504ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -LiteralPath 'E:\2026\alpha-project\longgang-codex-driver[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'E:\2026\alpha-project\longgang-codex-driver\.agents\skills\stage2-reviewer\SKILL.md' because it does not exist.[0m
+
+codex
+`stage2-reviewer` 技能路径在仓库内不存在，我会继续用内置 Stage 2 审查流程做只读检查，并把证据落到文件/命令级别。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- src/scheduler/worker.ts tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md task.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "retry|batch|DEFAULT|QUERY_EXECUTION_ERROR|DATASOURCE_UNAVAILABLE|max" src/scheduler/worker.ts tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md task.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 361ms:
+diff --git a/docs/testing/verify-matrix.md b/docs/testing/verify-matrix.md
+index 68fe30c..78a901a 100644
+--- a/docs/testing/verify-matrix.md
++++ b/docs/testing/verify-matrix.md
+@@ -46,6 +46,7 @@
+ | DATASOURCE-ADAPTER-BOUNDARY-001 | FR-008 / FR-009 / AC-008 / AC-019 / AC-E012 | repaired | `npm run test:query` 断言 query executor 必须按 registry `datasourceCode` resolve 独立只读 datasource adapter 后执行业务 SELECT，不再无条件使用平台 DB `context.db`；未知 datasource adapter 收口为 `DATASOURCE_UNAVAILABLE` 且错误信息固定为 `datasource unavailable`。`npm run test:worker` 断言 scheduler 默认 query processor 将 datasource adapter provider 传入 query executor，并在 adapter 返回业务行后完成发布；既有 datasource unavailable 失败审计仍收口为 `DATASOURCE_UNAVAILABLE`。`npm run arch:check` 已把 `src/datasource-adapters/` 纳入生产扫描根 | local/Docker MySQL query + worker + arch evidence；测试用只读 adapter 连接受控 Docker MySQL 业务表模拟外部只读数据源，不声明外部业务库 live evidence；平台 DB 仍只用于 registry/task/event/checkpoint/audit |
+ | HISTORY-PAGINATION-TOTAL-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言历史任务列表 `total` 来自同一筛选条件下的真实 count，不再使用当前页 `items.length`；覆盖 `taskCode / createdBy / fileFormat / createdAt` 组合筛选以及 `status + subsystemCode` 分页场景，证明 `pageSize=1` 时 total 仍反映符合权限和筛选条件的完整数量 | local/Docker MySQL API evidence；total 统计复用 repository 过滤边界，仍受 tenant / createdBy 权限约束；不声明外部生产 MySQL evidence |
+ | TASK-CANCEL-ATOMICITY-001 | FR-012 / AC-012 / AC-E015 | repaired | `npm run test:api` 断言取消状态更新必须携带原 `status` 与 `attemptNo` CAS 条件，旧 PENDING 取消快照不能覆盖已推进到 EXECUTING 的任务；`npm run test:worker` 断言旧 EXECUTING 取消快照不能覆盖 FAILED retry 后递增出的新 `attemptNo`。同一轮继续保留 PENDING cancel、EXECUTING 批次边界 cancel 与 FAILED retry 既有状态机证据 | local/Docker MySQL API + worker evidence；CAS miss 收口为未更新或非法状态，不声明外部生产 MySQL evidence |
++| DEFAULT-QUERY-RETRY-ALIGNMENT-001 | FR-006 / FR-010 / AC-020 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 断言 scheduler 未显式传入 `maxQueryBatchRetries` 时默认允许 3 次 query batch retry checkpoint，第四次失败才收口为 `FAILED + QUERY_EXECUTION_ERROR`；既有 `maxQueryBatchRetries: 1` worker 用例继续证明显式 override 生效，backoff checkpoint 与最终失败审计不回归 | local/Docker MySQL worker evidence；默认值来源对齐 `docs/product/state-matrix.yaml` 的 `query_batch_max_retries: 3`，不声明外部 datasource live evidence |
+ 
+ ## 计划验证入口
+ 
+diff --git a/src/scheduler/worker.ts b/src/scheduler/worker.ts
+index 28cbc7c..8f9b197 100644
+--- a/src/scheduler/worker.ts
++++ b/src/scheduler/worker.ts
+@@ -142,7 +142,7 @@ async function queryDatabaseTime(db: Kysely<ExportPlatformDatabase>): Promise<Da
+ export function createSchedulerWorker(options: SchedulerWorkerOptions) {
+   const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
+   const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
+-  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 2;
++  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 3;
+   const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
+   const batchProcessor =
+     options.batchProcessor ??
+diff --git a/tests/worker/scheduler-worker.test.mjs b/tests/worker/scheduler-worker.test.mjs
+index b5ca9b8..2ba6f0b 100644
+--- a/tests/worker/scheduler-worker.test.mjs
++++ b/tests/worker/scheduler-worker.test.mjs
+@@ -1222,6 +1222,70 @@ serialTest("query batch retry resumes only after checkpoint backoff elapses", as
+   assert.equal(task.status, "COMPLETED");
+ });
+ 
++serialTest("query batch default retry limit allows three checkpoint retries before final failure", async (t) => {
++  const db = await createTestDatabase(t);
++  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
++  const taskId = `exp-retry-default-${runId}`;
++  await seedTask(db, { taskId, taskCode, subsystemCode });
++  let calls = 0;
++
++  const worker = createSchedulerWorker({
++    db,
++    workerId: "worker-retry-default",
++    leaseDurationSeconds: 300,
++    maxTasksPerPoll: 1,
++    queryBatchBackoffBaseMs: 100,
++    batchProcessor: async () => {
++      calls += 1;
++      const error = new Error("query still unavailable");
++      error.name = "QUERY_EXECUTION_ERROR";
++      throw error;
++    }
++  });
++
++  const retryPolls = [];
++  for (let attempt = 1; attempt <= 3; attempt += 1) {
++    retryPolls.push(await worker.pollAndProcessOnce());
++    await db
++      .updateTable("export_task_checkpoints")
++      .set({
++        updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
++      })
++      .where("task_id", "=", taskId)
++      .where("attempt_no", "=", 0)
++      .execute();
++  }
++
++  const finalPoll = await worker.pollAndProcessOnce();
++  const task = await createExportTaskRepository(db).findTaskById(taskId);
++  const checkpoint = await db
++    .selectFrom("export_task_checkpoints")
++    .selectAll()
++    .where("task_id", "=", taskId)
++    .where("attempt_no", "=", 0)
++    .executeTakeFirst();
++  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
++
++  assert.deepEqual(
++    retryPolls.map((poll) => ({ renewed: poll.renewed, failed: poll.failed })),
++    [
++      { renewed: 1, failed: 0 },
++      { renewed: 1, failed: 0 },
++      { renewed: 1, failed: 0 }
++    ]
++  );
++  assert.equal(finalPoll.failed, 1);
++  assert.equal(calls, 4);
++  assert.equal(task.status, "FAILED");
++  assert.equal(checkpoint.retry_count, 3);
++  assert.equal(checkpoint.backoff_ms, 400);
++  assert.ok(
++    audits.some(
++      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
++    )
++  );
++});
++
+ serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+   const db = await createTestDatabase(t);
+   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/scheduler/worker.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/worker/scheduler-worker.test.mjs', LF will be replaced by CRLF the next time Git touches it
+
+ succeeded in 433ms:
+ M docs/testing/verify-matrix.md
+ M src/scheduler/worker.ts
+ M tests/worker/scheduler-worker.test.mjs
+?? traces/DEFAULT-QUERY-RETRY-ALIGNMENT-001-c5aebc1a97b04432bee8e4f026e99958/
+
+ succeeded in 390ms:
+docs/testing/verify-matrix.md:35:| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+docs/testing/verify-matrix.md:36:| DATASOURCE-ADAPTER-ERROR-001 | FR-008 / AC-E012 | repaired | `npm run test:query` 断言连接/凭证类 adapter 错误映射为 `DATASOURCE_UNAVAILABLE`；`npm run test:worker` 断言 worker 最终失败审计收口到 `DATASOURCE_UNAVAILABLE` | controlled local adapter classification；不声明外部业务数据源 live evidence |
+docs/testing/verify-matrix.md:44:| P0-ACCEPTANCE-EVIDENCE-REPAIR-001 | FR-001 / FR-004 / FR-007 / FR-008 / FR-009 / FR-014 / AC-004 / AC-007 / AC-009 / AC-E002 / AC-E023 / RCR-P0-005 | repaired | `npm run test:api` 在生产 HTTP + MySQL 路径新增断言：未注册 `taskCode` 创建返回 `TASK_NOT_REGISTERED` 且不落 `export_tasks`、失败审计可追溯；历史查询显式覆盖 `status + subsystemCode` 组合筛选并保持普通用户仅见本人、跨租户管理员拒绝的可信上下文边界；registry API 覆盖 get/list/update、顺序及并发重复 `taskCode` 创建稳定返回 `REGISTRY_CONFLICT` 且不覆盖既有配置、无权限配置操作返回 `PERMISSION_DENIED` 并写入失败审计。`npm run test:query` 新增游标负向证据：缺失/空 cursor、重复或非递增 cursor、checkpoint 缺少 cursor 字段均收口为 `QUERY_EXECUTION_ERROR` | local/Docker MySQL API + query evidence；HTTP create registry 使用原子 insert 处理重复 `taskCode`，内部 seed/upsert 路径仍保留幂等 upsert；不回退认证上下文可信边界、下载签名 URL、queryParams 32KB 限制或 dataScopeTemplate 执行边界；不声明外部生产 MySQL 或 live datasource evidence |
+docs/testing/verify-matrix.md:46:| DATASOURCE-ADAPTER-BOUNDARY-001 | FR-008 / FR-009 / AC-008 / AC-019 / AC-E012 | repaired | `npm run test:query` 断言 query executor 必须按 registry `datasourceCode` resolve 独立只读 datasource adapter 后执行业务 SELECT，不再无条件使用平台 DB `context.db`；未知 datasource adapter 收口为 `DATASOURCE_UNAVAILABLE` 且错误信息固定为 `datasource unavailable`。`npm run test:worker` 断言 scheduler 默认 query processor 将 datasource adapter provider 传入 query executor，并在 adapter 返回业务行后完成发布；既有 datasource unavailable 失败审计仍收口为 `DATASOURCE_UNAVAILABLE`。`npm run arch:check` 已把 `src/datasource-adapters/` 纳入生产扫描根 | local/Docker MySQL query + worker + arch evidence；测试用只读 adapter 连接受控 Docker MySQL 业务表模拟外部只读数据源，不声明外部业务库 live evidence；平台 DB 仍只用于 registry/task/event/checkpoint/audit |
+docs/testing/verify-matrix.md:48:| TASK-CANCEL-ATOMICITY-001 | FR-012 / AC-012 / AC-E015 | repaired | `npm run test:api` 断言取消状态更新必须携带原 `status` 与 `attemptNo` CAS 条件，旧 PENDING 取消快照不能覆盖已推进到 EXECUTING 的任务；`npm run test:worker` 断言旧 EXECUTING 取消快照不能覆盖 FAILED retry 后递增出的新 `attemptNo`。同一轮继续保留 PENDING cancel、EXECUTING 批次边界 cancel 与 FAILED retry 既有状态机证据 | local/Docker MySQL API + worker evidence；CAS miss 收口为未更新或非法状态，不声明外部生产 MySQL evidence |
+docs/testing/verify-matrix.md:49:| DEFAULT-QUERY-RETRY-ALIGNMENT-001 | FR-006 / FR-010 / AC-020 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 断言 scheduler 未显式传入 `maxQueryBatchRetries` 时默认允许 3 次 query batch retry checkpoint，第四次失败才收口为 `FAILED + QUERY_EXECUTION_ERROR`；既有 `maxQueryBatchRetries: 1` worker 用例继续证明显式 override 生效，backoff checkpoint 与最终失败审计不回归 | local/Docker MySQL worker evidence；默认值来源对齐 `docs/product/state-matrix.yaml` 的 `query_batch_max_retries: 3`，不声明外部 datasource live evidence |
+docs/testing/verify-matrix.md:88:| Query executor 验证 | `npm run test:query` | `QUERY-EXECUTOR-001`、`DATA-SCOPE-TEMPLATE-ENFORCE-001`、`DATASOURCE-ADAPTER-BOUNDARY-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-006 / FR-008 / FR-009 / FR-014 | MySQL + readonly datasource adapter；外部数据源以受控测试数据模拟 | 证明模板绑定、registry `datasourceCode` 到只读 datasource adapter、registry `dataScopeTemplate`、`operatorId/roleCodes/orgScope/tenantId` 数据范围、脱敏、字段映射、checkpoint 和 `DATASOURCE_UNAVAILABLE` 收口；不声明外部业务库 live 已接入。 |
+docs/testing/verify-matrix.md:145:| FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+docs/testing/verify-matrix.md:146:| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql；`TASK-CANCEL-ATOMICITY-001` 补齐 cancel 状态更新基于原 `status` 与 `attemptNo` 的 CAS 证据，旧 cancel 不覆盖 worker 已推进状态或 FAILED retry 后的新 attempt | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:api`、`npm run test:worker` |
+docs/testing/verify-matrix.md:147:| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+task.json:82:                                      "max_parallel_roles":  3
+task.json:499:                                    "实现 create/detail/list/download/cancel/retry/registry 相关 route/handler 与 service",
+task.json:575:                                         "审计证据能串联 taskId、attemptNo、requestId 和 batch checkpoint"
+task.json:1493:                                                       "必须修复审计契约漂移、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射，不得只补文档或只补单层测试",
+task.json:1501:                                                        "禁止把 DATASOURCE_UNAVAILABLE、FILE_VERIFY_ERROR 或审计 action/result drift 继续收口到通用错误码"
+task.json:1574:                                    "为查询批次实现 retry/backoff/retryCount 持久化及耗尽收口，覆盖 QUERY-BATCH-RETRY-001，并补短暂失败后成功与耗尽失败路径",
+task.json:1575:                                    "补齐 datasource adapter 不可用/凭证错误分类，确保 worker 最终按 DATASOURCE_UNAVAILABLE 收口，覆盖 DATASOURCE-ADAPTER-ERROR-001",
+task.json:1581:                                         "审计契约、管理员全局历史、配置快照重放、批次 retry、DATASOURCE_UNAVAILABLE 和文件存储错误映射不再依赖 review 文档中的已知 gap 行为",
+task.json:1767:                                                        "禁止把 renderer 抛错继续按 QUERY_EXECUTION_ERROR、FILE_VERIFY_ERROR 或 INTERNAL_ERROR 收口",
+task.json:2490:                                    "补 query / worker 测试，证明业务查询走 datasource adapter、未知或不可用 datasource 收口为 DATASOURCE_UNAVAILABLE",
+task.json:2496:                                         "未知 datasourceCode、凭证 / 连接失败或 adapter 不可用会收口为 DATASOURCE_UNAVAILABLE 且不泄露底层细节",
+task.json:2591:                                                       "保持 PENDING 取消、EXECUTING 批次边界取消和 FAILED retry 状态机语义"
+task.json:2596:                                                        "禁止删除既有 worker lease、retry 或 cancel 审计"
+task.json:2642:                                         "worker 状态推进或 retry 产生新 attempt 后，旧 cancel 不会覆盖真实状态",
+task.json:2648:                      "id":  "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+task.json:2649:                      "description":  "对齐 scheduler 默认 query batch retry 次数为产品默认 3",
+task.json:2665:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：scheduler 默认 query_batch_max_retries 必须与产品默认 3 对齐",
+task.json:2667:                                                       "保持显式传入 maxQueryBatchRetries 时的调用方覆盖能力"
+task.json:2671:                                                        "禁止破坏 retry backoff、checkpoint 或最终失败审计语义",
+task.json:2703:                                    "复核 state-matrix 中 query_batch_max_retries 默认值",
+task.json:2704:                                    "将 scheduler 默认 maxQueryBatchRetries 对齐为 3，保留显式 override",
+task.json:2705:                                    "补 worker 回归证明默认 retry 次数和最终失败边界",
+task.json:2706:                                    "同步 verify-matrix 记录 DEFAULT-QUERY-RETRY-ALIGNMENT-001 evidence"
+task.json:2710:                                         "scheduler 默认 query batch retry 次数为 3",
+task.json:2711:                                         "显式 maxQueryBatchRetries 覆盖值仍生效",
+task.json:2712:                                         "retry checkpoint、backoff 和最终失败审计不回归",
+task.json:2730:                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
+task.json:2831:                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+tests/worker/scheduler-worker.test.mjs:148:    batchSize: overrides.batchSize ?? 500,
+tests/worker/scheduler-worker.test.mjs:196:function batchResult(lastCursor, processedCount) {
+tests/worker/scheduler-worker.test.mjs:202:      retryCount: 0,
+tests/worker/scheduler-worker.test.mjs:203:      batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:204:      batchRowCount: processedCount,
+tests/worker/scheduler-worker.test.mjs:224:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:225:    batchProcessor: async () => batchResult("order-100", 100)
+tests/worker/scheduler-worker.test.mjs:231:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:232:    batchProcessor: async () => batchResult("order-200", 200)
+tests/worker/scheduler-worker.test.mjs:299:    batchSize: 10
+tests/worker/scheduler-worker.test.mjs:349:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:372:  assert.equal(JSON.parse(ready.batchCheckpoint).dataScopeExpression.operatorId, "u001");
+tests/worker/scheduler-worker.test.mjs:402:    batchSize: 10
+tests/worker/scheduler-worker.test.mjs:420:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:469:  let batchCallCount = 0;
+tests/worker/scheduler-worker.test.mjs:475:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:476:    batchProcessor: async ({ checkpoint }) => {
+tests/worker/scheduler-worker.test.mjs:478:      batchCallCount += 1;
+tests/worker/scheduler-worker.test.mjs:479:      if (batchCallCount === 1) {
+tests/worker/scheduler-worker.test.mjs:480:        return batchResult("order-100", 100);
+tests/worker/scheduler-worker.test.mjs:487:          retryCount: 0,
+tests/worker/scheduler-worker.test.mjs:488:          batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:489:          batchRowCount: 100,
+tests/worker/scheduler-worker.test.mjs:509:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:510:    batchProcessor: async () => batchResult("order-999", 999)
+tests/worker/scheduler-worker.test.mjs:531:  assert.equal(batchCallCount, 2);
+tests/worker/scheduler-worker.test.mjs:553:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:554:    batchProcessor: async () => ({
+tests/worker/scheduler-worker.test.mjs:559:        retryCount: 0,
+tests/worker/scheduler-worker.test.mjs:560:        batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:561:        batchRowCount: 200,
+tests/worker/scheduler-worker.test.mjs:580:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:581:    batchProcessor: async () => ({
+tests/worker/scheduler-worker.test.mjs:586:        retryCount: 0,
+tests/worker/scheduler-worker.test.mjs:587:        batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:588:        batchRowCount: 100,
+tests/worker/scheduler-worker.test.mjs:672:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:673:    batchProcessor: async () => batchResult("order-cross-a", 100)
+tests/worker/scheduler-worker.test.mjs:679:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:680:    batchProcessor: async () => batchResult("order-cross-b", 200)
+tests/worker/scheduler-worker.test.mjs:707:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:708:    batchProcessor: async () => batchResult("order-100", 100)
+tests/worker/scheduler-worker.test.mjs:725:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:726:    batchProcessor: async ({ checkpoint }) => {
+tests/worker/scheduler-worker.test.mjs:728:      return batchResult("order-200", 200);
+tests/worker/scheduler-worker.test.mjs:789:    batchSize: 50,
+tests/worker/scheduler-worker.test.mjs:802:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:803:    batchProcessor: async () => ({
+tests/worker/scheduler-worker.test.mjs:808:        retryCount: 0,
+tests/worker/scheduler-worker.test.mjs:809:        batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:810:        batchRowCount: 1,
+tests/worker/scheduler-worker.test.mjs:847:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:848:    batchProcessor: async () => batchResult("order-200", 200)
+tests/worker/scheduler-worker.test.mjs:854:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:855:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:887:serialTest("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+tests/worker/scheduler-worker.test.mjs:897:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:898:    batchProcessor: async ({ task, lease }) => {
+tests/worker/scheduler-worker.test.mjs:914:      return batchResult("order-100", 100);
+tests/worker/scheduler-worker.test.mjs:934:  const taskId = `exp-worker-${runId}-retry`;
+tests/worker/scheduler-worker.test.mjs:938:  assert.equal(await repository.retryFailedTask({ taskId, now: await getDatabaseTime(db) }), undefined);
+tests/worker/scheduler-worker.test.mjs:944:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:945:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:956:  const retried = await repository.retryFailedTask({
+tests/worker/scheduler-worker.test.mjs:964:  const retryWorker = createSchedulerWorker({
+tests/worker/scheduler-worker.test.mjs:968:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:969:    batchProcessor: async () => batchResult("order-retry", 50)
+tests/worker/scheduler-worker.test.mjs:972:  const retryResult = await retryWorker.pollAndProcessOnce();
+tests/worker/scheduler-worker.test.mjs:975:  assert.equal(retryResult.dispatched, 1);
+tests/worker/scheduler-worker.test.mjs:992:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:993:    batchProcessor: async () => batchResult("order-stale-cancel", 10)
+tests/worker/scheduler-worker.test.mjs:1012:  const retried = await repository.retryFailedTask({
+tests/worker/scheduler-worker.test.mjs:1033:serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1036:  const taskId = `exp-retry-ok-${Date.now()}`;
+tests/worker/scheduler-worker.test.mjs:1042:    workerId: "worker-retry",
+tests/worker/scheduler-worker.test.mjs:1044:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1045:    maxQueryBatchRetries: 2,
+tests/worker/scheduler-worker.test.mjs:1047:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1051:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1056:          lastCursor: "order-retry-success",
+tests/worker/scheduler-worker.test.mjs:1059:          retryCount: 1,
+tests/worker/scheduler-worker.test.mjs:1060:          batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:1061:          batchRowCount: 10,
+tests/worker/scheduler-worker.test.mjs:1070:        return { storageKey: "exports/published/retry.xlsx" };
+tests/worker/scheduler-worker.test.mjs:1095:  assert.equal(checkpointAfterFailure.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:1101:serialTest("query batch transient failure does not retry again before checkpoint backoff elapses", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1104:  const taskId = `exp-retry-backoff-wait-${runId}`;
+tests/worker/scheduler-worker.test.mjs:1110:    workerId: "worker-retry-wait",
+tests/worker/scheduler-worker.test.mjs:1112:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1113:    maxQueryBatchRetries: 2,
+tests/worker/scheduler-worker.test.mjs:1115:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1119:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1124:          lastCursor: "order-retry-success",
+tests/worker/scheduler-worker.test.mjs:1127:          retryCount: 1,
+tests/worker/scheduler-worker.test.mjs:1128:          batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:1129:          batchRowCount: 10,
+tests/worker/scheduler-worker.test.mjs:1138:        return { storageKey: "exports/published/retry-wait.xlsx" };
+tests/worker/scheduler-worker.test.mjs:1159:  assert.equal(task.lockOwner, "worker-retry-wait");
+tests/worker/scheduler-worker.test.mjs:1160:  assert.equal(checkpoint.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:1164:serialTest("query batch retry resumes only after checkpoint backoff elapses", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1167:  const taskId = `exp-retry-backoff-ready-${runId}`;
+tests/worker/scheduler-worker.test.mjs:1173:    workerId: "worker-retry-ready",
+tests/worker/scheduler-worker.test.mjs:1175:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1176:    maxQueryBatchRetries: 2,
+tests/worker/scheduler-worker.test.mjs:1178:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1182:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1187:          lastCursor: "order-retry-ready",
+tests/worker/scheduler-worker.test.mjs:1190:          retryCount: 1,
+tests/worker/scheduler-worker.test.mjs:1191:          batchSize: 500,
+tests/worker/scheduler-worker.test.mjs:1192:          batchRowCount: 10,
+tests/worker/scheduler-worker.test.mjs:1201:        return { storageKey: "exports/published/retry-ready.xlsx" };
+tests/worker/scheduler-worker.test.mjs:1225:serialTest("query batch default retry limit allows three checkpoint retries before final failure", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1228:  const taskId = `exp-retry-default-${runId}`;
+tests/worker/scheduler-worker.test.mjs:1234:    workerId: "worker-retry-default",
+tests/worker/scheduler-worker.test.mjs:1236:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1238:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1241:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1246:  const retryPolls = [];
+tests/worker/scheduler-worker.test.mjs:1248:    retryPolls.push(await worker.pollAndProcessOnce());
+tests/worker/scheduler-worker.test.mjs:1270:    retryPolls.map((poll) => ({ renewed: poll.renewed, failed: poll.failed })),
+tests/worker/scheduler-worker.test.mjs:1280:  assert.equal(checkpoint.retry_count, 3);
+tests/worker/scheduler-worker.test.mjs:1284:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1289:serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1292:  const taskId = `exp-retry-no-${Date.now()}`;
+tests/worker/scheduler-worker.test.mjs:1297:    workerId: "worker-retry-exhausted",
+tests/worker/scheduler-worker.test.mjs:1299:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1300:    maxQueryBatchRetries: 1,
+tests/worker/scheduler-worker.test.mjs:1302:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1304:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1332:  assert.equal(checkpoint.retry_count, 1);
+tests/worker/scheduler-worker.test.mjs:1336:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1341:serialTest("query batch retry exhaustion waits for backoff before the terminal failed retry attempt", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1344:  const taskId = `exp-retry-exh-${Date.now()}`;
+tests/worker/scheduler-worker.test.mjs:1350:    workerId: "worker-retry-exhausted-backoff",
+tests/worker/scheduler-worker.test.mjs:1352:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1353:    maxQueryBatchRetries: 1,
+tests/worker/scheduler-worker.test.mjs:1355:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1358:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1388:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1393:serialTest("datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1403:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1404:    maxQueryBatchRetries: 0,
+tests/worker/scheduler-worker.test.mjs:1405:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1407:      error.name = "DATASOURCE_UNAVAILABLE";
+tests/worker/scheduler-worker.test.mjs:1421:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1426:serialTest("default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1436:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1437:    maxQueryBatchRetries: 0,
+tests/worker/scheduler-worker.test.mjs:1454:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1466:serialTest("unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1476:    maxTasksPerPoll: 1,
+tests/worker/scheduler-worker.test.mjs:1477:    maxQueryBatchRetries: 0,
+tests/worker/scheduler-worker.test.mjs:1478:    batchProcessor: async () => {
+tests/worker/scheduler-worker.test.mjs:1494:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1553:serialTest("cleanup job poll once records retry audit and does not mark cleanup done when delete fails", async (t) => {
+src/scheduler/worker.ts:24:  retryCount: number;
+src/scheduler/worker.ts:25:  batchSize: number | null;
+src/scheduler/worker.ts:26:  batchRowCount: number | null;
+src/scheduler/worker.ts:54:  maxTasksPerPoll?: number;
+src/scheduler/worker.ts:55:  maxQueryBatchRetries?: number;
+src/scheduler/worker.ts:58:  batchProcessor?: SchedulerBatchProcessor;
+src/scheduler/worker.ts:144:  const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
+src/scheduler/worker.ts:145:  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 3;
+src/scheduler/worker.ts:147:  const batchProcessor =
+src/scheduler/worker.ts:148:    options.batchProcessor ??
+src/scheduler/worker.ts:162:    for (let index = 0; index < maxTasksPerPoll; index += 1) {
+src/scheduler/worker.ts:206:        maxQueryBatchRetries,
+src/scheduler/worker.ts:209:        batchProcessor,
+src/scheduler/worker.ts:408:  maxQueryBatchRetries: number;
+src/scheduler/worker.ts:411:  batchProcessor: SchedulerBatchProcessor;
+src/scheduler/worker.ts:427:    let batch: SchedulerBatchResult;
+src/scheduler/worker.ts:429:      batch = await input.batchProcessor({
+src/scheduler/worker.ts:440:        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+src/scheduler/worker.ts:442:        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+src/scheduler/worker.ts:443:        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+src/scheduler/worker.ts:451:          retryCount,
+src/scheduler/worker.ts:452:          batchSize: checkpoint?.batchSize ?? null,
+src/scheduler/worker.ts:453:          batchRowCount: checkpoint?.batchRowCount ?? 0,
+src/scheduler/worker.ts:471:    if (batch.checkpoint) {
+src/scheduler/worker.ts:475:        ...batch.checkpoint,
+src/scheduler/worker.ts:501:    if (batch.outcome === "completed") {
+src/scheduler/worker.ts:502:      if (Array.isArray(batch.rows)) {
+src/scheduler/worker.ts:504:          batch.registry ??
+src/scheduler/worker.ts:523:          rows: batch.rows
+src/scheduler/worker.ts:585:        "QUERY_EXECUTION_ERROR"
+src/scheduler/worker.ts:788:    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+src/scheduler/worker.ts:819:function calculateBackoffMs(baseMs: number, retryCount: number): number {
+src/scheduler/worker.ts:821:  return normalizedBase * 2 ** Math.max(0, retryCount - 1);
+
+codex
+当前 diff 很窄：生产代码只把 `maxQueryBatchRetries` 默认值从 2 改为 3，新增 worker 集成测试覆盖默认 3 次 checkpoint retry 和第 4 次终止失败。我接下来会核对真相源、任务约束和实际验证命令，确认没有假测试或证据缺口。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "query_batch_max_retries|DEFAULT-QUERY-RETRY-ALIGNMENT-001|architecture_constraints|forbidden_implementations|test_command|passes" docs/product/state-matrix.yaml task.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'src\\scheduler\\worker.ts' | Select-Object -Skip 130 -First 90" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'src\\scheduler\\worker.ts' | Select-Object -Skip 420 -First 80" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -LiteralPath 'tests\\worker\\scheduler-worker.test.mjs' | Select-Object -Skip 1210 -First 135" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 419ms:
+docs/product/state-matrix.yaml:30:  query_batch_max_retries: 3
+task.json:101:                      "passes":  true,
+task.json:131:                                    "确认后续 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证生产形态的 test_command"
+task.json:133:                      "test_command":  "git diff --check -- task.json docs/architecture/constraints.md docs/testing/verify-matrix.md",
+task.json:135:                                         "task.json 已成为 fresh-start 队列，不依赖旧 passes=true 状态",
+task.json:156:                      "passes":  true,
+task.json:189:                      "test_command":  "git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json",
+task.json:212:                      "passes":  true,
+task.json:249:                      "test_command":  "git diff --check -- contracts docs/testing/verify-matrix.md",
+task.json:272:                      "passes":  true,
+task.json:273:                      "architecture_constraints":  [
+task.json:279:                      "forbidden_implementations":  [
+task.json:357:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
+task.json:380:                      "passes":  true,
+task.json:381:                      "architecture_constraints":  [
+task.json:386:                      "forbidden_implementations":  [
+task.json:426:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:449:                      "passes":  true,
+task.json:450:                      "architecture_constraints":  [
+task.json:455:                      "forbidden_implementations":  [
+task.json:503:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:contract\u0027,\u0027npm run test:api\u0027,\u0027git diff --check\u0027)",
+task.json:526:                      "passes":  true,
+task.json:527:                      "architecture_constraints":  [
+task.json:532:                      "forbidden_implementations":  [
+task.json:571:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+task.json:594:                      "passes":  true,
+task.json:625:                                    "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+task.json:628:                      "test_command":  "git diff --check -- task.json plans docs/testing/verify-matrix.md",
+task.json:653:                      "passes":  true,
+task.json:654:                      "architecture_constraints":  [
+task.json:659:                      "forbidden_implementations":  [
+task.json:699:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:722:                      "passes":  true,
+task.json:723:                      "architecture_constraints":  [
+task.json:728:                      "forbidden_implementations":  [
+task.json:767:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:790:                      "passes":  true,
+task.json:791:                      "architecture_constraints":  [
+task.json:796:                      "forbidden_implementations":  [
+task.json:834:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:859:                      "passes":  true,
+task.json:860:                      "architecture_constraints":  [
+task.json:865:                      "forbidden_implementations":  [
+task.json:904:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+task.json:927:                      "passes":  true,
+task.json:928:                      "architecture_constraints":  [
+task.json:934:                      "forbidden_implementations":  [
+task.json:937:                                                        "禁止仅凭 mock-first local/dev evidence 修改 RELEASE-001 为 passes:true",
+task.json:984:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
+task.json:1007:                      "passes":  true,
+task.json:1008:                      "architecture_constraints":  [
+task.json:1014:                      "forbidden_implementations":  [
+task.json:1017:                                                        "禁止仅凭 local/dev integration acceptance 修改 RELEASE-001.passes",
+task.json:1067:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md",
+task.json:1090:                      "passes":  true,
+task.json:1091:                      "architecture_constraints":  [
+task.json:1097:                      "forbidden_implementations":  [
+task.json:1100:                                                        "禁止仅凭 local release rehearsal 修改 RELEASE-001.passes",
+task.json:1151:                      "test_command":  "npm run release:local-rehearsal",
+task.json:1174:                      "passes":  true,
+task.json:1175:                      "architecture_constraints":  [
+task.json:1181:                      "forbidden_implementations":  [
+task.json:1228:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run demo:local:smoke; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts/local-demo.ps1 scripts/local-demo-setup.mjs docs/testing/local-demo-runbook.md docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md tests/mock-local/local-demo-runbook.test.mjs tests/mock-local/test-practice-matrix.test.mjs",
+task.json:1237:                      "description":  "补齐测试实践到 task 的显式映射，防止 test 脚本、任务 test_command 和验证矩阵漂移",
+task.json:1252:                      "passes":  true,
+task.json:1253:                      "architecture_constraints":  [
+task.json:1259:                      "forbidden_implementations":  [
+task.json:1261:                                                        "禁止只有 task test_command 而没有测试实践矩阵",
+task.json:1301:                                    "新增守护测试，校验 package scripts、task test_command 和测试实践矩阵保持一致",
+task.json:1304:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing/verify-matrix.md tests/mock-local/test-practice-matrix.test.mjs",
+task.json:1308:                                         "守护测试会在 test script、task test_command 或文档映射漂移时失败"
+task.json:1331:                      "passes":  true,
+task.json:1377:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
+task.json:1401:                      "passes":  true,
+task.json:1402:                      "architecture_constraints":  [
+task.json:1409:                      "forbidden_implementations":  [
+task.json:1464:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts docs/testing tests/mock-local plans/features/docker-test-data-automation.plan.md",
+task.json:1488:                      "passes":  true,
+task.json:1489:                      "architecture_constraints":  [
+task.json:1496:                      "forbidden_implementations":  [
+task.json:1578:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt",
+task.json:1602:                      "passes":  true,
+task.json:1603:                      "architecture_constraints":  [
+task.json:1608:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:1610:                      "forbidden_implementations":  [
+task.json:1614:                                                        "禁止把 review 文档手工改成 PASS 或手工标记 REQUIREMENTS-COMPLETE-REVIEW-001 passes=true"
+task.json:1661:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1685:                      "passes":  true,
+task.json:1686:                      "architecture_constraints":  [
+task.json:1691:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:1693:                      "forbidden_implementations":  [
+task.json:1733:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+task.json:1757:                      "passes":  true,
+task.json:1758:                      "architecture_constraints":  [
+task.json:1763:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:1765:                      "forbidden_implementations":  [
+task.json:1808:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+task.json:1832:                      "passes":  true,
+task.json:1833:                      "architecture_constraints":  [
+task.json:1838:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:1840:                      "forbidden_implementations":  [
+task.json:1894:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
+task.json:1918:                      "passes":  true,
+task.json:1919:                      "architecture_constraints":  [
+task.json:1926:                      "forbidden_implementations":  [
+task.json:1981:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/contracts src/file-service src/task-api src/routes/export/tasks/download-export-task.handler.ts tests/contract tests/file tests/api docs/testing/verify-matrix.md",
+task.json:2005:                      "passes":  true,
+task.json:2006:                      "architecture_constraints":  [
+task.json:2011:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:2013:                      "forbidden_implementations":  [
+task.json:2062:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+task.json:2086:                      "passes":  true,
+task.json:2087:                      "architecture_constraints":  [
+task.json:2094:                      "forbidden_implementations":  [
+task.json:2151:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+task.json:2179:                      "passes":  true,
+task.json:2180:                      "architecture_constraints":  [
+task.json:2185:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行"
+task.json:2187:                      "forbidden_implementations":  [
+task.json:2242:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md",
+task.json:2266:                      "passes":  true,
+task.json:2267:                      "architecture_constraints":  [
+task.json:2273:                      "forbidden_implementations":  [
+task.json:2327:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md",
+task.json:2351:                      "passes":  true,
+task.json:2352:                      "architecture_constraints":  [
+task.json:2358:                      "forbidden_implementations":  [
+task.json:2410:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md",
+task.json:2434:                      "passes":  true,
+task.json:2435:                      "architecture_constraints":  [
+task.json:2441:                      "forbidden_implementations":  [
+task.json:2493:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md",
+task.json:2517:                      "passes":  true,
+task.json:2518:                      "architecture_constraints":  [
+task.json:2520:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+task.json:2523:                      "forbidden_implementations":  [
+task.json:2563:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md",
+task.json:2587:                      "passes":  true,
+task.json:2588:                      "architecture_constraints":  [
+task.json:2590:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+task.json:2593:                      "forbidden_implementations":  [
+task.json:2639:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md",
+task.json:2648:                      "id":  "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+task.json:2663:                      "passes":  false,
+task.json:2664:                      "architecture_constraints":  [
+task.json:2665:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F003：scheduler 默认 query_batch_max_retries 必须与产品默认 3 对齐",
+task.json:2666:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+task.json:2669:                      "forbidden_implementations":  [
+task.json:2703:                                    "复核 state-matrix 中 query_batch_max_retries 默认值",
+task.json:2706:                                    "同步 verify-matrix 记录 DEFAULT-QUERY-RETRY-ALIGNMENT-001 evidence"
+task.json:2708:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md",
+task.json:2730:                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
+task.json:2732:                      "passes":  false,
+task.json:2733:                      "architecture_constraints":  [
+task.json:2735:                                                       "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+task.json:2738:                      "forbidden_implementations":  [
+task.json:2794:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts src/routes src/task-api src/query-executor src/file-service tests/api tests/query tests/file docs/testing/verify-matrix.md",
+task.json:2831:                                           "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+task.json:2834:                      "passes":  false,
+task.json:2835:                      "architecture_constraints":  [
+task.json:2840:                      "forbidden_implementations":  [
+task.json:2841:                                                        "禁止直接改写已有 passes:true 任务的历史完成结论",
+task.json:2900:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing tests/mock-local plans/features/requirements-complete-review.plan.md",
+
+ succeeded in 388ms:
+  try {
+    const checkpoints = createCheckpointRepository(input.db);
+    const checkpoint = await checkpoints.findLatestCheckpoint(
+      input.task.taskId,
+      input.lease.attemptNo
+    );
+    let batch: SchedulerBatchResult;
+    try {
+      batch = await input.batchProcessor({
+        db: input.db,
+        task: input.task,
+        lease: input.lease,
+        checkpoint,
+        requestId: input.requestId,
+        datasourceAdapters: input.datasourceAdapters
+      });
+    } catch (error) {
+      if (
+        isRetryableBatchError(error) &&
+        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+      ) {
+        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+        const now = await getDatabaseTime(input.db);
+        await checkpoints.saveCheckpoint({
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lastCursor: checkpoint?.lastCursor ?? null,
+          processedCount: checkpoint?.processedCount ?? 0,
+          filePartNo: checkpoint?.filePartNo ?? 1,
+          retryCount,
+          batchSize: checkpoint?.batchSize ?? null,
+          batchRowCount: checkpoint?.batchRowCount ?? 0,
+          backoffMs,
+          now
+        });
+        const renewed = await renewLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        result.renewed = renewed ? 1 : 0;
+        return result;
+      }
+      throw error;
+    }
+    const now = await getDatabaseTime(input.db);
+
+    if (batch.checkpoint) {
+      await checkpoints.saveCheckpoint({
+        taskId: input.task.taskId,
+        attemptNo: input.lease.attemptNo,
+        ...batch.checkpoint,
+        now
+      });
+    }
+
+    if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+      const canceledAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "CANCELED"
+      });
+      await appendWorkerAudit({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        action: "CANCEL_DONE",
+        result: "SUCCESS",
+        requestId: input.requestId,
+        now: canceledAt
+      });
+      result.canceled = 1;
+      return result;
+    }
+
+
+ succeeded in 375ms:
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(secondPoll.dispatched, 1);
+  assert.equal(secondPoll.completed, 1);
+  assert.equal(calls, 2);
+  assert.equal(task.status, "COMPLETED");
+});
+
+serialTest("query batch default retry limit allows three checkpoint retries before final failure", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-default-${runId}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  let calls = 0;
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-default",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    queryBatchBackoffBaseMs: 100,
+    batchProcessor: async () => {
+      calls += 1;
+      const error = new Error("query still unavailable");
+      error.name = "QUERY_EXECUTION_ERROR";
+      throw error;
+    }
+  });
+
+  const retryPolls = [];
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    retryPolls.push(await worker.pollAndProcessOnce());
+    await db
+      .updateTable("export_task_checkpoints")
+      .set({
+        updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND)`
+      })
+      .where("task_id", "=", taskId)
+      .where("attempt_no", "=", 0)
+      .execute();
+  }
+
+  const finalPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.deepEqual(
+    retryPolls.map((poll) => ({ renewed: poll.renewed, failed: poll.failed })),
+    [
+      { renewed: 1, failed: 0 },
+      { renewed: 1, failed: 0 },
+      { renewed: 1, failed: 0 }
+    ]
+  );
+  assert.equal(finalPoll.failed, 1);
+  assert.equal(calls, 4);
+  assert.equal(task.status, "FAILED");
+  assert.equal(checkpoint.retry_count, 3);
+  assert.equal(checkpoint.backoff_ms, 400);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+});
+
+serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-no-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+  const worker = createSchedulerWorker({
+    db,
+    workerId: "worker-retry-exhausted",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    maxQueryBatchRetries: 1,
+    queryBatchBackoffBaseMs: 1000,
+    batchProcessor: async () => {
+      const error = new Error("query still unavailable");
+      error.name = "QUERY_EXECUTION_ERROR";
+      throw error;
+    }
+  });
+
+  const firstPoll = await worker.pollAndProcessOnce();
+  await db
+    .updateTable("export_task_checkpoints")
+    .set({
+      updated_at: sql`DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 2 SECOND)`
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .execute();
+  const secondPoll = await worker.pollAndProcessOnce();
+  const task = await createExportTaskRepository(db).findTaskById(taskId);
+  const checkpoint = await db
+    .selectFrom("export_task_checkpoints")
+    .selectAll()
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", 0)
+    .executeTakeFirst();
+  const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+
+  assert.equal(firstPoll.failed, 0);
+  assert.equal(firstPoll.renewed, 1);
+  assert.equal(secondPoll.failed, 1);
+  assert.equal(task.status, "FAILED");
+  assert.equal(checkpoint.retry_count, 1);
+  assert.equal(checkpoint.backoff_ms, 1000);
+  assert.ok(
+    audits.some(
+      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+    )
+  );
+});
+
+serialTest("query batch retry exhaustion waits for backoff before the terminal failed retry attempt", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-retry-exh-${Date.now()}`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+
+ succeeded in 428ms:
+  const row = await sql<{ database_time: Date }>`SELECT CURRENT_TIMESTAMP(3) AS database_time`
+    .execute(db)
+    .then((result) => result.rows[0]);
+
+  if (!row?.database_time) {
+    throw new Error("Database time query returned no rows");
+  }
+
+  return new Date(row.database_time);
+}
+
+export function createSchedulerWorker(options: SchedulerWorkerOptions) {
+  const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
+  const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
+  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 3;
+  const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
+  const batchProcessor =
+    options.batchProcessor ??
+    createQueryExecutorBatchProcessor({
+      datasourceAdapters: options.datasourceAdapters
+    });
+
+  async function pollAndProcessOnce(): Promise<SchedulerPollResult> {
+    const result: SchedulerPollResult = {
+      dispatched: 0,
+      renewed: 0,
+      canceled: 0,
+      completed: 0,
+      failed: 0
+    };
+
+    for (let index = 0; index < maxTasksPerPoll; index += 1) {
+      const acquired = await acquireNextLease({
+        db: options.db,
+        workerId: options.workerId,
+        leaseDurationSeconds
+      });
+
+      if (!acquired) {
+        break;
+      }
+
+      result.dispatched += 1;
+      const requestId = await findRequestIdForTask(
+        options.db,
+        acquired.task.taskId,
+        options.workerId
+      );
+      const now = await getDatabaseTime(options.db);
+
+      await appendWorkerAudit({
+        db: options.db,
+        task: acquired.task,
+        attemptNo: acquired.lease.attemptNo,
+        action: "DISPATCH",
+        result: "SUCCESS",
+        requestId,
+        now
+      });
+      await appendWorkerAudit({
+        db: options.db,
+        task: acquired.task,
+        attemptNo: acquired.lease.attemptNo,
+        action: "EXECUTE_START",
+        result: "SUCCESS",
+        requestId,
+        now
+      });
+
+      const processed = await processAcquiredLease({
+        db: options.db,
+        task: acquired.task,
+        lease: acquired.lease,
+        requestId,
+        leaseDurationSeconds,
+        maxQueryBatchRetries,
+        queryBatchBackoffBaseMs,
+        datasourceAdapters: options.datasourceAdapters,
+        batchProcessor,
+        fileService: options.fileService
+      });
+
+      result.renewed += processed.renewed;
+      result.canceled += processed.canceled;
+      result.completed += processed.completed;
+      result.failed += processed.failed;
+    }
+
+    return result;
+  }
+
+codex
+任务约束里明确保留显式 override，现有 `maxQueryBatchRetries: 1` 用例还在；新增默认值用例没有传该选项，能直接捕获默认值回退。现在我会复跑给定验证命令，确保不是只依赖摘要。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '"'. .\\scripts\\docker-test-env.ps1; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker'"'; if ("'$LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 11351ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:59509 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7714ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (287.7244ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (363.7622ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (270.1986ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (286.0041ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (282.1987ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (201.9858ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (250.4419ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (223.4392ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (226.6933ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (190.7704ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (247.1039ms)
+  ✔ stale executing cancel cannot overwrite a retried attempt (191.4281ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (282.7462ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (175.0619ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (263.7134ms)
+  ✔ query batch default retry limit allows three checkpoint retries before final failure (398.8148ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (247.5855ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (290.162ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (191.7484ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (184.5923ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (182.8323ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (184.8513ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (183.6531ms)
+✔ worker integration tests (5609.9719ms)
+ℹ tests 24
+ℹ suites 1
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6145.6145
+warning: in the working copy of 'docs/testing/verify-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/scheduler/worker.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/worker/scheduler-worker.test.mjs', LF will be replaced by CRLF the next time Git touches it
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 589ms:
+ M docs/testing/verify-matrix.md
+ M src/scheduler/worker.ts
+ M tests/worker/scheduler-worker.test.mjs
+?? traces/DEFAULT-QUERY-RETRY-ALIGNMENT-001-c5aebc1a97b04432bee8e4f026e99958/
+
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+无阻塞性质量问题或关键测试缺口。
+
+## Verification
+
+- 已检查命令: `npm run typecheck; ...; npm run test:worker; ...; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md`
+- 结果摘要: 退出码 0；typecheck 通过；worker 集成测试 24/24 通过；`git diff --check` 无 whitespace error。仅有 Git LF/CRLF 工作区警告，不影响验证结果。
+- 代码证据: `src/scheduler/worker.ts:145` 默认值为 3；`tests/worker/scheduler-worker.test.mjs:1225` 覆盖默认 3 次 retry 后第 4 次失败；`docs/product/state-matrix.yaml:30` 真相源为 `query_batch_max_retries: 3`；`docs/testing/verify-matrix.md:49` 已记录 evidence。
+- knowledge_outputs: 无新增归档建议。
+- knowledge_references: 本次未依赖 `docs/knowledge/` 决策。
+
+## Verdict
+
+- Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+tokens used
+48,380

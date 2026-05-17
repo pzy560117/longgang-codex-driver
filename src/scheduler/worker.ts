@@ -142,7 +142,7 @@ async function queryDatabaseTime(db: Kysely<ExportPlatformDatabase>): Promise<Da
 export function createSchedulerWorker(options: SchedulerWorkerOptions) {
   const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
   const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
-  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 2;
+  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 3;
   const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
   const batchProcessor =
     options.batchProcessor ??

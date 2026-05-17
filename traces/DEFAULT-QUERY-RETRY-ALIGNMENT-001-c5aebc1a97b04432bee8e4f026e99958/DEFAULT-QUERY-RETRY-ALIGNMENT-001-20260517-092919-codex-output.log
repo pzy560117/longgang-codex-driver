@@ -1,0 +1,57 @@
+SUCCESS: The process with PID 26472 (child process of PID 35592) has been terminated.
+SUCCESS: The process with PID 35592 (child process of PID 29104) has been terminated.
+SUCCESS: The process with PID 29104 (child process of PID 23832) has been terminated.
+SUCCESS: The process with PID 23832 (child process of PID 36064) has been terminated.
+SUCCESS: The process with PID 7328 (child process of PID 32556) has been terminated.
+SUCCESS: The process with PID 32556 (child process of PID 29112) has been terminated.
+SUCCESS: The process with PID 29112 (child process of PID 27500) has been terminated.
+SUCCESS: The process with PID 27500 (child process of PID 36672) has been terminated.
+SUCCESS: The process with PID 36672 (child process of PID 36064) has been terminated.
+SUCCESS: The process with PID 24756 (child process of PID 31372) has been terminated.
+SUCCESS: The process with PID 31372 (child process of PID 12808) has been terminated.
+SUCCESS: The process with PID 12808 (child process of PID 7184) has been terminated.
+SUCCESS: The process with PID 7184 (child process of PID 36064) has been terminated.
+## Requirement IDs
+- FR-006
+- FR-010
+- AC-020
+- AC-E004
+- AC-E020
+
+## Summary
+- 已将 scheduler 默认 `maxQueryBatchRetries` 从 2 对齐为产品默认 3。
+- 新增 worker 回归：默认允许 3 次 retry checkpoint，第四次才最终 `FAILED + QUERY_EXECUTION_ERROR`；既有显式 `maxQueryBatchRetries: 1` 用例继续覆盖 override 生效。
+
+## Files Changed
+- [src/scheduler/worker.ts](E:/2026/alpha-project/longgang-codex-driver/src/scheduler/worker.ts:145): 默认 retry 次数改为 3。
+- [tests/worker/scheduler-worker.test.mjs](E:/2026/alpha-project/longgang-codex-driver/tests/worker/scheduler-worker.test.mjs:1225): 新增默认 retry 边界回归。
+- [docs/testing/verify-matrix.md](E:/2026/alpha-project/longgang-codex-driver/docs/testing/verify-matrix.md:49): 追加 `DEFAULT-QUERY-RETRY-ALIGNMENT-001` evidence。
+
+## Validation
+- targeted RED: PASS - 新增用例在实现前失败，第三次轮询提前进入 `failed: 1`。
+- targeted GREEN: PASS - 新增用例通过。
+- `npm run typecheck; ... npm run test:worker; ... git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md`: PASS - typecheck 通过，worker 24/24 passed，diff check exit 0。
+
+## Evidence
+- `tests/worker/scheduler-worker.test.mjs`: 证明默认 3 次 retry checkpoint 和最终失败边界。
+- `docs/testing/verify-matrix.md`: 记录本任务与 FR/AC 的验证证据。
+
+## Architecture Constraints
+- `production worker path`: PASS - 修改发生在既有 scheduler worker 生产路径。
+- `test double policy`: PASS - worker 测试使用 Docker/local MySQL，不以内存 repository 冒充生产路径。
+- `forbidden implementations`: PASS - 未引入 mock repository、InMemory 生产实现或领域原型。
+
+## Knowledge References
+- none
+
+## Knowledge Outputs
+- none
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `git add/commit`，因为本轮 Driver Prompt 明确禁止。
+- 工作区仍有既存 runtime trace 未跟踪：`traces/DEFAULT-QUERY-RETRY-ALIGNMENT-001-c5aebc1a97b04432bee8e4f026e99958/`。
