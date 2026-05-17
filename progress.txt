@@ -2111,3 +2111,17 @@
 - [MISSING] design: present=无; missing=docs\design\design-brief.md; docs\design\component-map.md; docs\design\screen-states.md; docs\design\design-tokens.json; docs\design\ai-image-brief.md; docs\design\ui-image-review.md; docs\design\image-to-frontend-spec.md
 - [OK] plan: present=plans\features\export-platform.dev-plan.md; missing=无
 - [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
+## [2026-05-17 06:10] - Task: HISTORY-PAGINATION-TOTAL-001 修复历史任务分页 total 返回筛选条件真实总量
+
+### 完成的工作：
+- Codex 会话未完成。
+
+### 测试结果：
+- 未运行测试。
+
+### 审查结果：
+- Stage 1: NOT_RUN - 未进入 Stage 1 审查。
+- Stage 2: NOT_RUN - 未进入 Stage 2 审查。
+
+### 备注：
+- Codex 输出包含失败或 BLOCKED，请人工查看。
