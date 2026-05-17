@@ -1,0 +1,63 @@
+﻿
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58692 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6938ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1964.2292ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (272.4998ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (136.7432ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (127.7091ms)
+✔ create task idempotent replay returns existing task after registry guard changes (113.8838ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3353.5777
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7602ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (274.9658ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (337.0673ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (230.5881ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (274.3412ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (281.7413ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (199.3623ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.568ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (201.9346ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (231.0563ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (220.5471ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (273.6542ms)
+  ✔ stale executing cancel cannot overwrite a retried attempt (214.6101ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (298.9339ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (191.0894ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (298.8521ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (272.739ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (291.1654ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (172.2041ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (159.7503ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (158.1987ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (168.6055ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (157.7284ms)
+✔ worker integration tests (5154.6471ms)
+ℹ tests 23
+ℹ suites 1
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5682.8957

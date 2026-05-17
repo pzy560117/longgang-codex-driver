@@ -1,0 +1,15 @@
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S1-F001 | HIGH | state_gap | backend | [src/task-api/service.ts](<E:/2026/alpha-project/longgang-codex-driver/src/task-api/service.ts:1373>)：PENDING cancel 的 CAS miss 遇到同 attempt 的 EXECUTING 后被当作成功，但后续仍按旧 `task.status === "PENDING"` 写 `CANCEL_DONE/SUCCESS`；[src/scheduler/worker.ts](<E:/2026/alpha-project/longgang-codex-driver/src/scheduler/worker.ts:720>) 只识别 `CANCEL_REQUEST/ACCEPTED`，因此 worker 不会在批次边界取消。现有新增测试 [tests/api/export-http-api.test.mjs](<E:/2026/alpha-project/longgang-codex-driver/tests/api/export-http-api.test.mjs:1384>) 只直接测 repository CAS，不覆盖 HTTP service 竞态路径。 | 修复 PENDING→EXECUTING CAS miss 分支：同 attempt 已进入 EXECUTING 时，应按 EXECUTING cancel 记录 `CANCEL_REQUEST/ACCEPTED`，返回不暴露内部状态，并补 HTTP/service 级回归证明 worker 后续能消费该取消意图并最终 `CANCELED`。 | `npm run typecheck; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; npm run test:api; npm run test:worker'; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md` |
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S1-F001 | backend | backend-worker | 1 | yes |

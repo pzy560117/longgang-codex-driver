@@ -1,0 +1,51 @@
+SUCCESS: The process with PID 11928 (child process of PID 11444) has been terminated.
+SUCCESS: The process with PID 2832 (child process of PID 14464) has been terminated.
+SUCCESS: The process with PID 14464 (child process of PID 28260) has been terminated.
+SUCCESS: The process with PID 28260 (child process of PID 25852) has been terminated.
+SUCCESS: The process with PID 25852 (child process of PID 3340) has been terminated.
+SUCCESS: The process with PID 3340 (child process of PID 27332) has been terminated.
+SUCCESS: The process with PID 27692 (child process of PID 25652) has been terminated.
+SUCCESS: The process with PID 25652 (child process of PID 31932) has been terminated.
+SUCCESS: The process with PID 31932 (child process of PID 9844) has been terminated.
+SUCCESS: The process with PID 9844 (child process of PID 27332) has been terminated.
+## Requirement IDs
+- FR-012
+- AC-012
+- AC-E015
+
+## Summary
+- 当前工作区已包含本任务要求的取消 CAS 实现与回归证据：取消更新使用原 `status` + `attemptNo` 条件，CAS miss 不覆盖 worker 已推进状态或新 attempt。
+- 本轮未改文件；我做了约束复核、代码/测试证据定位和 fresh verification。
+
+## Files Changed
+- 无。本轮没有修改源码、测试或文档。
+
+## Validation
+- `npm run test:api -- --test-name-pattern "cancel|retry|stale"`: FAIL - 未先加载 Docker/MySQL 测试环境，报 `EXPORT_PLATFORM_TEST_DATABASE_URL` 缺失。
+- 任务指定完整命令: PASS - `typecheck` 通过；Docker test env 自举成功；`test:api` 6/6 passed；`test:worker` 23/23 passed；scoped `git diff --check` 通过。
+
+## Evidence
+- `src/task-api/service.ts`: cancel API 调用 `updateTaskStatus` 时传入 `expectedStatus` 和 `expectedAttemptNo`。
+- `src/repositories/export-task.repository.ts`: repository 更新条件包含 `status` 与 `attempt_no` CAS。
+- `tests/api/export-http-api.test.mjs`: 覆盖旧 PENDING cancel 快照不能覆盖 EXECUTING。
+- `tests/worker/scheduler-worker.test.mjs`: 覆盖旧 EXECUTING cancel 不能覆盖 FAILED retry 后的新 attempt。
+- `docs/testing/verify-matrix.md`: 已记录 `TASK-CANCEL-ATOMICITY-001` evidence。
+
+## Architecture Constraints
+- `production MySQL repository boundary`: PASS - API/worker 测试经 Docker MySQL 跑通。
+- `no InMemory/mock repository as production path`: PASS - 本任务路径使用 repository + MySQL 集成测试。
+- `worker batch boundary cancel`: PASS - `test:worker` 中相关批次边界取消和 stale cancel 测试通过。
+
+## Knowledge References
+- 无。`docs/knowledge/catalog.md` 未发现与 cancel/CAS/worker 直接相关条目。
+
+## Knowledge Outputs
+- `PITFALL-TEST-ENV-001`: pitfall - API/worker 定向测试需先加载 Docker test env，否则会因 MySQL URL 缺失失败 - suggested - `docs/knowledge/pitfalls/`
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 无代码差异可提交；且 Driver Context 明确禁止 `git add/git commit/git push`，所以本轮未自动提交。

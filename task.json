@@ -2584,7 +2584,7 @@
                       "dependencies":  [
                                            "HISTORY-PAGINATION-TOTAL-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：取消任务更新必须使用原状态和 attemptNo CAS 条件",
                                                        "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",

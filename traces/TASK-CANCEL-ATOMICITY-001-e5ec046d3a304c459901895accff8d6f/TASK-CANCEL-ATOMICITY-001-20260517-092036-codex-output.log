@@ -1,0 +1,56 @@
+SUCCESS: The process with PID 29328 (child process of PID 33556) has been terminated.
+SUCCESS: The process with PID 7312 (child process of PID 13360) has been terminated.
+SUCCESS: The process with PID 13360 (child process of PID 20940) has been terminated.
+SUCCESS: The process with PID 3364 (child process of PID 29780) has been terminated.
+SUCCESS: The process with PID 29780 (child process of PID 7804) has been terminated.
+SUCCESS: The process with PID 7804 (child process of PID 27808) has been terminated.
+SUCCESS: The process with PID 27808 (child process of PID 20940) has been terminated.
+SUCCESS: The process with PID 5936 (child process of PID 34756) has been terminated.
+SUCCESS: The process with PID 34756 (child process of PID 1072) has been terminated.
+SUCCESS: The process with PID 1072 (child process of PID 28380) has been terminated.
+SUCCESS: The process with PID 28380 (child process of PID 33880) has been terminated.
+SUCCESS: The process with PID 33880 (child process of PID 20940) has been terminated.
+## Requirement IDs
+- FR-012
+- AC-012
+- AC-E015
+
+## Summary
+- 复核确认当前实现已满足本任务：取消更新通过原 `status` + `attemptNo` CAS 执行，CAS miss 不覆盖 worker 已推进状态或 retry 后的新 attempt。
+- 本轮未产生新的 tracked diff；仓库已有实现、测试和 verify matrix 证据已通过 fresh 验证。
+
+## Files Changed
+- 无新变更。
+
+## Validation
+- `npm run typecheck; ... npm run test:api; ... npm run test:worker; ... git diff --check ...`: PASS
+  - typecheck PASS
+  - API tests PASS: 6/6
+  - worker tests PASS: 23/23
+  - scoped `git diff --check` PASS
+
+## Evidence
+- `src/task-api/service.ts`: cancel 调用传入 `expectedStatus` / `expectedAttemptNo`，并处理 CAS miss。
+- `src/repositories/export-task.repository.ts`: `updateTaskStatus` 支持 status + attemptNo 条件更新。
+- `tests/api/export-http-api.test.mjs`: 覆盖旧 PENDING cancel 快照不覆盖 EXECUTING。
+- `tests/worker/scheduler-worker.test.mjs`: 覆盖旧 EXECUTING cancel 不覆盖 retry 后新 attempt。
+- `docs/testing/verify-matrix.md`: 已记录 TASK-CANCEL-ATOMICITY-001 evidence。
+
+## Architecture Constraints
+- `independent_microservice / http_service + worker`: PASS - 生产 API 与 worker 路径验证通过。
+- `MySQL production repository boundary`: PASS - API/worker 测试使用 Docker MySQL。
+- `forbidden_implementations`: PASS - 未使用 InMemory/mock repository 冒充生产路径。
+
+## Knowledge References
+- 无。
+
+## Knowledge Outputs
+- 无。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 工作区仍有既有未跟踪 `traces/` runtime 产物；本轮未修改、未提交。

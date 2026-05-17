@@ -1,0 +1,47 @@
+## Requirement IDs
+- FR-012
+- AC-012
+- AC-E015
+
+## Summary
+- 修复取消任务状态更新的原子性：`updateTaskStatus` 支持 `expectedStatus` + `expectedAttemptNo` CAS 条件。
+- `cancelExportTask` 取消路径现在基于读取时的原状态和 `attemptNo` 更新；CAS miss 时不会覆盖 worker 已推进状态或 retry 后的新 attempt。
+- 补充 API / worker 回归，并同步 `verify-matrix` 的 `TASK-CANCEL-ATOMICITY-001` evidence。
+
+## Files Changed
+- `src/repositories/export-task.repository.ts`: 状态更新增加 CAS 条件。
+- `src/task-api/service.ts`: cancel API 使用 CAS，并处理 CAS miss。
+- `tests/api/export-http-api.test.mjs`: 覆盖旧 PENDING cancel 快照不能覆盖 EXECUTING。
+- `tests/worker/scheduler-worker.test.mjs`: 覆盖旧 EXECUTING cancel 快照不能覆盖 retry 后的新 attempt。
+- `docs/testing/verify-matrix.md`: 记录本任务 fresh evidence。
+
+## Validation
+- RED scoped test: PASS - 新 API 用例先失败，证明旧实现会覆盖 `EXECUTING`。
+- `npm run typecheck`: PASS
+- Docker MySQL + `npm run test:api`: PASS, 6/6
+- Docker MySQL + `npm run test:worker`: PASS, 23/23
+- `git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md`: PASS
+
+## Evidence
+- `tests/api/export-http-api.test.mjs`: 证明旧 cancel CAS miss 不覆盖 worker 已推进状态。
+- `tests/worker/scheduler-worker.test.mjs`: 证明旧 cancel 不覆盖 FAILED retry 后的新 `attemptNo`。
+- `docs/testing/verify-matrix.md`: 记录 `TASK-CANCEL-ATOMICITY-001` evidence。
+
+## Architecture Constraints
+- `production MySQL repository path`: PASS - 使用现有 Kysely/MySQL repository，无内存替身。
+- `FR-012 state machine`: PASS - PENDING cancel、EXECUTING 批次边界 cancel、FAILED retry 既有测试继续通过。
+- `forbidden_implementations`: PASS - 未引入 mock / fixture repository 作为生产路径。
+
+## Knowledge References
+- 无：已检查 `docs/knowledge/knowledge-catalog.md` / `catalog.md`，没有直接适用于本任务实现的知识条目。
+
+## Knowledge Outputs
+- 无新增建议。
+
+## Visual Evidence
+- reference: `none`
+- screenshot: `none`
+- parity report: `none`
+
+## Remaining Risks
+- 未执行 `git commit`：本轮 Driver 模板明确禁止 `git add` / `git commit` / `git push`，我按当前任务边界执行。

@@ -1,0 +1,2042 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3376-8472-7143-916e-80b07d6c987c
+--------
+user
+# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: TASK-CANCEL-ATOMICITY-001
+- 描述: 修复取消任务状态更新缺少原状态和 attemptNo CAS 条件
+- Requirement IDs:
+- FR-012
+- AC-012
+- AC-E015
+- 测试命令: npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\scripts\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/state-matrix.yaml
+- docs/product/acceptance-criteria.md
+- docs/reviews/requirements-complete-review.md
+- src/task-api/service.ts
+- src/repositories/export-task.repository.ts
+- src/scheduler/worker.ts
+- tests/api/export-http-api.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58692 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6938ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1964.2292ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (272.4998ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (136.7432ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (127.7091ms)
+✔ create task idempotent replay returns existing task after registry guard changes (113.8838ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3353.5777
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7602ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (274.9658ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (337.0673ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (230.5881ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (274.3412ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (281.7413ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (199.3623ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.568ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (201.9346ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (231.0563ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (220.5471ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (273.6542ms)
+  ✔ stale executing cancel cannot overwrite a retried attempt (214.6101ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (298.9339ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (191.0894ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (298.8521ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (272.739ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (291.1654ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (172.2041ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (159.7503ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (158.1987ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (168.6055ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (157.7284ms)
+✔ worker integration tests (5154.6471ms)
+ℹ tests 23
+ℹ suites 1
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5682.8957
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 2 的范围做代码审查：先读取适用的 review 技能规则，再看当前 diff、相关实现和测试证据，不重新裁判需求。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'C:/Users/pzy666/.codex/plugins/cache/openai-curated/superpowers/63976030/skills/using-superpowers/SKILL.md' -TotalCount 160" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:/2026/alpha-project/longgang-codex-driver/.agents/skills/code-reviewer/SKILL.md' -TotalCount 200" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'E:/2026/alpha-project/longgang-codex-driver/.agents/skills/code-review/SKILL.md' -TotalCount 200" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 348ms:
+---
+name: code-reviewer
+description: Expert code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying code. MUST BE USED for all code changes.
+tools: Read, Grep, Glob, Bash
+model: opus
+---
+
+You are a senior code reviewer ensuring high standards of code quality and security.
+
+When invoked:
+1. Run git diff to see recent changes
+2. Focus on modified files
+3. Begin review immediately
+
+Review checklist:
+- Code is simple and readable
+- Functions and variables are well-named
+- No duplicated code
+- Proper error handling
+- No exposed secrets or API keys
+- Input validation implemented
+- Good test coverage
+- Performance considerations addressed
+- Time complexity of algorithms analyzed
+- Licenses of integrated libraries checked
+
+Provide feedback organized by priority:
+- Critical issues (must fix)
+- Warnings (should fix)
+- Suggestions (consider improving)
+
+Include specific examples of how to fix issues.
+
+## Security Checks (CRITICAL)
+
+- Hardcoded credentials (API keys, passwords, tokens)
+- SQL injection risks (string concatenation in queries)
+- XSS vulnerabilities (unescaped user input)
+- Missing input validation
+- Insecure dependencies (outdated, vulnerable)
+- Path traversal risks (user-controlled file paths)
+- CSRF vulnerabilities
+- Authentication bypasses
+
+## Code Quality (HIGH)
+
+- Large functions (>50 lines)
+- Large files (>800 lines)
+- Deep nesting (>4 levels)
+- Missing error handling (try/catch)
+- console.log statements
+- Mutation patterns
+- Missing tests for new code
+
+## Performance (MEDIUM)
+
+- Inefficient algorithms (O(n²) when O(n log n) possible)
+- Unnecessary re-renders in React
+- Missing memoization
+- Large bundle sizes
+- Unoptimized images
+- Missing caching
+- N+1 queries
+
+## Best Practices (MEDIUM)
+
+- Emoji usage in code/comments
+- TODO/FIXME without tickets
+- Missing JSDoc for public APIs
+- Accessibility issues (missing ARIA labels, poor contrast)
+- Poor variable naming (x, tmp, data)
+- Magic numbers without explanation
+- Inconsistent formatting
+
+## Review Output Format
+
+For each issue:
+```
+[CRITICAL] Hardcoded API key
+File: src/api/client.ts:42
+Issue: API key exposed in source code
+Fix: Move to environment variable
+
+const apiKey = "sk-abc123";  // ❌ Bad
+const apiKey = process.env.API_KEY;  // ✓ Good
+```
+
+## Approval Criteria
+
+- ✅ Approve: No CRITICAL or HIGH issues
+- ⚠️ Warning: MEDIUM issues only (can merge with caution)
+- ❌ Block: CRITICAL or HIGH issues found
+
+## Project-Specific Guidelines (Example)
+
+Add your project-specific checks here. Examples:
+- Follow MANY SMALL FILES principle (200-400 lines typical)
+- No emojis in codebase
+- Use immutability patterns (spread operator)
+- Verify database RLS policies
+- Check AI integration error handling
+- Validate cache fallback behavior
+
+Customize based on your project's `CLAUDE.md` or skill files.
+
+ succeeded in 343ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+ succeeded in 384ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+codex
+使用 `code-review` / `code-reviewer` 技能做审查；我会聚焦本任务改动文件、测试可信度和回归风险。接下来先看工作区状态和 diff，再对关键代码路径做 targeted review。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --stat' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff -- src/task-api/service.ts src/repositories/export-task.repository.ts src/scheduler/worker.ts tests/api/export-http-api.test.mjs tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md task.json' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 373ms:
+ succeeded in 420ms:
+ succeeded in 470ms:
+?? traces/TASK-CANCEL-ATOMICITY-001-20260517-085503.json
+?? traces/TASK-CANCEL-ATOMICITY-001-429bc37c8c56461f8c133c2bc4a649c3/
+?? traces/TASK-CANCEL-ATOMICITY-001-d9624f91d2d84c0ba67929b1fda1c8a5/
+
+codex
+当前工作区没有 tracked diff，只有本任务的 trace 目录未跟踪；这说明代码改动很可能已经在当前 HEAD 中。为了避免空审查，我会用相关文件当前内容和最近提交记录定位取消 CAS 的实现与测试。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git log --oneline -8' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "cancel|attemptNo|EXECUT|CANCEL" src/task-api/service.ts src/repositories/export-task.repository.ts src/scheduler/worker.ts tests/api/export-http-api.test.mjs tests/worker/scheduler-worker.test.mjs task.json docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Path traces -Force | Sort-Object LastWriteTime -Descending | Select-Object -First 8 Name,LastWriteTime,Length' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 400ms:
+87be704 chore(runtime): record cancel stage1 failure
+4f2c8ed fix(cancel): preserve executing cancel intent after CAS miss
+e58c01f feat: 修复历史任务分页 total 返回筛选条件真实总量 - completed HISTORY-PAGINATION-TOTAL-001
+9c9ee4c chore(runtime): record history stage1 failure
+ae511ef test(history): isolate pagination total regression
+ca37fcf chore(runtime): record history task codex interruption
+e1e21b6 fix(history): return filtered pagination total
+8ddb95b chore(runtime): record history task truth-source block
+
+ succeeded in 420ms:
+docs/testing/verify-matrix.md:35:| QUERY-BATCH-RETRY-001 | FR-008 / FR-010 / FR-013 / AC-E004 / AC-E020 | repaired | `npm run test:worker` 覆盖短暂查询失败后持久化 `retryCount/backoffMs` 并在下一批次完成，以及 retry 耗尽后 `FAILED + QUERY_EXECUTION_ERROR` | local/Docker MySQL worker evidence；无 live datasource 断言 |
+docs/testing/verify-matrix.md:44:| P0-ACCEPTANCE-EVIDENCE-REPAIR-001 | FR-001 / FR-004 / FR-007 / FR-008 / FR-009 / FR-014 / AC-004 / AC-007 / AC-009 / AC-E002 / AC-E023 / RCR-P0-005 | repaired | `npm run test:api` 在生产 HTTP + MySQL 路径新增断言：未注册 `taskCode` 创建返回 `TASK_NOT_REGISTERED` 且不落 `export_tasks`、失败审计可追溯；历史查询显式覆盖 `status + subsystemCode` 组合筛选并保持普通用户仅见本人、跨租户管理员拒绝的可信上下文边界；registry API 覆盖 get/list/update、顺序及并发重复 `taskCode` 创建稳定返回 `REGISTRY_CONFLICT` 且不覆盖既有配置、无权限配置操作返回 `PERMISSION_DENIED` 并写入失败审计。`npm run test:query` 新增游标负向证据：缺失/空 cursor、重复或非递增 cursor、checkpoint 缺少 cursor 字段均收口为 `QUERY_EXECUTION_ERROR` | local/Docker MySQL API + query evidence；HTTP create registry 使用原子 insert 处理重复 `taskCode`，内部 seed/upsert 路径仍保留幂等 upsert；不回退认证上下文可信边界、下载签名 URL、queryParams 32KB 限制或 dataScopeTemplate 执行边界；不声明外部生产 MySQL 或 live datasource evidence |
+docs/testing/verify-matrix.md:48:| TASK-CANCEL-ATOMICITY-001 | FR-012 / AC-012 / AC-E015 | repaired | `npm run test:api` 断言取消状态更新必须携带原 `status` 与 `attemptNo` CAS 条件，旧 PENDING 取消快照不能覆盖已推进到 EXECUTING 的任务；`npm run test:worker` 断言旧 EXECUTING 取消快照不能覆盖 FAILED retry 后递增出的新 `attemptNo`。同一轮继续保留 PENDING cancel、EXECUTING 批次边界 cancel 与 FAILED retry 既有状态机证据 | local/Docker MySQL API + worker evidence；CAS miss 收口为未更新或非法状态，不声明外部生产 MySQL evidence |
+docs/testing/verify-matrix.md:85:| DB 集成测试 | `npm run test:db` | `DB-SCHEMA-001`、`SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`FILE-SERVICE-001`、`CLEANUP-JOB-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-001 / FR-005 / FR-007 / FR-010 / FR-013 | MySQL；release 时由 Docker MySQL 自举 | 证明 migration、repository、锁和持久化边界；未设置 MySQL 时必须 BLOCKED，不能降级为内存替身。 |
+docs/testing/verify-matrix.md:86:| Worker 集成测试 | `npm run test:worker` | `SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`DATASOURCE-ADAPTER-BOUNDARY-001`、`CLEANUP-JOB-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-005 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | MySQL + injected readonly datasource adapter；release 时由 Docker MySQL 自举 | 证明 polling、租约、接管、取消、重试、cleanup 调度以及 scheduler 到 query executor 的 datasource adapter 传递边界；不替代 query/file/sample 的内容级断言。 |
+docs/testing/verify-matrix.md:87:| Query executor 验证 | `npm run test:query` | `QUERY-EXECUTOR-001`、`DATA-SCOPE-TEMPLATE-ENFORCE-001`、`DATASOURCE-ADAPTER-BOUNDARY-001`、`SAMPLE-PURCHASE-ORDER-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-006 / FR-008 / FR-009 / FR-014 | MySQL + readonly datasource adapter；外部数据源以受控测试数据模拟 | 证明模板绑定、registry `datasourceCode` 到只读 datasource adapter、registry `dataScopeTemplate`、`operatorId/roleCodes/orgScope/tenantId` 数据范围、脱敏、字段映射、checkpoint 和 `DATASOURCE_UNAVAILABLE` 收口；不声明外部业务库 live 已接入。 |
+docs/testing/verify-matrix.md:145:| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql；`TASK-CANCEL-ATOMICITY-001` 补齐 cancel 状态更新基于原 `status` 与 `attemptNo` 的 CAS 证据，旧 cancel 不覆盖 worker 已推进状态或 FAILED retry 后的新 attempt | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:api`、`npm run test:worker` |
+docs/testing/verify-matrix.md:146:| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+tests/worker/scheduler-worker.test.mjs:244:  assert.equal(tasks.filter((task) => task.status === "EXECUTING").length, 1);
+tests/worker/scheduler-worker.test.mjs:247:  const executing = tasks.find((task) => task.status === "EXECUTING");
+tests/worker/scheduler-worker.test.mjs:255:    .where("attempt_no", "=", executing.attemptNo)
+tests/worker/scheduler-worker.test.mjs:260:    ["DISPATCH", "EXECUTE_START"]
+tests/worker/scheduler-worker.test.mjs:540:serialTest("expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish", async (t) => {
+tests/worker/scheduler-worker.test.mjs:625:    audits.filter((audit) => audit.action === "EXECUTE_SUCCESS").map((audit) => audit.requestId),
+tests/worker/scheduler-worker.test.mjs:632:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:693:  assert.equal(tasks.filter((task) => task.status === "EXECUTING").length, 1);
+tests/worker/scheduler-worker.test.mjs:697:serialTest("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
+tests/worker/scheduler-worker.test.mjs:742:  assert.equal(task.attemptNo, 0);
+tests/worker/scheduler-worker.test.mjs:875:  assert.equal(task.status, "EXECUTING");
+tests/worker/scheduler-worker.test.mjs:881:        ["EXECUTE_SUCCESS", "EXECUTE_FAILED"].includes(audit.action)
+tests/worker/scheduler-worker.test.mjs:887:serialTest("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+tests/worker/scheduler-worker.test.mjs:890:  const taskId = `exp-cancel-${Date.now()}`;
+tests/worker/scheduler-worker.test.mjs:901:        auditId: `audit-cancel-${runId}`,
+tests/worker/scheduler-worker.test.mjs:903:        attemptNo: lease.attemptNo,
+tests/worker/scheduler-worker.test.mjs:907:        action: "CANCEL_REQUEST",
+tests/worker/scheduler-worker.test.mjs:910:        requestId: "req-cancel-001",
+tests/worker/scheduler-worker.test.mjs:922:  assert.equal(result.canceled, 1);
+tests/worker/scheduler-worker.test.mjs:923:  assert.equal(task.status, "CANCELED");
+tests/worker/scheduler-worker.test.mjs:927:    ["CANCEL_DONE", "CANCEL_REQUEST", "DISPATCH", "EXECUTE_START"]
+tests/worker/scheduler-worker.test.mjs:931:serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+tests/worker/scheduler-worker.test.mjs:954:  assert.equal(failed.attemptNo, 0);
+tests/worker/scheduler-worker.test.mjs:962:  assert.equal(retried.attemptNo, 1);
+tests/worker/scheduler-worker.test.mjs:976:  assert.equal(executing.status, "EXECUTING");
+tests/worker/scheduler-worker.test.mjs:977:  assert.equal(executing.attemptNo, 1);
+tests/worker/scheduler-worker.test.mjs:981:serialTest("stale executing cancel cannot overwrite a retried attempt", async (t) => {
+tests/worker/scheduler-worker.test.mjs:984:  const taskId = `exp-worker-${runId}-stale-cancel`;
+tests/worker/scheduler-worker.test.mjs:993:    batchProcessor: async () => batchResult("order-stale-cancel", 10)
+tests/worker/scheduler-worker.test.mjs:1009:    .where("attempt_no", "=", staleCancelSnapshot.attemptNo)
+tests/worker/scheduler-worker.test.mjs:1017:  assert.equal(retried.attemptNo, staleCancelSnapshot.attemptNo + 1);
+tests/worker/scheduler-worker.test.mjs:1021:    status: "CANCELED",
+tests/worker/scheduler-worker.test.mjs:1023:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests/worker/scheduler-worker.test.mjs:1030:  assert.equal(taskAfterStaleCancel.attemptNo, staleCancelSnapshot.attemptNo + 1);
+tests/worker/scheduler-worker.test.mjs:1051:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1119:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1158:  assert.equal(task.status, "EXECUTING");
+tests/worker/scheduler-worker.test.mjs:1182:        error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1225:serialTest("query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1240:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1272:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1294:      error.name = "QUERY_EXECUTION_ERROR";
+tests/worker/scheduler-worker.test.mjs:1324:      (audit) => audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1357:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1390:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "DATASOURCE_UNAVAILABLE"
+tests/worker/scheduler-worker.test.mjs:1396:        audit.action === "EXECUTE_FAILED" &&
+tests/worker/scheduler-worker.test.mjs:1402:serialTest("unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits", async (t) => {
+tests/worker/scheduler-worker.test.mjs:1430:        audit.action === "EXECUTE_FAILED" && audit.errorCode === "QUERY_EXECUTION_ERROR"
+tests/worker/scheduler-worker.test.mjs:1450:    attemptNo: 0,
+tests/worker/scheduler-worker.test.mjs:1504:    attemptNo: 0,
+src/task-api/service.ts:53:  attemptNo: number;
+src/task-api/service.ts:66:  attemptNo: number;
+src/task-api/service.ts:247:    attemptNo: task.attemptNo,
+src/task-api/service.ts:310:    case "QUERY_EXECUTION_ERROR":
+src/task-api/service.ts:400:      errorCode: normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR"),
+src/task-api/service.ts:402:        normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR")
+src/task-api/service.ts:412:    const errorCode = normalizePublicResponseCode(rawErrorCode, "QUERY_EXECUTION_ERROR");
+src/task-api/service.ts:457:    "attemptNo",
+src/task-api/service.ts:474:    attemptNo: event.attemptNo,
+src/task-api/service.ts:497:  attemptNo?: number | null;
+src/task-api/service.ts:505:    attemptNo: input.attemptNo ?? null,
+src/task-api/service.ts:579:    attemptNo: file.attemptNo
+src/task-api/service.ts:871:      attemptNo: task.attemptNo,
+src/task-api/service.ts:928:      attemptNo: null,
+src/task-api/service.ts:969:          attemptNo: task.attemptNo,
+src/task-api/service.ts:981:      task.attemptNo
+src/task-api/service.ts:1006:      attemptNo: task.attemptNo,
+src/task-api/service.ts:1055:          attemptNo: task.attemptNo,
+src/task-api/service.ts:1063:    const file = await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo);
+src/task-api/service.ts:1072:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1085:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1100:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1145:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1155:      attemptNo: task.attemptNo,
+src/task-api/service.ts:1188:      ? await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo)
+src/task-api/service.ts:1197:      attemptNo: task?.attemptNo ?? null,
+src/task-api/service.ts:1296:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1316:export async function cancelExportTask(auth: AuthContext, taskId: string) {
+src/task-api/service.ts:1326:        action: "CANCEL_REQUEST",
+src/task-api/service.ts:1339:          action: "CANCEL_REQUEST",
+src/task-api/service.ts:1342:          attemptNo: task.attemptNo,
+src/task-api/service.ts:1349:    if (!["PENDING", "EXECUTING"].includes(task.status)) {
+src/task-api/service.ts:1356:        action: "CANCEL_REQUEST",
+src/task-api/service.ts:1359:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1365:    let cancelAtBatchBoundary = task.status === "EXECUTING";
+src/task-api/service.ts:1366:    const status = task.status === "PENDING" ? "CANCELED" : "EXECUTING";
+src/task-api/service.ts:1371:      expectedAttemptNo: task.attemptNo,
+src/task-api/service.ts:1378:        latest?.status === "EXECUTING" &&
+src/task-api/service.ts:1379:        latest.attemptNo === task.attemptNo
+src/task-api/service.ts:1382:        cancelAtBatchBoundary = true;
+src/task-api/service.ts:1390:          action: "CANCEL_REQUEST",
+src/task-api/service.ts:1393:          attemptNo: latest?.attemptNo ?? task.attemptNo,
+src/task-api/service.ts:1404:      attemptNo: updated.attemptNo,
+src/task-api/service.ts:1407:      action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+src/task-api/service.ts:1408:      result: cancelAtBatchBoundary ? "ACCEPTED" : "SUCCESS",
+src/task-api/service.ts:1415:      attemptNo: updated.attemptNo,
+src/task-api/service.ts:1447:          attemptNo: task.attemptNo,
+src/task-api/service.ts:1464:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1479:        attemptNo: task.attemptNo,
+src/task-api/service.ts:1489:      attemptNo: updated.attemptNo,
+src/task-api/service.ts:1500:      attemptNo: updated.attemptNo,
+task.json:458:                                                        "禁止对外暴露内部 cancelRequested 状态"
+task.json:499:                                    "实现 create/detail/list/download/cancel/retry/registry 相关 route/handler 与 service",
+task.json:530:                                                       "租约过期接管延续当前 attemptNo，FAILED 重试才递增 attemptNo"
+task.json:568:                                    "实现批次边界取消、FAILED 重试、attemptNo 和审计串联",
+task.json:575:                                         "审计证据能串联 taskId、attemptNo、requestId 和 batch checkpoint"
+task.json:636:                      "id":  "QUERY-EXECUTOR-001",
+task.json:656:                                                       "字段映射、脱敏、批次检查点和失败审计必须可追踪到 taskId、attemptNo、requestId",
+task.json:703:                                         "批次 checkpoint 与 worker attemptNo 可追踪"
+task.json:720:                                           "QUERY-EXECUTOR-001"
+task.json:855:                                           "QUERY-EXECUTOR-001",
+task.json:1767:                                                        "禁止把 renderer 抛错继续按 QUERY_EXECUTION_ERROR、FILE_VERIFY_ERROR 或 INTERNAL_ERROR 收口",
+task.json:2572:                      "id":  "TASK-CANCEL-ATOMICITY-001",
+task.json:2573:                      "description":  "修复取消任务状态更新缺少原状态和 attemptNo CAS 条件",
+task.json:2589:                                                       "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：取消任务更新必须使用原状态和 attemptNo CAS 条件",
+task.json:2591:                                                       "保持 PENDING 取消、EXECUTING 批次边界取消和 FAILED retry 状态机语义"
+task.json:2595:                                                        "禁止让 cancel 覆盖 worker 已推进到 COMPLETED、FAILED 或新 attempt 的状态",
+task.json:2596:                                                        "禁止删除既有 worker lease、retry 或 cancel 审计"
+task.json:2634:                                    "复核 cancel API 和 worker 批次边界取消状态更新路径",
+task.json:2635:                                    "为 cancel 状态更新增加 expected status / attemptNo CAS 条件并处理 CAS miss",
+task.json:2636:                                    "补 API / worker 回归证明 cancel 不覆盖 worker 已推进状态或新 attempt",
+task.json:2637:                                    "同步 verify-matrix 记录 TASK-CANCEL-ATOMICITY-001 evidence"
+task.json:2641:                                         "取消任务更新使用原状态和 attemptNo CAS 条件",
+task.json:2642:                                         "worker 状态推进或 retry 产生新 attempt 后，旧 cancel 不会覆盖真实状态",
+task.json:2643:                                         "PENDING cancel 和 EXECUTING 批次边界 cancel 仍按产品状态机工作",
+task.json:2661:                                           "TASK-CANCEL-ATOMICITY-001"
+task.json:2830:                                           "TASK-CANCEL-ATOMICITY-001",
+tests/api/export-http-api.test.mjs:841:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:854:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:861:      attemptNo: 0,
+tests/api/export-http-api.test.mjs:872:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:908:  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
+tests/api/export-http-api.test.mjs:965:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:978:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1094:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1098:    action: "EXECUTE_FAILED",
+tests/api/export-http-api.test.mjs:1100:    errorCode: "QUERY_EXECUTION_ERROR",
+tests/api/export-http-api.test.mjs:1118:  assert.equal(failedDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+tests/api/export-http-api.test.mjs:1136:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1149:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1212:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1224:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1245:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1249:    action: "EXECUTE_FAILED",
+tests/api/export-http-api.test.mjs:1264:  assert.equal(internalFailureDetailResponse.json().data.errorCode, "QUERY_EXECUTION_ERROR");
+tests/api/export-http-api.test.mjs:1340:  const cancelResponse = await app.inject({
+tests/api/export-http-api.test.mjs:1342:    url: `/api/export/tasks/${taskId}/cancel`,
+tests/api/export-http-api.test.mjs:1343:    headers: createHeaders(`req-cancel-${runId}`)
+tests/api/export-http-api.test.mjs:1346:  assert.equal(cancelResponse.statusCode, 200);
+tests/api/export-http-api.test.mjs:1347:  assert.equal(cancelResponse.json().data.status, "CANCELED");
+tests/api/export-http-api.test.mjs:1349:  const canceledTask = await taskRepository.findTaskById(taskId);
+tests/api/export-http-api.test.mjs:1350:  assert.equal(canceledTask?.status, "CANCELED");
+tests/api/export-http-api.test.mjs:1352:  const staleCancelTaskId = `exp-stale-cancel-${runId}`;
+tests/api/export-http-api.test.mjs:1373:      requestId: `req-stale-cancel-create-${runId}`
+tests/api/export-http-api.test.mjs:1380:    status: "EXECUTING",
+tests/api/export-http-api.test.mjs:1386:    status: "CANCELED",
+tests/api/export-http-api.test.mjs:1388:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests/api/export-http-api.test.mjs:1394:  assert.equal(notOverwrittenTask.status, "EXECUTING");
+tests/api/export-http-api.test.mjs:1395:  assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+tests/api/export-http-api.test.mjs:1397:  const executingCancelTaskId = `exp-executing-cancel-${runId}`;
+tests/api/export-http-api.test.mjs:1418:      requestId: `req-executing-cancel-create-${runId}`
+tests/api/export-http-api.test.mjs:1425:      status: "EXECUTING",
+tests/api/export-http-api.test.mjs:1426:      lock_owner: "worker-api-cancel",
+tests/api/export-http-api.test.mjs:1435:    url: `/api/export/tasks/${executingCancelTaskId}/cancel`,
+tests/api/export-http-api.test.mjs:1436:    headers: createHeaders(`req-executing-cancel-${runId}`)
+tests/api/export-http-api.test.mjs:1442:  assert.equal(executingCancelResponse.json().data.status, "EXECUTING");
+tests/api/export-http-api.test.mjs:1443:  assert.equal(executingCancelTask.status, "EXECUTING");
+tests/api/export-http-api.test.mjs:1447:        audit.action === "CANCEL_REQUEST" &&
+tests/api/export-http-api.test.mjs:1449:        audit.attemptNo === executingCancelTask.attemptNo
+tests/api/export-http-api.test.mjs:1453:    executingCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+tests/api/export-http-api.test.mjs:1472:    attemptNo: 0,
+tests/api/export-http-api.test.mjs:1620:    attemptNo: 0,
+src/scheduler/worker.ts:63:      attemptNo: number;
+src/scheduler/worker.ts:73:  canceled: number;
+src/scheduler/worker.ts:78:type TerminalTaskStatus = "COMPLETED" | "FAILED" | "CANCELED";
+src/scheduler/worker.ts:121:    attemptNo: row.attempt_no,
+src/scheduler/worker.ts:157:      canceled: 0,
+src/scheduler/worker.ts:184:        attemptNo: acquired.lease.attemptNo,
+src/scheduler/worker.ts:193:        attemptNo: acquired.lease.attemptNo,
+src/scheduler/worker.ts:194:        action: "EXECUTE_START",
+src/scheduler/worker.ts:214:      result.canceled += processed.canceled;
+src/scheduler/worker.ts:264:            eb("t.status", "=", "EXECUTING"),
+src/scheduler/worker.ts:269:            eb("t.status", "=", "EXECUTING"),
+src/scheduler/worker.ts:294:        candidate.status === "EXECUTING" &&
+src/scheduler/worker.ts:311:        .where("status", "=", "EXECUTING")
+src/scheduler/worker.ts:328:          : candidate.status === "EXECUTING"
+src/scheduler/worker.ts:339:          status: "EXECUTING",
+src/scheduler/worker.ts:376:        status: "EXECUTING",
+src/scheduler/worker.ts:387:          attemptNo: candidate.attempt_no,
+src/scheduler/worker.ts:416:    canceled: 0,
+src/scheduler/worker.ts:425:      input.lease.attemptNo
+src/scheduler/worker.ts:447:          attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:460:          attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:474:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:480:    if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+src/scheduler/worker.ts:481:      const canceledAt = await markTaskTerminal({
+src/scheduler/worker.ts:484:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:486:        status: "CANCELED"
+src/scheduler/worker.ts:491:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:492:        action: "CANCEL_DONE",
+src/scheduler/worker.ts:495:        now: canceledAt
+src/scheduler/worker.ts:497:      result.canceled = 1;
+src/scheduler/worker.ts:514:          attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:521:          attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:529:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:536:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:537:        action: "EXECUTE_SUCCESS",
+src/scheduler/worker.ts:549:      attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:566:        attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:580:      attemptNo: input.lease.attemptNo,
+src/scheduler/worker.ts:581:      action: "EXECUTE_FAILED",
+src/scheduler/worker.ts:585:        "QUERY_EXECUTION_ERROR"
+src/scheduler/worker.ts:598:  attemptNo: number;
+src/scheduler/worker.ts:613:  attemptNo: number;
+src/scheduler/worker.ts:626:      .where("attempt_no", "=", input.attemptNo)
+src/scheduler/worker.ts:628:      .where("status", "=", "EXECUTING")
+src/scheduler/worker.ts:656:      .where("attempt_no", "=", input.attemptNo)
+src/scheduler/worker.ts:667:  attemptNo: number;
+src/scheduler/worker.ts:677:      .where("attempt_no", "=", input.attemptNo)
+src/scheduler/worker.ts:679:      .where("status", "=", "EXECUTING")
+src/scheduler/worker.ts:700:      .where("attempt_no", "=", input.attemptNo)
+src/scheduler/worker.ts:702:      .where("status", "=", "EXECUTING")
+src/scheduler/worker.ts:719:  attemptNo: number
+src/scheduler/worker.ts:723:    .select((eb) => eb.fn.count<number>("audit_id").as("cancel_count"))
+src/scheduler/worker.ts:725:    .where("attempt_no", "=", attemptNo)
+src/scheduler/worker.ts:726:    .where("action", "=", "CANCEL_REQUEST")
+src/scheduler/worker.ts:730:  return Number(row?.cancel_count ?? 0) > 0;
+src/scheduler/worker.ts:742:    .where("action", "in", ["CREATE", "RETRY_REQUEST", "CANCEL_REQUEST"])
+src/scheduler/worker.ts:752:  attemptNo: number;
+src/scheduler/worker.ts:762:    attemptNo: input.attemptNo,
+src/scheduler/worker.ts:788:    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+src/repositories/export-task.repository.ts:34:  attemptNo: number;
+src/repositories/export-task.repository.ts:94:    attemptNo: row.attempt_no,
+
+ succeeded in 429ms:
+
+[32;1mName                                                         [0m[32;1m LastWriteTime    [0m[32;1m Length[0m
+[32;1m----                                                         [0m [32;1m-------------    [0m [32;1m------[0m
+TASK-CANCEL-ATOMICITY-001-429bc37c8c56461f8c133c2bc4a649c3    2026/5/17 9:04:25 
+TASK-CANCEL-ATOMICITY-001-20260517-085503.json                2026/5/17 8:55:03 407681
+TASK-CANCEL-ATOMICITY-001-d9624f91d2d84c0ba67929b1fda1c8a5    2026/5/17 8:55:02 
+HISTORY-PAGINATION-TOTAL-001-20260517-084622.json             2026/5/17 8:46:22 308087
+HISTORY-PAGINATION-TOTAL-001-510d3e87e7424735a4d5d7587f59bc3b 2026/5/17 8:46:20 
+HISTORY-PAGINATION-TOTAL-001-20260517-083800.json             2026/5/17 8:38:00 204864
+HISTORY-PAGINATION-TOTAL-001-def62983dc9f488fb1ab596ae686db3c 2026/5/17 8:37:59 
+HISTORY-PAGINATION-TOTAL-001-20260517-061057.json             2026/5/17 6:10:57 244459
+
+
+codex
+最近相关提交是 `fix(cancel): preserve executing cancel intent after CAS miss`，后面还有一条 runtime 记录提交。我会以该修复提交和当前文件为审查对象，重点核对 CAS 条件、失败分支和测试是否真正覆盖。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --stat --oneline 4f2c8ed' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show -- src/task-api/service.ts src/repositories/export-task.repository.ts src/scheduler/worker.ts tests/api/export-http-api.test.mjs tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md task.json --format=fuller 4f2c8ed' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'Get-ChildItem -Path traces/TASK-CANCEL-ATOMICITY-001-429bc37c8c56461f8c133c2bc4a649c3 -Force | Select-Object Name,Length,LastWriteTime' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 373ms:
+ succeeded in 373ms:
+
+[32;1mName                                                             [0m[32;1m Length[0m[32;1m LastWriteTime[0m
+[32;1m----                                                             [0m [32;1m------[0m [32;1m-------------[0m
+TASK-CANCEL-ATOMICITY-001-20260517-085800-codex-error.log         253025 2026/5/17 9:01:47
+TASK-CANCEL-ATOMICITY-001-20260517-085800-codex-final.txt           2204 2026/5/17 9:01:47
+TASK-CANCEL-ATOMICITY-001-20260517-085800-codex-output.log          3070 2026/5/17 9:01:47
+TASK-CANCEL-ATOMICITY-001-20260517-085800-prompt.txt                9297 2026/5/17 8:58:00
+TASK-CANCEL-ATOMICITY-001-stage1-20260517-090149-codex-error.log  213927 2026/5/17 9:04:08
+TASK-CANCEL-ATOMICITY-001-stage1-20260517-090149-codex-final.txt     353 2026/5/17 9:04:08
+TASK-CANCEL-ATOMICITY-001-stage1-20260517-090149-codex-output.log   1480 2026/5/17 9:04:08
+TASK-CANCEL-ATOMICITY-001-stage1-20260517-090149-prompt.txt         8240 2026/5/17 9:01:49
+TASK-CANCEL-ATOMICITY-001-stage2-20260517-090425-codex-error.log   22979 2026/5/17 9:05:00
+TASK-CANCEL-ATOMICITY-001-stage2-20260517-090425-codex-output.log      0 2026/5/17 9:04:25
+TASK-CANCEL-ATOMICITY-001-stage2-20260517-090425-prompt.txt         8408 2026/5/17 9:04:25
+TASK-CANCEL-ATOMICITY-001-test-20260517-090425.log                  3869 2026/5/17 9:04:25
+
+
+ succeeded in 413ms:
+4f2c8ed fix(cancel): preserve executing cancel intent after CAS miss
+ docs/testing/verify-matrix.md              |   3 +-
+ src/repositories/export-task.repository.ts |  19 ++++-
+ src/task-api/service.ts                    |  44 +++++++++---
+ tests/api/export-http-api.test.mjs         | 107 ++++++++++++++++++++++++++++-
+ tests/worker/scheduler-worker.test.mjs     |  52 ++++++++++++++
+ 5 files changed, 209 insertions(+), 16 deletions(-)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'src/task-api/service.ts'; for ("'$i=1310; $i -le 1425; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'src/repositories/export-task.repository.ts'; for ("'$i=1; $i -le 190; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'tests/api/export-http-api.test.mjs'; for ("'$i=1325; $i -le 1460; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'src/scheduler/worker.ts'; for ("'$i=590; $i -le 710; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 422ms:
+ 1310:         error: toStorageApiError(error, file)
+ 1311:       });
+ 1312:     }
+ 1313:   });
+ 1314: }
+ 1315: 
+ 1316: export async function cancelExportTask(auth: AuthContext, taskId: string) {
+ 1317:   return withDatabase(async (db) => {
+ 1318:     const now = await getDatabaseTime(db);
+ 1319:     const repository = createExportTaskRepository(db);
+ 1320:     const task = await repository.findTaskById(taskId);
+ 1321:     if (!task) {
+ 1322:       return rejectWithAudit({
+ 1323:         db,
+ 1324:         auth,
+ 1325:         error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+ 1326:         action: "CANCEL_REQUEST",
+ 1327:         now,
+ 1328:         taskId
+ 1329:       });
+ 1330:     }
+ 1331:     try {
+ 1332:       assertTaskVisible(auth, task);
+ 1333:     } catch (error) {
+ 1334:       if (error instanceof ApiError) {
+ 1335:         return rejectWithAudit({
+ 1336:           db,
+ 1337:           auth,
+ 1338:           error,
+ 1339:           action: "CANCEL_REQUEST",
+ 1340:           now,
+ 1341:           taskId,
+ 1342:           attemptNo: task.attemptNo,
+ 1343:           taskCode: task.taskCode,
+ 1344:           subsystemCode: task.subsystemCode
+ 1345:         });
+ 1346:       }
+ 1347:       throw error;
+ 1348:     }
+ 1349:     if (!["PENDING", "EXECUTING"].includes(task.status)) {
+ 1350:       return rejectWithAudit({
+ 1351:         db,
+ 1352:         auth,
+ 1353:         error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+ 1354:           status: task.status
+ 1355:         }),
+ 1356:         action: "CANCEL_REQUEST",
+ 1357:         now,
+ 1358:         taskId,
+ 1359:         attemptNo: task.attemptNo,
+ 1360:         taskCode: task.taskCode,
+ 1361:         subsystemCode: task.subsystemCode
+ 1362:       });
+ 1363:     }
+ 1364: 
+ 1365:     let cancelAtBatchBoundary = task.status === "EXECUTING";
+ 1366:     const status = task.status === "PENDING" ? "CANCELED" : "EXECUTING";
+ 1367:     let updated = await repository.updateTaskStatus({
+ 1368:       taskId,
+ 1369:       status,
+ 1370:       expectedStatus: task.status,
+ 1371:       expectedAttemptNo: task.attemptNo,
+ 1372:       now
+ 1373:     });
+ 1374:     if (!updated) {
+ 1375:       const latest = await repository.findTaskById(taskId);
+ 1376:       if (
+ 1377:         task.status === "PENDING" &&
+ 1378:         latest?.status === "EXECUTING" &&
+ 1379:         latest.attemptNo === task.attemptNo
+ 1380:       ) {
+ 1381:         updated = latest;
+ 1382:         cancelAtBatchBoundary = true;
+ 1383:       } else {
+ 1384:         return rejectWithAudit({
+ 1385:           db,
+ 1386:           auth,
+ 1387:           error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+ 1388:             status: latest?.status ?? task.status
+ 1389:           }),
+ 1390:           action: "CANCEL_REQUEST",
+ 1391:           now,
+ 1392:           taskId,
+ 1393:           attemptNo: latest?.attemptNo ?? task.attemptNo,
+ 1394:           taskCode: latest?.taskCode ?? task.taskCode,
+ 1395:           subsystemCode: latest?.subsystemCode ?? task.subsystemCode
+ 1396:         });
+ 1397:       }
+ 1398:     }
+ 1399: 
+ 1400:     await appendAudit({
+ 1401:       db,
+ 1402:       auth,
+ 1403:       taskId,
+ 1404:       attemptNo: updated.attemptNo,
+ 1405:       taskCode: updated.taskCode,
+ 1406:       subsystemCode: updated.subsystemCode,
+ 1407:       action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+ 1408:       result: cancelAtBatchBoundary ? "ACCEPTED" : "SUCCESS",
+ 1409:       now
+ 1410:     });
+ 1411: 
+ 1412:     return {
+ 1413:       taskId,
+ 1414:       status: updated.status,
+ 1415:       attemptNo: updated.attemptNo,
+ 1416:       acceptedAt: now.toISOString()
+ 1417:     };
+ 1418:   });
+ 1419: }
+ 1420: 
+ 1421: export async function retryExportTask(auth: AuthContext, taskId: string) {
+ 1422:   return withDatabase(async (db) => {
+ 1423:     const now = await getDatabaseTime(db);
+ 1424:     const repository = createExportTaskRepository(db);
+ 1425:     const task = await repository.findTaskById(taskId);
+
+ succeeded in 416ms:
+    1: import type { Kysely, SelectQueryBuilder } from "kysely";
+    2: import type { ExportPlatformDatabase } from "../db/schema.ts";
+    3: 
+    4: export type CreatePendingTaskInput = {
+    5:   taskId: string;
+    6:   taskCode: string;
+    7:   subsystemCode: string;
+    8:   tenantId: string;
+    9:   createdBy: string;
+   10:   fileFormat: string;
+   11:   clientRequestId: string | null;
+   12:   idempotencyScope: string | null;
+   13:   requestDigest: string;
+   14:   configSnapshotDigest: string;
+   15:   requestPayload: string | null;
+   16:   authContextPayload: string | null;
+   17:   now: Date;
+   18: };
+   19: 
+   20: export type ExportTaskRecord = {
+   21:   taskId: string;
+   22:   taskCode: string;
+   23:   subsystemCode: string;
+   24:   tenantId: string;
+   25:   createdBy: string;
+   26:   fileFormat: string;
+   27:   status: string;
+   28:   clientRequestId: string | null;
+   29:   idempotencyScope: string | null;
+   30:   requestDigest: string;
+   31:   configSnapshotDigest: string;
+   32:   requestPayload: string | null;
+   33:   authContextPayload: string | null;
+   34:   attemptNo: number;
+   35:   lockOwner: string | null;
+   36:   lockExpireAt: Date | null;
+   37:   leaseRenewedAt: Date | null;
+   38:   createdAt: Date;
+   39:   updatedAt: Date;
+   40: };
+   41: 
+   42: export type ExportTaskIdempotencyRecord = {
+   43:   idempotencyScope: string;
+   44:   taskId: string;
+   45:   requestDigest: string;
+   46: };
+   47: 
+   48: type ExportTaskListFilters = {
+   49:   taskCode?: string;
+   50:   status?: string;
+   51:   subsystemCode?: string;
+   52:   tenantId?: string;
+   53:   createdBy?: string;
+   54:   fileFormat?: string;
+   55:   createdAtFrom?: Date;
+   56:   createdAtTo?: Date;
+   57: };
+   58: 
+   59: function toTaskRecord(row: {
+   60:   task_id: string;
+   61:   task_code: string;
+   62:   subsystem_code: string;
+   63:   tenant_id: string;
+   64:   created_by: string;
+   65:   file_format: string;
+   66:   status: string;
+   67:   client_request_id: string | null;
+   68:   idempotency_scope: string | null;
+   69:   request_digest: string;
+   70:   config_snapshot_digest: string;
+   71:   request_payload: string | null;
+   72:   auth_context_payload: string | null;
+   73:   attempt_no: number;
+   74:   lock_owner: string | null;
+   75:   lock_expire_at: Date | null;
+   76:   lease_renewed_at: Date | null;
+   77:   created_at: Date;
+   78:   updated_at: Date;
+   79: }): ExportTaskRecord {
+   80:   return {
+   81:     taskId: row.task_id,
+   82:     taskCode: row.task_code,
+   83:     subsystemCode: row.subsystem_code,
+   84:     tenantId: row.tenant_id,
+   85:     createdBy: row.created_by,
+   86:     fileFormat: row.file_format,
+   87:     status: row.status,
+   88:     clientRequestId: row.client_request_id,
+   89:     idempotencyScope: row.idempotency_scope,
+   90:     requestDigest: row.request_digest,
+   91:     configSnapshotDigest: row.config_snapshot_digest,
+   92:     requestPayload: row.request_payload,
+   93:     authContextPayload: row.auth_context_payload,
+   94:     attemptNo: row.attempt_no,
+   95:     lockOwner: row.lock_owner,
+   96:     lockExpireAt: row.lock_expire_at,
+   97:     leaseRenewedAt: row.lease_renewed_at,
+   98:     createdAt: row.created_at,
+   99:     updatedAt: row.updated_at
+  100:   };
+  101: }
+  102: 
+  103: export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
+  104:   function applyListFilters<O>(
+  105:     query: SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O>,
+  106:     filters: ExportTaskListFilters
+  107:   ): SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O> {
+  108:     let filtered = query;
+  109: 
+  110:     if (filters.taskCode) {
+  111:       filtered = filtered.where("task_code", "=", filters.taskCode);
+  112:     }
+  113:     if (filters.status) {
+  114:       filtered = filtered.where("status", "=", filters.status);
+  115:     }
+  116:     if (filters.subsystemCode) {
+  117:       filtered = filtered.where("subsystem_code", "=", filters.subsystemCode);
+  118:     }
+  119:     if (filters.tenantId) {
+  120:       filtered = filtered.where("tenant_id", "=", filters.tenantId);
+  121:     }
+  122:     if (filters.createdBy) {
+  123:       filtered = filtered.where("created_by", "=", filters.createdBy);
+  124:     }
+  125:     if (filters.fileFormat) {
+  126:       filtered = filtered.where("file_format", "=", filters.fileFormat);
+  127:     }
+  128:     if (filters.createdAtFrom) {
+  129:       filtered = filtered.where("created_at", ">=", filters.createdAtFrom);
+  130:     }
+  131:     if (filters.createdAtTo) {
+  132:       filtered = filtered.where("created_at", "<=", filters.createdAtTo);
+  133:     }
+  134: 
+  135:     return filtered;
+  136:   }
+  137: 
+  138:   return {
+  139:     async createPendingTask(input: CreatePendingTaskInput): Promise<ExportTaskRecord> {
+  140:       await db.transaction().execute(async (trx) => {
+  141:         await trx
+  142:           .insertInto("export_tasks")
+  143:           .values({
+  144:             task_id: input.taskId,
+  145:             task_code: input.taskCode,
+  146:             subsystem_code: input.subsystemCode,
+  147:             tenant_id: input.tenantId,
+  148:             created_by: input.createdBy,
+  149:             file_format: input.fileFormat,
+  150:             status: "PENDING",
+  151:             client_request_id: input.clientRequestId,
+  152:             idempotency_scope: input.idempotencyScope,
+  153:             request_digest: input.requestDigest,
+  154:             config_snapshot_digest: input.configSnapshotDigest,
+  155:             request_payload: input.requestPayload,
+  156:             auth_context_payload: input.authContextPayload,
+  157:             attempt_no: 0,
+  158:             lock_owner: null,
+  159:             lock_expire_at: null,
+  160:             lease_renewed_at: null,
+  161:             created_at: input.now,
+  162:             updated_at: input.now
+  163:           })
+  164:           .execute();
+  165: 
+  166:         if (input.idempotencyScope) {
+  167:           await trx
+  168:             .insertInto("export_task_idempotency")
+  169:             .values({
+  170:               idempotency_scope: input.idempotencyScope,
+  171:               task_id: input.taskId,
+  172:               request_digest: input.requestDigest,
+  173:               created_at: input.now
+  174:             })
+  175:             .execute();
+  176:         }
+  177:       });
+  178: 
+  179:       const task = await this.findTaskById(input.taskId);
+  180:       if (!task) {
+  181:         throw new Error(`Created task ${input.taskId} was not found`);
+  182:       }
+  183:       return task;
+  184:     },
+  185: 
+  186:     async findTaskById(taskId: string): Promise<ExportTaskRecord | undefined> {
+  187:       const row = await db
+  188:         .selectFrom("export_tasks")
+  189:         .selectAll()
+  190:         .where("task_id", "=", taskId)
+
+ succeeded in 390ms:
+  590:     result.failed = 1;
+  591:     return result;
+  592:   }
+  593: }
+  594: 
+  595: async function ensureLeaseAtBatchBoundary(input: {
+  596:   db: Kysely<ExportPlatformDatabase>;
+  597:   taskId: string;
+  598:   attemptNo: number;
+  599:   lockOwner: string;
+  600:   leaseDurationSeconds: number;
+  601: }): Promise<void> {
+  602:   const renewed = await renewLeaseAtBatchBoundary(input);
+  603:   if (!renewed) {
+  604:     throw leaseLostError(
+  605:       `worker ${input.lockOwner} no longer owns an active lease for task ${input.taskId}`
+  606:     );
+  607:   }
+  608: }
+  609: 
+  610: async function renewLeaseAtBatchBoundary(input: {
+  611:   db: Kysely<ExportPlatformDatabase>;
+  612:   taskId: string;
+  613:   attemptNo: number;
+  614:   lockOwner: string;
+  615:   leaseDurationSeconds: number;
+  616: }): Promise<boolean> {
+  617:   return input.db.transaction().execute(async (trx) => {
+  618:     const databaseTime = await queryDatabaseTime(trx);
+  619:     const lockExpireAt = new Date(
+  620:       databaseTime.getTime() + input.leaseDurationSeconds * 1000
+  621:     );
+  622:     const task = await trx
+  623:       .selectFrom("export_tasks")
+  624:       .select(["task_id"])
+  625:       .where("task_id", "=", input.taskId)
+  626:       .where("attempt_no", "=", input.attemptNo)
+  627:       .where("lock_owner", "=", input.lockOwner)
+  628:       .where("status", "=", "EXECUTING")
+  629:       .where("lock_expire_at", ">", databaseTime)
+  630:       .forUpdate()
+  631:       .executeTakeFirst();
+  632: 
+  633:     if (!task) {
+  634:       return false;
+  635:     }
+  636: 
+  637:     await trx
+  638:       .updateTable("export_tasks")
+  639:       .set({
+  640:         lock_expire_at: lockExpireAt,
+  641:         lease_renewed_at: databaseTime,
+  642:         updated_at: databaseTime
+  643:       })
+  644:       .where("task_id", "=", input.taskId)
+  645:       .execute();
+  646: 
+  647:     await trx
+  648:       .updateTable("export_task_leases")
+  649:       .set({
+  650:         lock_expire_at: lockExpireAt,
+  651:         lease_renewed_at: databaseTime,
+  652:         database_time: databaseTime,
+  653:         updated_at: databaseTime
+  654:       })
+  655:       .where("task_id", "=", input.taskId)
+  656:       .where("attempt_no", "=", input.attemptNo)
+  657:       .where("lock_owner", "=", input.lockOwner)
+  658:       .execute();
+  659: 
+  660:     return true;
+  661:   });
+  662: }
+  663: 
+  664: async function markTaskTerminal(input: {
+  665:   db: Kysely<ExportPlatformDatabase>;
+  666:   task: ExportTaskRecord;
+  667:   attemptNo: number;
+  668:   lockOwner: string;
+  669:   status: TerminalTaskStatus;
+  670: }): Promise<Date> {
+  671:   return input.db.transaction().execute(async (trx) => {
+  672:     const databaseTime = await queryDatabaseTime(trx);
+  673:     const activeLease = await trx
+  674:       .selectFrom("export_tasks")
+  675:       .select("task_id")
+  676:       .where("task_id", "=", input.task.taskId)
+  677:       .where("attempt_no", "=", input.attemptNo)
+  678:       .where("lock_owner", "=", input.lockOwner)
+  679:       .where("status", "=", "EXECUTING")
+  680:       .where("lock_expire_at", ">", databaseTime)
+  681:       .forUpdate()
+  682:       .executeTakeFirst();
+  683: 
+  684:     if (!activeLease) {
+  685:       throw leaseLostError(
+  686:         `worker ${input.lockOwner} cannot mark task ${input.task.taskId} as ${input.status}`
+  687:       );
+  688:     }
+  689: 
+  690:     const updateResult = await trx
+  691:       .updateTable("export_tasks")
+  692:       .set({
+  693:         status: input.status,
+  694:         lock_owner: null,
+  695:         lock_expire_at: null,
+  696:         lease_renewed_at: null,
+  697:         updated_at: databaseTime
+  698:       })
+  699:       .where("task_id", "=", input.task.taskId)
+  700:       .where("attempt_no", "=", input.attemptNo)
+  701:       .where("lock_owner", "=", input.lockOwner)
+  702:       .where("status", "=", "EXECUTING")
+  703:       .where("lock_expire_at", ">", databaseTime)
+  704:       .executeTakeFirst();
+  705: 
+  706:     if (toUpdatedRowCount(updateResult.numUpdatedRows) !== 1) {
+  707:       throw leaseLostError(
+  708:         `worker ${input.lockOwner} lost the lease before marking task ${input.task.taskId} terminal`
+  709:       );
+  710:     }
+
+ succeeded in 433ms:
+ 1325:     })
+ 1326:   });
+ 1327: 
+ 1328:   assert.equal(deniedDownloadResponse.statusCode, 403);
+ 1329:   assert.equal(deniedDownloadResponse.json().code, "PERMISSION_DENIED");
+ 1330: 
+ 1331:   const retryPendingResponse = await app.inject({
+ 1332:     method: "POST",
+ 1333:     url: `/api/export/tasks/${taskId}/retry`,
+ 1334:     headers: createHeaders(`req-retry-pending-${runId}`)
+ 1335:   });
+ 1336: 
+ 1337:   assert.equal(retryPendingResponse.statusCode, 400);
+ 1338:   assert.equal(retryPendingResponse.json().code, "INVALID_TASK_STATE");
+ 1339: 
+ 1340:   const cancelResponse = await app.inject({
+ 1341:     method: "POST",
+ 1342:     url: `/api/export/tasks/${taskId}/cancel`,
+ 1343:     headers: createHeaders(`req-cancel-${runId}`)
+ 1344:   });
+ 1345: 
+ 1346:   assert.equal(cancelResponse.statusCode, 200);
+ 1347:   assert.equal(cancelResponse.json().data.status, "CANCELED");
+ 1348: 
+ 1349:   const canceledTask = await taskRepository.findTaskById(taskId);
+ 1350:   assert.equal(canceledTask?.status, "CANCELED");
+ 1351: 
+ 1352:   const staleCancelTaskId = `exp-stale-cancel-${runId}`;
+ 1353:   await taskRepository.createPendingTask({
+ 1354:     taskId: staleCancelTaskId,
+ 1355:     taskCode,
+ 1356:     subsystemCode: "purchase",
+ 1357:     tenantId: "tenant-001",
+ 1358:     createdBy: "u001",
+ 1359:     fileFormat: "XLSX",
+ 1360:     clientRequestId: null,
+ 1361:     idempotencyScope: null,
+ 1362:     requestDigest: `sha256:${staleCancelTaskId}`,
+ 1363:     configSnapshotDigest: "sha256:config-v1",
+ 1364:     requestPayload: JSON.stringify({
+ 1365:       fileFormat: "XLSX",
+ 1366:       queryParams: createTaskPayload(taskCode).queryParams
+ 1367:     }),
+ 1368:     authContextPayload: JSON.stringify({
+ 1369:       operatorId: "u001",
+ 1370:       tenantId: "tenant-001",
+ 1371:       roleCodes: ["EXPORT_USER"],
+ 1372:       orgScope: "ORG-001",
+ 1373:       requestId: `req-stale-cancel-create-${runId}`
+ 1374:     }),
+ 1375:     now: await getDatabaseTime(db)
+ 1376:   });
+ 1377:   const staleCancelSnapshot = await taskRepository.findTaskById(staleCancelTaskId);
+ 1378:   await taskRepository.updateTaskStatus({
+ 1379:     taskId: staleCancelTaskId,
+ 1380:     status: "EXECUTING",
+ 1381:     now: await getDatabaseTime(db)
+ 1382:   });
+ 1383: 
+ 1384:   const staleCancelResult = await taskRepository.updateTaskStatus({
+ 1385:     taskId: staleCancelTaskId,
+ 1386:     status: "CANCELED",
+ 1387:     expectedStatus: staleCancelSnapshot.status,
+ 1388:     expectedAttemptNo: staleCancelSnapshot.attemptNo,
+ 1389:     now: await getDatabaseTime(db)
+ 1390:   });
+ 1391:   const notOverwrittenTask = await taskRepository.findTaskById(staleCancelTaskId);
+ 1392: 
+ 1393:   assert.equal(staleCancelResult, undefined);
+ 1394:   assert.equal(notOverwrittenTask.status, "EXECUTING");
+ 1395:   assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+ 1396: 
+ 1397:   const executingCancelTaskId = `exp-executing-cancel-${runId}`;
+ 1398:   await taskRepository.createPendingTask({
+ 1399:     taskId: executingCancelTaskId,
+ 1400:     taskCode,
+ 1401:     subsystemCode: "purchase",
+ 1402:     tenantId: "tenant-001",
+ 1403:     createdBy: "u001",
+ 1404:     fileFormat: "XLSX",
+ 1405:     clientRequestId: null,
+ 1406:     idempotencyScope: null,
+ 1407:     requestDigest: `sha256:${executingCancelTaskId}`,
+ 1408:     configSnapshotDigest: "sha256:config-v1",
+ 1409:     requestPayload: JSON.stringify({
+ 1410:       fileFormat: "XLSX",
+ 1411:       queryParams: createTaskPayload(taskCode).queryParams
+ 1412:     }),
+ 1413:     authContextPayload: JSON.stringify({
+ 1414:       operatorId: "u001",
+ 1415:       tenantId: "tenant-001",
+ 1416:       roleCodes: ["EXPORT_USER"],
+ 1417:       orgScope: "ORG-001",
+ 1418:       requestId: `req-executing-cancel-create-${runId}`
+ 1419:     }),
+ 1420:     now: await getDatabaseTime(db)
+ 1421:   });
+ 1422:   await db
+ 1423:     .updateTable("export_tasks")
+ 1424:     .set({
+ 1425:       status: "EXECUTING",
+ 1426:       lock_owner: "worker-api-cancel",
+ 1427:       lock_expire_at: sql`DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 300 SECOND)`,
+ 1428:       lease_renewed_at: sql`CURRENT_TIMESTAMP(3)`
+ 1429:     })
+ 1430:     .where("task_id", "=", executingCancelTaskId)
+ 1431:     .execute();
+ 1432: 
+ 1433:   const executingCancelResponse = await app.inject({
+ 1434:     method: "POST",
+ 1435:     url: `/api/export/tasks/${executingCancelTaskId}/cancel`,
+ 1436:     headers: createHeaders(`req-executing-cancel-${runId}`)
+ 1437:   });
+ 1438:   const executingCancelTask = await taskRepository.findTaskById(executingCancelTaskId);
+ 1439:   const executingCancelAudits = await auditRepository.listAuditLogsForTask(executingCancelTaskId);
+ 1440: 
+ 1441:   assert.equal(executingCancelResponse.statusCode, 200);
+ 1442:   assert.equal(executingCancelResponse.json().data.status, "EXECUTING");
+ 1443:   assert.equal(executingCancelTask.status, "EXECUTING");
+ 1444:   assert.ok(
+ 1445:     executingCancelAudits.some(
+ 1446:       (audit) =>
+ 1447:         audit.action === "CANCEL_REQUEST" &&
+ 1448:         audit.result === "ACCEPTED" &&
+ 1449:         audit.attemptNo === executingCancelTask.attemptNo
+ 1450:     )
+ 1451:   );
+ 1452:   assert.equal(
+ 1453:     executingCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+ 1454:     false
+ 1455:   );
+ 1456: 
+ 1457:   const notReadyDownloadResponse = await app.inject({
+ 1458:     method: "GET",
+ 1459:     url: `/api/export/tasks/${taskId}/download`,
+ 1460:     headers: createHeaders(`req-download-not-ready-${runId}`)
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'src/repositories/export-task.repository.ts'; for ("'$i=190; $i -le 330; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'src/scheduler/worker.ts'; for ("'$i=470; $i -le 545; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }; for ($i=710; $i -le 735; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Path 'traces/TASK-CANCEL-ATOMICITY-001-429bc37c8c56461f8c133c2bc4a649c3/TASK-CANCEL-ATOMICITY-001-test-20260517-090425.log'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content -Path '"'tests/worker/scheduler-worker.test.mjs'; for ("'$i=887; $i -le 1040; $i++) { if ($i -le $lines.Length) { '"'{0,5}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 351ms:
+  470: 
+  471:     if (batch.checkpoint) {
+  472:       await checkpoints.saveCheckpoint({
+  473:         taskId: input.task.taskId,
+  474:         attemptNo: input.lease.attemptNo,
+  475:         ...batch.checkpoint,
+  476:         now
+  477:       });
+  478:     }
+  479: 
+  480:     if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+  481:       const canceledAt = await markTaskTerminal({
+  482:         db: input.db,
+  483:         task: input.task,
+  484:         attemptNo: input.lease.attemptNo,
+  485:         lockOwner: input.lease.lockOwner,
+  486:         status: "CANCELED"
+  487:       });
+  488:       await appendWorkerAudit({
+  489:         db: input.db,
+  490:         task: input.task,
+  491:         attemptNo: input.lease.attemptNo,
+  492:         action: "CANCEL_DONE",
+  493:         result: "SUCCESS",
+  494:         requestId: input.requestId,
+  495:         now: canceledAt
+  496:       });
+  497:       result.canceled = 1;
+  498:       return result;
+  499:     }
+  500: 
+  501:     if (batch.outcome === "completed") {
+  502:       if (Array.isArray(batch.rows)) {
+  503:         const registry =
+  504:           batch.registry ??
+  505:           resolveTaskRegistrySnapshot(input.task) ??
+  506:           (await createExportRegistryRepository(input.db).findRegistryByTaskCode(input.task.taskCode));
+  507:         if (!registry) {
+  508:           throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
+  509:         }
+  510:         const fileService = input.fileService ?? createExportFileService({ db: input.db });
+  511:         await ensureLeaseAtBatchBoundary({
+  512:           db: input.db,
+  513:           taskId: input.task.taskId,
+  514:           attemptNo: input.lease.attemptNo,
+  515:           lockOwner: input.lease.lockOwner,
+  516:           leaseDurationSeconds: input.leaseDurationSeconds
+  517:         });
+  518:         await fileService.publishRows({
+  519:           task: input.task,
+  520:           registry,
+  521:           attemptNo: input.lease.attemptNo,
+  522:           requestId: input.requestId,
+  523:           rows: batch.rows
+  524:         });
+  525:       }
+  526:       const completedAt = await markTaskTerminal({
+  527:         db: input.db,
+  528:         task: input.task,
+  529:         attemptNo: input.lease.attemptNo,
+  530:         lockOwner: input.lease.lockOwner,
+  531:         status: "COMPLETED"
+  532:       });
+  533:       await appendWorkerAudit({
+  534:         db: input.db,
+  535:         task: input.task,
+  536:         attemptNo: input.lease.attemptNo,
+  537:         action: "EXECUTE_SUCCESS",
+  538:         result: "SUCCESS",
+  539:         requestId: input.requestId,
+  540:         now: completedAt
+  541:       });
+  542:       result.completed = 1;
+  543:       return result;
+  544:     }
+  545: 
+  710:     }
+  711: 
+  712:     return databaseTime;
+  713:   });
+  714: }
+  715: 
+  716: async function hasAcceptedCancelRequest(
+  717:   db: Kysely<ExportPlatformDatabase>,
+  718:   taskId: string,
+  719:   attemptNo: number
+  720: ): Promise<boolean> {
+  721:   const row = await db
+  722:     .selectFrom("export_audit_logs")
+  723:     .select((eb) => eb.fn.count<number>("audit_id").as("cancel_count"))
+  724:     .where("task_id", "=", taskId)
+  725:     .where("attempt_no", "=", attemptNo)
+  726:     .where("action", "=", "CANCEL_REQUEST")
+  727:     .where("result", "=", "ACCEPTED")
+  728:     .executeTakeFirst();
+  729: 
+  730:   return Number(row?.cancel_count ?? 0) > 0;
+  731: }
+  732: 
+  733: async function findRequestIdForTask(
+  734:   db: Kysely<ExportPlatformDatabase>,
+  735:   taskId: string,
+
+ succeeded in 338ms:
+
+> export-platform-service@0.1.0 typecheck
+> tsc --noEmit
+
+{"event":"export-platform.docker-test.seeded","registry":"purchase-order-export","table":"purchase_orders_sample","view":"purchase_orders_view","seededRows":4}
+docker test environment ready.
+MySQL: export-platform-mysql-local at 127.0.0.1:33306/export_platform_test
+Object storage mock: http://127.0.0.1:58692 bucket=export-platform-docker-test
+
+> export-platform-service@0.1.0 test:api
+> node --import tsx --test --test-concurrency=1 tests/api/*.test.mjs
+
+✔ HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL (0.6938ms)
+✔ registry/task HTTP flow persists through Fastify + MySQL production path (1964.2292ms)
+✔ trusted ingress proof is required before auth headers can grant admin or tenant context (272.4998ms)
+✔ create task rejects queryParams above 32768 canonical JSON UTF-8 bytes before persistence (136.7432ms)
+✔ create task rejects registry-unsupported fileFormat and invalid queryParams before enqueue (127.7091ms)
+✔ create task idempotent replay returns existing task after registry guard changes (113.8838ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3353.5777
+
+> export-platform-service@0.1.0 test:worker
+> node --import tsx --test --test-concurrency=1 tests/worker/*.test.mjs
+
+▶ worker integration tests
+  ✔ worker tests require an explicit test database URL (0.7602ms)
+  ✔ multiple workers dispatch only up to the registry concurrency limit and write audit/checkpoint evidence (274.9658ms)
+  ✔ default scheduler query processor enforces registry dataScopeTemplate before publishing rows (337.0673ms)
+  ✔ default scheduler query processor passes the datasource adapter boundary into query executor (230.5881ms)
+  ✔ same worker resumes its own active lease while other workers still cannot acquire an unexpired lease (274.3412ms)
+  ✔ expired worker does not write EXECUTE_SUCCESS after a new owner takes over during publish (281.7413ms)
+  ✔ subsystem concurrency limit is enforced across different task codes (199.3623ms)
+  ✔ expired lease takeover keeps attemptNo and resumes from the latest checkpoint (242.568ms)
+  ✔ task snapshot still dispatches and publishes after the current registry is disabled and updated (201.9346ms)
+  ✔ expired worker does not mark FAILED or overwrite the new owner after takeover (231.0563ms)
+  ✔ executing cancel request is closed at the next persisted batch boundary (220.5471ms)
+  ✔ failed execution is retried only after FAILED and increments attemptNo before redispatch (273.6542ms)
+  ✔ stale executing cancel cannot overwrite a retried attempt (214.6101ms)
+  ✔ query batch transient failure persists retry checkpoint and completes on the next poll (298.9339ms)
+  ✔ query batch transient failure does not retry again before checkpoint backoff elapses (191.0894ms)
+  ✔ query batch retry resumes only after checkpoint backoff elapses (298.8521ms)
+  ✔ query batch retry exhaustion fails with QUERY_EXECUTION_ERROR and persists the exhausted retry count (272.739ms)
+  ✔ query batch retry exhaustion waits for backoff before the terminal failed retry attempt (291.1654ms)
+  ✔ datasource unavailable errors finish as DATASOURCE_UNAVAILABLE after retry exhaustion (172.2041ms)
+  ✔ default worker maps datasource provider failures to DATASOURCE_UNAVAILABLE audits (159.7503ms)
+  ✔ unknown worker error names are normalized to public QUERY_EXECUTION_ERROR audits (158.1987ms)
+  ✔ cleanup job poll once records task event and audit after successful object deletion (168.6055ms)
+  ✔ cleanup job poll once records retry audit and does not mark cleanup done when delete fails (157.7284ms)
+✔ worker integration tests (5154.6471ms)
+ℹ tests 23
+ℹ suites 1
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5682.8957
+
+ succeeded in 423ms:
+  190:         .where("task_id", "=", taskId)
+  191:         .executeTakeFirst();
+  192: 
+  193:       return row ? toTaskRecord(row) : undefined;
+  194:     },
+  195: 
+  196:     async listTasks(filters: ExportTaskListFilters & {
+  197:       limit?: number;
+  198:       offset?: number;
+  199:     } = {}): Promise<ExportTaskRecord[]> {
+  200:       const query = applyListFilters(db.selectFrom("export_tasks").selectAll(), filters);
+  201: 
+  202:       const rows = await query
+  203:         .orderBy("created_at", "desc")
+  204:         .limit(filters.limit ?? 50)
+  205:         .offset(filters.offset ?? 0)
+  206:         .execute();
+  207: 
+  208:       return rows.map(toTaskRecord);
+  209:     },
+  210: 
+  211:     async countTasks(filters: ExportTaskListFilters = {}): Promise<number> {
+  212:       const row = await applyListFilters(
+  213:         db
+  214:           .selectFrom("export_tasks")
+  215:           .select((eb) => eb.fn.count<number>("task_id").as("task_count")),
+  216:         filters
+  217:       ).executeTakeFirst();
+  218: 
+  219:       return Number(row?.task_count ?? 0);
+  220:     },
+  221: 
+  222:     async updateTaskStatus(input: {
+  223:       taskId: string;
+  224:       status: string;
+  225:       now: Date;
+  226:       expectedStatus?: string;
+  227:       expectedAttemptNo?: number;
+  228:     }): Promise<ExportTaskRecord | undefined> {
+  229:       let update = db
+  230:         .updateTable("export_tasks")
+  231:         .set({
+  232:           status: input.status,
+  233:           updated_at: input.now
+  234:         })
+  235:         .where("task_id", "=", input.taskId);
+  236: 
+  237:       if (input.expectedStatus !== undefined) {
+  238:         update = update.where("status", "=", input.expectedStatus);
+  239:       }
+  240:       if (input.expectedAttemptNo !== undefined) {
+  241:         update = update.where("attempt_no", "=", input.expectedAttemptNo);
+  242:       }
+  243: 
+  244:       const result = await update.executeTakeFirst();
+  245:       if (Number(result.numUpdatedRows ?? 0) !== 1) {
+  246:         return undefined;
+  247:       }
+  248: 
+  249:       return this.findTaskById(input.taskId);
+  250:     },
+  251: 
+  252:     async retryFailedTask(input: {
+  253:       taskId: string;
+  254:       now: Date;
+  255:     }): Promise<ExportTaskRecord | undefined> {
+  256:       return db.transaction().execute(async (trx) => {
+  257:         const task = await trx
+  258:           .selectFrom("export_tasks")
+  259:           .select(["status", "attempt_no"])
+  260:           .where("task_id", "=", input.taskId)
+  261:           .forUpdate()
+  262:           .executeTakeFirst();
+  263: 
+  264:         if (!task || task.status !== "FAILED") {
+  265:           return undefined;
+  266:         }
+  267: 
+  268:         await trx
+  269:           .updateTable("export_tasks")
+  270:           .set({
+  271:             status: "PENDING",
+  272:             attempt_no: task.attempt_no + 1,
+  273:             lock_owner: null,
+  274:             lock_expire_at: null,
+  275:             lease_renewed_at: null,
+  276:             updated_at: input.now
+  277:           })
+  278:           .where("task_id", "=", input.taskId)
+  279:           .execute();
+  280: 
+  281:         const row = await trx
+  282:           .selectFrom("export_tasks")
+  283:           .selectAll()
+  284:           .where("task_id", "=", input.taskId)
+  285:           .executeTakeFirst();
+  286: 
+  287:         return row ? toTaskRecord(row) : undefined;
+  288:       });
+  289:     },
+  290: 
+  291:     async findByIdempotencyScope(
+  292:       idempotencyScope: string
+  293:     ): Promise<ExportTaskIdempotencyRecord | undefined> {
+  294:       const row = await db
+  295:         .selectFrom("export_task_idempotency")
+  296:         .selectAll()
+  297:         .where("idempotency_scope", "=", idempotencyScope)
+  298:         .executeTakeFirst();
+  299: 
+  300:       return row
+  301:         ? {
+  302:             idempotencyScope: row.idempotency_scope,
+  303:             taskId: row.task_id,
+  304:             requestDigest: row.request_digest
+  305:           }
+  306:         : undefined;
+  307:     }
+  308:   };
+  309: }
+
+ succeeded in 400ms:
+  887: serialTest("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+  888:   const db = await createTestDatabase(t);
+  889:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  890:   const taskId = `exp-cancel-${Date.now()}`;
+  891:   await seedTask(db, { taskId, taskCode, subsystemCode });
+  892: 
+  893:   const worker = createSchedulerWorker({
+  894:     db,
+  895:     workerId: "worker-a",
+  896:     leaseDurationSeconds: 300,
+  897:     maxTasksPerPoll: 1,
+  898:     batchProcessor: async ({ task, lease }) => {
+  899:       const now = await getDatabaseTime(db);
+  900:       await createExportAuditRepository(db).appendAuditLog({
+  901:         auditId: `audit-cancel-${runId}`,
+  902:         taskId: task.taskId,
+  903:         attemptNo: lease.attemptNo,
+  904:         taskCode: task.taskCode,
+  905:         subsystemCode: task.subsystemCode,
+  906:         operatorId: task.createdBy,
+  907:         action: "CANCEL_REQUEST",
+  908:         result: "ACCEPTED",
+  909:         errorCode: "SUCCESS",
+  910:         requestId: "req-cancel-001",
+  911:         occurredAt: now,
+  912:         now
+  913:       });
+  914:       return batchResult("order-100", 100);
+  915:     }
+  916:   });
+  917: 
+  918:   const result = await worker.pollAndProcessOnce();
+  919:   const task = await createExportTaskRepository(db).findTaskById(taskId);
+  920:   const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+  921: 
+  922:   assert.equal(result.canceled, 1);
+  923:   assert.equal(task.status, "CANCELED");
+  924:   assert.equal(task.lockOwner, null);
+  925:   assert.deepEqual(
+  926:     [...audits.map((audit) => audit.action)].sort(),
+  927:     ["CANCEL_DONE", "CANCEL_REQUEST", "DISPATCH", "EXECUTE_START"]
+  928:   );
+  929: });
+  930: 
+  931: serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+  932:   const db = await createTestDatabase(t);
+  933:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  934:   const taskId = `exp-worker-${runId}-retry`;
+  935:   await seedTask(db, { taskId, taskCode, subsystemCode });
+  936:   const repository = createExportTaskRepository(db);
+  937: 
+  938:   assert.equal(await repository.retryFailedTask({ taskId, now: await getDatabaseTime(db) }), undefined);
+  939: 
+  940:   const failingWorker = createSchedulerWorker({
+  941:     db,
+  942:     workerId: "worker-a",
+  943:     leaseDurationSeconds: 300,
+  944:     maxTasksPerPoll: 1,
+  945:     batchProcessor: async () => {
+  946:       throw new Error("query failed");
+  947:     }
+  948:   });
+  949: 
+  950:   const failedResult = await failingWorker.pollAndProcessOnce();
+  951:   const failed = await repository.findTaskById(taskId);
+  952:   assert.equal(failedResult.failed, 1);
+  953:   assert.equal(failed.status, "FAILED");
+  954:   assert.equal(failed.attemptNo, 0);
+  955: 
+  956:   const retried = await repository.retryFailedTask({
+  957:     taskId,
+  958:     now: await getDatabaseTime(db)
+  959:   });
+  960: 
+  961:   assert.equal(retried.status, "PENDING");
+  962:   assert.equal(retried.attemptNo, 1);
+  963: 
+  964:   const retryWorker = createSchedulerWorker({
+  965:     db,
+  966:     workerId: "worker-b",
+  967:     leaseDurationSeconds: 300,
+  968:     maxTasksPerPoll: 1,
+  969:     batchProcessor: async () => batchResult("order-retry", 50)
+  970:   });
+  971: 
+  972:   const retryResult = await retryWorker.pollAndProcessOnce();
+  973:   const executing = await repository.findTaskById(taskId);
+  974: 
+  975:   assert.equal(retryResult.dispatched, 1);
+  976:   assert.equal(executing.status, "EXECUTING");
+  977:   assert.equal(executing.attemptNo, 1);
+  978:   assert.equal(executing.lockOwner, "worker-b");
+  979: });
+  980: 
+  981: serialTest("stale executing cancel cannot overwrite a retried attempt", async (t) => {
+  982:   const db = await createTestDatabase(t);
+  983:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  984:   const taskId = `exp-worker-${runId}-stale-cancel`;
+  985:   await seedTask(db, { taskId, taskCode, subsystemCode });
+  986:   const repository = createExportTaskRepository(db);
+  987: 
+  988:   const executingWorker = createSchedulerWorker({
+  989:     db,
+  990:     workerId: "worker-a",
+  991:     leaseDurationSeconds: 300,
+  992:     maxTasksPerPoll: 1,
+  993:     batchProcessor: async () => batchResult("order-stale-cancel", 10)
+  994:   });
+  995: 
+  996:   await executingWorker.pollAndProcessOnce();
+  997:   const staleCancelSnapshot = await repository.findTaskById(taskId);
+  998: 
+  999:   await db
+ 1000:     .updateTable("export_tasks")
+ 1001:     .set({
+ 1002:       status: "FAILED",
+ 1003:       lock_owner: null,
+ 1004:       lock_expire_at: null,
+ 1005:       lease_renewed_at: null,
+ 1006:       updated_at: await getDatabaseTime(db)
+ 1007:     })
+ 1008:     .where("task_id", "=", taskId)
+ 1009:     .where("attempt_no", "=", staleCancelSnapshot.attemptNo)
+ 1010:     .execute();
+ 1011: 
+ 1012:   const retried = await repository.retryFailedTask({
+ 1013:     taskId,
+ 1014:     now: await getDatabaseTime(db)
+ 1015:   });
+ 1016:   assert.equal(retried.status, "PENDING");
+ 1017:   assert.equal(retried.attemptNo, staleCancelSnapshot.attemptNo + 1);
+ 1018: 
+ 1019:   const staleCancelResult = await repository.updateTaskStatus({
+ 1020:     taskId,
+ 1021:     status: "CANCELED",
+ 1022:     expectedStatus: staleCancelSnapshot.status,
+ 1023:     expectedAttemptNo: staleCancelSnapshot.attemptNo,
+ 1024:     now: await getDatabaseTime(db)
+ 1025:   });
+ 1026:   const taskAfterStaleCancel = await repository.findTaskById(taskId);
+ 1027: 
+ 1028:   assert.equal(staleCancelResult, undefined);
+ 1029:   assert.equal(taskAfterStaleCancel.status, "PENDING");
+ 1030:   assert.equal(taskAfterStaleCancel.attemptNo, staleCancelSnapshot.attemptNo + 1);
+ 1031: });
+ 1032: 
+ 1033: serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+ 1034:   const db = await createTestDatabase(t);
+ 1035:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+ 1036:   const taskId = `exp-retry-ok-${Date.now()}`;
+ 1037:   await seedTask(db, { taskId, taskCode, subsystemCode });
+ 1038:   let calls = 0;
+ 1039: 
+ 1040:   const worker = createSchedulerWorker({
+
+codex
+实现里 `updateTaskStatus` 已支持 `expectedStatus` 和 `expectedAttemptNo`，API cancel 路径也在 CAS miss 后区分 PENDING 已进入 EXECUTING 的合法并发。现在我会再检查提交 diff 和测试断言是否有“直接调用 repository 而没有验证 HTTP 服务路径”的缺口。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git show --format=medium --find-renames -- src/task-api/service.ts src/repositories/export-task.repository.ts tests/api/export-http-api.test.mjs tests/worker/scheduler-worker.test.mjs docs/testing/verify-matrix.md 4f2c8ed' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"updateTaskStatus\\(|expectedStatus|expectedAttemptNo|retryFailedTask\\(|cancelExportTask\" src tests" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 344ms:
+tests\worker\scheduler-worker.test.mjs:938:  assert.equal(await repository.retryFailedTask({ taskId, now: await getDatabaseTime(db) }), undefined);
+tests\worker\scheduler-worker.test.mjs:956:  const retried = await repository.retryFailedTask({
+tests\worker\scheduler-worker.test.mjs:1012:  const retried = await repository.retryFailedTask({
+tests\worker\scheduler-worker.test.mjs:1019:  const staleCancelResult = await repository.updateTaskStatus({
+tests\worker\scheduler-worker.test.mjs:1022:    expectedStatus: staleCancelSnapshot.status,
+tests\worker\scheduler-worker.test.mjs:1023:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests\worker\scheduler-worker.test.mjs:1443:  await createExportTaskRepository(db).updateTaskStatus({
+tests\worker\scheduler-worker.test.mjs:1497:  await createExportTaskRepository(db).updateTaskStatus({
+src\repositories\export-task.repository.ts:222:    async updateTaskStatus(input: {
+src\repositories\export-task.repository.ts:226:      expectedStatus?: string;
+src\repositories\export-task.repository.ts:227:      expectedAttemptNo?: number;
+src\repositories\export-task.repository.ts:237:      if (input.expectedStatus !== undefined) {
+src\repositories\export-task.repository.ts:238:        update = update.where("status", "=", input.expectedStatus);
+src\repositories\export-task.repository.ts:240:      if (input.expectedAttemptNo !== undefined) {
+src\repositories\export-task.repository.ts:241:        update = update.where("attempt_no", "=", input.expectedAttemptNo);
+src\repositories\export-task.repository.ts:252:    async retryFailedTask(input: {
+src\task-api\service.ts:1316:export async function cancelExportTask(auth: AuthContext, taskId: string) {
+src\task-api\service.ts:1367:    let updated = await repository.updateTaskStatus({
+src\task-api\service.ts:1370:      expectedStatus: task.status,
+src\task-api\service.ts:1371:      expectedAttemptNo: task.attemptNo,
+src\task-api\service.ts:1470:    const updated = await repository.retryFailedTask({ taskId, now });
+tests\api\export-http-api.test.mjs:996:  await taskRepository.updateTaskStatus({
+tests\api\export-http-api.test.mjs:1164:  await taskRepository.updateTaskStatus({
+tests\api\export-http-api.test.mjs:1237:  await taskRepository.updateTaskStatus({
+tests\api\export-http-api.test.mjs:1378:  await taskRepository.updateTaskStatus({
+tests\api\export-http-api.test.mjs:1384:  const staleCancelResult = await taskRepository.updateTaskStatus({
+tests\api\export-http-api.test.mjs:1387:    expectedStatus: staleCancelSnapshot.status,
+tests\api\export-http-api.test.mjs:1388:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests\api\export-http-api.test.mjs:1496:  await taskRepository.updateTaskStatus({
+tests\file\export-file-service.test.mjs:1000:  await createExportTaskRepository(db).updateTaskStatus({
+tests\file\export-file-service.test.mjs:1055:  await createExportTaskRepository(db).updateTaskStatus({
+tests\file\export-file-service.test.mjs:1109:  await createExportTaskRepository(db).updateTaskStatus({
+src\routes\route-manifest.ts:7:import { handler as cancelExportTask } from "./export/tasks/cancel-export-task.handler.ts";
+src\routes\route-manifest.ts:61:    operationId: "cancelExportTask",
+src\routes\route-manifest.ts:65:    handler: cancelExportTask,
+src\routes\registry.ts:8:import { cancelExportTaskRoute } from "./export/tasks/cancel-export-task.route.ts";
+src\routes\registry.ts:22:  cancelExportTaskRoute,
+src\routes\export\tasks\cancel-export-task.handler.ts:2:import { cancelExportTask } from "../../../task-api/service.ts";
+src\routes\export\tasks\cancel-export-task.handler.ts:9:    const data = await cancelExportTask(auth, context.params.taskId);
+src\routes\export\tasks\cancel-export-task.route.ts:4:export const cancelExportTaskRoute: RouteDefinition = {
+src\routes\export\tasks\cancel-export-task.route.ts:5:  operationId: "cancelExportTask",
+src\routes\export\tasks\cancel-export-task.route.ts:8:  handler: createNotImplementedHandler("cancelExportTask")
+
+ succeeded in 418ms:
+ succeeded in 408ms:
+codex
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S2-F001 | HIGH | test_gap | test | `tests/api/export-http-api.test.mjs:1377-1390` 和 `tests/worker/scheduler-worker.test.mjs:1019-1025` 只直接调用 `repository.updateTaskStatus({ expectedStatus, expectedAttemptNo })` 验证 CAS；未通过 `/cancel` 或 `cancelExportTask` 证明 `src/task-api/service.ts:1367-1372` 实际传入原 `status` 和 `attemptNo`。如果 service 以后漏掉这两个参数，当前新增测试仍可能通过。 | 补一个确定性的 HTTP/API 级并发回归：用未提交事务先把 PENDING 行更新为 EXECUTING 并持有锁，让 `/cancel` 读取旧 PENDING 后阻塞在 UPDATE，事务提交后断言 API 不会覆盖 EXECUTING，只记录 batch-boundary `CANCEL_REQUEST`。该测试应能在移除 service CAS 参数时失败。 | `npm run typecheck; npm run test:api; npm run test:worker; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `rg -n "cancel|attemptNo|EXECUT|CANCEL" ...`
+  - `git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md`
+- 结果摘要:
+  - 提供的完整验证日志退出码为 0：typecheck、Docker MySQL 测试环境、`test:api`、`test:worker` 均通过。
+  - 我复核实现后未发现明显类型逃逸、硬编码密钥、调试输出或无关代码改动。
+  - 阻塞点是关键回归证据不足：现有测试覆盖了 repository CAS 能力，但没有覆盖 API/service 层真实取消路径是否使用 CAS。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S2-F001 | test | backend-worker | 1 | yes |
+tokens used
+60,552

@@ -1,0 +1,4778 @@
+OpenAI Codex v0.130.0
+--------
+workdir: E:\2026\alpha-project\longgang-codex-driver
+model: gpt-5.5
+provider: sub2api
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019e3374-23ec-7f22-bdf9-536795371e84
+--------
+user
+# Stage 1 Review Prompt 模板
+
+你是 Stage 1 Reviewer。只审查**当前实现是否符合 Product Spec / Design Brief / 设计稿 / DEV-PLAN**，不要讨论代码风格。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- Task Kind: `<task-kind>`
+- Gate Profile: `<gate-profile>`
+- 对应 Phase: `<phase>`
+
+## 真相源
+
+- Truth source completeness: `<truth-source-state>`
+- Product Spec: `<product-spec>`
+- Design Brief: `<design-brief>`
+- Testing truth source: `<testing-truth-source>`
+- Knowledge Catalog: `docs/knowledge/knowledge-catalog.md` / `docs/knowledge/catalog.md`（如存在）
+- Architecture Constraints Packet: `docs/architecture/constraints.md`（如存在）
+- 设计稿 / Figma: `<design-source>`
+- DEV-PLAN: `<dev-plan>`
+- 状态矩阵: `<state-matrix>`
+
+## 必查项
+
+1. 先审查 Architecture Constraints Packet：交付形态、API 边界、数据持久化、worker/异步边界、测试替身策略、禁止实现和 Definition of Done 是否已明确。
+2. 如果当前任务是 `feature_impl`，是否携带 `architecture_constraints`、`forbidden_implementations` 和能验证架构形态的 `test_command`。
+3. 当前实现是否符合交付形态；例如微服务必须有 API/handler/启动入口/DB 或 worker 证据，不能只有领域 service class。
+4. 是否使用 `InMemory*`、mock、fixture、local-only adapter 或领域原型替代生产路径；除非任务明确标记 `domain-prototype`，否则这类情况必须 FAIL。
+5. Contract / OpenAPI / protobuf 等公开契约是否能追踪到 handler、service、测试和证据路径。
+6. 功能有没有漏实现。
+7. 有没有多做 Product Spec 没要求的内容。
+8. 每条 P0/P1 需求是否有 Requirement ID，并且能追溯到页面、状态、字段、操作、接口、测试和验收。
+9. 是否存在“页面有功能但需求没有”的多余实现。
+10. 高风险难点是否已在 `difficulty-research.md` 中提前研究并落实到计划。
+11. 页面状态是否完整：`default / empty / loading / error / disabled / permission / mobile`。
+12. AI 生成界面图是否已通过 `ui-image-review.md`，并已转成 `image-to-frontend-spec.md`。
+13. 前端 UI 任务是否已在真实浏览器截图，并把截图保存到 `artifacts/visual-review/`。
+14. 浏览器实拍图是否已和设计参考图通过 `visual-parity-review.md` 完成对比，且 Verdict 为 PASS。
+15. 交互是否与设计稿、Design Brief、CSS/token 和 Image To Frontend Spec 冲突。
+16. 验收示例、TRACEABILITY_MATRIX、测试矩阵和任务上下文之间是否一致。
+17. Contract 相关行为是否与当前 Spec 一致。
+18. 如果需求需要异常路径、权限路径或极端数据路径，这些路径是否已经进入测试或规格文档。
+19. 如果任务声明 `required_truth_sources` 包含 `knowledge`，或任务阶段是 `archive`，是否读取并使用了 `docs/knowledge/` 的索引与相关条目。
+20. 如果实现明显复用了项目经验，最终报告是否列出 `knowledge_references`；如果产生了可复用经验，是否列出 `knowledge_outputs` 建议。
+21. 是否把单次经验直接升级成 `AGENTS.md` 或全局规则；如有，必须有 proven evidence 或用户明确要求。
+
+如果当前任务涉及页面 UI，而缺少参考图、浏览器截图或视觉还原对比报告，Stage 1 必须输出 `FAIL`。只有在任务明确不是 UI 任务，或 `screen-states.md` / `image-to-frontend-spec.md` 明确豁免该状态时，才可以跳过视觉还原闸门。
+
+## 忽略项
+
+下面这些属于外层 driver 在 Stage 1 之后统一处理的状态收口，不要在 Stage 1 中作为失败项：
+
+- `task.json` 中的 `passes=true`
+- `progress.txt` 完成记录
+- `traces/` 目录和 trace 文件
+- 自动 `git commit`
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S1-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `architecture_gap` / `forbidden_implementation` / `missing_requirement` / `extra_scope` / `state_gap` / `visual_gap` / `contract_gap` / `truth_source_missing` / `knowledge_gap`
+- owner: `frontend` / `backend` / `contract` / `design` / `product` / `controller`
+- evidence: 文件路径、截图路径、日志路径或具体页面/状态
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令或报告路径
+
+## 输出格式
+
+```markdown
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- 只要存在 `HIGH` 问题，结论必须是 `FAIL`。
+- 如果 `gate-profile` 不是 `lightweight`，缺少 required truth source 必须视为 `HIGH`。
+- 如果 `feature_impl` 缺少架构约束，或实现与架构约束冲突，必须视为 `HIGH`。
+- 如果生产路径使用测试替身或内存实现冒充完成，必须视为 `HIGH`。
+- 不要在 Stage 1 讨论命名、格式化、测试框架选型这类代码质量问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: TASK-CANCEL-ATOMICITY-001
+- 描述: 修复取消任务状态更新缺少原状态和 attemptNo CAS 条件
+- Task Kind: feature_impl
+- Gate Profile: spec_required
+- Requirement IDs:
+- FR-012
+- AC-012
+- AC-E015
+- 验收标准:
+- 取消任务更新使用原状态和 attemptNo CAS 条件
+- worker 状态推进或 retry 产生新 attempt 后，旧 cancel 不会覆盖真实状态
+- PENDING cancel 和 EXECUTING 批次边界 cancel 仍按产品状态机工作
+- Docker MySQL 下 test:api / test:worker、typecheck 与 scoped diff check 全部通过
+
+优先真相源:
+
+### Product
+- docs\product\prd-lite.md
+- docs\product\page-inventory.md
+- docs\product\state-matrix.yaml
+- docs\product\acceptance-criteria.md
+- docs\product\requirement-interface-matrix.md
+- docs\product\difficulty-research.md
+
+### Design
+- 无
+
+### Testing
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+### DEV-PLAN
+- plans\features\export-platform.dev-plan.md
+
+### Contract
+- contracts\openapi.yaml
+
+### Task Context Files
+- docs/product/state-matrix.yaml
+- docs/product/acceptance-criteria.md
+- docs/reviews/requirements-complete-review.md
+- src/task-api/service.ts
+- src/repositories/export-task.repository.ts
+- src/scheduler/worker.ts
+- tests/api/export-http-api.test.mjs
+- tests/worker/scheduler-worker.test.mjs
+- task.json
+
+### Truth Source Completeness
+- [OK] product: present=docs\product\prd-lite.md, docs\product\page-inventory.md, docs\product\state-matrix.yaml, docs\product\acceptance-criteria.md, docs\product\requirement-interface-matrix.md, docs\product\difficulty-research.md; missing=无
+- [OK] architecture: present=docs/architecture/constraints.md, docs/context/architecture-brief.md, docs/context/repo-map.md; missing=无
+- [OK] contract: present=contracts\openapi.yaml; missing=无
+- [OK] testing: present=docs\testing\ACCEPTANCE_CRITERIA.md, docs\testing\ACCEPTANCE_EXAMPLES.md, docs\testing\TRACEABILITY_MATRIX.md, docs\testing\TEST_DATA_MATRIX.md, docs\testing\test-matrix.md, docs\testing\verify-matrix.md; missing=无
+
+审查要求:
+- 只看功能完整性、状态覆盖、与设计和计划的一致性。
+- 不要重写代码，不要实现新功能。
+- 如果 Gate Profile 不是 lightweight，缺少 required truth source 视为阻塞性问题。
+- 如果 Gate Profile 是 lightweight，可以记录缺口，但不要把 driver 自己负责的状态文件当作失败项。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性功能/状态/设计偏差，就输出 Verdict: FAIL。
+
+deprecated: `[features].codex_hooks` is deprecated. Use `[features].hooks` instead.
+Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.
+codex
+我会按 Stage 1 的功能/规格一致性口径审查，不改代码。先读取项目规则、真相源、任务上下文和相关实现，再给出带证据的 PASS/FAIL。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'C:\\Users\\pzy666\\.codex\\skills\\superpowers\\using-superpowers\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\core-rules\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'git status --short' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 407ms:
+---
+name: core-rules
+description: 核心开发规则，每次对话自动加载
+---
+
+# 核心开发规则
+
+> 精简的硬性约束，确保代码质量和开发效率
+
+---
+
+## 1. 核心理念
+
+1. **上下文第一**：垃圾进垃圾出，先理解再动手
+2. **先结构后代码**：规划好框架再写实现
+3. **一次只做一件事**：极致专注，小步迭代
+
+
+## 2. 开发约束
+
+### 架构与设计
+
+4. 不得采用补丁式修改而忽视整体设计
+5. 不得在业务代码中硬编码外部服务或混入 IO/网络/数据库副作用
+6. 不得将状态提升到不必要的层级或跨请求共享可变状态
+
+### 代码质量
+
+7. 不得省略必要注释，代码必须对维护者可理解
+8. 不得违反 SOLID 与 DRY 原则
+9. 不得保留未使用的变量、函数或使用语义模糊的命名
+10. 不得让单个函数或模块承担多个不相关职责
+
+### 错误处理
+
+11. 不得吞掉异常或使用空 catch 掩盖错误
+12. 不得返回语义不清的错误结果（如混用 null/undefined/false）
+
+### 开发流程
+
+13. 不得臆测接口行为，必须先查询文档或源码
+14. 不得在需求不清晰的情况下直接实现
+15. 不得在缺乏上下文理解的情况下直接修改代码
+
+---
+
+## 3. 胶水编程约束
+
+### 依赖使用
+
+16. 不得自行实现底层或通用逻辑，必须优先复用成熟库
+17. 不得复制依赖库代码到项目中修改或进行功能裁剪
+18. 实际加载必须是完整生产级实现，不得使用简化版或 Mock
+
+### 代码职责
+
+19. 当前项目仅允许承担业务流程编排、模块组合、参数配置与适配职责
+20. 不得在当前项目中重复实现依赖库已提供的功能
+21. 所有导入模块必须在运行期真实参与执行，不得伪集成
+
+---
+
+## 4. 安全约束
+
+22. 绝不引入、记录或提交密钥、API Key 或敏感信息
+23. 确保所有用户输入都被正确验证和清理
+24. 实施最小权限原则
+
+---
+
+## 5. 违反约束处理
+
+当发现代码违反上述约束时：
+
+1. 立即停止当前操作
+2. 向用户说明违反了哪条约束
+3. 提供符合约束的替代方案
+4. 等待用户确认后再继续
+
+
+2026-05-17T01:02:08.737931Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw 'C:\Users\pzy666\.codex\skills\superpowers\using-sup[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\superpowers\using-superpowers\SKILL.md' because it does not exist.[0m
+
+ exited 1 in 449ms:
+[31;1mGet-Content: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m [36;1mGet-Content -Raw 'C:\Users\pzy666\.codex\skills\superpowers\using-sup[0m …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot find path 'C:\Users\pzy666\.codex\skills\superpowers\using-superpowers\SKILL.md' because it does not exist.[0m
+
+ succeeded in 463ms:
+?? traces/TASK-CANCEL-ATOMICITY-001-20260517-085503.json
+?? traces/TASK-CANCEL-ATOMICITY-001-429bc37c8c56461f8c133c2bc4a649c3/
+?? traces/TASK-CANCEL-ATOMICITY-001-d9624f91d2d84c0ba67929b1fda1c8a5/
+
+codex
+已确认工作区存在未跟踪的 trace 产物，这类状态文件在本次 Stage 1 规则里不作为失败项。接下来聚焦架构约束、规格追踪、取消 CAS 实现和测试证据。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'C:\\Users\\pzy666\\.codex\\plugins\\cache\\openai-curated\\superpowers\\63976030\\skills\\using-superpowers\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'docs\\architecture\\constraints.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 340ms:
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## Instruction Priority
+
+Superpowers skills override default system prompt behavior, but **user instructions always take precedence**:
+
+1. **User's explicit instructions** (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. **Superpowers skills** — override default system behavior where they conflict
+3. **Default system prompt** — lowest priority
+
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
+
+## How to Access Skills
+
+**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
+
+**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins. The `skill` tool works the same as Claude Code's `Skill` tool.
+
+**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+
+**In other environments:** Check your platform's documentation for how skills are loaded.
+
+## Platform Adaptation
+
+Skills use Claude Code tool names. Non-CC platforms: see `references/copilot-tools.md` (Copilot CLI), `references/codex-tools.md` (Codex) for tool equivalents. Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
+
+# Using Skills
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+
+```dot
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Skill Priority
+
+When multiple skills could apply, use this order:
+
+1. **Process skills first** (brainstorming, debugging) - these determine HOW to approach the task
+2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+"Fix this bug" → debugging first, then domain-specific skills.
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+**Flexible** (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+
+## User Instructions
+
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+
+ succeeded in 388ms:
+# Architecture Constraints Packet：统一导出平台
+
+本文件是统一导出平台进入计划和编码前的架构约束包。后续 `task.json` 中所有 `feature_impl` 任务必须复制本文件中的约束到 `architecture_constraints`，并把最容易跑偏的替代实现写入 `forbidden_implementations`。
+
+## 1. System Shape
+
+- 交付形态：`independent_microservice`。
+- 运行方式：`http_service` + `worker` + `scheduled_job`。
+- 部署单位：独立服务进程；后续实现必须提供生产启动入口和部署入口。
+- 生产入口最低要求：HTTP server entry、scheduler worker entry、cleanup job entry、配置加载入口。
+- 当前状态：仓库保留产品、契约、架构和测试文档；不保留任何已完成的业务实现、测试证据或旧运行 trace。
+
+## 2. API Boundary
+
+- 外部入口：HTTP，契约来源为 `contracts/openapi.yaml`。
+- 子系统接入：仅通过 HTTP/Feign 调用统一导出平台，不加载业务 JAR，不直接写平台表。
+- Public operation 完成条件：每个公开 operation 必须能追踪到 route/handler、service、repository 或外部 adapter、测试和证据路径。
+- 禁止状态：只有 service class、领域函数或单元测试时，不得声明 API 需求完成。
+
+## 3. Data Boundary
+
+- 持久化：生产路径使用 MySQL 或等价关系型数据库；任务、注册配置、锁租约、批次检查点、文件元信息、审计日志都必须有 schema/migration。
+- Repository 策略：生产 repository 必须走真实持久化边界；`InMemory*`、mock repository、fixture repository 只能用于单元测试。
+- 数据访问：平台只允许访问注册配置声明的只读数据源或数据中台，禁止执行调用方传入的原始 SQL。
+- 数据一致性：幂等键、配置快照、任务状态机、DB 锁租约和审计写入必须有可验证约束。
+
+## 4. Async And Worker Boundary
+
+- 调度方式：MySQL 轮询 + DB 抢锁。
+- 锁模型：`lockOwner + lockExpireAt + leaseRenewedAt`，时间判断以数据库时间为准。
+- 默认租约：5 分钟，worker 只能在批次边界续租。
+- 接管规则：租约过期后的实例接管延续当前 `attemptNo`，从最近持久化批次检查点继续。
+- 重试规则：只有 FAILED 重试递增 `attemptNo`；PENDING/EXECUTING 重试必须拒绝。
+
+## 5. Test Double Policy
+
+- `InMemory*` 允许范围：unit tests only。
+- Mock 允许范围：外部生产依赖不可用时可作为临时单测替身；当前验收允许本机/Docker MySQL 与本地 object storage mock，但不能使用内存 repository 冒充生产路径。
+- 生产完成证据：必须包含 API/handler 测试、DB repository 或 migration 验证、worker/lease 验证、`git diff --check`。
+- 若本机/Docker MySQL、本地 object storage mock 或任务声明的第三方依赖不可用，任务必须记录 `BLOCKED - 需要人工介入`，不得用内存实现冒充通过。外部生产 MySQL / live OSS 不属于当前 release gate 的完成条件。
+
+## 6. Forbidden Implementations
+
+- 禁止把 `InMemory*`、mock、fixture repository 或领域原型作为生产实现完成。
+- 禁止只有 `src/*/service.ts` 而没有 HTTP route/handler、server entry 和 API 集成测试。
+- 禁止只有调度 class 而没有 worker entry、DB 锁 schema、repository 原子抢锁和租约测试。
+- 禁止只有 OpenAPI 契约或文档而声明 `feature_impl` 完成。
+- 禁止只运行 `git diff --check` 就声明 `feature_impl` 完成。
+- 禁止把采购订单样板写成平台特例接口；样板必须复用标准 registry、query、file、audit 链路。
+
+## 7. Architecture Fitness Checks
+
+后续脚手架任务必须创建 `arch:check` 或等价命令。最低检查项：
+
+- 生产 HTTP server entry 存在。
+- scheduler worker entry 和 cleanup job entry 存在。
+- `contracts/openapi.yaml` 的公开 operation 有 route/handler 和测试映射。
+- 生产入口没有引用 `InMemory*`、mock repository 或测试 fixture。
+- MySQL schema/migration 覆盖 task、registry、lease/checkpoint、file metadata、audit log。
+- `feature_impl` 任务的 `test_command` 包含架构检查、affected tests 和 `git diff --check`。
+
+## 8. Definition Of Done
+
+- 当前任务的 `architecture_constraints` 已复制本文件相关条目。
+- 当前任务的 `forbidden_implementations` 覆盖最容易跑偏的替代实现。
+- Stage 1 Review 先审查架构形态，再审查业务规格。
+- 完成声明能说明 production path、test double 和 BLOCKED 依赖边界。
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'docs\\product\\acceptance-criteria.md'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'docs\\product\\state-matrix.yaml'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 345ms:
+# Acceptance Criteria：统一导出平台
+
+> 本文件是仓库正式验收入口。当前范围以后端平台能力为准，不包含新前端页面。
+
+## 1. 功能验收
+
+| AC ID | 关联需求 | 验收标准 | 优先级 |
+| --- | --- | --- | --- |
+| AC-001 | FR-001 | 认证通过且 `taskCode` 已注册启用时，调用创建任务接口可在 1 秒内返回全局唯一 `taskId`，任务状态为 `PENDING`。 | P0 |
+| AC-002 | FR-002 | 可查询任务状态、总数、已处理数、进度和错误信息。 | P0 |
+| AC-003 | FR-003 | COMPLETED 且未过期时可下载文件；签名 URL 模式返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式模式返回文件流和等价文件元信息；文件记录包含 `storageKey`、`checksum`、`checksumAlgorithm` 和 `attemptNo`。 | P0 |
+| AC-004 | FR-004 | 可按 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode` 分页查询历史任务；普通用户仅看本人任务，管理员按权限看全局。测试文档若出现更细筛选项，必须回填到产品真相源或标记为假设。 | P0 |
+| AC-005 | FR-005 | 多实例调度时，同一子系统的执行数不超过配置值。 | P0 |
+| AC-006 | FR-006 | 超过单文件阈值时自动分片并打包，空数据生成仅表头文件。 | P0 |
+| AC-007 | FR-007 | 导出任务注册信息可创建、更新、查询、启停和配置同步；`taskCode` 唯一，并可配置并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。 | P0 |
+| AC-008 | FR-008 | 注册配置声明数据源、参数 schema、参数化查询模板、字段映射、脱敏策略、数据范围约束、游标字段和支持格式后，平台无需改核心代码即可按集中查询口径执行对应导出任务；非法模板、未注册字段、未声明参数或不允许的数据源不得进入执行。 | P0 |
+| AC-009 | FR-009 | 无权限创建或下载时返回 403，并记录审计。 | P0 |
+| AC-010 | FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志至少包含 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。 | P0 |
+| AC-011 | FR-011 | 过期文件先被标记为不可下载，再清理对象存储文件；下载返回失效结果，清理失败保留可重试记录。 | P1 |
+| AC-012 | FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 仅通过内部 `cancelRequested=true` 做批次边界收口并最终置为 `CANCELED`，不返回 `cancel_requested` 状态；非法状态返回 `INVALID_TASK_STATE`。 | P1 |
+| AC-013 | FR-013 | 创建任务、执行尝试、DB 锁租约和配置快照证据可通过同一 `taskId` 串联，并能区分幂等命中、锁续租、锁接管和快照沿用场景。 | P0 |
+| AC-014 | FR-013 | 相同 `tenantId + operatorId + taskCode + clientRequestId` 且参数摘要相同时返回原 `taskId`，参数摘要不同时返回 `IDEMPOTENCY_CONFLICT`。 | P0 |
+| AC-015 | FR-013/FR-005 | worker 抢锁成功后记录 `attemptNo`、`lockOwner`、`lockExpireAt` 和配置快照；锁租约默认 5 分钟并按批次续租，过期锁只能由一个实例重新抢占。 | P0 |
+| AC-016 | FR-013/FR-007 | 注册配置变更只影响新创建任务；已创建任务和失败重试沿用原任务配置快照，审计可追溯到快照版本或摘要。 | P0 |
+| AC-017 | FR-014 | 采购订单样板以 `purchase-order-export` / `purchase` 注册启用后，平台可按创建时间范围、订单状态、供应商、采购组织和关键词创建导出任务；注册配置包含只读数据源、参数 schema、查询模板、字段顺序、敏感字段、脱敏策略、游标字段和支持格式。 | P0 |
+| AC-018 | FR-014 | 采购订单样板在 `0/1/20000/20001/100000/100001` 行边界下分别验证空数据仅表头、单文件、分片 ZIP、默认 10 万行压测和超过最大导出量处置。 | P0 |
+| AC-019 | FR-008/FR-010/FR-013 | 查询执行请求包含任务快照、执行尝试上下文、查询模板版本、数据源编码和批次检查点，平台可在任务日志、审计日志和失败证据中串联。 | P0 |
+| AC-020 | FR-006/FR-010/FR-013 | 执行过程可追踪 `QUERY_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY` 阶段事件。 | P0 |
+| AC-021 | FR-003/FR-006/FR-011 | 文件生成采用临时对象到已发布对象的交付模型；校验通过前下载接口不得返回文件，校验失败必须进入失败处置并保留清理或定位证据。 | P0 |
+
+## 2. 异常验收
+
+| AC ID | 场景 | 预期行为 |
+| --- | --- | --- |
+| AC-E001 | 空数据 | 生成仅表头文件，任务完成。 |
+| AC-E002 | 任务未注册 | 创建失败，不落无效任务。 |
+| AC-E003 | 任务禁用 | 返回 `TASK_DISABLED`。 |
+| AC-E004 | 查询执行短暂失败后重试成功 | 按批次重试策略处理，任务最终完成并记录重试次数。 |
+| AC-E005 | OSS 上传失败 | 任务置为 `FAILED`，错误码收口为 `FILE_VERIFY_ERROR`，并记录对象存储写入失败原因和临时对象定位或清理记录。 |
+| AC-E006 | 权限不足 | 返回 403，不泄露文件和任务详情。 |
+| AC-E007 | 文件过期 | 返回 410 或等价失效结果。 |
+| AC-E008 | 多实例重复抢锁 | 只有一个实例成功执行。 |
+| AC-E009 | 请求参数过长 | 超过限制返回 400。 |
+| AC-E010 | 超大导出 | 按配置拒绝或进入更严格控制流。 |
+| AC-E011 | 查询模板不存在或不合法 | 任务置为 `FAILED`，错误码为 `QUERY_TEMPLATE_INVALID`。 |
+| AC-E012 | 数据源不可用或凭证不可用 | 任务置为 `FAILED`，错误码为 `DATASOURCE_UNAVAILABLE`。 |
+| AC-E013 | 查询执行失败 | 按批次重试策略处理；最终失败时任务置为 `FAILED`，错误码为 `QUERY_EXECUTION_ERROR`。 |
+| AC-E014 | 字段映射不合法 | 任务置为 `FAILED`，错误码为 `FIELD_MAPPING_INVALID`。 |
+| AC-E015 | 非法或重复重试请求 | PENDING/EXECUTING 任务返回非法状态错误且不得派发执行；FAILED 任务同一时刻只能有一个活跃执行尝试。 |
+| AC-E016 | 认证上下文缺少最小字段 | 创建、查询、下载或配置操作返回权限错误或参数错误，并记录 `requestId` 和失败原因。 |
+| AC-E017 | 文件校验值不匹配 | 下载前拒绝交付文件，任务或文件引用进入失败处置链路，并记录审计。 |
+| AC-E018 | 幂等键冲突 | 相同幂等范围下参数摘要不同，创建接口返回 `IDEMPOTENCY_CONFLICT`，不得创建新任务。 |
+| AC-E019 | DB 锁租约过期 | 其他实例只能在租约过期后重新抢锁；锁接管延续当前 `attemptNo` 并从批次检查点继续，FAILED 重试才递增 `attemptNo`，同时保留原锁持有者证据。 |
+| AC-E020 | 查询批次重试耗尽 | 批次按策略重试后仍失败，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR` 并记录重试次数。 |
+| AC-E021 | 超过默认最大导出量 | 预估或精确总量统计结果超过 100000 行且注册配置未放开时，拒绝创建或进入更严格控制流，并记录审计。 |
+| AC-E022 | 采购订单样板敏感字段未脱敏 | 平台拒绝生成或交付文件，任务置为 `FAILED`，错误码为 `MASKING_RULE_ERROR`，并记录脱敏校验失败证据。 |
+| AC-E023 | 采购订单样板游标不稳定 | 查询结果缺失游标、重复游标或非递增游标时，任务置为 `FAILED`，错误码收口为 `QUERY_EXECUTION_ERROR`。 |
+| AC-E024 | 查询模板或字段映射与任务快照冲突 | 平台不得静默放宽格式、阈值或字段范围；任务置为 `FAILED`，错误码收口为 `QUERY_TEMPLATE_INVALID` 或 `FIELD_MAPPING_INVALID`，并保留冲突证据。 |
+| AC-E025 | 批次字段校验失败 | 查询批次包含未声明字段、字段顺序不一致或敏感字段脱敏结果不合法时，停止写入后续批次，错误码收口为 `FIELD_MAPPING_INVALID` 或 `MASKING_RULE_ERROR`。 |
+| AC-E026 | 文件发布前校验失败 | 文件元信息缺失、校验值不匹配或临时对象发布失败时，不生成下载地址，任务置为 `FAILED`，错误码为 `FILE_VERIFY_ERROR`，并记录临时对象定位或清理记录。 |
+| AC-E027 | 文件渲染失败 | XLSX/ZIP 文件渲染失败时，任务置为 `FAILED`，错误码为 `EXPORT_RENDER_ERROR`，并记录渲染输入摘要和失败原因。 |
+
+## 3. 质量验收
+
+- `git diff --check` 通过。
+- 相关验证矩阵已补齐最小可用内容。
+- 需求、追溯、状态、研究文档口径一致。
+- 任何先出现在 testing 文档中的新字段或新状态，若未在本文件与 `docs/product/*` 同步确认，只能标记为 assumption / gap，不能写成已验收口径。
+- 对外响应不得使用旧接入缺口标签、旧渲染失败标签、取消请求内部标记作为正式状态、错误码或验收口径。
+- `docs/product/*` 不得保留旧接入契约、旧四阶段执行链路、旧接入错误码或旧追踪标识作为当前产品口径。
+- 采购订单样板必须覆盖查询模板、只读数据源、创建时间范围、订单状态、供应商、采购组织、关键词查询、游标分页、敏感字段脱敏、空数据、分片、下载和 10 万行压测证据。
+- 采购订单样板字段证据必须包含订单号、订单状态、供应商、采购组织、采购员、创建时间、总金额、币种、联系人姓名、联系人手机号；联系人字段不得以原文出现在最终文件。
+- 10 万行压测证据至少记录总耗时、批大小、分片数、锁续租次数、查询重试次数、最终文件大小和校验值。
+- 查询执行证据必须能通过 `taskId`、`attemptNo`、`requestId`、查询模板版本、数据源编码和批次检查点串联。
+- 文件交付证据必须区分临时对象、已发布对象、校验结果和下载交付记录。
+
+
+ succeeded in 395ms:
+version: "1.0"
+feature_id: "FEAT-EXPORT-PLATFORM-001"
+frontend_scope: "none"
+required_backend_states:
+  - default
+  - empty
+  - processing
+  - error
+  - permission_denied
+  - disabled
+  - expired
+  - canceled
+  - long_content
+  - conflict
+official_task_statuses:
+  - PENDING
+  - EXECUTING
+  - COMPLETED
+  - FAILED
+  - CANCELED
+  - EXPIRED
+internal_controls:
+  cancel_requested: "仅作为执行中取消的内部控制标记；API 不返回该状态，最终收口为 CANCELED 或 INVALID_TASK_STATE"
+defaults:
+  query_params_max_bytes: 32768
+  single_file_max_rows: 20000
+  default_export_max_rows: 100000
+  lock_lease_minutes: 5
+  query_timeout_seconds: 30
+  query_batch_max_retries: 3
+  supported_formats: ["XLSX", "ZIP"]
+  signature_url_ttl_minutes: 10
+  checksum_algorithm: "SHA-256"
+  file_retention_days: 15
+  task_history_retention_days: 30
+execution_events:
+  - QUERY_READY
+  - QUERY_BATCH_DONE
+  - FILE_PART_WRITTEN
+  - PACKAGE_DONE
+  - FILE_VERIFIED
+  - DELIVERY_READY
+idempotency:
+  scope_fields: ["tenantId", "operatorId", "taskCode", "clientRequestId"]
+  digest_fields: ["taskCode", "fileFormat", "queryParams"]
+  conflict_error_code: "IDEMPOTENCY_CONFLICT"
+capabilities:
+  - capability_id: "api-001"
+    title: "创建导出任务"
+    route: "POST /api/export/tasks"
+    related_requirements: ["FR-001", "FR-009", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "认证和注册校验通过，创建成功"
+        expected_system_behavior:
+          - "写入 export_task"
+          - "status=PENDING"
+          - "返回 taskId"
+          - "调用方提供 clientRequestId 时按 tenantId、operatorId、taskCode、clientRequestId 做幂等"
+          - "相同幂等范围和相同参数摘要时返回原 taskId"
+          - "记录 requestDigest 和 configSnapshotDigest"
+        acceptance_refs: ["AC-001", "AC-013", "AC-014"]
+      conflict:
+        required: true
+        description: "相同幂等范围下参数摘要不同"
+        expected_system_behavior:
+          - "返回 IDEMPOTENCY_CONFLICT"
+          - "不得创建新任务"
+        acceptance_refs: ["AC-014", "AC-E018"]
+      permission_denied:
+        required: true
+        description: "无创建权限"
+        expected_system_behavior:
+          - "返回 403"
+          - "记录审计"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+      not_registered:
+        required: true
+        description: "taskCode 未注册"
+        expected_system_behavior:
+          - "创建失败"
+          - "不落无效任务"
+        acceptance_refs: ["AC-E002"]
+      disabled:
+        required: true
+        description: "taskCode 已禁用"
+        expected_system_behavior:
+          - "返回 TASK_DISABLED"
+        acceptance_refs: ["AC-E003"]
+      long_content:
+        required: true
+        description: "queryParams 超过限制"
+        expected_system_behavior:
+          - "超过 32KB 时返回参数过长错误"
+        acceptance_refs: ["AC-E009"]
+      error:
+        required: true
+        description: "预估或精确总量统计结果超过默认最大导出量且注册配置未放开"
+        expected_system_behavior:
+          - "拒绝创建或进入更严格控制流"
+          - "记录审计"
+        acceptance_refs: ["AC-E010", "AC-E021"]
+  - capability_id: "api-002"
+    title: "查询任务详情/进度"
+    route: "GET /api/export/tasks/{taskId}"
+    related_requirements: ["FR-002", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "任务存在且有权限"
+        expected_system_behavior:
+          - "返回 status、totalCount、processedCount、progressPercent、errorMessage"
+        acceptance_refs: ["AC-002"]
+      empty:
+        required: true
+        description: "任务不存在"
+        expected_system_behavior:
+          - "返回 404"
+        acceptance_refs: ["AC-E002"]
+      processing:
+        required: true
+        description: "任务执行中"
+        expected_system_behavior:
+          - "返回执行中状态与进度"
+        acceptance_refs: ["AC-002"]
+      error:
+        required: true
+        description: "任务失败或查询异常"
+        expected_system_behavior:
+          - "返回错误信息"
+        acceptance_refs: ["AC-E013"]
+      permission_denied:
+        required: true
+        description: "无权查看任务"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006"]
+      canceled:
+        required: true
+        description: "任务已取消；内部取消标记不作为正式状态值"
+        expected_system_behavior:
+          - "返回 CANCELED"
+          - "保留可追溯原因"
+        acceptance_refs: ["AC-012"]
+  - capability_id: "api-003"
+    title: "下载导出文件"
+    route: "GET /api/export/tasks/{taskId}/download"
+    related_requirements: ["FR-003", "FR-009"]
+    states:
+      default:
+        required: true
+        description: "完成且未过期"
+        expected_system_behavior:
+          - "返回签名 URL 或文件流"
+          - "签名 URL 模式返回 downloadUrl、expiresAt、fileName、fileSize"
+          - "stream 模式返回文件流和等价文件元信息"
+          - "文件记录包含 storageKey、checksum、checksumAlgorithm、contentType、attemptNo"
+          - "记录下载日志"
+        acceptance_refs: ["AC-003", "AC-010"]
+      disabled:
+        required: true
+        description: "任务未完成或不可下载"
+        expected_system_behavior:
+          - "返回无效状态错误"
+        acceptance_refs: ["AC-003"]
+      expired:
+        required: true
+        description: "文件已过期"
+        expected_system_behavior:
+          - "返回 410"
+        acceptance_refs: ["AC-E007"]
+      permission_denied:
+        required: true
+        description: "无下载权限"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+  - capability_id: "api-004"
+    title: "查询任务历史"
+    route: "GET /api/export/tasks"
+    related_requirements: ["FR-004", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "可按正式筛选维度返回历史任务"
+        expected_system_behavior:
+          - "返回分页结果"
+          - "支持 taskCode、status、createdBy、createdAtRange、fileFormat、subsystemCode 筛选"
+          - "普通用户仅见本人任务"
+          - "管理员可见全局任务"
+          - "权限判断依赖 operatorId、tenantId、roleCodes、orgScope、requestId"
+        acceptance_refs: ["AC-004", "AC-009"]
+      empty:
+        required: true
+        description: "无历史任务"
+        expected_system_behavior:
+          - "返回空分页"
+        acceptance_refs: ["AC-004"]
+      permission_denied:
+        required: true
+        description: "无权查看全局历史"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006"]
+  - capability_id: "api-007"
+    title: "注册 / 启停 / 配置"
+    route: "registry/config APIs"
+    related_requirements: ["FR-007", "FR-008", "FR-010", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "注册成功且启停状态、配置同步生效"
+        expected_system_behavior:
+          - "taskCode 唯一"
+          - "enabled 状态可切换"
+          - "支持并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略"
+          - "支持数据源、参数 schema、查询模板、字段映射和脱敏策略配置"
+          - "配置变更只影响新创建任务，已创建任务沿用 configSnapshotDigest"
+        acceptance_refs: ["AC-007", "AC-008", "AC-010", "AC-016"]
+      disabled:
+        required: true
+        description: "任务注册或启停后处于禁用"
+        expected_system_behavior:
+          - "创建阶段返回 TASK_DISABLED"
+        acceptance_refs: ["AC-E003"]
+      permission_denied:
+        required: true
+        description: "无权操作注册或配置"
+        expected_system_behavior:
+          - "返回 403"
+        acceptance_refs: ["AC-009", "AC-E006", "AC-E016"]
+  - capability_id: "api-005/api-006"
+    title: "取消 / 重试"
+    route: "POST /api/export/tasks/{taskId}/cancel and retry"
+    related_requirements: ["FR-012", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "PENDING 可取消，FAILED 可重试"
+        expected_system_behavior:
+          - "状态机按规则流转"
+          - "FAILED 重试保留原 taskId 审计链路并递增执行尝试次数"
+          - "PENDING/EXECUTING 重试返回非法状态错误且不得重复派发执行"
+          - "失败重试沿用原任务配置快照"
+          - "记录审计"
+        acceptance_refs: ["AC-012", "AC-010", "AC-016"]
+      canceled:
+        required: true
+        description: "取消成功"
+        expected_system_behavior:
+          - "status=CANCELED"
+        acceptance_refs: ["AC-012"]
+      error:
+        required: true
+        description: "非法状态重试或取消失败"
+        expected_system_behavior:
+          - "返回状态错误"
+        acceptance_refs: ["AC-012", "AC-E015"]
+  - id: "query_template_contract"
+    capability_id: "api-008/api-009"
+    title: "集中查询模板契约"
+    route: "registry/config + datasource/query template"
+    related_requirements: ["FR-008", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "注册配置包含数据源、参数 schema、查询模板、字段映射、脱敏策略、数据范围约束和游标字段"
+        expected_system_behavior:
+          - "只允许访问注册配置声明的只读数据源或数据中台数据集"
+          - "查询模板必须参数化"
+          - "只能绑定参数 schema 允许的字段"
+          - "不得执行调用方传入的原始 SQL"
+          - "执行时叠加 tenantId、operatorId、roleCodes、orgScope 对应的数据范围约束"
+        acceptance_refs: ["AC-008", "AC-009", "AC-019"]
+      invalid_template:
+        required: true
+        description: "查询模板不存在或不合法"
+        expected_status: "FAILED"
+        error_code: "QUERY_TEMPLATE_INVALID"
+        acceptance_refs: ["AC-E011"]
+      datasource_unavailable:
+        required: true
+        description: "数据源不可用或凭证不可用"
+        expected_status: "FAILED"
+        error_code: "DATASOURCE_UNAVAILABLE"
+        acceptance_refs: ["AC-E012"]
+      query_execution_error:
+        required: true
+        description: "查询执行失败或批次重试耗尽"
+        expected_status: "FAILED"
+        error_code: "QUERY_EXECUTION_ERROR"
+        acceptance_refs: ["AC-E013", "AC-E020"]
+      field_mapping_invalid:
+        required: true
+        description: "字段映射不合法或批次字段校验失败"
+        expected_status: "FAILED"
+        error_code: "FIELD_MAPPING_INVALID"
+        acceptance_refs: ["AC-E014", "AC-E025"]
+      masking_rule_error:
+        required: true
+        description: "脱敏规则配置或执行失败"
+        expected_status: "FAILED"
+        error_code: "MASKING_RULE_ERROR"
+        acceptance_refs: ["AC-E022", "AC-E025"]
+      snapshot_contract_conflict:
+        required: true
+        description: "查询模板或字段映射与任务快照冲突"
+        expected_status: "FAILED"
+        error_codes: ["QUERY_TEMPLATE_INVALID", "FIELD_MAPPING_INVALID"]
+        expected_system_behavior:
+          - "不得静默放宽格式、阈值或字段范围"
+          - "保留查询模板版本、字段映射摘要、任务快照摘要和冲突字段证据"
+          - "查询模板冲突可按 QUERY_TEMPLATE_INVALID 收口，字段映射冲突按 FIELD_MAPPING_INVALID 收口"
+        acceptance_refs: ["AC-E024"]
+  - capability_id: "job-001"
+    title: "调度执行"
+    route: "Scheduler"
+    related_requirements: ["FR-005", "FR-006", "FR-010", "FR-013"]
+    states:
+      empty:
+        required: true
+        description: "无待执行任务"
+        expected_system_behavior:
+          - "本轮调度结束"
+        acceptance_refs: ["AC-005"]
+      processing:
+        required: true
+        description: "抢锁成功并执行"
+        expected_system_behavior:
+          - "status=EXECUTING"
+          - "记录 attemptNo、lockOwner、lockExpireAt、leaseRenewedAt"
+          - "按数据库时间判断锁租约"
+          - "按批次边界续租"
+          - "锁接管延续当前 attemptNo，并从 lastCursor、processedCount、filePartNo 检查点继续"
+          - "更新 processedCount"
+        acceptance_refs: ["AC-005", "AC-006", "AC-015", "AC-E004", "AC-E008", "AC-E019"]
+      error:
+        required: true
+        description: "执行失败"
+        expected_system_behavior:
+          - "status=FAILED"
+          - "写入 errorMessage"
+          - "保留 attemptNo 和失败批次证据"
+        acceptance_refs: ["AC-E013", "AC-E020"]
+      canceled:
+        required: true
+        description: "任务取消"
+        expected_system_behavior:
+          - "status=CANCELED"
+        acceptance_refs: ["AC-012"]
+  - capability_id: "job-002"
+    title: "文件过期清理"
+    route: "Cleanup Job"
+    related_requirements: ["FR-011"]
+    states:
+      default:
+        required: true
+        description: "存在过期文件"
+        expected_system_behavior:
+          - "先标记任务或文件引用为不可下载"
+          - "再删除 OSS 对象"
+        acceptance_refs: ["AC-011"]
+      empty:
+        required: true
+        description: "无过期文件"
+        expected_system_behavior:
+          - "正常结束"
+        acceptance_refs: ["AC-011"]
+      error:
+        required: true
+        description: "清理失败"
+        expected_system_behavior:
+          - "记录清理日志"
+        acceptance_refs: ["AC-011"]
+  - capability_id: "api-010"
+    title: "文件元信息与校验"
+    route: "file service / OSS"
+    related_requirements: ["FR-003", "FR-011"]
+    states:
+      default:
+        required: true
+        description: "平台生成文件并记录可校验元信息"
+        expected_system_behavior:
+          - "记录 fileName、fileSize、contentType、storageKey、checksum、checksumAlgorithm、expiresAt、attemptNo"
+          - "storageKey 默认按 exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName} 生成"
+          - "checksumAlgorithm 默认 SHA-256"
+          - "先写入临时对象，校验通过后发布为可下载对象"
+          - "记录 checksumVerifiedAt、publishedAt 和 deliveryReadyAt 或等价事件"
+        acceptance_refs: ["AC-003", "AC-021"]
+      expired:
+        required: true
+        description: "文件超过保留期或已标记不可下载"
+        expected_system_behavior:
+          - "拒绝下载"
+          - "返回 410 或等价失效结果"
+        acceptance_refs: ["AC-011", "AC-E007"]
+      error:
+        required: true
+        description: "OSS 上传失败、文件校验值不匹配或元信息缺失"
+        expected_system_behavior:
+          - "拒绝交付文件"
+          - "记录审计和失败原因"
+          - "不生成下载地址"
+          - "保留临时对象定位或清理记录"
+        acceptance_refs: ["AC-E005", "AC-E017", "AC-E026"]
+      render_error:
+        required: true
+        description: "XLSX/ZIP 文件渲染失败"
+        expected_status: "FAILED"
+        error_code: "EXPORT_RENDER_ERROR"
+        expected_system_behavior:
+          - "记录渲染输入摘要和失败原因"
+          - "不得生成下载地址"
+        acceptance_refs: ["AC-E027"]
+  - capability_id: "api-011"
+    title: "执行事件追踪"
+    route: "task event log"
+    related_requirements: ["FR-006", "FR-008", "FR-010", "FR-013"]
+    states:
+      default:
+        required: true
+        description: "任务执行阶段事件完整记录"
+        expected_system_behavior:
+          - "记录 QUERY_READY、QUERY_BATCH_DONE、FILE_PART_WRITTEN、PACKAGE_DONE、FILE_VERIFIED、DELIVERY_READY"
+          - "事件可通过 taskId、attemptNo、requestId、查询模板版本、数据源编码和批次检查点串联"
+          - "事件时间以平台持久化时间为准"
+        acceptance_refs: ["AC-019", "AC-020"]
+      error:
+        required: true
+        description: "执行阶段失败"
+        expected_system_behavior:
+          - "记录失败阶段、错误码、上一成功阶段和当前批次检查点"
+          - "失败证据可与任务日志、审计日志和文件证据串联"
+        acceptance_refs: ["AC-010", "AC-019", "AC-020"]
+  - capability_id: "sample-001"
+    title: "采购订单导出样板"
+    route: "purchase-order query template + platform export flow"
+    related_requirements: ["FR-014", "FR-001", "FR-006", "FR-008", "FR-009", "FR-010"]
+    states:
+      default:
+        required: true
+        description: "采购订单样板按标准平台链路完成导出"
+        expected_system_behavior:
+          - "样板注册配置包含 datasourceCode、queryTemplateVersion、参数 schema、字段映射、脱敏策略、cursorField=orderId 和 supportedFormats=[XLSX, ZIP]"
+          - "支持 createdAtRange、orderStatus、supplierId、purchaseOrgId、keyword 查询条件"
+          - "查询模板按 orderId 或等价唯一游标稳定递增返回数据"
+          - "contactName、contactPhone 由平台按脱敏策略输出脱敏后值"
+          - "XLSX/ZIP 主路径由平台渲染，超过 20000 行自动分片并打包"
+          - "审计、下载、文件校验和压测证据可追溯"
+        acceptance_refs: ["AC-017", "AC-018"]
+      empty:
+        required: true
+        description: "查询条件命中 0 行采购订单"
+        expected_system_behavior:
+          - "生成仅表头文件"
+          - "任务状态为 COMPLETED"
+        acceptance_refs: ["AC-E001", "AC-018"]
+      long_content:
+        required: true
+        description: "采购订单样板超过默认最大导出量"
+        expected_system_behavior:
+          - "100001 行且注册配置未放开时拒绝创建或进入更严格控制流"
+          - "记录审计"
+        acceptance_refs: ["AC-E021", "AC-018"]
+      error:
+        required: true
+        description: "采购订单样板查询合同或脱敏校验失败"
+        expected_system_behavior:
+          - "敏感字段未脱敏时拒绝生成或交付文件"
+          - "游标缺失、重复或非递增时任务置为 FAILED"
+          - "错误码收口为 MASKING_RULE_ERROR 或 QUERY_EXECUTION_ERROR"
+          - "保留批次检查点和失败原因"
+        acceptance_refs: ["AC-E022", "AC-E023"]
+
+
+codex
+Using `code-review` skill，因为这是一次审查任务；我会只采用其中“先列问题、基于证据”的审查方式，并服从你给的 Stage 1 范围限制。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'E:\\2026\\alpha-project\\longgang-codex-driver\\.agents\\skills\\code-review\\SKILL.md'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 357ms:
+---
+name: code-review
+description: Code Review Skill
+---
+
+# Code Review Skill
+
+代码审查清单和 PR 规范。
+
+## PR 提交规范
+
+### PR 标题格式
+```
+<type>(<scope>): <description>
+
+示例:
+feat(auth): 添加 OAuth2.0 登录功能
+fix(api): 修复用户列表分页问题
+refactor(db): 优化查询性能
+```
+
+### PR 描述模板
+```markdown
+## 变更说明
+简要描述本次变更的内容和目的
+
+## 变更类型
+- [ ] 新功能
+- [ ] Bug 修复
+- [ ] 重构
+- [ ] 性能优化
+- [ ] 文档更新
+
+## 关联 Issue
+Closes #123
+
+## 测试说明
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试通过
+
+## 截图（如适用）
+UI 变更请附截图
+
+## 检查清单
+- [ ] 代码符合项目规范
+- [ ] 已添加必要的测试
+- [ ] 已更新相关文档
+- [ ] 无敏感信息泄露
+```
+
+## 代码审查清单
+
+### 功能正确性
+- [ ] 代码实现了预期功能
+- [ ] 边界条件处理正确
+- [ ] 错误处理完善
+- [ ] 无明显的逻辑漏洞
+
+### 代码质量
+- [ ] 命名清晰有意义
+- [ ] 函数职责单一
+- [ ] 无重复代码
+- [ ] 复杂逻辑有注释
+- [ ] 无硬编码的魔法数字
+
+### 安全性
+- [ ] 输入验证完整
+- [ ] 无 SQL 注入风险
+- [ ] 无 XSS 风险
+- [ ] 敏感信息已脱敏
+- [ ] 权限检查到位
+
+### 性能
+- [ ] 无 N+1 查询
+- [ ] 无不必要的循环
+- [ ] 大数据量有分页
+- [ ] 耗时操作有缓存或异步
+
+### 可维护性
+- [ ] 代码结构清晰
+- [ ] 依赖关系合理
+- [ ] 易于测试
+- [ ] 易于扩展
+
+## 审查反馈规范
+
+### 评论分类
+```
+[必须] 必须修改才能合并
+[建议] 建议修改，可讨论
+[疑问] 需要解释或讨论
+[赞] 写得好的地方
+```
+
+### 反馈示例
+```
+[必须] 这里存在 SQL 注入风险，请使用参数化查询
+
+[建议] 这个函数超过 50 行，建议拆分为更小的函数
+
+[疑问] 为什么这里用 setTimeout 而不是 debounce？
+
+[赞] 这个抽象设计得很好，复用性强
+```
+
+## 审查流程
+
+```
+┌─────────────┐
+│  提交 PR    │
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  CI 检查    │ ← 自动化测试、lint、构建
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  代码审查   │ ← 至少 1 人 approve
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  修改反馈   │ ← 根据评论修改
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  合并代码   │ ← Squash merge
+└─────────────┘
+```
+
+## 审查原则
+
+### 审查者
+- 及时响应（24小时内）
+- 提供建设性反馈
+- 尊重作者的设计决策
+- 区分必须修改和建议修改
+
+### 作者
+- PR 尽量小（<400行）
+- 提供充分的上下文
+- 积极回应反馈
+- 不要 defensive
+
+## 自动化检查
+
+```yaml
+# GitHub Actions 示例
+name: PR Check
+
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lint
+        run: npm run lint
+        
+      - name: Type Check
+        run: npm run type-check
+        
+      - name: Test
+        run: npm run test
+        
+      - name: Build
+        run: npm run build
+```
+
+
+
+codex
+目前真相源显示这是后端平台能力，不涉及 UI，`frontend_scope: none`，所以视觉截图闸门可跳过。现在我在核对 `task.json` 是否携带 feature_impl 必需的架构约束，以及取消/重试相关实现是否满足 AC-012/AC-E015。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command 'rg -n "TASK-CANCEL-ATOMICITY-001|architecture_constraints|forbidden_implementations|test_command" task.json' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'src\\task-api\\service.ts'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'src\\repositories\\export-task.repository.ts'" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "Get-Content -Raw 'src\\scheduler\\worker.ts'" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 353ms:
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import type { Kysely } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+import { createDatabase } from "../db/kysely.ts";
+import {
+  createExportAuditRepository,
+  createCheckpointRepository,
+  createExportFileRepository,
+  createExportRegistryRepository,
+  createExportTaskEventRepository,
+  createExportTaskRepository,
+  getDatabaseTime,
+  type AuditLogRecord,
+  type CheckpointRecord,
+  type ExportRegistryRecord,
+  type ExportTaskRecord,
+  type TaskEventRecord
+} from "../repositories/index.ts";
+import { appendAudit } from "../audit-log/service.ts";
+import {
+  isPublicTaskEventType,
+  normalizePublicResponseCode
+} from "../contracts/public-enums.ts";
+import {
+  ApiError,
+  assertExportPermission,
+  isExportAdmin,
+  isTrustedRegistryAdminTenant,
+  type AuthContext
+} from "../audit-log/auth-context.ts";
+import { createExportFileService } from "../file-service/index.ts";
+
+type CreateTaskBody = {
+  taskCode?: string;
+  subsystemCode?: string;
+  fileFormat?: string;
+  clientRequestId?: string;
+  queryParams?: unknown;
+};
+
+export type DownloadDeliveryMode = "SIGNED_URL" | "STREAM";
+
+type DownloadSignedUrlResponse = {
+  deliveryMode: "SIGNED_URL";
+  downloadUrl: string;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
+type DownloadStreamResponse = {
+  deliveryMode: "STREAM";
+  body: Buffer;
+  storageKey: string;
+  expiresAt: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string;
+  checksumAlgorithm: string;
+  attemptNo: number;
+};
+
+type SignedDownloadQuery = {
+  expiresAt?: unknown;
+  signature?: unknown;
+  signatureAlgorithm?: unknown;
+  operatorId?: unknown;
+  tenantId?: unknown;
+  roleCodes?: unknown;
+  orgScope?: unknown;
+  requestId?: unknown;
+};
+
+const QUERY_PARAMS_MAX_BYTES = 32768;
+
+type RegistryParameterSchema = {
+  type?: string;
+  required?: string[];
+  additionalProperties?: boolean;
+  properties?: Record<string, { type?: string }>;
+};
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  return `{${Object.keys(value as Record<string, unknown>)
+    .sort()
+    .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
+    .join(",")}}`;
+}
+
+function assertQueryParamsSize(value: unknown): void {
+  const bytes = Buffer.byteLength(canonicalJson(value), "utf8");
+  if (bytes > QUERY_PARAMS_MAX_BYTES) {
+    throw new ApiError(400, "QUERY_PARAMS_TOO_LARGE", "queryParams exceeds 32768 bytes", {
+      queryParamsBytes: bytes,
+      queryParamsMaxBytes: QUERY_PARAMS_MAX_BYTES
+    });
+  }
+}
+
+function parseRegistryJson<T>(value: string | null, label: string): T {
+  if (!value) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `${label} is missing`);
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `${label} is invalid`);
+  }
+}
+
+function assertRegistryFileFormat(registrySupportedFormats: string | null, fileFormat: string): void {
+  const supportedFormats = parseRegistryJson<unknown>(registrySupportedFormats, "supportedFormats");
+  if (
+    !Array.isArray(supportedFormats) ||
+    supportedFormats.length === 0 ||
+    !supportedFormats.every((format) => typeof format === "string")
+  ) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "registry supportedFormats is invalid");
+  }
+
+  if (!supportedFormats.includes(fileFormat)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "fileFormat is not supported by registry");
+  }
+}
+
+function normalizeCreateTaskQueryParams(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "queryParams must be an object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseRegistryParameterSchema(schemaPayload: string | null): RegistryParameterSchema {
+  const schema = parseRegistryJson<RegistryParameterSchema>(schemaPayload, "parameterSchema");
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema is invalid");
+  }
+  if (schema.type && schema.type !== "object") {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema must describe an object");
+  }
+  if (schema.required !== undefined && !Array.isArray(schema.required)) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.required must be an array");
+  }
+  if (
+    schema.properties !== undefined &&
+    (!schema.properties || typeof schema.properties !== "object" || Array.isArray(schema.properties))
+  ) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.properties must be an object");
+  }
+  return schema;
+}
+
+function assertRegistryParameterValueType(key: string, value: unknown, expectedType: string): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  const valid =
+    (expectedType === "string" && typeof value === "string") ||
+    (expectedType === "number" && typeof value === "number" && Number.isFinite(value)) ||
+    (expectedType === "integer" && Number.isInteger(value)) ||
+    (expectedType === "boolean" && typeof value === "boolean") ||
+    (expectedType === "object" && typeof value === "object" && !Array.isArray(value)) ||
+    (expectedType === "array" && Array.isArray(value));
+
+  if (!valid) {
+    throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} must be a ${expectedType}`);
+  }
+}
+
+function assertRegistryParameterSchema(schemaPayload: string | null, value: unknown): void {
+  const queryParams = normalizeCreateTaskQueryParams(value);
+  const schema = parseRegistryParameterSchema(schemaPayload);
+  const properties = schema.properties ?? {};
+
+  for (const required of schema.required ?? []) {
+    if (typeof required !== "string") {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", "parameterSchema.required must contain strings");
+    }
+    if (queryParams[required] === undefined || queryParams[required] === null) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `required parameter ${required} is missing`);
+    }
+  }
+
+  const declaredKeys = new Set(Object.keys(properties));
+  for (const key of Object.keys(queryParams)) {
+    if (
+      (declaredKeys.size > 0 && !declaredKeys.has(key)) ||
+      (declaredKeys.size === 0 && schema.additionalProperties === false)
+    ) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} is not declared`);
+    }
+  }
+
+  for (const [key, definition] of Object.entries(properties)) {
+    if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+      throw new ApiError(400, "QUERY_TEMPLATE_INVALID", `parameter ${key} schema is invalid`);
+    }
+    if (definition.type) {
+      assertRegistryParameterValueType(key, queryParams[key], definition.type);
+    }
+  }
+}
+
+function assertCreateTaskRegistryGuards(input: {
+  registry: ExportRegistryRecord;
+  fileFormat: string;
+  queryParams: unknown;
+}): void {
+  assertRegistryFileFormat(input.registry.supportedFormats, input.fileFormat);
+  assertRegistryParameterSchema(input.registry.parameterSchema, input.queryParams);
+}
+
+function digest(value: unknown): string {
+  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+}
+
+function taskEnvelope(task: ExportTaskRecord, extra: Record<string, unknown> = {}) {
+  return {
+    taskId: task.taskId,
+    taskCode: task.taskCode,
+    subsystemCode: task.subsystemCode,
+    tenantId: task.tenantId,
+    createdBy: task.createdBy,
+    fileFormat: task.fileFormat,
+    status: task.status,
+    clientRequestId: task.clientRequestId,
+    idempotencyScope: task.idempotencyScope,
+    requestDigest: task.requestDigest,
+    configSnapshotDigest: task.configSnapshotDigest,
+    attemptNo: task.attemptNo,
+    lockOwner: task.lockOwner,
+    lockExpireAt: task.lockExpireAt?.toISOString() ?? null,
+    leaseRenewedAt: task.leaseRenewedAt?.toISOString() ?? null,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    totalCount: 0,
+    processedCount: 0,
+    progressPercent: 0,
+    errorCode: null,
+    errorMessage: null,
+    failureStage: null,
+    lastSuccessStage: null,
+    recentEvents: [],
+    ...extra
+  };
+}
+
+function parseJsonRecord(value: string | null | undefined): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readNonNegativeInteger(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (value < 0) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  return value;
+}
+
+function clampProgressPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
+}
+
+function responseCodeMessage(code: string | null): string | null {
+  switch (code) {
+    case "QUERY_EXECUTION_ERROR":
+      return "query execution error";
+    case "DATASOURCE_UNAVAILABLE":
+      return "datasource unavailable";
+    case "QUERY_TEMPLATE_INVALID":
+      return "query template invalid";
+    case "FIELD_MAPPING_INVALID":
+      return "field mapping invalid";
+    case "MASKING_RULE_ERROR":
+      return "masking rule error";
+    case "EXPORT_RENDER_ERROR":
+      return "export render error";
+    case "FILE_VERIFY_ERROR":
+      return "file verification failed";
+    case "EXPORT_LIMIT_EXCEEDED":
+      return "export limit exceeded";
+    default:
+      return null;
+  }
+}
+
+function resolveTotalCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  events: TaskEventRecord[];
+}): number {
+  const eventTotal = input.events.reduce<number | null>((current, event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const totalCount = readNonNegativeInteger(checkpoint?.totalCount);
+    if (totalCount !== null) {
+      return current === null ? totalCount : Math.max(current, totalCount);
+    }
+    return current;
+  }, null);
+
+  if (eventTotal !== null) {
+    return eventTotal;
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return input.checkpoint?.processedCount ?? 0;
+  }
+
+  return 0;
+}
+
+function resolveProcessedCount(input: {
+  task: ExportTaskRecord;
+  checkpoint: CheckpointRecord | undefined;
+  totalCount: number;
+}): number {
+  const checkpointCount = input.checkpoint?.processedCount ?? 0;
+  if (input.totalCount > 0) {
+    return Math.min(checkpointCount, input.totalCount);
+  }
+
+  if (input.task.status === "COMPLETED" && checkpointCount === 0) {
+    return input.totalCount;
+  }
+
+  return checkpointCount;
+}
+
+function resolveProgressPercent(input: {
+  task: ExportTaskRecord;
+  processedCount: number;
+  totalCount: number;
+}): number {
+  if (input.totalCount > 0) {
+    return clampProgressPercent((input.processedCount / input.totalCount) * 100);
+  }
+
+  if (input.task.status === "COMPLETED") {
+    return 100;
+  }
+
+  return 0;
+}
+
+function resolveTaskFailure(
+  audits: AuditLogRecord[],
+  events: TaskEventRecord[]
+): {
+  errorCode: string | null;
+  errorMessage: string | null;
+} {
+  const auditFailures = audits
+    .filter((audit) => audit.result === "FAILED" && audit.errorCode !== "SUCCESS")
+    .map((audit) => ({
+      occurredAt: audit.occurredAt,
+      errorCode: normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR"),
+      errorMessage: responseCodeMessage(
+        normalizePublicResponseCode(audit.errorCode, "QUERY_EXECUTION_ERROR")
+      )
+    }));
+
+  const eventFailures = events.flatMap((event) => {
+    const checkpoint = parseJsonRecord(event.batchCheckpoint);
+    const rawErrorCode = readNonEmptyString(checkpoint?.errorCode);
+    if (!rawErrorCode || rawErrorCode === "SUCCESS") {
+      return [];
+    }
+    const errorCode = normalizePublicResponseCode(rawErrorCode, "QUERY_EXECUTION_ERROR");
+
+    return [
+      {
+        occurredAt: event.occurredAt,
+        errorCode,
+        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+      }
+    ];
+  });
+
+  const failedRecord = [...auditFailures, ...eventFailures].sort(
+    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime()
+  )[0];
+
+  if (!failedRecord) {
+    return {
+      errorCode: null,
+      errorMessage: null
+    };
+  }
+
+  return {
+    errorCode: failedRecord.errorCode,
+    errorMessage: failedRecord.errorMessage
+  };
+}
+
+function publicBatchCheckpoint(value: string | null | undefined): Record<string, unknown> | null {
+  const checkpoint = parseJsonRecord(value);
+  if (!checkpoint) {
+    return null;
+  }
+
+  const allowedFields = [
+    "lastCursor",
+    "processedCount",
+    "totalCount",
+    "filePartNo",
+    "retryCount",
+    "batchSize",
+    "batchRowCount",
+    "backoffMs",
+    "failureReason",
+    "renderInputSummary",
+    "attemptNo",
+    "lockOwner",
+    "lockExpireAt",
+    "leaseRenewedAt",
+    "databaseTime",
+    "takeoverRule"
+  ];
+  return Object.fromEntries(
+    allowedFields
+      .filter((field) => Object.hasOwn(checkpoint, field))
+      .map((field) => [field, checkpoint[field]])
+  );
+}
+
+function mapRecentTaskEvent(event: TaskEventRecord) {
+  return {
+    taskId: event.taskId,
+    attemptNo: event.attemptNo,
+    eventType: event.eventType,
+    requestId: event.requestId,
+    datasourceCode: event.datasourceCode,
+    queryTemplateVersion: event.queryTemplateVersion,
+    batchCheckpoint: publicBatchCheckpoint(event.batchCheckpoint),
+    occurredAt: event.occurredAt.toISOString()
+  };
+}
+
+function mapPublicRecentTaskEvents(events: TaskEventRecord[]) {
+  return events
+    .filter((event) => isPublicTaskEventType(event.eventType))
+    .map(mapRecentTaskEvent);
+}
+
+async function rejectWithAudit(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  auth: AuthContext;
+  error: ApiError;
+  action: string;
+  now: Date;
+  taskId?: string | null;
+  attemptNo?: number | null;
+  taskCode?: string | null;
+  subsystemCode?: string | null;
+}): Promise<never> {
+  await appendAudit({
+    db: input.db,
+    auth: input.auth,
+    taskId: input.taskId ?? null,
+    attemptNo: input.attemptNo ?? null,
+    taskCode: input.taskCode ?? null,
+    subsystemCode: input.subsystemCode ?? null,
+    action: input.action,
+    result: "FAILED",
+    errorCode: input.error.code,
+    now: input.now
+  });
+  throw input.error;
+}
+
+function parseDateFilter(value: unknown): Date | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function assertTaskVisible(auth: AuthContext, task: ExportTaskRecord): void {
+  if (task.tenantId === auth.tenantId && (isExportAdmin(auth) || task.createdBy === auth.operatorId)) {
+    return;
+  }
+
+  throw new ApiError(403, "PERMISSION_DENIED", "operator has no permission for task");
+}
+
+async function withDatabase<T>(operation: (db: Kysely<ExportPlatformDatabase>) => Promise<T>) {
+  const db = createDatabase();
+  try {
+    return await operation(db);
+  } finally {
+    await db.destroy();
+  }
+}
+
+function resolveDownloadMode(mode: string | undefined): DownloadDeliveryMode {
+  if (!mode || mode === "SIGNED_URL") {
+    return "SIGNED_URL";
+  }
+  if (mode === "STREAM") {
+    return "STREAM";
+  }
+
+  throw new ApiError(400, "VALIDATION_ERROR", "mode must be SIGNED_URL or STREAM", {
+    mode
+  });
+}
+
+function toDownloadMetadata(
+  file: NonNullable<Awaited<ReturnType<ReturnType<typeof createExportFileRepository>["findFileMetadata"]>>>
+) {
+  return {
+    storageKey: file.publishedStorageKey!,
+    expiresAt: file.expiresAt.toISOString(),
+    fileName: file.fileName,
+    contentType: file.contentType,
+    fileSize: file.fileSize,
+    checksum: file.checksum,
+    checksumAlgorithm: file.checksumAlgorithm,
+    attemptNo: file.attemptNo
+  };
+}
+
+function requireDownloadSigningSecret(): string {
+  const secret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  if (!secret) {
+    throw new ApiError(
+      500,
+      "FILE_VERIFY_ERROR",
+      "download URL signing secret is not configured"
+    );
+  }
+  return secret;
+}
+
+function readSignedQueryText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function createSignedDownloadSignature(input: {
+  taskId: string;
+  storageKey: string;
+  expiresAt: string;
+  operatorId: string;
+  tenantId: string;
+  roleCodes: string;
+  orgScope: string;
+  requestId: string;
+  secret: string;
+}): string {
+  return createHmac("sha256", input.secret)
+    .update([
+      "GET",
+      input.taskId,
+      input.storageKey,
+      input.expiresAt,
+      input.operatorId,
+      input.tenantId,
+      input.roleCodes,
+      input.orgScope,
+      input.requestId
+    ].join("\n"))
+    .digest("hex");
+}
+
+function isValidSignature(value: string, expected: string): boolean {
+  const signature = Buffer.from(value, "hex");
+  const expectedSignature = Buffer.from(expected, "hex");
+  return signature.length === expectedSignature.length && timingSafeEqual(signature, expectedSignature);
+}
+
+function createPlatformSignedDownloadUrl(input: {
+  taskId: string;
+  storageKey: string;
+  expiresAt: string;
+  auth: AuthContext;
+  secret: string;
+}): string {
+  const baseUrl = process.env.EXPORT_PLATFORM_PUBLIC_BASE_URL ?? "http://export-platform.local";
+  const url = new URL(`/api/export/tasks/${encodeURIComponent(input.taskId)}/download`, baseUrl);
+  const roleCodes = input.auth.roleCodes.join(",");
+  url.searchParams.set("mode", "SIGNED_URL");
+  url.searchParams.set("expiresAt", input.expiresAt);
+  url.searchParams.set("signatureAlgorithm", "HMAC-SHA256");
+  url.searchParams.set("operatorId", input.auth.operatorId);
+  url.searchParams.set("tenantId", input.auth.tenantId);
+  url.searchParams.set("roleCodes", roleCodes);
+  url.searchParams.set("orgScope", input.auth.orgScope);
+  url.searchParams.set("requestId", input.auth.requestId);
+  url.searchParams.set(
+    "signature",
+    createSignedDownloadSignature({
+      taskId: input.taskId,
+      storageKey: input.storageKey,
+      expiresAt: input.expiresAt,
+      operatorId: input.auth.operatorId,
+      tenantId: input.auth.tenantId,
+      roleCodes,
+      orgScope: input.auth.orgScope,
+      requestId: input.auth.requestId,
+      secret: input.secret
+    })
+  );
+  return url.toString();
+}
+
+function toStorageApiError(error: unknown, file: { checksumAlgorithm: string }): ApiError {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  if (error instanceof Error && error.name === "EXPORT_RENDER_ERROR") {
+    return new ApiError(502, "EXPORT_RENDER_ERROR", error.message);
+  }
+
+  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
+    return new ApiError(500, "FILE_VERIFY_ERROR", error.message, {
+      checksumAlgorithm: file.checksumAlgorithm
+    });
+  }
+
+  return new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+    checksumAlgorithm: file.checksumAlgorithm
+  });
+}
+
+function validateStreamBody(file: { fileSize: number; checksum: string; checksumAlgorithm: string }, body: Buffer) {
+  const checksum = `sha256:${createHash("sha256").update(body).digest("hex")}`;
+  if (body.byteLength !== file.fileSize || checksum !== file.checksum) {
+    throw new ApiError(500, "FILE_VERIFY_ERROR", "streamed file verification failed", {
+      checksumAlgorithm: file.checksumAlgorithm
+    });
+  }
+}
+
+export async function createExportTask(auth: AuthContext, body: CreateTaskBody) {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    try {
+      assertExportPermission(auth, ["EXPORT_ADMIN", "EXPORT_USER"]);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "CREATE",
+          now,
+          taskCode: body.taskCode ?? null,
+          subsystemCode: body.subsystemCode ?? null
+        });
+      }
+      throw error;
+    }
+
+    if (!body.taskCode || !body.subsystemCode || !body.fileFormat) {
+      throw new ApiError(
+        400,
+        "QUERY_TEMPLATE_INVALID",
+        "taskCode, subsystemCode and fileFormat are required"
+      );
+    }
+
+    assertQueryParamsSize(body.queryParams ?? null);
+
+    const registries = createExportRegistryRepository(db);
+    const tasks = createExportTaskRepository(db);
+    const registry = await registries.findRegistryByTaskCode(body.taskCode);
+
+    if (!registry) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_REGISTERED", "task code is not registered"),
+        action: "CREATE",
+        now,
+        taskCode: body.taskCode,
+        subsystemCode: body.subsystemCode
+      });
+    }
+    if (!registry.enabled) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(400, "TASK_DISABLED", "task code is disabled", {
+          taskCode: body.taskCode
+        }),
+        action: "CREATE",
+        now,
+        taskCode: body.taskCode,
+        subsystemCode: body.subsystemCode
+      });
+    }
+    const requestDigest = digest({
+      taskCode: body.taskCode,
+      subsystemCode: body.subsystemCode,
+      fileFormat: body.fileFormat,
+      queryParams: body.queryParams ?? null
+    });
+    const idempotencyScope = body.clientRequestId
+      ? `${auth.tenantId}:${auth.operatorId}:${body.taskCode}:${body.clientRequestId}`
+      : null;
+
+    if (idempotencyScope) {
+      const existing = await tasks.findByIdempotencyScope(idempotencyScope);
+      if (existing) {
+        if (existing.requestDigest !== requestDigest) {
+          return rejectWithAudit({
+            db,
+            auth,
+            error: new ApiError(409, "IDEMPOTENCY_CONFLICT", "clientRequestId conflicts", {
+              idempotencyScope
+            }),
+            action: "CREATE",
+            now,
+            taskCode: body.taskCode,
+            subsystemCode: body.subsystemCode
+          });
+        }
+
+        const task = await tasks.findTaskById(existing.taskId);
+        if (!task) {
+          return rejectWithAudit({
+            db,
+            auth,
+            error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+            action: "CREATE",
+            now,
+            taskCode: body.taskCode,
+            subsystemCode: body.subsystemCode
+          });
+        }
+        return {
+          statusCode: 200,
+          data: taskEnvelope(task, { idempotencyHit: true, requestId: auth.requestId })
+        };
+      }
+    }
+
+    try {
+      assertCreateTaskRegistryGuards({
+        registry,
+        fileFormat: body.fileFormat,
+        queryParams: body.queryParams ?? null
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "CREATE",
+          now,
+          taskCode: body.taskCode,
+          subsystemCode: body.subsystemCode
+        });
+      }
+      throw error;
+    }
+
+    const task = await tasks.createPendingTask({
+      taskId: `exp_${randomUUID()}`,
+      taskCode: body.taskCode,
+      subsystemCode: body.subsystemCode,
+      tenantId: auth.tenantId,
+      createdBy: auth.operatorId,
+      fileFormat: body.fileFormat,
+      clientRequestId: body.clientRequestId ?? null,
+      idempotencyScope,
+      requestDigest,
+      configSnapshotDigest: registry.configSnapshotDigest,
+      requestPayload: JSON.stringify({
+        fileFormat: body.fileFormat,
+        queryParams: body.queryParams ?? null,
+        configSnapshot: {
+          taskCode: registry.taskCode,
+          subsystemCode: registry.subsystemCode,
+          displayName: registry.displayName,
+          enabled: registry.enabled,
+          concurrencyLimit: registry.concurrencyLimit,
+          fileRetentionDays: registry.fileRetentionDays,
+          taskHistoryRetentionDays: registry.taskHistoryRetentionDays,
+          singleFileMaxRows: registry.singleFileMaxRows,
+          exportMaxRows: registry.exportMaxRows,
+          datasourceCode: registry.datasourceCode,
+          supportedFormats: registry.supportedFormats,
+          parameterSchema: registry.parameterSchema,
+          queryTemplate: registry.queryTemplate,
+          fieldMappings: registry.fieldMappings,
+          maskingPolicy: registry.maskingPolicy,
+          dataScopeTemplate: registry.dataScopeTemplate,
+          cursorField: registry.cursorField,
+          orderBy: registry.orderBy,
+          batchSize: registry.batchSize,
+          configSnapshotDigest: registry.configSnapshotDigest
+        }
+      }),
+      authContextPayload: JSON.stringify({
+        operatorId: auth.operatorId,
+        tenantId: auth.tenantId,
+        roleCodes: auth.roleCodes,
+        orgScope: auth.orgScope,
+        requestId: auth.requestId
+      }),
+      now
+    });
+
+    await appendAudit({
+      db,
+      auth,
+      taskId: task.taskId,
+      attemptNo: task.attemptNo,
+      taskCode: task.taskCode,
+      subsystemCode: task.subsystemCode,
+      action: "CREATE",
+      now
+    });
+
+    return {
+      statusCode: 201,
+      data: taskEnvelope(task, { idempotencyHit: false, requestId: auth.requestId })
+    };
+  });
+}
+
+export async function listExportTasks(auth: AuthContext, query: Record<string, unknown>) {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    if (isExportAdmin(auth) && !isTrustedRegistryAdminTenant(auth)) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(403, "PERMISSION_DENIED", "operator has no permission"),
+        action: "QUERY_HISTORY",
+        now,
+        taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+        subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null
+      });
+    }
+    const page = parsePositiveInteger(query.page, 1);
+    const pageSize = Math.min(parsePositiveInteger(query.pageSize, 50), 100);
+    const createdBy = isExportAdmin(auth)
+      ? typeof query.createdBy === "string"
+        ? query.createdBy
+        : undefined
+      : auth.operatorId;
+    const taskRepository = createExportTaskRepository(db);
+    const listFilters = {
+      taskCode: typeof query.taskCode === "string" ? query.taskCode : undefined,
+      status: typeof query.status === "string" ? query.status : undefined,
+      subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : undefined,
+      tenantId: auth.tenantId,
+      createdBy,
+      fileFormat: typeof query.fileFormat === "string" ? query.fileFormat : undefined,
+      createdAtFrom: parseDateFilter(query.createdAtFrom),
+      createdAtTo: parseDateFilter(query.createdAtTo)
+    };
+    const tasks = await taskRepository.listTasks({
+      ...listFilters,
+      limit: pageSize,
+      offset: (page - 1) * pageSize
+    });
+    const total = await taskRepository.countTasks(listFilters);
+
+    await appendAudit({
+      db,
+      auth,
+      taskId: null,
+      attemptNo: null,
+      taskCode: typeof query.taskCode === "string" ? query.taskCode : null,
+      subsystemCode: typeof query.subsystemCode === "string" ? query.subsystemCode : null,
+      action: "QUERY_HISTORY",
+      now
+    });
+
+    return {
+      items: tasks.map((task) => taskEnvelope(task, { requestId: auth.requestId })),
+      page,
+      pageSize,
+      total
+    };
+  });
+}
+
+export async function getExportTask(auth: AuthContext, taskId: string) {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const task = await createExportTaskRepository(db).findTaskById(taskId);
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+        action: "DETAIL_VIEW",
+        now,
+        taskId
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "DETAIL_VIEW",
+          now,
+          taskId,
+          attemptNo: task.attemptNo,
+          taskCode: task.taskCode,
+          subsystemCode: task.subsystemCode
+        });
+      }
+      throw error;
+    }
+
+    const audits = await createExportAuditRepository(db).listAuditLogsForTask(taskId);
+    const events = await createExportTaskEventRepository(db).listRecentTaskEvents(taskId);
+    const checkpoint = await createCheckpointRepository(db).findLatestCheckpoint(
+      taskId,
+      task.attemptNo
+    );
+    const totalCount = resolveTotalCount({
+      task,
+      checkpoint,
+      events
+    });
+    const processedCount = resolveProcessedCount({
+      task,
+      checkpoint,
+      totalCount
+    });
+    const progressPercent = resolveProgressPercent({
+      task,
+      processedCount,
+      totalCount
+    });
+    const failure = task.status === "FAILED"
+      ? resolveTaskFailure(audits, events)
+      : { errorCode: null, errorMessage: null };
+
+    await appendAudit({
+      db,
+      auth,
+      taskId,
+      attemptNo: task.attemptNo,
+      taskCode: task.taskCode,
+      subsystemCode: task.subsystemCode,
+      action: "DETAIL_VIEW",
+      now
+    });
+
+    return taskEnvelope(task, {
+      totalCount,
+      processedCount,
+      progressPercent,
+      errorCode: failure.errorCode,
+      errorMessage: failure.errorMessage,
+      requestId: auth.requestId,
+      recentEvents: mapPublicRecentTaskEvents(events)
+    });
+  });
+}
+
+export async function downloadExportTask(
+  auth: AuthContext,
+  taskId: string,
+  requestedMode?: string
+): Promise<DownloadSignedUrlResponse | DownloadStreamResponse> {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const deliveryMode = resolveDownloadMode(requestedMode);
+    const task = await createExportTaskRepository(db).findTaskById(taskId);
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+        action: "DOWNLOAD",
+        now,
+        taskId
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "DOWNLOAD",
+          now,
+          taskId,
+          attemptNo: task.attemptNo,
+          taskCode: task.taskCode,
+          subsystemCode: task.subsystemCode
+        });
+      }
+      throw error;
+    }
+
+    const file = await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo);
+    if (task.status !== "COMPLETED" || !file || !file.publishedStorageKey || !file.deliveryReadyAt) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(400, "FILE_NOT_READY", "file is not ready"),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+    if (file.expiresAt <= now) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(410, "FILE_EXPIRED", "file expired"),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+    if (!file.checksumVerifiedAt || !file.publishedAt) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(500, "FILE_VERIFY_ERROR", "file verification failed", {
+          checksumAlgorithm: file.checksumAlgorithm
+        }),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    const fileService = createExportFileService({ db });
+    const metadata = toDownloadMetadata(file);
+    let responseData: DownloadSignedUrlResponse | DownloadStreamResponse;
+
+    try {
+      if (deliveryMode === "STREAM") {
+        const body = await fileService.readObject(file.publishedStorageKey);
+        validateStreamBody(file, body);
+        responseData = {
+          deliveryMode,
+          body,
+          ...metadata
+        };
+      } else {
+        const signedDownload = await fileService.createDownloadUrl(file.publishedStorageKey, {
+          now
+        });
+        const downloadUrl = createPlatformSignedDownloadUrl({
+          taskId,
+          storageKey: file.publishedStorageKey,
+          expiresAt: signedDownload.expiresAt.toISOString(),
+          auth,
+          secret: requireDownloadSigningSecret()
+        });
+        responseData = {
+          deliveryMode,
+          downloadUrl,
+          ...metadata,
+          expiresAt: signedDownload.expiresAt.toISOString()
+        };
+      }
+    } catch (error) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: toStorageApiError(error, file),
+        action: "DOWNLOAD",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    await appendAudit({
+      db,
+      auth,
+      taskId,
+      attemptNo: task.attemptNo,
+      taskCode: task.taskCode,
+      subsystemCode: task.subsystemCode,
+      action: "DOWNLOAD",
+      now
+    });
+
+    return responseData;
+  });
+}
+
+export async function downloadSignedExportTask(
+  taskId: string,
+  query: SignedDownloadQuery
+): Promise<DownloadStreamResponse> {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const expiresAt = readSignedQueryText(query.expiresAt);
+    const signature = readSignedQueryText(query.signature);
+    const untrustedOperatorId = readSignedQueryText(query.operatorId);
+    const untrustedTenantId = readSignedQueryText(query.tenantId);
+    const untrustedRoleCodes = readSignedQueryText(query.roleCodes) ?? "";
+    const untrustedOrgScope = readSignedQueryText(query.orgScope);
+    const untrustedRequestId = readSignedQueryText(query.requestId);
+    const systemAuth: AuthContext = {
+      operatorId: "signed-download",
+      tenantId: "",
+      roleCodes: [],
+      orgScope: "",
+      requestId: `signed-download-${randomUUID()}`
+    };
+    const task = await createExportTaskRepository(db).findTaskById(taskId);
+    const file = task
+      ? await createExportFileRepository(db).findFileMetadata(taskId, task.attemptNo)
+      : null;
+
+    const unverifiedAuditBase = {
+      db,
+      auth: systemAuth,
+      action: "DOWNLOAD",
+      now,
+      taskId,
+      attemptNo: task?.attemptNo ?? null,
+      taskCode: task?.taskCode ?? null,
+      subsystemCode: task?.subsystemCode ?? null
+    };
+
+    if (
+      query.signatureAlgorithm !== "HMAC-SHA256" ||
+      !expiresAt ||
+      !signature ||
+      !untrustedOperatorId ||
+      !untrustedTenantId ||
+      !untrustedRequestId
+    ) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+    const expiresAtTime = Date.parse(expiresAt);
+    if (!Number.isFinite(expiresAtTime)) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature expiry is invalid")
+      });
+    }
+    if (expiresAtTime <= now.getTime()) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_EXPIRED", "download signature expired")
+      });
+    }
+    if (!task || !file?.publishedStorageKey) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+
+    const expectedSignature = createSignedDownloadSignature({
+      taskId,
+      storageKey: file.publishedStorageKey,
+      expiresAt,
+      operatorId: untrustedOperatorId,
+      tenantId: untrustedTenantId,
+      roleCodes: untrustedRoleCodes,
+      orgScope: untrustedOrgScope ?? "",
+      requestId: untrustedRequestId,
+      secret: requireDownloadSigningSecret()
+    });
+    if (!isValidSignature(signature, expectedSignature)) {
+      return rejectWithAudit({
+        ...unverifiedAuditBase,
+        error: new ApiError(403, "SIGNATURE_INVALID", "download signature is invalid")
+      });
+    }
+
+    const auth: AuthContext = {
+      operatorId: untrustedOperatorId,
+      tenantId: untrustedTenantId,
+      roleCodes: untrustedRoleCodes.split(",").map((role) => role.trim()).filter(Boolean),
+      orgScope: untrustedOrgScope ?? "",
+      requestId: untrustedRequestId
+    };
+    const verifiedAuditBase = {
+      ...unverifiedAuditBase,
+      auth
+    };
+    if (task.status !== "COMPLETED" || !file.deliveryReadyAt) {
+      return rejectWithAudit({
+        ...verifiedAuditBase,
+        error: new ApiError(400, "FILE_NOT_READY", "file is not ready")
+      });
+    }
+    if (file.expiresAt <= now) {
+      return rejectWithAudit({
+        ...verifiedAuditBase,
+        error: new ApiError(410, "FILE_EXPIRED", "file expired")
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          ...verifiedAuditBase,
+          error
+        });
+      }
+      throw error;
+    }
+
+    const fileService = createExportFileService({ db });
+    try {
+      const body = await fileService.readObject(file.publishedStorageKey);
+      validateStreamBody(file, body);
+      await appendAudit({
+        db,
+        auth,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode,
+        action: "DOWNLOAD",
+        now
+      });
+      return {
+        deliveryMode: "STREAM",
+        body,
+        ...toDownloadMetadata(file)
+      };
+    } catch (error) {
+      return rejectWithAudit({
+        ...verifiedAuditBase,
+        error: toStorageApiError(error, file)
+      });
+    }
+  });
+}
+
+export async function cancelExportTask(auth: AuthContext, taskId: string) {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const repository = createExportTaskRepository(db);
+    const task = await repository.findTaskById(taskId);
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+        action: "CANCEL_REQUEST",
+        now,
+        taskId
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "CANCEL_REQUEST",
+          now,
+          taskId,
+          attemptNo: task.attemptNo,
+          taskCode: task.taskCode,
+          subsystemCode: task.subsystemCode
+        });
+      }
+      throw error;
+    }
+    if (!["PENDING", "EXECUTING"].includes(task.status)) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+          status: task.status
+        }),
+        action: "CANCEL_REQUEST",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    let cancelAtBatchBoundary = task.status === "EXECUTING";
+    const status = task.status === "PENDING" ? "CANCELED" : "EXECUTING";
+    let updated = await repository.updateTaskStatus({
+      taskId,
+      status,
+      expectedStatus: task.status,
+      expectedAttemptNo: task.attemptNo,
+      now
+    });
+    if (!updated) {
+      const latest = await repository.findTaskById(taskId);
+      if (
+        task.status === "PENDING" &&
+        latest?.status === "EXECUTING" &&
+        latest.attemptNo === task.attemptNo
+      ) {
+        updated = latest;
+        cancelAtBatchBoundary = true;
+      } else {
+        return rejectWithAudit({
+          db,
+          auth,
+          error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+            status: latest?.status ?? task.status
+          }),
+          action: "CANCEL_REQUEST",
+          now,
+          taskId,
+          attemptNo: latest?.attemptNo ?? task.attemptNo,
+          taskCode: latest?.taskCode ?? task.taskCode,
+          subsystemCode: latest?.subsystemCode ?? task.subsystemCode
+        });
+      }
+    }
+
+    await appendAudit({
+      db,
+      auth,
+      taskId,
+      attemptNo: updated.attemptNo,
+      taskCode: updated.taskCode,
+      subsystemCode: updated.subsystemCode,
+      action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+      result: cancelAtBatchBoundary ? "ACCEPTED" : "SUCCESS",
+      now
+    });
+
+    return {
+      taskId,
+      status: updated.status,
+      attemptNo: updated.attemptNo,
+      acceptedAt: now.toISOString()
+    };
+  });
+}
+
+export async function retryExportTask(auth: AuthContext, taskId: string) {
+  return withDatabase(async (db) => {
+    const now = await getDatabaseTime(db);
+    const repository = createExportTaskRepository(db);
+    const task = await repository.findTaskById(taskId);
+    if (!task) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+        action: "RETRY_REQUEST",
+        now,
+        taskId
+      });
+    }
+    try {
+      assertTaskVisible(auth, task);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithAudit({
+          db,
+          auth,
+          error,
+          action: "RETRY_REQUEST",
+          now,
+          taskId,
+          attemptNo: task.attemptNo,
+          taskCode: task.taskCode,
+          subsystemCode: task.subsystemCode
+        });
+      }
+      throw error;
+    }
+    if (task.status !== "FAILED") {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+          status: task.status
+        }),
+        action: "RETRY_REQUEST",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    const updated = await repository.retryFailedTask({ taskId, now });
+    if (!updated) {
+      return rejectWithAudit({
+        db,
+        auth,
+        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation"),
+        action: "RETRY_REQUEST",
+        now,
+        taskId,
+        attemptNo: task.attemptNo,
+        taskCode: task.taskCode,
+        subsystemCode: task.subsystemCode
+      });
+    }
+
+    await appendAudit({
+      db,
+      auth,
+      taskId,
+      attemptNo: updated.attemptNo,
+      taskCode: updated.taskCode,
+      subsystemCode: updated.subsystemCode,
+      action: "RETRY_REQUEST",
+      result: "ACCEPTED",
+      now
+    });
+
+    return {
+      taskId,
+      status: updated.status,
+      attemptNo: updated.attemptNo,
+      acceptedAt: now.toISOString()
+    };
+  });
+}
+
+
+ succeeded in 415ms:
+131:                                    "确认后续 feature_impl 任务都携带 architecture_constraints、forbidden_implementations 和能验证生产形态的 test_command"
+133:                      "test_command":  "git diff --check -- task.json docs/architecture/constraints.md docs/testing/verify-matrix.md",
+189:                      "test_command":  "git diff --check -- docs/context plans docs/testing/verify-matrix.md task.json",
+249:                      "test_command":  "git diff --check -- contracts docs/testing/verify-matrix.md",
+273:                      "architecture_constraints":  [
+279:                      "forbidden_implementations":  [
+357:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check",
+381:                      "architecture_constraints":  [
+386:                      "forbidden_implementations":  [
+426:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+450:                      "architecture_constraints":  [
+455:                      "forbidden_implementations":  [
+503:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:contract\u0027,\u0027npm run test:api\u0027,\u0027git diff --check\u0027)",
+527:                      "architecture_constraints":  [
+532:                      "forbidden_implementations":  [
+571:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check\u0027)",
+625:                                    "为每个后续 feature_impl 写入 architecture_constraints、forbidden_implementations、owned_paths 和 test_command",
+628:                      "test_command":  "git diff --check -- task.json plans docs/testing/verify-matrix.md",
+654:                      "architecture_constraints":  [
+659:                      "forbidden_implementations":  [
+699:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:query\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+723:                      "architecture_constraints":  [
+728:                      "forbidden_implementations":  [
+767:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:api\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+791:                      "architecture_constraints":  [
+796:                      "forbidden_implementations":  [
+834:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:file\u0027,\u0027npm run test:worker\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+860:                      "architecture_constraints":  [
+865:                      "forbidden_implementations":  [
+904:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\verify.ps1 -Commands @(\u0027npm run arch:check\u0027,\u0027npm run test:sample\u0027,\u0027npm run test:query\u0027,\u0027npm run test:file\u0027,\u0027npm run test:db\u0027,\u0027git diff --check -- task.json plans docs/testing/verify-matrix.md\u0027)",
+928:                      "architecture_constraints":  [
+934:                      "forbidden_implementations":  [
+984:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md",
+1008:                      "architecture_constraints":  [
+1014:                      "forbidden_implementations":  [
+1067:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json tests/mock-local docs/testing/mock-first-release-plan.md docs/testing/mock-first-acceptance.md docs/testing/verify-matrix.md",
+1091:                      "architecture_constraints":  [
+1097:                      "forbidden_implementations":  [
+1151:                      "test_command":  "npm run release:local-rehearsal",
+1175:                      "architecture_constraints":  [
+1181:                      "forbidden_implementations":  [
+1228:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run demo:local:smoke; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts/local-demo.ps1 scripts/local-demo-setup.mjs docs/testing/local-demo-runbook.md docs/testing/mock-first-release-plan.md docs/testing/verify-matrix.md tests/mock-local/local-demo-runbook.test.mjs tests/mock-local/test-practice-matrix.test.mjs",
+1237:                      "description":  "补齐测试实践到 task 的显式映射，防止 test 脚本、任务 test_command 和验证矩阵漂移",
+1253:                      "architecture_constraints":  [
+1259:                      "forbidden_implementations":  [
+1261:                                                        "禁止只有 task test_command 而没有测试实践矩阵",
+1301:                                    "新增守护测试，校验 package scripts、task test_command 和测试实践矩阵保持一致",
+1304:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing/verify-matrix.md tests/mock-local/test-practice-matrix.test.mjs",
+1308:                                         "守护测试会在 test script、task test_command 或文档映射漂移时失败"
+1377:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\release-verify.ps1",
+1402:                      "architecture_constraints":  [
+1409:                      "forbidden_implementations":  [
+1464:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json package.json scripts docs/testing tests/mock-local plans/features/docker-test-data-automation.plan.md",
+1489:                      "architecture_constraints":  [
+1496:                      "forbidden_implementations":  [
+1578:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:docker-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api src/registry-config src/query-executor src/scheduler src/file-service src/cleanup-job tests/api tests/query tests/worker tests/file tests/contract tests/mock-local docs/testing/verify-matrix.md codex-loop.ps1 progress.txt",
+1603:                      "architecture_constraints":  [
+1610:                      "forbidden_implementations":  [
+1661:                      "test_command":  "npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/cleanup-job tests/contract tests/worker docs/testing/verify-matrix.md progress.txt",
+1686:                      "architecture_constraints":  [
+1693:                      "forbidden_implementations":  [
+1733:                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/task-api tests/api tests/contract docs/testing/verify-matrix.md progress.txt",
+1758:                      "architecture_constraints":  [
+1765:                      "forbidden_implementations":  [
+1808:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/file-service tests/file tests/worker docs/testing/verify-matrix.md progress.txt",
+1833:                      "architecture_constraints":  [
+1840:                      "forbidden_implementations":  [
+1894:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:sample; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/query-executor src/sample-purchase-order tests/query tests/contract tests/sample tests/worker scripts/docker-test-seed.mjs scripts/local-demo-setup.mjs docs/testing/verify-matrix.md",
+1919:                      "architecture_constraints":  [
+1926:                      "forbidden_implementations":  [
+1981:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts/openapi.yaml src/contracts src/file-service src/task-api src/routes/export/tasks/download-export-task.handler.ts tests/contract tests/file tests/api docs/testing/verify-matrix.md",
+2006:                      "architecture_constraints":  [
+2013:                      "forbidden_implementations":  [
+2062:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+2087:                      "architecture_constraints":  [
+2094:                      "forbidden_implementations":  [
+2151:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/audit-log src/task-api src/routes contracts/openapi.yaml tests/api tests/contract docs/testing/verify-matrix.md",
+2180:                      "architecture_constraints":  [
+2187:                      "forbidden_implementations":  [
+2242:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config src/query-executor tests/api tests/query docs/testing/verify-matrix.md",
+2267:                      "architecture_constraints":  [
+2273:                      "forbidden_implementations":  [
+2327:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/registry-config src/repositories/export-registry.repository.ts tests/api tests/contract tests/query docs/testing/verify-matrix.md",
+2352:                      "architecture_constraints":  [
+2358:                      "forbidden_implementations":  [
+2410:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/registry-config tests/api tests/contract docs/testing/verify-matrix.md",
+2435:                      "architecture_constraints":  [
+2441:                      "forbidden_implementations":  [
+2493:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/query-executor src/datasource-adapters src/scheduler tests/query tests/worker docs/testing/verify-matrix.md",
+2518:                      "architecture_constraints":  [
+2523:                      "forbidden_implementations":  [
+2563:                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md",
+2572:                      "id":  "TASK-CANCEL-ATOMICITY-001",
+2588:                      "architecture_constraints":  [
+2593:                      "forbidden_implementations":  [
+2637:                                    "同步 verify-matrix 记录 TASK-CANCEL-ATOMICITY-001 evidence"
+2639:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md",
+2661:                                           "TASK-CANCEL-ATOMICITY-001"
+2664:                      "architecture_constraints":  [
+2669:                      "forbidden_implementations":  [
+2708:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/scheduler tests/worker docs/testing/verify-matrix.md",
+2733:                      "architecture_constraints":  [
+2738:                      "forbidden_implementations":  [
+2794:                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:query; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:file\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json contracts src/routes src/task-api src/query-executor src/file-service tests/api tests/query tests/file docs/testing/verify-matrix.md",
+2830:                                           "TASK-CANCEL-ATOMICITY-001",
+2835:                      "architecture_constraints":  [
+2840:                      "forbidden_implementations":  [
+2900:                      "test_command":  "npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing tests/mock-local plans/features/requirements-complete-review.plan.md",
+
+ succeeded in 323ms:
+import { randomUUID } from "node:crypto";
+import { sql, type Kysely } from "kysely";
+import type { ReadonlyDatasourceAdapterProvider } from "../datasource-adapters/index.ts";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+import { createExportFileService } from "../file-service/index.ts";
+import { createQueryExecutorBatchProcessor } from "../query-executor/index.ts";
+import {
+  createCheckpointRepository,
+  createExportAuditRepository,
+  createExportRegistryRepository,
+  createExportTaskEventRepository,
+  getDatabaseTime,
+  type CheckpointRecord,
+  type ExportRegistryRecord,
+  type ExportTaskLeaseRecord,
+  type ExportTaskRecord
+} from "../repositories/index.ts";
+import { normalizePublicResponseCode } from "../contracts/public-enums.ts";
+
+export type SchedulerBatchCheckpoint = {
+  lastCursor: string | null;
+  processedCount: number;
+  filePartNo: number | null;
+  retryCount: number;
+  batchSize: number | null;
+  batchRowCount: number | null;
+  backoffMs: number | null;
+};
+
+export type SchedulerBatchResult = {
+  checkpoint?: SchedulerBatchCheckpoint;
+  outcome?: "continue" | "completed";
+  rows?: Record<string, unknown>[];
+  registry?: ExportRegistryRecord;
+};
+
+export type SchedulerBatchContext = {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  lease: ExportTaskLeaseRecord;
+  checkpoint: CheckpointRecord | undefined;
+  requestId: string;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
+};
+
+export type SchedulerBatchProcessor = (
+  context: SchedulerBatchContext
+) => Promise<SchedulerBatchResult>;
+
+export type SchedulerWorkerOptions = {
+  db: Kysely<ExportPlatformDatabase>;
+  workerId: string;
+  leaseDurationSeconds?: number;
+  maxTasksPerPoll?: number;
+  maxQueryBatchRetries?: number;
+  queryBatchBackoffBaseMs?: number;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
+  batchProcessor?: SchedulerBatchProcessor;
+  fileService?: {
+    publishRows(input: {
+      task: ExportTaskRecord;
+      registry: ExportRegistryRecord;
+      attemptNo: number;
+      requestId: string;
+      rows: Record<string, unknown>[];
+    }): Promise<unknown>;
+  };
+};
+
+export type SchedulerPollResult = {
+  dispatched: number;
+  renewed: number;
+  canceled: number;
+  completed: number;
+  failed: number;
+};
+
+type TerminalTaskStatus = "COMPLETED" | "FAILED" | "CANCELED";
+
+type CandidateRow = {
+  task_id: string;
+  task_code: string;
+  subsystem_code: string;
+  tenant_id: string;
+  created_by: string;
+  file_format: string;
+  status: string;
+  client_request_id: string | null;
+  idempotency_scope: string | null;
+  request_digest: string;
+  config_snapshot_digest: string;
+  request_payload: string | null;
+  auth_context_payload: string | null;
+  attempt_no: number;
+  lock_owner: string | null;
+  lock_expire_at: Date | null;
+  lease_renewed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type TaskRequestSnapshot = {
+  configSnapshot?: ExportRegistryRecord;
+};
+
+function toTaskRecord(row: CandidateRow): ExportTaskRecord {
+  return {
+    taskId: row.task_id,
+    taskCode: row.task_code,
+    subsystemCode: row.subsystem_code,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    fileFormat: row.file_format,
+    status: row.status,
+    clientRequestId: row.client_request_id,
+    idempotencyScope: row.idempotency_scope,
+    requestDigest: row.request_digest,
+    configSnapshotDigest: row.config_snapshot_digest,
+    requestPayload: row.request_payload,
+    authContextPayload: row.auth_context_payload,
+    attemptNo: row.attempt_no,
+    lockOwner: row.lock_owner,
+    lockExpireAt: row.lock_expire_at,
+    leaseRenewedAt: row.lease_renewed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function queryDatabaseTime(db: Kysely<ExportPlatformDatabase>): Promise<Date> {
+  const row = await sql<{ database_time: Date }>`SELECT CURRENT_TIMESTAMP(3) AS database_time`
+    .execute(db)
+    .then((result) => result.rows[0]);
+
+  if (!row?.database_time) {
+    throw new Error("Database time query returned no rows");
+  }
+
+  return new Date(row.database_time);
+}
+
+export function createSchedulerWorker(options: SchedulerWorkerOptions) {
+  const leaseDurationSeconds = options.leaseDurationSeconds ?? 300;
+  const maxTasksPerPoll = options.maxTasksPerPoll ?? 1;
+  const maxQueryBatchRetries = options.maxQueryBatchRetries ?? 2;
+  const queryBatchBackoffBaseMs = options.queryBatchBackoffBaseMs ?? 1000;
+  const batchProcessor =
+    options.batchProcessor ??
+    createQueryExecutorBatchProcessor({
+      datasourceAdapters: options.datasourceAdapters
+    });
+
+  async function pollAndProcessOnce(): Promise<SchedulerPollResult> {
+    const result: SchedulerPollResult = {
+      dispatched: 0,
+      renewed: 0,
+      canceled: 0,
+      completed: 0,
+      failed: 0
+    };
+
+    for (let index = 0; index < maxTasksPerPoll; index += 1) {
+      const acquired = await acquireNextLease({
+        db: options.db,
+        workerId: options.workerId,
+        leaseDurationSeconds
+      });
+
+      if (!acquired) {
+        break;
+      }
+
+      result.dispatched += 1;
+      const requestId = await findRequestIdForTask(
+        options.db,
+        acquired.task.taskId,
+        options.workerId
+      );
+      const now = await getDatabaseTime(options.db);
+
+      await appendWorkerAudit({
+        db: options.db,
+        task: acquired.task,
+        attemptNo: acquired.lease.attemptNo,
+        action: "DISPATCH",
+        result: "SUCCESS",
+        requestId,
+        now
+      });
+      await appendWorkerAudit({
+        db: options.db,
+        task: acquired.task,
+        attemptNo: acquired.lease.attemptNo,
+        action: "EXECUTE_START",
+        result: "SUCCESS",
+        requestId,
+        now
+      });
+
+      const processed = await processAcquiredLease({
+        db: options.db,
+        task: acquired.task,
+        lease: acquired.lease,
+        requestId,
+        leaseDurationSeconds,
+        maxQueryBatchRetries,
+        queryBatchBackoffBaseMs,
+        datasourceAdapters: options.datasourceAdapters,
+        batchProcessor,
+        fileService: options.fileService
+      });
+
+      result.renewed += processed.renewed;
+      result.canceled += processed.canceled;
+      result.completed += processed.completed;
+      result.failed += processed.failed;
+    }
+
+    return result;
+  }
+
+  return { pollAndProcessOnce };
+}
+
+async function acquireNextLease(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  workerId: string;
+  leaseDurationSeconds: number;
+}): Promise<{ task: ExportTaskRecord; lease: ExportTaskLeaseRecord } | undefined> {
+  return input.db.transaction().execute(async (trx) => {
+    const databaseTime = await queryDatabaseTime(trx);
+    const candidates = await trx
+      .selectFrom("export_tasks as t")
+      .leftJoin("export_task_checkpoints as cp", (join) =>
+        join
+          .onRef("cp.task_id", "=", "t.task_id")
+          .onRef("cp.attempt_no", "=", "t.attempt_no")
+      )
+      .select([
+        "t.task_id",
+        "t.task_code",
+        "t.subsystem_code",
+        "t.tenant_id",
+        "t.created_by",
+        "t.file_format",
+        "t.status",
+        "t.client_request_id",
+        "t.idempotency_scope",
+        "t.request_digest",
+        "t.config_snapshot_digest",
+        "t.request_payload",
+        "t.auth_context_payload",
+        "t.attempt_no",
+        "t.lock_owner",
+        "t.lock_expire_at",
+        "t.lease_renewed_at",
+        "t.created_at",
+        "t.updated_at"
+      ])
+      .where((eb) =>
+        eb.or([
+          eb("t.status", "=", "PENDING"),
+          eb.and([
+            eb("t.status", "=", "EXECUTING"),
+            eb("t.lock_owner", "=", input.workerId),
+            eb("t.lock_expire_at", ">", databaseTime)
+          ]),
+          eb.and([
+            eb("t.status", "=", "EXECUTING"),
+            eb("t.lock_expire_at", "<", databaseTime)
+          ])
+        ])
+      )
+      .where((eb) =>
+        eb.or([
+          eb("cp.task_id", "is", null),
+          eb("cp.backoff_ms", "is", null),
+          eb("cp.backoff_ms", "<=", 0),
+          eb(
+            sql`TIMESTAMPADD(MICROSECOND, COALESCE(cp.backoff_ms, 0) * 1000, cp.updated_at)`,
+            "<=",
+            sql`CURRENT_TIMESTAMP(3)`
+          )
+        ])
+      )
+      .orderBy("t.created_at", "asc")
+      .orderBy("t.task_id", "asc")
+      .limit(25)
+      .forUpdate()
+      .execute();
+
+    for (const candidate of candidates) {
+      const isOwnActiveLeaseResume =
+        candidate.status === "EXECUTING" &&
+        candidate.lock_owner === input.workerId &&
+        candidate.lock_expire_at instanceof Date &&
+        candidate.lock_expire_at > databaseTime;
+
+      await trx
+        .selectFrom("export_registries")
+        .select("task_code")
+        .where("subsystem_code", "=", candidate.subsystem_code)
+        .orderBy("task_code", "asc")
+        .forUpdate()
+        .execute();
+
+      const activeTasks = await trx
+        .selectFrom("export_tasks")
+        .select("task_id")
+        .where("subsystem_code", "=", candidate.subsystem_code)
+        .where("status", "=", "EXECUTING")
+        .where("lock_expire_at", ">", databaseTime)
+        .forUpdate()
+        .execute();
+
+      const concurrencyLimit = resolveTaskConcurrencyLimit(toTaskRecord(candidate));
+      const activeCount = activeTasks.length;
+      if (!isOwnActiveLeaseResume && activeCount >= concurrencyLimit) {
+        continue;
+      }
+
+      const lockExpireAt = new Date(
+        databaseTime.getTime() + input.leaseDurationSeconds * 1000
+      );
+      const takeoverRule =
+        isOwnActiveLeaseResume
+          ? "ACTIVE_LEASE_RESUME_SAME_OWNER"
+          : candidate.status === "EXECUTING"
+          ? "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
+          : "PENDING_OR_EXPIRED_KEEP_ATTEMPT";
+      const previousLockOwner =
+        takeoverRule === "EXPIRED_LEASE_TAKEOVER_KEEP_ATTEMPT"
+          ? candidate.lock_owner
+          : null;
+
+      await trx
+        .updateTable("export_tasks")
+        .set({
+          status: "EXECUTING",
+          lock_owner: input.workerId,
+          lock_expire_at: lockExpireAt,
+          lease_renewed_at: databaseTime,
+          updated_at: databaseTime
+        })
+        .where("task_id", "=", candidate.task_id)
+        .where("attempt_no", "=", candidate.attempt_no)
+        .execute();
+
+      await trx
+        .insertInto("export_task_leases")
+        .values({
+          task_id: candidate.task_id,
+          attempt_no: candidate.attempt_no,
+          lock_owner: input.workerId,
+          previous_lock_owner: previousLockOwner,
+          lock_expire_at: lockExpireAt,
+          lease_renewed_at: databaseTime,
+          database_time: databaseTime,
+          takeover_rule: takeoverRule,
+          created_at: databaseTime,
+          updated_at: databaseTime
+        })
+        .onDuplicateKeyUpdate({
+          lock_owner: input.workerId,
+          previous_lock_owner: previousLockOwner,
+          lock_expire_at: lockExpireAt,
+          lease_renewed_at: databaseTime,
+          database_time: databaseTime,
+          takeover_rule: takeoverRule,
+          updated_at: databaseTime
+        })
+        .execute();
+
+      const task = toTaskRecord({
+        ...candidate,
+        status: "EXECUTING",
+        lock_owner: input.workerId,
+        lock_expire_at: lockExpireAt,
+        lease_renewed_at: databaseTime,
+        updated_at: databaseTime
+      });
+
+      return {
+        task,
+        lease: {
+          taskId: candidate.task_id,
+          attemptNo: candidate.attempt_no,
+          lockOwner: input.workerId,
+          previousLockOwner,
+          lockExpireAt,
+          leaseRenewedAt: databaseTime,
+          databaseTime,
+          takeoverRule
+        }
+      };
+    }
+
+    return undefined;
+  });
+}
+
+async function processAcquiredLease(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  lease: ExportTaskLeaseRecord;
+  requestId: string;
+  leaseDurationSeconds: number;
+  maxQueryBatchRetries: number;
+  queryBatchBackoffBaseMs: number;
+  datasourceAdapters?: ReadonlyDatasourceAdapterProvider;
+  batchProcessor: SchedulerBatchProcessor;
+  fileService?: SchedulerWorkerOptions["fileService"];
+}): Promise<Omit<SchedulerPollResult, "dispatched">> {
+  const result = {
+    renewed: 0,
+    canceled: 0,
+    completed: 0,
+    failed: 0
+  };
+
+  try {
+    const checkpoints = createCheckpointRepository(input.db);
+    const checkpoint = await checkpoints.findLatestCheckpoint(
+      input.task.taskId,
+      input.lease.attemptNo
+    );
+    let batch: SchedulerBatchResult;
+    try {
+      batch = await input.batchProcessor({
+        db: input.db,
+        task: input.task,
+        lease: input.lease,
+        checkpoint,
+        requestId: input.requestId,
+        datasourceAdapters: input.datasourceAdapters
+      });
+    } catch (error) {
+      if (
+        isRetryableBatchError(error) &&
+        (checkpoint?.retryCount ?? 0) < input.maxQueryBatchRetries
+      ) {
+        const retryCount = (checkpoint?.retryCount ?? 0) + 1;
+        const backoffMs = calculateBackoffMs(input.queryBatchBackoffBaseMs, retryCount);
+        const now = await getDatabaseTime(input.db);
+        await checkpoints.saveCheckpoint({
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lastCursor: checkpoint?.lastCursor ?? null,
+          processedCount: checkpoint?.processedCount ?? 0,
+          filePartNo: checkpoint?.filePartNo ?? 1,
+          retryCount,
+          batchSize: checkpoint?.batchSize ?? null,
+          batchRowCount: checkpoint?.batchRowCount ?? 0,
+          backoffMs,
+          now
+        });
+        const renewed = await renewLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        result.renewed = renewed ? 1 : 0;
+        return result;
+      }
+      throw error;
+    }
+    const now = await getDatabaseTime(input.db);
+
+    if (batch.checkpoint) {
+      await checkpoints.saveCheckpoint({
+        taskId: input.task.taskId,
+        attemptNo: input.lease.attemptNo,
+        ...batch.checkpoint,
+        now
+      });
+    }
+
+    if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+      const canceledAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "CANCELED"
+      });
+      await appendWorkerAudit({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        action: "CANCEL_DONE",
+        result: "SUCCESS",
+        requestId: input.requestId,
+        now: canceledAt
+      });
+      result.canceled = 1;
+      return result;
+    }
+
+    if (batch.outcome === "completed") {
+      if (Array.isArray(batch.rows)) {
+        const registry =
+          batch.registry ??
+          resolveTaskRegistrySnapshot(input.task) ??
+          (await createExportRegistryRepository(input.db).findRegistryByTaskCode(input.task.taskCode));
+        if (!registry) {
+          throw new Error("TASK_NOT_REGISTERED: registry snapshot is not available for file publish");
+        }
+        const fileService = input.fileService ?? createExportFileService({ db: input.db });
+        await ensureLeaseAtBatchBoundary({
+          db: input.db,
+          taskId: input.task.taskId,
+          attemptNo: input.lease.attemptNo,
+          lockOwner: input.lease.lockOwner,
+          leaseDurationSeconds: input.leaseDurationSeconds
+        });
+        await fileService.publishRows({
+          task: input.task,
+          registry,
+          attemptNo: input.lease.attemptNo,
+          requestId: input.requestId,
+          rows: batch.rows
+        });
+      }
+      const completedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "COMPLETED"
+      });
+      await appendWorkerAudit({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        action: "EXECUTE_SUCCESS",
+        result: "SUCCESS",
+        requestId: input.requestId,
+        now: completedAt
+      });
+      result.completed = 1;
+      return result;
+    }
+
+    const renewed = await renewLeaseAtBatchBoundary({
+      db: input.db,
+      taskId: input.task.taskId,
+      attemptNo: input.lease.attemptNo,
+      lockOwner: input.lease.lockOwner,
+      leaseDurationSeconds: input.leaseDurationSeconds
+    });
+
+    result.renewed = renewed ? 1 : 0;
+    return result;
+  } catch (error) {
+    if (isLeaseLostError(error)) {
+      return result;
+    }
+
+    let failedAt: Date;
+    try {
+      failedAt = await markTaskTerminal({
+        db: input.db,
+        task: input.task,
+        attemptNo: input.lease.attemptNo,
+        lockOwner: input.lease.lockOwner,
+        status: "FAILED"
+      });
+    } catch (terminalError) {
+      if (isLeaseLostError(terminalError)) {
+        return result;
+      }
+      throw terminalError;
+    }
+
+    await appendWorkerAudit({
+      db: input.db,
+      task: input.task,
+      attemptNo: input.lease.attemptNo,
+      action: "EXECUTE_FAILED",
+      result: "FAILED",
+      errorCode: normalizePublicResponseCode(
+        error instanceof Error && error.name !== "Error" ? error.name : null,
+        "QUERY_EXECUTION_ERROR"
+      ),
+      requestId: input.requestId,
+      now: failedAt
+    });
+    result.failed = 1;
+    return result;
+  }
+}
+
+async function ensureLeaseAtBatchBoundary(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  taskId: string;
+  attemptNo: number;
+  lockOwner: string;
+  leaseDurationSeconds: number;
+}): Promise<void> {
+  const renewed = await renewLeaseAtBatchBoundary(input);
+  if (!renewed) {
+    throw leaseLostError(
+      `worker ${input.lockOwner} no longer owns an active lease for task ${input.taskId}`
+    );
+  }
+}
+
+async function renewLeaseAtBatchBoundary(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  taskId: string;
+  attemptNo: number;
+  lockOwner: string;
+  leaseDurationSeconds: number;
+}): Promise<boolean> {
+  return input.db.transaction().execute(async (trx) => {
+    const databaseTime = await queryDatabaseTime(trx);
+    const lockExpireAt = new Date(
+      databaseTime.getTime() + input.leaseDurationSeconds * 1000
+    );
+    const task = await trx
+      .selectFrom("export_tasks")
+      .select(["task_id"])
+      .where("task_id", "=", input.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .where("status", "=", "EXECUTING")
+      .where("lock_expire_at", ">", databaseTime)
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!task) {
+      return false;
+    }
+
+    await trx
+      .updateTable("export_tasks")
+      .set({
+        lock_expire_at: lockExpireAt,
+        lease_renewed_at: databaseTime,
+        updated_at: databaseTime
+      })
+      .where("task_id", "=", input.taskId)
+      .execute();
+
+    await trx
+      .updateTable("export_task_leases")
+      .set({
+        lock_expire_at: lockExpireAt,
+        lease_renewed_at: databaseTime,
+        database_time: databaseTime,
+        updated_at: databaseTime
+      })
+      .where("task_id", "=", input.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .execute();
+
+    return true;
+  });
+}
+
+async function markTaskTerminal(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  attemptNo: number;
+  lockOwner: string;
+  status: TerminalTaskStatus;
+}): Promise<Date> {
+  return input.db.transaction().execute(async (trx) => {
+    const databaseTime = await queryDatabaseTime(trx);
+    const activeLease = await trx
+      .selectFrom("export_tasks")
+      .select("task_id")
+      .where("task_id", "=", input.task.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .where("status", "=", "EXECUTING")
+      .where("lock_expire_at", ">", databaseTime)
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!activeLease) {
+      throw leaseLostError(
+        `worker ${input.lockOwner} cannot mark task ${input.task.taskId} as ${input.status}`
+      );
+    }
+
+    const updateResult = await trx
+      .updateTable("export_tasks")
+      .set({
+        status: input.status,
+        lock_owner: null,
+        lock_expire_at: null,
+        lease_renewed_at: null,
+        updated_at: databaseTime
+      })
+      .where("task_id", "=", input.task.taskId)
+      .where("attempt_no", "=", input.attemptNo)
+      .where("lock_owner", "=", input.lockOwner)
+      .where("status", "=", "EXECUTING")
+      .where("lock_expire_at", ">", databaseTime)
+      .executeTakeFirst();
+
+    if (toUpdatedRowCount(updateResult.numUpdatedRows) !== 1) {
+      throw leaseLostError(
+        `worker ${input.lockOwner} lost the lease before marking task ${input.task.taskId} terminal`
+      );
+    }
+
+    return databaseTime;
+  });
+}
+
+async function hasAcceptedCancelRequest(
+  db: Kysely<ExportPlatformDatabase>,
+  taskId: string,
+  attemptNo: number
+): Promise<boolean> {
+  const row = await db
+    .selectFrom("export_audit_logs")
+    .select((eb) => eb.fn.count<number>("audit_id").as("cancel_count"))
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", attemptNo)
+    .where("action", "=", "CANCEL_REQUEST")
+    .where("result", "=", "ACCEPTED")
+    .executeTakeFirst();
+
+  return Number(row?.cancel_count ?? 0) > 0;
+}
+
+async function findRequestIdForTask(
+  db: Kysely<ExportPlatformDatabase>,
+  taskId: string,
+  workerId: string
+): Promise<string> {
+  const row = await db
+    .selectFrom("export_audit_logs")
+    .select("request_id")
+    .where("task_id", "=", taskId)
+    .where("action", "in", ["CREATE", "RETRY_REQUEST", "CANCEL_REQUEST"])
+    .orderBy("occurred_at", "asc")
+    .executeTakeFirst();
+
+  return row?.request_id ?? `scheduler:${workerId}`;
+}
+
+async function appendWorkerAudit(input: {
+  db: Kysely<ExportPlatformDatabase>;
+  task: ExportTaskRecord;
+  attemptNo: number;
+  action: string;
+  result: string;
+  requestId: string;
+  now: Date;
+  errorCode?: string;
+}): Promise<void> {
+  await createExportAuditRepository(input.db).appendAuditLog({
+    auditId: `audit_${randomUUID()}`,
+    taskId: input.task.taskId,
+    attemptNo: input.attemptNo,
+    taskCode: input.task.taskCode,
+    subsystemCode: input.task.subsystemCode,
+    operatorId: input.task.createdBy,
+    action: input.action,
+    result: input.result,
+    errorCode: input.errorCode ?? "SUCCESS",
+    requestId: input.requestId,
+    occurredAt: input.now,
+    now: input.now
+  });
+}
+
+function leaseLostError(message: string): Error {
+  const error = new Error(message);
+  error.name = "WORKER_LEASE_LOST";
+  return error;
+}
+
+function isLeaseLostError(error: unknown): boolean {
+  return error instanceof Error && error.name === "WORKER_LEASE_LOST";
+}
+
+function isRetryableBatchError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    ["QUERY_EXECUTION_ERROR", "DATASOURCE_UNAVAILABLE"].includes(error.name)
+  );
+}
+
+function resolveTaskRegistrySnapshot(task: ExportTaskRecord): ExportRegistryRecord | undefined {
+  const snapshot = parseTaskRequestSnapshot(task).configSnapshot;
+  if (snapshot?.configSnapshotDigest === task.configSnapshotDigest) {
+    return snapshot;
+  }
+  return undefined;
+}
+
+function resolveTaskConcurrencyLimit(task: ExportTaskRecord): number {
+  const registry = resolveTaskRegistrySnapshot(task);
+  return Number.isInteger(registry?.concurrencyLimit) && Number(registry?.concurrencyLimit) > 0
+    ? Number(registry?.concurrencyLimit)
+    : 1;
+}
+
+function parseTaskRequestSnapshot(task: ExportTaskRecord): TaskRequestSnapshot {
+  if (!task.requestPayload) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(task.requestPayload) as TaskRequestSnapshot;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function calculateBackoffMs(baseMs: number, retryCount: number): number {
+  const normalizedBase = Number.isInteger(baseMs) && baseMs > 0 ? baseMs : 1000;
+  return normalizedBase * 2 ** Math.max(0, retryCount - 1);
+}
+
+function toUpdatedRowCount(value: bigint | number | undefined): number {
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  return Number(value ?? 0);
+}
+
+
+ succeeded in 380ms:
+import type { Kysely, SelectQueryBuilder } from "kysely";
+import type { ExportPlatformDatabase } from "../db/schema.ts";
+
+export type CreatePendingTaskInput = {
+  taskId: string;
+  taskCode: string;
+  subsystemCode: string;
+  tenantId: string;
+  createdBy: string;
+  fileFormat: string;
+  clientRequestId: string | null;
+  idempotencyScope: string | null;
+  requestDigest: string;
+  configSnapshotDigest: string;
+  requestPayload: string | null;
+  authContextPayload: string | null;
+  now: Date;
+};
+
+export type ExportTaskRecord = {
+  taskId: string;
+  taskCode: string;
+  subsystemCode: string;
+  tenantId: string;
+  createdBy: string;
+  fileFormat: string;
+  status: string;
+  clientRequestId: string | null;
+  idempotencyScope: string | null;
+  requestDigest: string;
+  configSnapshotDigest: string;
+  requestPayload: string | null;
+  authContextPayload: string | null;
+  attemptNo: number;
+  lockOwner: string | null;
+  lockExpireAt: Date | null;
+  leaseRenewedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type ExportTaskIdempotencyRecord = {
+  idempotencyScope: string;
+  taskId: string;
+  requestDigest: string;
+};
+
+type ExportTaskListFilters = {
+  taskCode?: string;
+  status?: string;
+  subsystemCode?: string;
+  tenantId?: string;
+  createdBy?: string;
+  fileFormat?: string;
+  createdAtFrom?: Date;
+  createdAtTo?: Date;
+};
+
+function toTaskRecord(row: {
+  task_id: string;
+  task_code: string;
+  subsystem_code: string;
+  tenant_id: string;
+  created_by: string;
+  file_format: string;
+  status: string;
+  client_request_id: string | null;
+  idempotency_scope: string | null;
+  request_digest: string;
+  config_snapshot_digest: string;
+  request_payload: string | null;
+  auth_context_payload: string | null;
+  attempt_no: number;
+  lock_owner: string | null;
+  lock_expire_at: Date | null;
+  lease_renewed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}): ExportTaskRecord {
+  return {
+    taskId: row.task_id,
+    taskCode: row.task_code,
+    subsystemCode: row.subsystem_code,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    fileFormat: row.file_format,
+    status: row.status,
+    clientRequestId: row.client_request_id,
+    idempotencyScope: row.idempotency_scope,
+    requestDigest: row.request_digest,
+    configSnapshotDigest: row.config_snapshot_digest,
+    requestPayload: row.request_payload,
+    authContextPayload: row.auth_context_payload,
+    attemptNo: row.attempt_no,
+    lockOwner: row.lock_owner,
+    lockExpireAt: row.lock_expire_at,
+    leaseRenewedAt: row.lease_renewed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
+  function applyListFilters<O>(
+    query: SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O>,
+    filters: ExportTaskListFilters
+  ): SelectQueryBuilder<ExportPlatformDatabase, "export_tasks", O> {
+    let filtered = query;
+
+    if (filters.taskCode) {
+      filtered = filtered.where("task_code", "=", filters.taskCode);
+    }
+    if (filters.status) {
+      filtered = filtered.where("status", "=", filters.status);
+    }
+    if (filters.subsystemCode) {
+      filtered = filtered.where("subsystem_code", "=", filters.subsystemCode);
+    }
+    if (filters.tenantId) {
+      filtered = filtered.where("tenant_id", "=", filters.tenantId);
+    }
+    if (filters.createdBy) {
+      filtered = filtered.where("created_by", "=", filters.createdBy);
+    }
+    if (filters.fileFormat) {
+      filtered = filtered.where("file_format", "=", filters.fileFormat);
+    }
+    if (filters.createdAtFrom) {
+      filtered = filtered.where("created_at", ">=", filters.createdAtFrom);
+    }
+    if (filters.createdAtTo) {
+      filtered = filtered.where("created_at", "<=", filters.createdAtTo);
+    }
+
+    return filtered;
+  }
+
+  return {
+    async createPendingTask(input: CreatePendingTaskInput): Promise<ExportTaskRecord> {
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .insertInto("export_tasks")
+          .values({
+            task_id: input.taskId,
+            task_code: input.taskCode,
+            subsystem_code: input.subsystemCode,
+            tenant_id: input.tenantId,
+            created_by: input.createdBy,
+            file_format: input.fileFormat,
+            status: "PENDING",
+            client_request_id: input.clientRequestId,
+            idempotency_scope: input.idempotencyScope,
+            request_digest: input.requestDigest,
+            config_snapshot_digest: input.configSnapshotDigest,
+            request_payload: input.requestPayload,
+            auth_context_payload: input.authContextPayload,
+            attempt_no: 0,
+            lock_owner: null,
+            lock_expire_at: null,
+            lease_renewed_at: null,
+            created_at: input.now,
+            updated_at: input.now
+          })
+          .execute();
+
+        if (input.idempotencyScope) {
+          await trx
+            .insertInto("export_task_idempotency")
+            .values({
+              idempotency_scope: input.idempotencyScope,
+              task_id: input.taskId,
+              request_digest: input.requestDigest,
+              created_at: input.now
+            })
+            .execute();
+        }
+      });
+
+      const task = await this.findTaskById(input.taskId);
+      if (!task) {
+        throw new Error(`Created task ${input.taskId} was not found`);
+      }
+      return task;
+    },
+
+    async findTaskById(taskId: string): Promise<ExportTaskRecord | undefined> {
+      const row = await db
+        .selectFrom("export_tasks")
+        .selectAll()
+        .where("task_id", "=", taskId)
+        .executeTakeFirst();
+
+      return row ? toTaskRecord(row) : undefined;
+    },
+
+    async listTasks(filters: ExportTaskListFilters & {
+      limit?: number;
+      offset?: number;
+    } = {}): Promise<ExportTaskRecord[]> {
+      const query = applyListFilters(db.selectFrom("export_tasks").selectAll(), filters);
+
+      const rows = await query
+        .orderBy("created_at", "desc")
+        .limit(filters.limit ?? 50)
+        .offset(filters.offset ?? 0)
+        .execute();
+
+      return rows.map(toTaskRecord);
+    },
+
+    async countTasks(filters: ExportTaskListFilters = {}): Promise<number> {
+      const row = await applyListFilters(
+        db
+          .selectFrom("export_tasks")
+          .select((eb) => eb.fn.count<number>("task_id").as("task_count")),
+        filters
+      ).executeTakeFirst();
+
+      return Number(row?.task_count ?? 0);
+    },
+
+    async updateTaskStatus(input: {
+      taskId: string;
+      status: string;
+      now: Date;
+      expectedStatus?: string;
+      expectedAttemptNo?: number;
+    }): Promise<ExportTaskRecord | undefined> {
+      let update = db
+        .updateTable("export_tasks")
+        .set({
+          status: input.status,
+          updated_at: input.now
+        })
+        .where("task_id", "=", input.taskId);
+
+      if (input.expectedStatus !== undefined) {
+        update = update.where("status", "=", input.expectedStatus);
+      }
+      if (input.expectedAttemptNo !== undefined) {
+        update = update.where("attempt_no", "=", input.expectedAttemptNo);
+      }
+
+      const result = await update.executeTakeFirst();
+      if (Number(result.numUpdatedRows ?? 0) !== 1) {
+        return undefined;
+      }
+
+      return this.findTaskById(input.taskId);
+    },
+
+    async retryFailedTask(input: {
+      taskId: string;
+      now: Date;
+    }): Promise<ExportTaskRecord | undefined> {
+      return db.transaction().execute(async (trx) => {
+        const task = await trx
+          .selectFrom("export_tasks")
+          .select(["status", "attempt_no"])
+          .where("task_id", "=", input.taskId)
+          .forUpdate()
+          .executeTakeFirst();
+
+        if (!task || task.status !== "FAILED") {
+          return undefined;
+        }
+
+        await trx
+          .updateTable("export_tasks")
+          .set({
+            status: "PENDING",
+            attempt_no: task.attempt_no + 1,
+            lock_owner: null,
+            lock_expire_at: null,
+            lease_renewed_at: null,
+            updated_at: input.now
+          })
+          .where("task_id", "=", input.taskId)
+          .execute();
+
+        const row = await trx
+          .selectFrom("export_tasks")
+          .selectAll()
+          .where("task_id", "=", input.taskId)
+          .executeTakeFirst();
+
+        return row ? toTaskRecord(row) : undefined;
+      });
+    },
+
+    async findByIdempotencyScope(
+      idempotencyScope: string
+    ): Promise<ExportTaskIdempotencyRecord | undefined> {
+      const row = await db
+        .selectFrom("export_task_idempotency")
+        .selectAll()
+        .where("idempotency_scope", "=", idempotencyScope)
+        .executeTakeFirst();
+
+      return row
+        ? {
+            idempotencyScope: row.idempotency_scope,
+            taskId: row.task_id,
+            requestDigest: row.request_digest
+          }
+        : undefined;
+    }
+  };
+}
+
+
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'task.json'; for ("'$i=2570; $i -le 2645; $i++) { if ($i -le $lines.Length) { '"'{0}: {1}' -f "'$i, $lines[$i-1] } }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"cancelExportTask|updateTaskStatus|retryExportTask|expectedStatus|expectedAttemptNo|CANCEL_REQUEST|CANCEL_DONE|INVALID_TASK_STATE\" src\\task-api\\service.ts src\\repositories\\export-task.repository.ts src\\scheduler\\worker.ts" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"cancel|取消|attemptNo|attempt_no|CAS|CANCEL|INVALID_TASK_STATE\" tests\\api\\export-http-api.test.mjs tests\\worker\\scheduler-worker.test.mjs docs\\testing\\verify-matrix.md docs\\testing\\TRACEABILITY_MATRIX.md docs\\testing\\ACCEPTANCE_EXAMPLES.md" in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "rg -n \"cancel|retry|INVALID_TASK_STATE|attemptNo|CANCELED|EXECUTING\" contracts\\openapi.yaml docs\\product\\prd-lite.md plans\\features\\export-platform.dev-plan.md" in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 379ms:
+2570:                   },
+2571:                   {
+2572:                       "id":  "TASK-CANCEL-ATOMICITY-001",
+2573:                       "description":  "修复取消任务状态更新缺少原状态和 attemptNo CAS 条件",
+2574:                       "task_kind":  "feature_impl",
+2575:                       "phase":  "requirements-review-repair",
+2576:                       "gate_profile":  "spec_required",
+2577:                       "required_truth_sources":  [
+2578:                                                      "product",
+2579:                                                      "architecture",
+2580:                                                      "contract",
+2581:                                                      "testing"
+2582:                                                  ],
+2583:                       "priority":  91,
+2584:                       "dependencies":  [
+2585:                                            "HISTORY-PAGINATION-TOTAL-001"
+2586:                                        ],
+2587:                       "passes":  false,
+2588:                       "architecture_constraints":  [
+2589:                                                        "repair scope 只覆盖 REQUIREMENTS-COMPLETE-REVIEW-001-S1-F002：取消任务更新必须使用原状态和 attemptNo CAS 条件",
+2590:                                                        "不得修改 REQUIREMENTS-COMPLETE-REVIEW-001 的 passes 结论；完整复审必须在本任务通过后由 driver 重新运行",
+2591:                                                        "保持 PENDING 取消、EXECUTING 批次边界取消和 FAILED retry 状态机语义"
+2592:                                                    ],
+2593:                       "forbidden_implementations":  [
+2594:                                                         "禁止只按 task_id 更新任务状态",
+2595:                                                         "禁止让 cancel 覆盖 worker 已推进到 COMPLETED、FAILED 或新 attempt 的状态",
+2596:                                                         "禁止删除既有 worker lease、retry 或 cancel 审计"
+2597:                                                     ],
+2598:                       "context_files":  [
+2599:                                             "docs/product/state-matrix.yaml",
+2600:                                             "docs/product/acceptance-criteria.md",
+2601:                                             "docs/reviews/requirements-complete-review.md",
+2602:                                             "src/task-api/service.ts",
+2603:                                             "src/repositories/export-task.repository.ts",
+2604:                                             "src/scheduler/worker.ts",
+2605:                                             "tests/api/export-http-api.test.mjs",
+2606:                                             "tests/worker/scheduler-worker.test.mjs",
+2607:                                             "task.json"
+2608:                                         ],
+2609:                       "owned_paths":  [
+2610:                                           "src/task-api/service.ts",
+2611:                                           "src/repositories/export-task.repository.ts",
+2612:                                           "src/scheduler/worker.ts",
+2613:                                           "tests/api/export-http-api.test.mjs",
+2614:                                           "tests/worker/scheduler-worker.test.mjs",
+2615:                                           "docs/testing/verify-matrix.md"
+2616:                                       ],
+2617:                       "requirement_ids":  [
+2618:                                               "FR-012",
+2619:                                               "AC-012",
+2620:                                               "AC-E015"
+2621:                                           ],
+2622:                       "produces_artifacts":  [
+2623:                                                  "src/task-api/service.ts",
+2624:                                                  "src/repositories/export-task.repository.ts",
+2625:                                                  "src/scheduler/worker.ts",
+2626:                                                  "tests/api/export-http-api.test.mjs",
+2627:                                                  "tests/worker/scheduler-worker.test.mjs",
+2628:                                                  "docs/testing/verify-matrix.md"
+2629:                                              ],
+2630:                       "execution":  {
+2631:                                         "mode":  "single"
+2632:                                     },
+2633:                       "steps":  [
+2634:                                     "复核 cancel API 和 worker 批次边界取消状态更新路径",
+2635:                                     "为 cancel 状态更新增加 expected status / attemptNo CAS 条件并处理 CAS miss",
+2636:                                     "补 API / worker 回归证明 cancel 不覆盖 worker 已推进状态或新 attempt",
+2637:                                     "同步 verify-matrix 记录 TASK-CANCEL-ATOMICITY-001 evidence"
+2638:                                 ],
+2639:                       "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command \u0027. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:worker\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md",
+2640:                       "acceptance":  [
+2641:                                          "取消任务更新使用原状态和 attemptNo CAS 条件",
+2642:                                          "worker 状态推进或 retry 产生新 attempt 后，旧 cancel 不会覆盖真实状态",
+2643:                                          "PENDING cancel 和 EXECUTING 批次边界 cancel 仍按产品状态机工作",
+2644:                                          "Docker MySQL 下 test:api / test:worker、typecheck 与 scoped diff check 全部通过"
+2645:                                      ]
+
+ succeeded in 402ms:
+src\scheduler\worker.ts:492:        action: "CANCEL_DONE",
+src\scheduler\worker.ts:726:    .where("action", "=", "CANCEL_REQUEST")
+src\scheduler\worker.ts:742:    .where("action", "in", ["CREATE", "RETRY_REQUEST", "CANCEL_REQUEST"])
+src\repositories\export-task.repository.ts:222:    async updateTaskStatus(input: {
+src\repositories\export-task.repository.ts:226:      expectedStatus?: string;
+src\repositories\export-task.repository.ts:227:      expectedAttemptNo?: number;
+src\repositories\export-task.repository.ts:237:      if (input.expectedStatus !== undefined) {
+src\repositories\export-task.repository.ts:238:        update = update.where("status", "=", input.expectedStatus);
+src\repositories\export-task.repository.ts:240:      if (input.expectedAttemptNo !== undefined) {
+src\repositories\export-task.repository.ts:241:        update = update.where("attempt_no", "=", input.expectedAttemptNo);
+src\task-api\service.ts:1316:export async function cancelExportTask(auth: AuthContext, taskId: string) {
+src\task-api\service.ts:1326:        action: "CANCEL_REQUEST",
+src\task-api\service.ts:1339:          action: "CANCEL_REQUEST",
+src\task-api\service.ts:1353:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src\task-api\service.ts:1356:        action: "CANCEL_REQUEST",
+src\task-api\service.ts:1367:    let updated = await repository.updateTaskStatus({
+src\task-api\service.ts:1370:      expectedStatus: task.status,
+src\task-api\service.ts:1371:      expectedAttemptNo: task.attemptNo,
+src\task-api\service.ts:1387:          error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src\task-api\service.ts:1390:          action: "CANCEL_REQUEST",
+src\task-api\service.ts:1407:      action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+src\task-api\service.ts:1421:export async function retryExportTask(auth: AuthContext, taskId: string) {
+src\task-api\service.ts:1458:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+src\task-api\service.ts:1475:        error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation"),
+
+ succeeded in 349ms:
+plans\features\export-platform.dev-plan.md:62:| T12 cancel/retry / auth-mask | T2、T4、T6 | 依赖状态机、认证上下文和脱敏契约 |
+plans\features\export-platform.dev-plan.md:94:| 执行尝试 | `attemptNo` 按任务隔离；锁接管不递增，FAILED 重试才递增 | `contracts/api/`、`contracts/scheduler/`、`contracts/audit/`、`tests/api/`、`tests/worker/` | 取消/重试、失败证据和文件路径测试 |
+plans\features\export-platform.dev-plan.md:96:| 批次检查点 | 至少包含 `lastCursor`、`processedCount`、`filePartNo`、`attemptNo`、`retryCount` | `contracts/scheduler/`、`contracts/query/`、`tests/worker/`、`tests/query/` | 接管继续、批次重试和压测证据 |
+plans\features\export-platform.dev-plan.md:99:| 审计链路 | 动作审计 + 阶段事件必须能按 `taskId/attemptNo/requestId` 串联 | `contracts/audit/`、`tests/api/`、`tests/worker/`、`src/audit-log/` | FR-010 与所有失败态证据 |
+plans\features\export-platform.dev-plan.md:112:| P7 | cancel/retry 与权限/脱敏可执行骨架 | 覆盖状态机和安全边界 |
+docs\product\prd-lite.md:32:- 平台正式对外任务状态限定为 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`。
+docs\product\prd-lite.md:37:- 对象存储文件路径默认按 `exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName}` 组织；签名 URL 默认有效期为 10 分钟；文件校验值默认使用 `SHA-256`。
+docs\product\prd-lite.md:40:- 执行尝试统一使用 `attemptNo` 标识；每次失败重试递增 `attemptNo`，同一任务同一时刻只允许一个活跃执行尝试。
+docs\product\prd-lite.md:42:- 锁租约过期后的实例接管延续当前 `attemptNo`，并记录接管审计；只有用户或系统发起 FAILED 重试时才递增 `attemptNo`。
+docs\product\prd-lite.md:98:- PENDING 可取消；FAILED 可重试；COMPLETED、CANCELED、EXPIRED 不允许直接重试为同一任务。
+docs\product\prd-lite.md:100:- PENDING/EXECUTING 任务收到重试请求时返回非法状态错误，且不得重复派发执行。
+docs\product\prd-lite.md:101:- EXECUTING 取消采用批次边界收口：平台记录取消意图，worker 在批次边界停止并最终置为 `CANCELED`。
+docs\product\prd-lite.md:114:- 平台生成文件后必须记录 `fileName`、`fileSize`、`contentType`、`storageKey`、`checksum`、`checksumAlgorithm`、`expiresAt` 和 `attemptNo`。
+docs\product\prd-lite.md:116:- 执行尝试输出必须按 `attemptNo` 隔离存储，新的成功尝试不得覆盖历史失败尝试的审计证据。
+docs\product\prd-lite.md:117:- 锁接管必须从已持久化的批次检查点继续，批次检查点至少包含 `lastCursor`、`processedCount`、`filePartNo` 和当前 `attemptNo`。
+docs\product\prd-lite.md:118:- Worker 只能在批次边界响应执行中取消；已写入文件片段必须进入当前 `attemptNo` 的失败或取消处置链路。
+docs\product\prd-lite.md:136:- 过期锁重抢可能造成重复批次风险，因此文件写入、对象存储路径和审计记录必须以 `attemptNo` 和批次边界隔离。
+contracts\openapi.yaml:11:    only official task statuses: PENDING, EXECUTING, COMPLETED, FAILED,
+contracts\openapi.yaml:12:    CANCELED, EXPIRED.
+contracts\openapi.yaml:18:    description: Task creation, detail, history, download, cancel and retry APIs.
+contracts\openapi.yaml:96:    cancelExportTask:
+contracts\openapi.yaml:97:      http: POST /api/export/tasks/{taskId}/cancel
+contracts\openapi.yaml:100:      handler: src/routes/export/tasks/cancel-export-task.handler.ts
+contracts\openapi.yaml:105:      worker: [EXECUTING cancel closes at a persisted batch boundary]
+contracts\openapi.yaml:111:    retryExportTask:
+contracts\openapi.yaml:112:      http: POST /api/export/tasks/{taskId}/retry
+contracts\openapi.yaml:115:      handler: src/routes/export/tasks/retry-export-task.handler.ts
+contracts\openapi.yaml:120:      worker: [retry enqueues a new attempt only for FAILED tasks]
+contracts\openapi.yaml:286:                      attemptNo: 0
+contracts\openapi.yaml:418:                      status: EXECUTING
+contracts\openapi.yaml:426:                      attemptNo: 1
+contracts\openapi.yaml:546:                      attemptNo: 1
+contracts\openapi.yaml:573:  /export/tasks/{taskId}/cancel:
+contracts\openapi.yaml:578:        PENDING tasks can be canceled immediately. EXECUTING tasks accept cancel
+contracts\openapi.yaml:579:        intent and still return EXECUTING until the worker closes the task at a
+contracts\openapi.yaml:580:        batch boundary. The API never returns an internal cancel marker as a task status.
+contracts\openapi.yaml:581:      operationId: cancelExportTask
+contracts\openapi.yaml:615:  /export/tasks/{taskId}/retry:
+contracts\openapi.yaml:620:        Only FAILED tasks are retryable. Retry keeps the original taskId,
+contracts\openapi.yaml:621:        reuses the original config snapshot, increments attemptNo and creates no
+contracts\openapi.yaml:623:      operationId: retryExportTask
+contracts\openapi.yaml:1185:                code: INVALID_TASK_STATE
+contracts\openapi.yaml:1188:                  status: EXECUTING
+contracts\openapi.yaml:1202:                  attemptNo: 1
+contracts\openapi.yaml:1227:                  status: EXECUTING
+contracts\openapi.yaml:1378:        - INVALID_TASK_STATE
+contracts\openapi.yaml:1408:        - INVALID_TASK_STATE
+contracts\openapi.yaml:1428:      description: Official public task status. Internal cancel flags are not valid values.
+contracts\openapi.yaml:1429:      enum: [PENDING, EXECUTING, COMPLETED, FAILED, CANCELED, EXPIRED]
+contracts\openapi.yaml:1503:        - attemptNo
+contracts\openapi.yaml:1526:        attemptNo:
+contracts\openapi.yaml:1553:        - attemptNo
+contracts\openapi.yaml:1583:        attemptNo:
+contracts\openapi.yaml:1676:        - attemptNo
+contracts\openapi.yaml:1709:        attemptNo:
+contracts\openapi.yaml:1728:      required: [taskId, status, attemptNo, acceptedAt]
+contracts\openapi.yaml:1734:        attemptNo:
+contracts\openapi.yaml:1736:        cancelAccepted:
+contracts\openapi.yaml:1738:          description: True means an EXECUTING task will stop at a batch boundary; this is not a task status.
+contracts\openapi.yaml:1739:        retryAccepted:
+contracts\openapi.yaml:1944:        attemptNo:
+contracts\openapi.yaml:1950:        retryCount:
+contracts\openapi.yaml:1965:            attemptNo:
+contracts\openapi.yaml:1995:          description: Workers may take over only after database time is later than lockExpireAt; takeover keeps the same attemptNo.
+contracts\openapi.yaml:2051:      required: [taskId, attemptNo, eventType, requestId, occurredAt]
+contracts\openapi.yaml:2055:        attemptNo:
+
+ succeeded in 396ms:
+docs\testing\ACCEPTANCE_EXAMPLES.md:77:- 正向示例: 给定任务完整执行，当查看审计和事件日志，则 CREATE、DISPATCH、EXECUTE、DOWNLOAD、CANCEL、RETRY 等动作可按 `requestId` 串联。
+docs\testing\ACCEPTANCE_EXAMPLES.md:88:### AE-012 取消和重试
+docs\testing\ACCEPTANCE_EXAMPLES.md:91:- 正向示例: 给定 PENDING 任务，当取消，则最终状态为 `CANCELED`；给定 FAILED 任务，当重试，则沿用原 `taskId` 并递增 `attemptNo`。
+docs\testing\ACCEPTANCE_EXAMPLES.md:92:- 负向示例: 给定 PENDING/EXECUTING 任务收到重试请求，则返回 `INVALID_TASK_STATE` 且不得重复派发执行。
+docs\testing\ACCEPTANCE_EXAMPLES.md:93:- 证据目标: 状态机记录、attemptNo、审计链路。
+docs\testing\ACCEPTANCE_EXAMPLES.md:98:- 正向示例: 给定任务创建后配置发生变化，当执行或失败重试，则沿用创建时配置快照，并记录 `attemptNo`、`lockOwner`、`lockExpireAt`。
+docs\testing\ACCEPTANCE_EXAMPLES.md:99:- 负向示例: 给定锁租约过期，接管实例必须延续当前 `attemptNo` 并从检查点继续。
+docs\testing\TRACEABILITY_MATRIX.md:18:| FR-010 | 创建、执行、失败、下载、取消、重试均可追溯到日志记录；审计日志必须包含任务、操作、结果、错误码、请求和时间信息 | audit log + task event log | all | 审计契约、任务事件契约 | contract / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-010`、`AC-019`、`AC-020` | 没有审计链路就无法证明真实交付 |
+docs\testing\TRACEABILITY_MATRIX.md:20:| FR-012 | PENDING 可取消，FAILED 可重试；FAILED 重试保留原 `taskId` 审计链路并递增执行尝试次数；EXECUTING 取消按批次边界收口并最终置为 `CANCELED` | cancel / retry API | CANCELED / PENDING / FAILED / EXECUTING | `POST /api/export/tasks/{taskId}/cancel`、`POST /api/export/tasks/{taskId}/retry` | contract / api / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `AC-012`、`AC-E015`、`state-matrix.yaml` | 取消和重试状态机容易被误返回内部标记 |
+docs\testing\TRACEABILITY_MATRIX.md:21:| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照必须形成同一条审计链路；锁租约默认 5 分钟，接管延续当前 `attemptNo`，FAILED 重试才递增 `attemptNo` | create API + Scheduler + task snapshot | default / conflict / processing / error | create API、Scheduler、snapshot 契约 | contract / scheduler / backend / verify | `docs/testing/test-matrix.md` / `docs/testing/verify-matrix.md` / `docs/testing/ACCEPTANCE_EXAMPLES.md` | `difficulty-research.md`、`requirement-interface-matrix.md`、`state-matrix.yaml` | 幂等冲突、锁接管和快照沿用是最容易漏证据的区域 |
+docs\testing\verify-matrix.md:48:| TASK-CANCEL-ATOMICITY-001 | FR-012 / AC-012 / AC-E015 | repaired | `npm run test:api` 断言取消状态更新必须携带原 `status` 与 `attemptNo` CAS 条件，旧 PENDING 取消快照不能覆盖已推进到 EXECUTING 的任务；`npm run test:worker` 断言旧 EXECUTING 取消快照不能覆盖 FAILED retry 后递增出的新 `attemptNo`。同一轮继续保留 PENDING cancel、EXECUTING 批次边界 cancel 与 FAILED retry 既有状态机证据 | local/Docker MySQL API + worker evidence；CAS miss 收口为未更新或非法状态，不声明外部生产 MySQL evidence |
+docs\testing\verify-matrix.md:67:| worker 集成测试 | `npm run test:worker` | DB polling、原子抢锁、租约续租、过期接管、批次边界取消和 FAILED 重试边界必须连接本机或 Docker MySQL；release gate 会自动提供 DB URL |
+docs\testing\verify-matrix.md:86:| Worker 集成测试 | `npm run test:worker` | `SCHEDULER-WORKER-001`、`QUERY-EXECUTOR-001`、`DATASOURCE-ADAPTER-BOUNDARY-001`、`CLEANUP-JOB-001`、`LOCAL-RELEASE-REHEARSAL-001`、`RELEASE-001` | FR-005 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 | MySQL + injected readonly datasource adapter；release 时由 Docker MySQL 自举 | 证明 polling、租约、接管、取消、重试、cleanup 调度以及 scheduler 到 query executor 的 datasource adapter 传递边界；不替代 query/file/sample 的内容级断言。 |
+docs\testing\verify-matrix.md:145:| FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql；`TASK-CANCEL-ATOMICITY-001` 补齐 cancel 状态更新基于原 `status` 与 `attemptNo` 的 CAS 证据，旧 cancel 不覆盖 worker 已推进状态或 FAILED retry 后的新 attempt | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:api`、`npm run test:worker` |
+docs\testing\verify-matrix.md:146:| FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+tests\worker\scheduler-worker.test.mjs:255:    .where("attempt_no", "=", executing.attemptNo)
+tests\worker\scheduler-worker.test.mjs:521:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:697:serialTest("expired lease takeover keeps attemptNo and resumes from the latest checkpoint", async (t) => {
+tests\worker\scheduler-worker.test.mjs:738:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:742:  assert.equal(task.attemptNo, 0);
+tests\worker\scheduler-worker.test.mjs:887:serialTest("executing cancel request is closed at the next persisted batch boundary", async (t) => {
+tests\worker\scheduler-worker.test.mjs:890:  const taskId = `exp-cancel-${Date.now()}`;
+tests\worker\scheduler-worker.test.mjs:901:        auditId: `audit-cancel-${runId}`,
+tests\worker\scheduler-worker.test.mjs:903:        attemptNo: lease.attemptNo,
+tests\worker\scheduler-worker.test.mjs:907:        action: "CANCEL_REQUEST",
+tests\worker\scheduler-worker.test.mjs:910:        requestId: "req-cancel-001",
+tests\worker\scheduler-worker.test.mjs:922:  assert.equal(result.canceled, 1);
+tests\worker\scheduler-worker.test.mjs:923:  assert.equal(task.status, "CANCELED");
+tests\worker\scheduler-worker.test.mjs:927:    ["CANCEL_DONE", "CANCEL_REQUEST", "DISPATCH", "EXECUTE_START"]
+tests\worker\scheduler-worker.test.mjs:931:serialTest("failed execution is retried only after FAILED and increments attemptNo before redispatch", async (t) => {
+tests\worker\scheduler-worker.test.mjs:954:  assert.equal(failed.attemptNo, 0);
+tests\worker\scheduler-worker.test.mjs:962:  assert.equal(retried.attemptNo, 1);
+tests\worker\scheduler-worker.test.mjs:977:  assert.equal(executing.attemptNo, 1);
+tests\worker\scheduler-worker.test.mjs:981:serialTest("stale executing cancel cannot overwrite a retried attempt", async (t) => {
+tests\worker\scheduler-worker.test.mjs:984:  const taskId = `exp-worker-${runId}-stale-cancel`;
+tests\worker\scheduler-worker.test.mjs:993:    batchProcessor: async () => batchResult("order-stale-cancel", 10)
+tests\worker\scheduler-worker.test.mjs:1009:    .where("attempt_no", "=", staleCancelSnapshot.attemptNo)
+tests\worker\scheduler-worker.test.mjs:1017:  assert.equal(retried.attemptNo, staleCancelSnapshot.attemptNo + 1);
+tests\worker\scheduler-worker.test.mjs:1021:    status: "CANCELED",
+tests\worker\scheduler-worker.test.mjs:1023:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests\worker\scheduler-worker.test.mjs:1030:  assert.equal(taskAfterStaleCancel.attemptNo, staleCancelSnapshot.attemptNo + 1);
+tests\worker\scheduler-worker.test.mjs:1080:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1088:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1150:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1213:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1252:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1260:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1308:    .where("attempt_no", "=", 0)
+tests\worker\scheduler-worker.test.mjs:1450:    attemptNo: 0,
+tests\worker\scheduler-worker.test.mjs:1504:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:841:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:854:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:861:      attemptNo: 0,
+tests\api\export-http-api.test.mjs:872:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:908:  assert.equal(detailResponse.json().data.recentEvents[0].attemptNo, 0);
+tests\api\export-http-api.test.mjs:965:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:978:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1094:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1136:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1149:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1212:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1224:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1245:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1338:  assert.equal(retryPendingResponse.json().code, "INVALID_TASK_STATE");
+tests\api\export-http-api.test.mjs:1340:  const cancelResponse = await app.inject({
+tests\api\export-http-api.test.mjs:1342:    url: `/api/export/tasks/${taskId}/cancel`,
+tests\api\export-http-api.test.mjs:1343:    headers: createHeaders(`req-cancel-${runId}`)
+tests\api\export-http-api.test.mjs:1346:  assert.equal(cancelResponse.statusCode, 200);
+tests\api\export-http-api.test.mjs:1347:  assert.equal(cancelResponse.json().data.status, "CANCELED");
+tests\api\export-http-api.test.mjs:1349:  const canceledTask = await taskRepository.findTaskById(taskId);
+tests\api\export-http-api.test.mjs:1350:  assert.equal(canceledTask?.status, "CANCELED");
+tests\api\export-http-api.test.mjs:1352:  const staleCancelTaskId = `exp-stale-cancel-${runId}`;
+tests\api\export-http-api.test.mjs:1373:      requestId: `req-stale-cancel-create-${runId}`
+tests\api\export-http-api.test.mjs:1386:    status: "CANCELED",
+tests\api\export-http-api.test.mjs:1388:    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+tests\api\export-http-api.test.mjs:1395:  assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+tests\api\export-http-api.test.mjs:1397:  const executingCancelTaskId = `exp-executing-cancel-${runId}`;
+tests\api\export-http-api.test.mjs:1418:      requestId: `req-executing-cancel-create-${runId}`
+tests\api\export-http-api.test.mjs:1426:      lock_owner: "worker-api-cancel",
+tests\api\export-http-api.test.mjs:1435:    url: `/api/export/tasks/${executingCancelTaskId}/cancel`,
+tests\api\export-http-api.test.mjs:1436:    headers: createHeaders(`req-executing-cancel-${runId}`)
+tests\api\export-http-api.test.mjs:1447:        audit.action === "CANCEL_REQUEST" &&
+tests\api\export-http-api.test.mjs:1449:        audit.attemptNo === executingCancelTask.attemptNo
+tests\api\export-http-api.test.mjs:1453:    executingCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+tests\api\export-http-api.test.mjs:1472:    attemptNo: 0,
+tests\api\export-http-api.test.mjs:1620:    attemptNo: 0,
+
+codex
+检索到任务本身已携带 `architecture_constraints`、`forbidden_implementations` 和包含 Docker MySQL API/worker 的 `test_command`。我再看公开契约和 handler 映射，确认实际返回/状态语义是否和当前实现一致。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'src\\task-api\\service.ts'; for ("'$i=1310; $i -le 1418; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'src\\repositories\\export-task.repository.ts'; for ("'$i=218; $i -le 252; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'src\\scheduler\\worker.ts'; for ("'$i=470; $i -le 505; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }; for ($i=716; $i -le 731; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'contracts\\openapi.yaml'; for ("'$i=573; $i -le 610; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }; for ($i=1728; $i -le 1741; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 371ms:
+1310:         error: toStorageApiError(error, file)
+1311:       });
+1312:     }
+1313:   });
+1314: }
+1315: 
+1316: export async function cancelExportTask(auth: AuthContext, taskId: string) {
+1317:   return withDatabase(async (db) => {
+1318:     const now = await getDatabaseTime(db);
+1319:     const repository = createExportTaskRepository(db);
+1320:     const task = await repository.findTaskById(taskId);
+1321:     if (!task) {
+1322:       return rejectWithAudit({
+1323:         db,
+1324:         auth,
+1325:         error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
+1326:         action: "CANCEL_REQUEST",
+1327:         now,
+1328:         taskId
+1329:       });
+1330:     }
+1331:     try {
+1332:       assertTaskVisible(auth, task);
+1333:     } catch (error) {
+1334:       if (error instanceof ApiError) {
+1335:         return rejectWithAudit({
+1336:           db,
+1337:           auth,
+1338:           error,
+1339:           action: "CANCEL_REQUEST",
+1340:           now,
+1341:           taskId,
+1342:           attemptNo: task.attemptNo,
+1343:           taskCode: task.taskCode,
+1344:           subsystemCode: task.subsystemCode
+1345:         });
+1346:       }
+1347:       throw error;
+1348:     }
+1349:     if (!["PENDING", "EXECUTING"].includes(task.status)) {
+1350:       return rejectWithAudit({
+1351:         db,
+1352:         auth,
+1353:         error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+1354:           status: task.status
+1355:         }),
+1356:         action: "CANCEL_REQUEST",
+1357:         now,
+1358:         taskId,
+1359:         attemptNo: task.attemptNo,
+1360:         taskCode: task.taskCode,
+1361:         subsystemCode: task.subsystemCode
+1362:       });
+1363:     }
+1364: 
+1365:     let cancelAtBatchBoundary = task.status === "EXECUTING";
+1366:     const status = task.status === "PENDING" ? "CANCELED" : "EXECUTING";
+1367:     let updated = await repository.updateTaskStatus({
+1368:       taskId,
+1369:       status,
+1370:       expectedStatus: task.status,
+1371:       expectedAttemptNo: task.attemptNo,
+1372:       now
+1373:     });
+1374:     if (!updated) {
+1375:       const latest = await repository.findTaskById(taskId);
+1376:       if (
+1377:         task.status === "PENDING" &&
+1378:         latest?.status === "EXECUTING" &&
+1379:         latest.attemptNo === task.attemptNo
+1380:       ) {
+1381:         updated = latest;
+1382:         cancelAtBatchBoundary = true;
+1383:       } else {
+1384:         return rejectWithAudit({
+1385:           db,
+1386:           auth,
+1387:           error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+1388:             status: latest?.status ?? task.status
+1389:           }),
+1390:           action: "CANCEL_REQUEST",
+1391:           now,
+1392:           taskId,
+1393:           attemptNo: latest?.attemptNo ?? task.attemptNo,
+1394:           taskCode: latest?.taskCode ?? task.taskCode,
+1395:           subsystemCode: latest?.subsystemCode ?? task.subsystemCode
+1396:         });
+1397:       }
+1398:     }
+1399: 
+1400:     await appendAudit({
+1401:       db,
+1402:       auth,
+1403:       taskId,
+1404:       attemptNo: updated.attemptNo,
+1405:       taskCode: updated.taskCode,
+1406:       subsystemCode: updated.subsystemCode,
+1407:       action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+1408:       result: cancelAtBatchBoundary ? "ACCEPTED" : "SUCCESS",
+1409:       now
+1410:     });
+1411: 
+1412:     return {
+1413:       taskId,
+1414:       status: updated.status,
+1415:       attemptNo: updated.attemptNo,
+1416:       acceptedAt: now.toISOString()
+1417:     };
+1418:   });
+
+ succeeded in 372ms:
+470: 
+471:     if (batch.checkpoint) {
+472:       await checkpoints.saveCheckpoint({
+473:         taskId: input.task.taskId,
+474:         attemptNo: input.lease.attemptNo,
+475:         ...batch.checkpoint,
+476:         now
+477:       });
+478:     }
+479: 
+480:     if (await hasAcceptedCancelRequest(input.db, input.task.taskId, input.lease.attemptNo)) {
+481:       const canceledAt = await markTaskTerminal({
+482:         db: input.db,
+483:         task: input.task,
+484:         attemptNo: input.lease.attemptNo,
+485:         lockOwner: input.lease.lockOwner,
+486:         status: "CANCELED"
+487:       });
+488:       await appendWorkerAudit({
+489:         db: input.db,
+490:         task: input.task,
+491:         attemptNo: input.lease.attemptNo,
+492:         action: "CANCEL_DONE",
+493:         result: "SUCCESS",
+494:         requestId: input.requestId,
+495:         now: canceledAt
+496:       });
+497:       result.canceled = 1;
+498:       return result;
+499:     }
+500: 
+501:     if (batch.outcome === "completed") {
+502:       if (Array.isArray(batch.rows)) {
+503:         const registry =
+504:           batch.registry ??
+505:           resolveTaskRegistrySnapshot(input.task) ??
+716: async function hasAcceptedCancelRequest(
+717:   db: Kysely<ExportPlatformDatabase>,
+718:   taskId: string,
+719:   attemptNo: number
+720: ): Promise<boolean> {
+721:   const row = await db
+722:     .selectFrom("export_audit_logs")
+723:     .select((eb) => eb.fn.count<number>("audit_id").as("cancel_count"))
+724:     .where("task_id", "=", taskId)
+725:     .where("attempt_no", "=", attemptNo)
+726:     .where("action", "=", "CANCEL_REQUEST")
+727:     .where("result", "=", "ACCEPTED")
+728:     .executeTakeFirst();
+729: 
+730:   return Number(row?.cancel_count ?? 0) > 0;
+731: }
+
+ succeeded in 409ms:
+218: 
+219:       return Number(row?.task_count ?? 0);
+220:     },
+221: 
+222:     async updateTaskStatus(input: {
+223:       taskId: string;
+224:       status: string;
+225:       now: Date;
+226:       expectedStatus?: string;
+227:       expectedAttemptNo?: number;
+228:     }): Promise<ExportTaskRecord | undefined> {
+229:       let update = db
+230:         .updateTable("export_tasks")
+231:         .set({
+232:           status: input.status,
+233:           updated_at: input.now
+234:         })
+235:         .where("task_id", "=", input.taskId);
+236: 
+237:       if (input.expectedStatus !== undefined) {
+238:         update = update.where("status", "=", input.expectedStatus);
+239:       }
+240:       if (input.expectedAttemptNo !== undefined) {
+241:         update = update.where("attempt_no", "=", input.expectedAttemptNo);
+242:       }
+243: 
+244:       const result = await update.executeTakeFirst();
+245:       if (Number(result.numUpdatedRows ?? 0) !== 1) {
+246:         return undefined;
+247:       }
+248: 
+249:       return this.findTaskById(input.taskId);
+250:     },
+251: 
+252:     async retryFailedTask(input: {
+
+ succeeded in 397ms:
+573:   /export/tasks/{taskId}/cancel:
+574:     post:
+575:       tags: [ExportTasks]
+576:       summary: Cancel export task
+577:       description: |
+578:         PENDING tasks can be canceled immediately. EXECUTING tasks accept cancel
+579:         intent and still return EXECUTING until the worker closes the task at a
+580:         batch boundary. The API never returns an internal cancel marker as a task status.
+581:       operationId: cancelExportTask
+582:       parameters:
+583:         - $ref: "#/components/parameters/XOperatorId"
+584:         - $ref: "#/components/parameters/XTenantId"
+585:         - $ref: "#/components/parameters/XRoleCodes"
+586:         - $ref: "#/components/parameters/XOrgScope"
+587:         - $ref: "#/components/parameters/XRequestId"
+588:         - $ref: "#/components/parameters/XAuthContextSignature"
+589:         - $ref: "#/components/parameters/XAuthContextIssuedAt"
+590:         - $ref: "#/components/parameters/XAuthContextSignatureAlgorithm"
+591:         - $ref: "#/components/parameters/TaskId"
+592:       requestBody:
+593:         required: false
+594:         content:
+595:           application/json:
+596:             schema:
+597:               $ref: "#/components/schemas/TaskActionRequest"
+598:       responses:
+599:         "200":
+600:           description: Cancel accepted or completed.
+601:           content:
+602:             application/json:
+603:               schema:
+604:                 $ref: "#/components/schemas/TaskActionResponseEnvelope"
+605:         "400":
+606:           $ref: "#/components/responses/InvalidTaskState"
+607:         "401":
+608:           $ref: "#/components/responses/AuthContextMissing"
+609:         "403":
+610:           $ref: "#/components/responses/PermissionDenied"
+1728:       required: [taskId, status, attemptNo, acceptedAt]
+1729:       properties:
+1730:         taskId:
+1731:           type: string
+1732:         status:
+1733:           $ref: "#/components/schemas/TaskStatus"
+1734:         attemptNo:
+1735:           type: integer
+1736:         cancelAccepted:
+1737:           type: boolean
+1738:           description: True means an EXECUTING task will stop at a batch boundary; this is not a task status.
+1739:         retryAccepted:
+1740:           type: boolean
+1741:         configSnapshotDigest:
+
+codex
+实现证据里，取消 API 已把原 `status` 和 `attemptNo` 传给 repository 的条件更新，worker 批次边界按同一 `attemptNo` 读取 ACCEPTED cancel 审计并收口。最后我抽查测试断言是否覆盖“旧快照不覆盖已推进状态”和“旧 attempt 不覆盖 retry 后的新 attempt”。
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'tests\\api\\export-http-api.test.mjs'; for ("'$i=1328; $i -le 1456; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'tests\\worker\\scheduler-worker.test.mjs'; for ("'$i=981; $i -le 1033; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'docs\\testing\\verify-matrix.md'; for ("'$i=44; $i -le 50; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }; for ($i=141; $i -le 147; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+exec
+"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command '$lines = Get-Content '"'docs\\product\\prd-lite.md'; for ("'$i=96; $i -le 102; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }; for ($i=116; $i -le 118; $i++) { '"'{0}: {1}' -f "'$i, $lines[$i-1] }' in E:\2026\alpha-project\longgang-codex-driver
+ succeeded in 411ms:
+1328:   assert.equal(deniedDownloadResponse.statusCode, 403);
+1329:   assert.equal(deniedDownloadResponse.json().code, "PERMISSION_DENIED");
+1330: 
+1331:   const retryPendingResponse = await app.inject({
+1332:     method: "POST",
+1333:     url: `/api/export/tasks/${taskId}/retry`,
+1334:     headers: createHeaders(`req-retry-pending-${runId}`)
+1335:   });
+1336: 
+1337:   assert.equal(retryPendingResponse.statusCode, 400);
+1338:   assert.equal(retryPendingResponse.json().code, "INVALID_TASK_STATE");
+1339: 
+1340:   const cancelResponse = await app.inject({
+1341:     method: "POST",
+1342:     url: `/api/export/tasks/${taskId}/cancel`,
+1343:     headers: createHeaders(`req-cancel-${runId}`)
+1344:   });
+1345: 
+1346:   assert.equal(cancelResponse.statusCode, 200);
+1347:   assert.equal(cancelResponse.json().data.status, "CANCELED");
+1348: 
+1349:   const canceledTask = await taskRepository.findTaskById(taskId);
+1350:   assert.equal(canceledTask?.status, "CANCELED");
+1351: 
+1352:   const staleCancelTaskId = `exp-stale-cancel-${runId}`;
+1353:   await taskRepository.createPendingTask({
+1354:     taskId: staleCancelTaskId,
+1355:     taskCode,
+1356:     subsystemCode: "purchase",
+1357:     tenantId: "tenant-001",
+1358:     createdBy: "u001",
+1359:     fileFormat: "XLSX",
+1360:     clientRequestId: null,
+1361:     idempotencyScope: null,
+1362:     requestDigest: `sha256:${staleCancelTaskId}`,
+1363:     configSnapshotDigest: "sha256:config-v1",
+1364:     requestPayload: JSON.stringify({
+1365:       fileFormat: "XLSX",
+1366:       queryParams: createTaskPayload(taskCode).queryParams
+1367:     }),
+1368:     authContextPayload: JSON.stringify({
+1369:       operatorId: "u001",
+1370:       tenantId: "tenant-001",
+1371:       roleCodes: ["EXPORT_USER"],
+1372:       orgScope: "ORG-001",
+1373:       requestId: `req-stale-cancel-create-${runId}`
+1374:     }),
+1375:     now: await getDatabaseTime(db)
+1376:   });
+1377:   const staleCancelSnapshot = await taskRepository.findTaskById(staleCancelTaskId);
+1378:   await taskRepository.updateTaskStatus({
+1379:     taskId: staleCancelTaskId,
+1380:     status: "EXECUTING",
+1381:     now: await getDatabaseTime(db)
+1382:   });
+1383: 
+1384:   const staleCancelResult = await taskRepository.updateTaskStatus({
+1385:     taskId: staleCancelTaskId,
+1386:     status: "CANCELED",
+1387:     expectedStatus: staleCancelSnapshot.status,
+1388:     expectedAttemptNo: staleCancelSnapshot.attemptNo,
+1389:     now: await getDatabaseTime(db)
+1390:   });
+1391:   const notOverwrittenTask = await taskRepository.findTaskById(staleCancelTaskId);
+1392: 
+1393:   assert.equal(staleCancelResult, undefined);
+1394:   assert.equal(notOverwrittenTask.status, "EXECUTING");
+1395:   assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+1396: 
+1397:   const executingCancelTaskId = `exp-executing-cancel-${runId}`;
+1398:   await taskRepository.createPendingTask({
+1399:     taskId: executingCancelTaskId,
+1400:     taskCode,
+1401:     subsystemCode: "purchase",
+1402:     tenantId: "tenant-001",
+1403:     createdBy: "u001",
+1404:     fileFormat: "XLSX",
+1405:     clientRequestId: null,
+1406:     idempotencyScope: null,
+1407:     requestDigest: `sha256:${executingCancelTaskId}`,
+1408:     configSnapshotDigest: "sha256:config-v1",
+1409:     requestPayload: JSON.stringify({
+1410:       fileFormat: "XLSX",
+1411:       queryParams: createTaskPayload(taskCode).queryParams
+1412:     }),
+1413:     authContextPayload: JSON.stringify({
+1414:       operatorId: "u001",
+1415:       tenantId: "tenant-001",
+1416:       roleCodes: ["EXPORT_USER"],
+1417:       orgScope: "ORG-001",
+1418:       requestId: `req-executing-cancel-create-${runId}`
+1419:     }),
+1420:     now: await getDatabaseTime(db)
+1421:   });
+1422:   await db
+1423:     .updateTable("export_tasks")
+1424:     .set({
+1425:       status: "EXECUTING",
+1426:       lock_owner: "worker-api-cancel",
+1427:       lock_expire_at: sql`DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 300 SECOND)`,
+1428:       lease_renewed_at: sql`CURRENT_TIMESTAMP(3)`
+1429:     })
+1430:     .where("task_id", "=", executingCancelTaskId)
+1431:     .execute();
+1432: 
+1433:   const executingCancelResponse = await app.inject({
+1434:     method: "POST",
+1435:     url: `/api/export/tasks/${executingCancelTaskId}/cancel`,
+1436:     headers: createHeaders(`req-executing-cancel-${runId}`)
+1437:   });
+1438:   const executingCancelTask = await taskRepository.findTaskById(executingCancelTaskId);
+1439:   const executingCancelAudits = await auditRepository.listAuditLogsForTask(executingCancelTaskId);
+1440: 
+1441:   assert.equal(executingCancelResponse.statusCode, 200);
+1442:   assert.equal(executingCancelResponse.json().data.status, "EXECUTING");
+1443:   assert.equal(executingCancelTask.status, "EXECUTING");
+1444:   assert.ok(
+1445:     executingCancelAudits.some(
+1446:       (audit) =>
+1447:         audit.action === "CANCEL_REQUEST" &&
+1448:         audit.result === "ACCEPTED" &&
+1449:         audit.attemptNo === executingCancelTask.attemptNo
+1450:     )
+1451:   );
+1452:   assert.equal(
+1453:     executingCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+1454:     false
+1455:   );
+1456: 
+
+ succeeded in 352ms:
+44: | P0-ACCEPTANCE-EVIDENCE-REPAIR-001 | FR-001 / FR-004 / FR-007 / FR-008 / FR-009 / FR-014 / AC-004 / AC-007 / AC-009 / AC-E002 / AC-E023 / RCR-P0-005 | repaired | `npm run test:api` 在生产 HTTP + MySQL 路径新增断言：未注册 `taskCode` 创建返回 `TASK_NOT_REGISTERED` 且不落 `export_tasks`、失败审计可追溯；历史查询显式覆盖 `status + subsystemCode` 组合筛选并保持普通用户仅见本人、跨租户管理员拒绝的可信上下文边界；registry API 覆盖 get/list/update、顺序及并发重复 `taskCode` 创建稳定返回 `REGISTRY_CONFLICT` 且不覆盖既有配置、无权限配置操作返回 `PERMISSION_DENIED` 并写入失败审计。`npm run test:query` 新增游标负向证据：缺失/空 cursor、重复或非递增 cursor、checkpoint 缺少 cursor 字段均收口为 `QUERY_EXECUTION_ERROR` | local/Docker MySQL API + query evidence；HTTP create registry 使用原子 insert 处理重复 `taskCode`，内部 seed/upsert 路径仍保留幂等 upsert；不回退认证上下文可信边界、下载签名 URL、queryParams 32KB 限制或 dataScopeTemplate 执行边界；不声明外部生产 MySQL 或 live datasource evidence |
+45: | CREATE-TASK-REGISTRY-GUARD-001 | FR-001 / FR-008 / FR-014 / AC-001 / AC-008 / AC-017 / AC-E021 | repaired | `npm run test:api` 断言创建任务生产 HTTP + service + MySQL 路径在 `createPendingTask` 和幂等记录写入前读取 registry snapshot，拒绝不在 registry `supportedFormats` 内的 `fileFormat`，并按 registry `parameterSchema` 拒绝缺失必填参数、未声明参数和类型不匹配的 `queryParams`，返回公开 `QUERY_TEMPLATE_INVALID`，写入 CREATE 失败审计且不泄露 `taskId/status`；同一命令继续覆盖未注册任务不落库、queryParams 32KB、幂等冲突、权限和 registry 原子 create 边界。`npm run test:contract` 守护 OpenAPI create task 错误状态映射与 service 中入队前 guard 不漂移 | local/Docker MySQL API + contract evidence；guard 发生在 PENDING 入队、幂等记录和 worker 消费前；不声明外部生产 MySQL、live datasource 或 live OSS/S3 evidence |
+46: | DATASOURCE-ADAPTER-BOUNDARY-001 | FR-008 / FR-009 / AC-008 / AC-019 / AC-E012 | repaired | `npm run test:query` 断言 query executor 必须按 registry `datasourceCode` resolve 独立只读 datasource adapter 后执行业务 SELECT，不再无条件使用平台 DB `context.db`；未知 datasource adapter 收口为 `DATASOURCE_UNAVAILABLE` 且错误信息固定为 `datasource unavailable`。`npm run test:worker` 断言 scheduler 默认 query processor 将 datasource adapter provider 传入 query executor，并在 adapter 返回业务行后完成发布；既有 datasource unavailable 失败审计仍收口为 `DATASOURCE_UNAVAILABLE`。`npm run arch:check` 已把 `src/datasource-adapters/` 纳入生产扫描根 | local/Docker MySQL query + worker + arch evidence；测试用只读 adapter 连接受控 Docker MySQL 业务表模拟外部只读数据源，不声明外部业务库 live evidence；平台 DB 仍只用于 registry/task/event/checkpoint/audit |
+47: | HISTORY-PAGINATION-TOTAL-001 | FR-004 / AC-004 | repaired | `npm run test:api` 断言历史任务列表 `total` 来自同一筛选条件下的真实 count，不再使用当前页 `items.length`；覆盖 `taskCode / createdBy / fileFormat / createdAt` 组合筛选以及 `status + subsystemCode` 分页场景，证明 `pageSize=1` 时 total 仍反映符合权限和筛选条件的完整数量 | local/Docker MySQL API evidence；total 统计复用 repository 过滤边界，仍受 tenant / createdBy 权限约束；不声明外部生产 MySQL evidence |
+48: | TASK-CANCEL-ATOMICITY-001 | FR-012 / AC-012 / AC-E015 | repaired | `npm run test:api` 断言取消状态更新必须携带原 `status` 与 `attemptNo` CAS 条件，旧 PENDING 取消快照不能覆盖已推进到 EXECUTING 的任务；`npm run test:worker` 断言旧 EXECUTING 取消快照不能覆盖 FAILED retry 后递增出的新 `attemptNo`。同一轮继续保留 PENDING cancel、EXECUTING 批次边界 cancel 与 FAILED retry 既有状态机证据 | local/Docker MySQL API + worker evidence；CAS miss 收口为未更新或非法状态，不声明外部生产 MySQL evidence |
+49: 
+50: ## 计划验证入口
+141: | FR-008 | query / DB / security | query executor production-path wired / readonly datasource adapter boundary / local-or-docker-mysql；`REGISTRY-CONTRACT-VALIDATION-001`、`DATA-SCOPE-TEMPLATE-ENFORCE-001` 与 `DATASOURCE-ADAPTER-BOUNDARY-001` 一起补齐 registry `datasourceCode`、`dataScopeTemplate`、模板、字段映射、游标和快照冲突证据，以及非法模板 / 字段映射不合法 / 与任务快照冲突 / datasource unavailable 的产品定义错误码收口 | `src/query-executor/`、`src/datasource-adapters/`、`tests/query/`、`tests/worker/`、`docs/testing/verify-matrix.md`、`npm run test:query`、`npm run test:worker`；外部业务数据源以受控测试数据模拟，不声明 live datasource evidence |
+142: | FR-009 | API / query / security | API auth context consumed with trusted ingress HMAC proof / query executor production-path wired with readonly datasource adapter + `operatorId/roleCodes/orgScope/tenantId` data scope + file-service production-path wired with signed-url download metadata guard | `src/audit-log/auth-context.ts`、`src/task-api/service.ts`、`src/query-executor/index.ts`、`src/datasource-adapters/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/api/export-http-api.test.mjs`、`tests/query/`、`tests/worker/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`npm run test:api`、`npm run test:contract`、`npm run test:query`、`npm run test:worker`、`npm run test:file`、`npm run test:sample`；`npm run test:api` 覆盖缺少/篡改可信证明、空角色、跨租户历史/详情/下载/配置访问拒绝和失败审计；`npm run test:query` / `npm run test:worker` 覆盖 datasource adapter 内继续施加数据范围；`npm run test:file` 覆盖 env-backed adapter 生成并可访问的 download URL；本机/Docker MySQL 与测试数据由 release gate 提供，adapter 级对象存储证据不得写成 live release 已验证 |
+143: | FR-010 | audit / API / worker | API and worker audit writes wired / local-or-docker-mysql | `src/audit-log/service.ts`、`src/repositories/export-audit.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+144: | FR-011 | file / cleanup job | cleanup job production-path wired with expired scan / metadata invalidation / object delete / retry audit | `src/cleanup-job/index.ts`、`src/jobs/cleanup-job.ts`、`src/repositories/export-file.repository.ts`、`tests/file/export-file-service.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`docs/testing/verify-matrix.md`；对象存储 adapter 证据不得写成 live release 已验证；环境变量缺失或 MySQL 不可用时记录 `BLOCKED - 需要人工介入` |
+145: | FR-012 | API / worker / state-machine | cancel/retry HTTP boundary and worker batch-cancel boundary wired / local-or-docker-mysql；`TASK-CANCEL-ATOMICITY-001` 补齐 cancel 状态更新基于原 `status` 与 `attemptNo` 的 CAS 证据，旧 cancel 不覆盖 worker 已推进状态或 FAILED retry 后的新 attempt | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`npm run test:api`、`npm run test:worker` |
+146: | FR-013 | API / DB / worker | create idempotency, config snapshot, worker lease takeover and attemptNo retry boundary wired / local-or-docker-mysql | `src/task-api/service.ts`、`src/repositories/export-task.repository.ts`、`src/repositories/export-lease.repository.ts`、`src/scheduler/worker.ts`、`tests/api/export-http-api.test.mjs`、`tests/worker/scheduler-worker.test.mjs`、`tests/db/export-repositories.test.mjs` |
+147: | FR-014 | sample / pressure / end-to-end | purchase-order sample contract executable / query executor production-path wired / file-service production-path wired with temp object / checksum / publish / download metadata guard | `src/sample-purchase-order/index.ts`、`src/query-executor/index.ts`、`src/file-service/index.ts`、`src/repositories/export-file.repository.ts`、`tests/query/`、`tests/file/export-file-service.test.mjs`、`tests/sample/purchase-order-sample.test.mjs`、`tests/api/export-http-api.test.mjs`、`npm run test:sample`、`npm run test:file`；`npm run test:file` 额外覆盖 env-backed HTTP adapter，`npm run test:sample` 覆盖公开 create/download service、worker、下载审计、最终文件脱敏断言和默认批次 10 万行；本机/Docker MySQL 与测试数据由 release gate 提供，对象存储 adapter 证据不得冒充 live release evidence |
+
+ succeeded in 412ms:
+981: serialTest("stale executing cancel cannot overwrite a retried attempt", async (t) => {
+982:   const db = await createTestDatabase(t);
+983:   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+984:   const taskId = `exp-worker-${runId}-stale-cancel`;
+985:   await seedTask(db, { taskId, taskCode, subsystemCode });
+986:   const repository = createExportTaskRepository(db);
+987: 
+988:   const executingWorker = createSchedulerWorker({
+989:     db,
+990:     workerId: "worker-a",
+991:     leaseDurationSeconds: 300,
+992:     maxTasksPerPoll: 1,
+993:     batchProcessor: async () => batchResult("order-stale-cancel", 10)
+994:   });
+995: 
+996:   await executingWorker.pollAndProcessOnce();
+997:   const staleCancelSnapshot = await repository.findTaskById(taskId);
+998: 
+999:   await db
+1000:     .updateTable("export_tasks")
+1001:     .set({
+1002:       status: "FAILED",
+1003:       lock_owner: null,
+1004:       lock_expire_at: null,
+1005:       lease_renewed_at: null,
+1006:       updated_at: await getDatabaseTime(db)
+1007:     })
+1008:     .where("task_id", "=", taskId)
+1009:     .where("attempt_no", "=", staleCancelSnapshot.attemptNo)
+1010:     .execute();
+1011: 
+1012:   const retried = await repository.retryFailedTask({
+1013:     taskId,
+1014:     now: await getDatabaseTime(db)
+1015:   });
+1016:   assert.equal(retried.status, "PENDING");
+1017:   assert.equal(retried.attemptNo, staleCancelSnapshot.attemptNo + 1);
+1018: 
+1019:   const staleCancelResult = await repository.updateTaskStatus({
+1020:     taskId,
+1021:     status: "CANCELED",
+1022:     expectedStatus: staleCancelSnapshot.status,
+1023:     expectedAttemptNo: staleCancelSnapshot.attemptNo,
+1024:     now: await getDatabaseTime(db)
+1025:   });
+1026:   const taskAfterStaleCancel = await repository.findTaskById(taskId);
+1027: 
+1028:   assert.equal(staleCancelResult, undefined);
+1029:   assert.equal(taskAfterStaleCancel.status, "PENDING");
+1030:   assert.equal(taskAfterStaleCancel.attemptNo, staleCancelSnapshot.attemptNo + 1);
+1031: });
+1032: 
+1033: serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
+
+ succeeded in 389ms:
+96: - 单任务默认最大导出量 `100000` 行。
+97: - 文件默认保留 `15` 天，任务历史默认保留 `30` 天。
+98: - PENDING 可取消；FAILED 可重试；COMPLETED、CANCELED、EXPIRED 不允许直接重试为同一任务。
+99: - FAILED 任务重试必须保留原 `taskId` 的审计链路并递增执行尝试次数；同一任务同一时刻只能有一个活跃执行尝试。
+100: - PENDING/EXECUTING 任务收到重试请求时返回非法状态错误，且不得重复派发执行。
+101: - EXECUTING 取消采用批次边界收口：平台记录取消意图，worker 在批次边界停止并最终置为 `CANCELED`。
+102: - 平台只允许访问注册配置声明的只读数据源或数据中台数据集。
+116: - 执行尝试输出必须按 `attemptNo` 隔离存储，新的成功尝试不得覆盖历史失败尝试的审计证据。
+117: - 锁接管必须从已持久化的批次检查点继续，批次检查点至少包含 `lastCursor`、`processedCount`、`filePartNo` 和当前 `attemptNo`。
+118: - Worker 只能在批次边界响应执行中取消；已写入文件片段必须进入当前 `attemptNo` 的失败或取消处置链路。
+
+codex
+## Stage 1 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | - | - |
+
+## Verdict
+
+Verdict: PASS
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| 无 | - | - | - | - |
+tokens used
+108,757

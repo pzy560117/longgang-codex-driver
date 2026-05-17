@@ -1,0 +1,27 @@
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S2-F001 | HIGH | test_gap | test | `tests/api/export-http-api.test.mjs:1377-1390` 和 `tests/worker/scheduler-worker.test.mjs:1019-1025` 只直接调用 `repository.updateTaskStatus({ expectedStatus, expectedAttemptNo })` 验证 CAS；未通过 `/cancel` 或 `cancelExportTask` 证明 `src/task-api/service.ts:1367-1372` 实际传入原 `status` 和 `attemptNo`。如果 service 以后漏掉这两个参数，当前新增测试仍可能通过。 | 补一个确定性的 HTTP/API 级并发回归：用未提交事务先把 PENDING 行更新为 EXECUTING 并持有锁，让 `/cancel` 读取旧 PENDING 后阻塞在 UPDATE，事务提交后断言 API 不会覆盖 EXECUTING，只记录 batch-boundary `CANCEL_REQUEST`。该测试应能在移除 service CAS 参数时失败。 | `npm run typecheck; npm run test:api; npm run test:worker; git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md` |
+
+## Verification
+
+- 已检查命令:
+  - `git status --short`
+  - `git diff --stat`
+  - `rg -n "cancel|attemptNo|EXECUT|CANCEL" ...`
+  - `git diff --check -- task.json src/task-api src/repositories src/scheduler tests/api tests/worker docs/testing/verify-matrix.md`
+- 结果摘要:
+  - 提供的完整验证日志退出码为 0：typecheck、Docker MySQL 测试环境、`test:api`、`test:worker` 均通过。
+  - 我复核实现后未发现明显类型逃逸、硬编码密钥、调试输出或无关代码改动。
+  - 阻塞点是关键回归证据不足：现有测试覆盖了 repository CAS 能力，但没有覆盖 API/service 层真实取消路径是否使用 CAS。
+
+## Verdict
+
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+| TASK-CANCEL-ATOMICITY-001-S2-F001 | test | backend-worker | 1 | yes |
