@@ -80,6 +80,13 @@ const expectedExceptionIds = Array.from({ length: 27 }, (_item, index) =>
   `AC-E${String(index + 1).padStart(3, "0")}`
 );
 
+const reopenedFindingIds = [
+  "HISTORY-PAGINATION-TOTAL-001",
+  "TASK-CANCEL-ATOMICITY-001",
+  "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+  "PUBLIC-ERROR-REDACTION-001"
+];
+
 const expectedTruthSources = [
   "docs/product/prd-lite.md",
   "docs/product/page-inventory.md",
@@ -118,6 +125,20 @@ function assertCoverageGroup(entries, expectedIds, label) {
   }
 }
 
+function assertMarkdownCoverageRows(markdown, heading, expectedIds) {
+  const section = sectionBetween(markdown, heading, "\n## ");
+  const rows = [...section.matchAll(/^\| (FR-\d{3}|AC-E\d{3}|AC-\d{3}) \| ([^|]+) \|/gm)].map((match) => ({
+    id: match[1],
+    status: match[2].trim()
+  }));
+
+  assert.equal(rows.length, expectedIds.length, `${heading} must cover every expected id exactly once`);
+  assert.deepEqual(rows.map((row) => row.id), expectedIds, `${heading} ids must stay in requirement order`);
+  for (const row of rows) {
+    assert.ok(allowedCoverageStatuses.has(row.status), `${row.id} uses unsupported coverage status ${row.status}`);
+  }
+}
+
 test("requirements review Markdown and JSON artifacts stay consistent", async () => {
   const { markdown, report } = await readReviewArtifacts();
 
@@ -133,6 +154,16 @@ test("requirements review Markdown and JSON artifacts stay consistent", async ()
   const markdownFindingIds = extractMarkdownFindingIds(markdown);
   const jsonFindingIds = report.findings.map((finding) => finding.id).sort();
   assert.deepEqual(jsonFindingIds, markdownFindingIds);
+  for (const reopenedId of reopenedFindingIds) {
+    assert.ok(
+      !markdownFindingIds.includes(reopenedId),
+      `${reopenedId} must not reappear in open findings`
+    );
+    assert.ok(
+      report.closedFindings.some((finding) => finding.id === reopenedId),
+      `${reopenedId} must be recorded in closedFindings`
+    );
+  }
 
   assertCoverageGroup(report.coverage.requirements, expectedRequirementIds, "FR");
   assertCoverageGroup(report.coverage.acceptance, expectedAcceptanceIds, "AC");
@@ -169,6 +200,15 @@ test("requirements review Markdown and JSON artifacts stay consistent", async ()
     /promote .* to live evidence as verified|claim .* live evidence/u,
     "Evidence boundary notes must not promote docker/mock evidence to verified live evidence"
   );
+  assert.doesNotMatch(
+    markdown,
+    /promote .* to live evidence as verified|claim .* live evidence/u,
+    "Markdown must not promote docker/mock evidence to verified live evidence"
+  );
+
+  assertMarkdownCoverageRows(markdown, "## FR Coverage Matrix", expectedRequirementIds);
+  assertMarkdownCoverageRows(markdown, "## AC Coverage Matrix", expectedAcceptanceIds);
+  assertMarkdownCoverageRows(markdown, "## AC-E Coverage Matrix", expectedExceptionIds);
 
   const markdownCoverage = new Map([
     ...extractCoverage(markdown, "## FR Coverage Matrix"),
@@ -182,6 +222,12 @@ test("requirements review Markdown and JSON artifacts stay consistent", async ()
     ...remainingRisksSection.matchAll(/`([A-Z0-9-]+-\d{3})`/g)
   ].map((match) => match[1]).sort();
   assert.deepEqual(remainingRiskIds, jsonFindingIds);
+  for (const reopenedId of reopenedFindingIds) {
+    assert.ok(
+      !remainingRiskIds.includes(reopenedId),
+      `${reopenedId} must not reappear in Remaining Risks`
+    );
+  }
 
   const jsonRemainingRiskText = report.remainingRisks.join("\n");
   for (const findingId of jsonFindingIds) {

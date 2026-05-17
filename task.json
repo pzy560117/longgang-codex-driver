@@ -2831,7 +2831,7 @@
                                            "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
                                            "PUBLIC-ERROR-REDACTION-001"
                                        ],
-                      "passes":  false,
+                      "passes":  true,
                       "architecture_constraints":  [
                                                        "review 必须以 docs/product/* 和 docs/architecture/constraints.md 为 truth source",
                                                        "review 只输出缺口和后续任务建议，不把未修复缺口伪装成完成",

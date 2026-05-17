@@ -1,0 +1,179 @@
+﻿# Stage 2 Review Prompt 模板
+
+你是 Stage 2 Reviewer。Stage 1 已通过。现在只审查**代码质量、测试、风险和可维护性**，不要重新做需求裁判。
+
+## 当前任务
+
+- Task ID: `<task-id>`
+- 描述: `<task-description>`
+- 测试命令: `<test-command>`
+
+## 必查项
+
+1. 类型是否正确，是否有明显不安全或逃逸类型。
+2. 命名、模块边界、职责分离是否清晰。
+3. 是否有无关文件、临时代码、调试输出、硬编码密钥。
+4. 改动代码是否有对应测试、契约验证或证据路径；如果没有，是否给出可信豁免。
+5. 测试是否覆盖关键行为、异常流、权限路径和历史回归路径。
+6. 是否存在“只 mock 不验证结果”“只测 happy path”“跳过失败测试”或其它假测试迹象。
+7. 是否存在明显性能、可访问性或回归风险。
+8. 验证结果是否可信，是否缺少 affected tests、契约检查或 fresh evidence。
+9. 如果任务声明了 `architecture_constraints` 或 `forbidden_implementations`，测试是否覆盖对应架构约束；例如生产入口、真实 repository、handler、worker、migration 或禁止使用测试替身。
+10. 如果本次修复了历史坑或形成了可复用经验，是否在最终报告中给出 `knowledge_outputs` 建议，供 `ARCHIVE-*` 任务归档。
+11. 如果代码或文档决策依赖 `docs/knowledge/`，是否给出 `knowledge_references`，避免知识只存在于会话上下文。
+
+## Finding 规则
+
+每个问题都必须带 `finding_id`，格式建议为 `<task-id>-S2-F001`。每个 finding 必须包含：
+
+- severity: `HIGH` / `MEDIUM` / `LOW`
+- category: `type_safety` / `test_gap` / `architecture_test_gap` / `security` / `performance` / `maintainability` / `artifact_gap` / `environment` / `knowledge_gap`
+- owner: `frontend` / `backend` / `test` / `security` / `docs` / `controller`
+- evidence: 文件路径、测试输出、日志路径或命令结果
+- recommended_fix: 下一轮 repair worker 可直接执行的修复建议
+- retest_command: 推荐复验命令
+
+## 输出格式
+
+```markdown
+## Stage 2 Findings
+
+| Finding ID | Severity | Category | Owner | Evidence | Recommended Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+
+## Verification
+
+- 已检查命令:
+- 结果摘要:
+
+## Verdict
+
+- PASS
+- FAIL
+
+## Repair Queue
+
+| Finding ID | Owner | Suggested Worker Role | Retry Budget | Blocking |
+| --- | --- | --- | --- | --- |
+```
+
+规则:
+
+- `HIGH` 问题存在时必须 `FAIL`。
+- 如果测试覆盖明显不足，也可以直接 `FAIL`。
+- 允许提出 `LOW` 级建议，但不要把风格偏好伪装成阻塞问题。
+- 如果 `Verdict: FAIL`，`Repair Queue` 不能为空。
+
+
+## Driver Context
+
+- Task ID: REQUIREMENTS-COMPLETE-REVIEW-001
+- 描述: 基于产品需求真相源完整 review 当前实现、契约、测试和证据边界
+- Requirement IDs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- FR-014
+- 测试命令: npm run test:mock-local; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/reviews docs/testing tests/mock-local plans/features/requirements-complete-review.plan.md
+- 测试退出码: 0
+
+任务相关文件:
+- docs/product/prd-lite.md
+- docs/product/page-inventory.md
+- docs/product/difficulty-research.md
+- docs/product/acceptance-criteria.md
+- docs/product/requirement-interface-matrix.md
+- docs/product/state-matrix.yaml
+- docs/architecture/constraints.md
+- contracts/openapi.yaml
+- docs/testing/ACCEPTANCE_CRITERIA.md
+- docs/testing/ACCEPTANCE_EXAMPLES.md
+- docs/testing/TRACEABILITY_MATRIX.md
+- docs/testing/TEST_DATA_MATRIX.md
+- docs/testing/test-matrix.md
+- docs/testing/verify-matrix.md
+- task.json
+
+Contract 真相源:
+- contracts\openapi.yaml
+
+Testing 真相源:
+- docs\testing\ACCEPTANCE_CRITERIA.md
+- docs\testing\ACCEPTANCE_EXAMPLES.md
+- docs\testing\TRACEABILITY_MATRIX.md
+- docs\testing\RISK_BASED_TEST_PLAN.md
+- docs\testing\TEST_DATA_MATRIX.md
+- docs\testing\EVIDENCE_PROTOCOL.md
+- docs\testing\REGRESSION_PLAN.md
+- docs\testing\test-matrix.md
+- docs\testing\test-data-plan.md
+- docs\testing\verify-matrix.md
+- docs\testing\failure-triage.md
+
+测试输出摘要:
+
+> export-platform-service@0.1.0 test:mock-local
+> node --import tsx --test --test-concurrency=1 tests/mock-local/*.test.mjs
+
+✔ docker test data task is queued after release with executable guardrails (0.8491ms)
+✔ docker local test command wires environment setup, seed and validation (0.496ms)
+✔ verify matrix records docker test data evidence without promoting live validation (0.156ms)
+✔ local demo entrypoint provisions local dependencies and starts the HTTP service (0.8222ms)
+✔ local demo setup runs migrations and seeds purchase-order demo data (0.2302ms)
+✔ local demo setup rejects local tunnels to non-demo databases before connecting (510.7916ms)
+✔ local demo does not silently seed an inherited external database URL (0.5719ms)
+✔ local demo runbook is explicit about local-only dependencies and API examples (0.4274ms)
+✔ local release rehearsal is declared as mock/local evidence without releasing RELEASE-001 (0.9242ms)
+✔ local release rehearsal script documents local-only preflight and command coverage (0.3299ms)
+✔ local release rehearsal does not auto-enable live object storage smoke writes (0.225ms)
+✔ release verify self-provisions docker MySQL and local object storage smoke (0.0995ms)
+✔ local release rehearsal can load untracked env files for local MySQL credentials (0.2097ms)
+✔ local release rehearsal evidence is recorded separately from release evidence (0.0945ms)
+✔ local release rehearsal result records API DB worker query file and sample coverage without promoting release (0.1277ms)
+✔ mock-first has a dedicated local/dev test command that cannot be used as release evidence (0.5643ms)
+✔ mock-first plan maps every FR to local/dev evidence without upgrading release status (1.0531ms)
+✔ mock integration acceptance archives executed local/dev evidence without release promotion (0.554ms)
+✔ release task uses the local docker mock release gate (0.2054ms)
+▶ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only
+  ✔ registry and create task flow stay in local/dev evidence, not release evidence (1.2828ms)
+  ✔ progress, detail and data scope stay visible only to the right actor (0.3724ms)
+  ✔ worker lease, checkpoint, retry and cancel boundaries stay local (1.2824ms)
+  ✔ query chunking, file publish/download and cleanup invalidation stay in local/dev evidence (0.5454ms)
+  ✔ purchase order sample boundaries and blocked release env remain local/dev evidence (0.3886ms)
+✔ mock-local integration flow keeps FR-001 to FR-014 in local/dev evidence only (5.1342ms)
+✔ local/dev object storage smoke exercises env-backed adapter without live OSS evidence (43.0925ms)
+✔ local/dev object storage smoke keeps live object storage preflight blocked without env (0.4241ms)
+✔ requirements review Markdown and JSON artifacts stay consistent (5.1932ms)
+✔ test practice matrix task owns the drift guard (0.8164ms)
+✔ each critical test script has a task owner and documented evidence boundary (0.9606ms)
+✔ release gate keeps docker mock evidence separate from external live validation (0.128ms)
+✔ release gate pins the current OpenAPI lint command (0.0676ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2608.7508
+warning: in the working copy of 'docs/reviews/requirements-complete-review.findings.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/reviews/requirements-complete-review.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/mock-local/review-artifact-consistency.test.mjs', LF will be replaced by CRLF the next time Git touches it
+
+审查要求:
+- 只讨论代码质量、测试覆盖、回归风险、安全风险和可维护性。
+- 不要回到 Stage 1 的需求/设计裁判。
+
+输出要求:
+- 必须包含 Verdict: PASS 或 Verdict: FAIL。
+- 只要存在阻塞性质量问题或关键测试缺口，就输出 Verdict: FAIL。

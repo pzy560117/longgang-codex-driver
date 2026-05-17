@@ -39,45 +39,6 @@
       "suggestedNextTaskId": "CREATE-TASK-LATENCY-EVIDENCE-001"
     },
     {
-      "id": "HISTORY-PAGINATION-TOTAL-001",
-      "severity": "P1",
-      "title": "task history total reflects page size instead of filtered total",
-      "requirementIds": ["FR-004", "AC-004"],
-      "evidence": [
-        "src/task-api/service.ts",
-        "src/repositories/export-task.repository.ts",
-        "tests/api/export-http-api.test.mjs"
-      ],
-      "risk": "Clients cannot reliably calculate total pages because the API total is based on the current page item count.",
-      "suggestedNextTaskId": "HISTORY-PAGINATION-TOTAL-001"
-    },
-    {
-      "id": "TASK-CANCEL-ATOMICITY-001",
-      "severity": "P1",
-      "title": "cancel status update lacks state and attempt compare-and-set",
-      "requirementIds": ["FR-012", "AC-012", "AC-E015"],
-      "evidence": [
-        "src/task-api/service.ts",
-        "src/repositories/export-task.repository.ts",
-        "tests/api/export-http-api.test.mjs"
-      ],
-      "risk": "A worker transition between read and update can be overwritten by cancel, corrupting task state and audit consistency.",
-      "suggestedNextTaskId": "TASK-CANCEL-ATOMICITY-001"
-    },
-    {
-      "id": "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
-      "severity": "P1",
-      "title": "scheduler default query retry count drifts from product default",
-      "requirementIds": ["FR-006", "FR-010", "AC-020", "AC-E004", "AC-E020"],
-      "evidence": [
-        "docs/product/state-matrix.yaml",
-        "src/scheduler/worker.ts",
-        "tests/worker/scheduler-worker.test.mjs"
-      ],
-      "risk": "The product default is three query batch retries, while the scheduler default is two; transient query failures may enter FAILED earlier than expected.",
-      "suggestedNextTaskId": "DEFAULT-QUERY-RETRY-ALIGNMENT-001"
-    },
-    {
       "id": "SAMPLE-CONTRACT-GENERIC-VALIDATION-001",
       "severity": "P1",
       "title": "purchase-order sample validation is coupled into the generic query executor",
@@ -103,20 +64,6 @@
       ],
       "risk": "Registry-time validation checks query template structure but leaves SELECT, unsafe keyword and placeholder semantic checks to execution-time validation.",
       "suggestedNextTaskId": "QUERY-TEMPLATE-HARDENING-001"
-    },
-    {
-      "id": "PUBLIC-ERROR-REDACTION-001",
-      "severity": "P1",
-      "title": "public error responses can still leak underlying messages",
-      "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
-      "evidence": [
-        "src/routes/respond.ts",
-        "src/query-executor/index.ts",
-        "src/task-api/service.ts",
-        "src/file-service/index.ts"
-      ],
-      "risk": "Public responses and task failure details may expose internal datasource, SQL, object-storage or implementation messages.",
-      "suggestedNextTaskId": "PUBLIC-ERROR-REDACTION-001"
     }
   ],
   "closedFindings": [
@@ -239,6 +186,51 @@
         "tests/worker/scheduler-worker.test.mjs",
         "docs/testing/verify-matrix.md"
       ]
+    },
+    {
+      "id": "HISTORY-PAGINATION-TOTAL-001",
+      "status": "closed",
+      "requirementIds": ["FR-004", "AC-004"],
+      "freshEvidence": [
+        "src/task-api/service.ts",
+        "src/repositories/export-task.repository.ts",
+        "tests/api/export-http-api.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "TASK-CANCEL-ATOMICITY-001",
+      "status": "closed",
+      "requirementIds": ["FR-012", "AC-012", "AC-E015"],
+      "freshEvidence": [
+        "src/task-api/service.ts",
+        "src/repositories/export-task.repository.ts",
+        "tests/api/export-http-api.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "DEFAULT-QUERY-RETRY-ALIGNMENT-001",
+      "status": "closed",
+      "requirementIds": ["FR-006", "FR-010", "AC-020", "AC-E004", "AC-E020"],
+      "freshEvidence": [
+        "docs/product/state-matrix.yaml",
+        "src/scheduler/worker.ts",
+        "tests/worker/scheduler-worker.test.mjs",
+        "docs/testing/verify-matrix.md"
+      ]
+    },
+    {
+      "id": "PUBLIC-ERROR-REDACTION-001",
+      "status": "closed",
+      "requirementIds": ["FR-010", "AC-010", "AC-E012", "AC-E013"],
+      "freshEvidence": [
+        "src/routes/respond.ts",
+        "src/query-executor/index.ts",
+        "src/task-api/service.ts",
+        "src/file-service/index.ts",
+        "docs/testing/verify-matrix.md"
+      ]
     }
   ],
   "coverage": {
@@ -246,15 +238,15 @@
       { "id": "FR-001", "status": "partially_covered" },
       { "id": "FR-002", "status": "covered" },
       { "id": "FR-003", "status": "covered" },
-      { "id": "FR-004", "status": "partially_covered" },
+      { "id": "FR-004", "status": "covered" },
       { "id": "FR-005", "status": "covered" },
       { "id": "FR-006", "status": "covered" },
       { "id": "FR-007", "status": "covered" },
       { "id": "FR-008", "status": "partially_covered" },
       { "id": "FR-009", "status": "covered" },
-      { "id": "FR-010", "status": "partially_covered" },
+      { "id": "FR-010", "status": "covered" },
       { "id": "FR-011", "status": "covered" },
-      { "id": "FR-012", "status": "partially_covered" },
+      { "id": "FR-012", "status": "covered" },
       { "id": "FR-013", "status": "covered" },
       { "id": "FR-014", "status": "partially_covered" }
     ],
@@ -262,15 +254,15 @@
       { "id": "AC-001", "status": "partially_covered" },
       { "id": "AC-002", "status": "covered" },
       { "id": "AC-003", "status": "covered" },
-      { "id": "AC-004", "status": "partially_covered" },
+      { "id": "AC-004", "status": "covered" },
       { "id": "AC-005", "status": "covered" },
       { "id": "AC-006", "status": "covered" },
       { "id": "AC-007", "status": "covered" },
       { "id": "AC-008", "status": "partially_covered" },
       { "id": "AC-009", "status": "covered" },
-      { "id": "AC-010", "status": "partially_covered" },
+      { "id": "AC-010", "status": "covered" },
       { "id": "AC-011", "status": "covered" },
-      { "id": "AC-012", "status": "partially_covered" },
+      { "id": "AC-012", "status": "covered" },
       { "id": "AC-013", "status": "covered" },
       { "id": "AC-014", "status": "covered" },
       { "id": "AC-015", "status": "covered" },
@@ -278,14 +270,14 @@
       { "id": "AC-017", "status": "partially_covered" },
       { "id": "AC-018", "status": "covered" },
       { "id": "AC-019", "status": "covered" },
-      { "id": "AC-020", "status": "partially_covered" },
+      { "id": "AC-020", "status": "covered" },
       { "id": "AC-021", "status": "covered" }
     ],
     "exceptions": [
       { "id": "AC-E001", "status": "covered" },
       { "id": "AC-E002", "status": "covered" },
       { "id": "AC-E003", "status": "covered" },
-      { "id": "AC-E004", "status": "partially_covered" },
+      { "id": "AC-E004", "status": "covered" },
       { "id": "AC-E005", "status": "covered" },
       { "id": "AC-E006", "status": "covered" },
       { "id": "AC-E007", "status": "covered" },
@@ -293,15 +285,15 @@
       { "id": "AC-E009", "status": "covered" },
       { "id": "AC-E010", "status": "covered" },
       { "id": "AC-E011", "status": "partially_covered" },
-      { "id": "AC-E012", "status": "partially_covered" },
-      { "id": "AC-E013", "status": "partially_covered" },
+      { "id": "AC-E012", "status": "covered" },
+      { "id": "AC-E013", "status": "covered" },
       { "id": "AC-E014", "status": "covered" },
-      { "id": "AC-E015", "status": "partially_covered" },
+      { "id": "AC-E015", "status": "covered" },
       { "id": "AC-E016", "status": "covered" },
       { "id": "AC-E017", "status": "covered" },
       { "id": "AC-E018", "status": "covered" },
       { "id": "AC-E019", "status": "covered" },
-      { "id": "AC-E020", "status": "partially_covered" },
+      { "id": "AC-E020", "status": "covered" },
       { "id": "AC-E021", "status": "covered" },
       { "id": "AC-E022", "status": "covered" },
       { "id": "AC-E023", "status": "covered" },
@@ -321,7 +313,7 @@
     ],
     "notes": [
       "Current review does not promote local/Docker/mock evidence to live evidence.",
-      "Previously open P0 repair tasks are closed by fresh evidence, while new P1 gaps keep the review verdict at PASS_WITH_GAPS."
+      "Previously repaired P1 findings are now closed by fresh evidence, while the remaining P1 gaps keep the review verdict at PASS_WITH_GAPS."
     ]
   },
   "architectureConstraints": [
@@ -383,7 +375,7 @@
     "reason": "not a UI task"
   },
   "remainingRisks": [
-    "P1 gaps: CREATE-TASK-LATENCY-EVIDENCE-001, HISTORY-PAGINATION-TOTAL-001, TASK-CANCEL-ATOMICITY-001, DEFAULT-QUERY-RETRY-ALIGNMENT-001, SAMPLE-CONTRACT-GENERIC-VALIDATION-001, QUERY-TEMPLATE-HARDENING-001, PUBLIC-ERROR-REDACTION-001.",
+    "P1 gaps: CREATE-TASK-LATENCY-EVIDENCE-001, SAMPLE-CONTRACT-GENERIC-VALIDATION-001, QUERY-TEMPLATE-HARDENING-001.",
     "Current task does not repair business implementation."
   ]
 }
