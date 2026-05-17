@@ -4,7 +4,7 @@ import { once } from "node:events";
 import http from "node:http";
 import test from "node:test";
 import mysql from "mysql2";
-import { Kysely, MysqlDialect } from "kysely";
+import { Kysely, MysqlDialect, sql } from "kysely";
 import { createExportPlatformServer } from "../../src/server.ts";
 import { runMigrations } from "../../src/db/migrator.ts";
 import {
@@ -1348,6 +1348,111 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const canceledTask = await taskRepository.findTaskById(taskId);
   assert.equal(canceledTask?.status, "CANCELED");
+
+  const staleCancelTaskId = `exp-stale-cancel-${runId}`;
+  await taskRepository.createPendingTask({
+    taskId: staleCancelTaskId,
+    taskCode,
+    subsystemCode: "purchase",
+    tenantId: "tenant-001",
+    createdBy: "u001",
+    fileFormat: "XLSX",
+    clientRequestId: null,
+    idempotencyScope: null,
+    requestDigest: `sha256:${staleCancelTaskId}`,
+    configSnapshotDigest: "sha256:config-v1",
+    requestPayload: JSON.stringify({
+      fileFormat: "XLSX",
+      queryParams: createTaskPayload(taskCode).queryParams
+    }),
+    authContextPayload: JSON.stringify({
+      operatorId: "u001",
+      tenantId: "tenant-001",
+      roleCodes: ["EXPORT_USER"],
+      orgScope: "ORG-001",
+      requestId: `req-stale-cancel-create-${runId}`
+    }),
+    now: await getDatabaseTime(db)
+  });
+  const staleCancelSnapshot = await taskRepository.findTaskById(staleCancelTaskId);
+  await taskRepository.updateTaskStatus({
+    taskId: staleCancelTaskId,
+    status: "EXECUTING",
+    now: await getDatabaseTime(db)
+  });
+
+  const staleCancelResult = await taskRepository.updateTaskStatus({
+    taskId: staleCancelTaskId,
+    status: "CANCELED",
+    expectedStatus: staleCancelSnapshot.status,
+    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+    now: await getDatabaseTime(db)
+  });
+  const notOverwrittenTask = await taskRepository.findTaskById(staleCancelTaskId);
+
+  assert.equal(staleCancelResult, undefined);
+  assert.equal(notOverwrittenTask.status, "EXECUTING");
+  assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+
+  const executingCancelTaskId = `exp-executing-cancel-${runId}`;
+  await taskRepository.createPendingTask({
+    taskId: executingCancelTaskId,
+    taskCode,
+    subsystemCode: "purchase",
+    tenantId: "tenant-001",
+    createdBy: "u001",
+    fileFormat: "XLSX",
+    clientRequestId: null,
+    idempotencyScope: null,
+    requestDigest: `sha256:${executingCancelTaskId}`,
+    configSnapshotDigest: "sha256:config-v1",
+    requestPayload: JSON.stringify({
+      fileFormat: "XLSX",
+      queryParams: createTaskPayload(taskCode).queryParams
+    }),
+    authContextPayload: JSON.stringify({
+      operatorId: "u001",
+      tenantId: "tenant-001",
+      roleCodes: ["EXPORT_USER"],
+      orgScope: "ORG-001",
+      requestId: `req-executing-cancel-create-${runId}`
+    }),
+    now: await getDatabaseTime(db)
+  });
+  await db
+    .updateTable("export_tasks")
+    .set({
+      status: "EXECUTING",
+      lock_owner: "worker-api-cancel",
+      lock_expire_at: sql`DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 300 SECOND)`,
+      lease_renewed_at: sql`CURRENT_TIMESTAMP(3)`
+    })
+    .where("task_id", "=", executingCancelTaskId)
+    .execute();
+
+  const executingCancelResponse = await app.inject({
+    method: "POST",
+    url: `/api/export/tasks/${executingCancelTaskId}/cancel`,
+    headers: createHeaders(`req-executing-cancel-${runId}`)
+  });
+  const executingCancelTask = await taskRepository.findTaskById(executingCancelTaskId);
+  const executingCancelAudits = await auditRepository.listAuditLogsForTask(executingCancelTaskId);
+
+  assert.equal(executingCancelResponse.statusCode, 200);
+  assert.equal(executingCancelResponse.json().data.status, "EXECUTING");
+  assert.equal(executingCancelTask.status, "EXECUTING");
+  assert.ok(
+    executingCancelAudits.some(
+      (audit) =>
+        audit.action === "CANCEL_REQUEST" &&
+        audit.result === "ACCEPTED" &&
+        audit.attemptNo === executingCancelTask.attemptNo
+    )
+  );
+  assert.equal(
+    executingCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+    false
+  );
 
   const notReadyDownloadResponse = await app.inject({
     method: "GET",

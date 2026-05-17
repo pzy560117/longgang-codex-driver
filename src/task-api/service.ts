@@ -1362,17 +1362,39 @@ export async function cancelExportTask(auth: AuthContext, taskId: string) {
       });
     }
 
+    let cancelAtBatchBoundary = task.status === "EXECUTING";
     const status = task.status === "PENDING" ? "CANCELED" : "EXECUTING";
-    const updated = await repository.updateTaskStatus({ taskId, status, now });
+    let updated = await repository.updateTaskStatus({
+      taskId,
+      status,
+      expectedStatus: task.status,
+      expectedAttemptNo: task.attemptNo,
+      now
+    });
     if (!updated) {
-      return rejectWithAudit({
-        db,
-        auth,
-        error: new ApiError(404, "TASK_NOT_FOUND", "task not found"),
-        action: "CANCEL_REQUEST",
-        now,
-        taskId
-      });
+      const latest = await repository.findTaskById(taskId);
+      if (
+        task.status === "PENDING" &&
+        latest?.status === "EXECUTING" &&
+        latest.attemptNo === task.attemptNo
+      ) {
+        updated = latest;
+        cancelAtBatchBoundary = true;
+      } else {
+        return rejectWithAudit({
+          db,
+          auth,
+          error: new ApiError(400, "INVALID_TASK_STATE", "current task status does not allow this operation", {
+            status: latest?.status ?? task.status
+          }),
+          action: "CANCEL_REQUEST",
+          now,
+          taskId,
+          attemptNo: latest?.attemptNo ?? task.attemptNo,
+          taskCode: latest?.taskCode ?? task.taskCode,
+          subsystemCode: latest?.subsystemCode ?? task.subsystemCode
+        });
+      }
     }
 
     await appendAudit({
@@ -1382,8 +1404,8 @@ export async function cancelExportTask(auth: AuthContext, taskId: string) {
       attemptNo: updated.attemptNo,
       taskCode: updated.taskCode,
       subsystemCode: updated.subsystemCode,
-      action: task.status === "PENDING" ? "CANCEL_DONE" : "CANCEL_REQUEST",
-      result: task.status === "PENDING" ? "SUCCESS" : "ACCEPTED",
+      action: cancelAtBatchBoundary ? "CANCEL_REQUEST" : "CANCEL_DONE",
+      result: cancelAtBatchBoundary ? "ACCEPTED" : "SUCCESS",
       now
     });
 

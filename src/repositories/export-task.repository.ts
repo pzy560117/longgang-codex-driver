@@ -223,15 +223,28 @@ export function createExportTaskRepository(db: Kysely<ExportPlatformDatabase>) {
       taskId: string;
       status: string;
       now: Date;
+      expectedStatus?: string;
+      expectedAttemptNo?: number;
     }): Promise<ExportTaskRecord | undefined> {
-      await db
+      let update = db
         .updateTable("export_tasks")
         .set({
           status: input.status,
           updated_at: input.now
         })
-        .where("task_id", "=", input.taskId)
-        .execute();
+        .where("task_id", "=", input.taskId);
+
+      if (input.expectedStatus !== undefined) {
+        update = update.where("status", "=", input.expectedStatus);
+      }
+      if (input.expectedAttemptNo !== undefined) {
+        update = update.where("attempt_no", "=", input.expectedAttemptNo);
+      }
+
+      const result = await update.executeTakeFirst();
+      if (Number(result.numUpdatedRows ?? 0) !== 1) {
+        return undefined;
+      }
 
       return this.findTaskById(input.taskId);
     },

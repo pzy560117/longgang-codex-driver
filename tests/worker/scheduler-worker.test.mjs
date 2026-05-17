@@ -978,6 +978,58 @@ serialTest("failed execution is retried only after FAILED and increments attempt
   assert.equal(executing.lockOwner, "worker-b");
 });
 
+serialTest("stale executing cancel cannot overwrite a retried attempt", async (t) => {
+  const db = await createTestDatabase(t);
+  const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
+  const taskId = `exp-worker-${runId}-stale-cancel`;
+  await seedTask(db, { taskId, taskCode, subsystemCode });
+  const repository = createExportTaskRepository(db);
+
+  const executingWorker = createSchedulerWorker({
+    db,
+    workerId: "worker-a",
+    leaseDurationSeconds: 300,
+    maxTasksPerPoll: 1,
+    batchProcessor: async () => batchResult("order-stale-cancel", 10)
+  });
+
+  await executingWorker.pollAndProcessOnce();
+  const staleCancelSnapshot = await repository.findTaskById(taskId);
+
+  await db
+    .updateTable("export_tasks")
+    .set({
+      status: "FAILED",
+      lock_owner: null,
+      lock_expire_at: null,
+      lease_renewed_at: null,
+      updated_at: await getDatabaseTime(db)
+    })
+    .where("task_id", "=", taskId)
+    .where("attempt_no", "=", staleCancelSnapshot.attemptNo)
+    .execute();
+
+  const retried = await repository.retryFailedTask({
+    taskId,
+    now: await getDatabaseTime(db)
+  });
+  assert.equal(retried.status, "PENDING");
+  assert.equal(retried.attemptNo, staleCancelSnapshot.attemptNo + 1);
+
+  const staleCancelResult = await repository.updateTaskStatus({
+    taskId,
+    status: "CANCELED",
+    expectedStatus: staleCancelSnapshot.status,
+    expectedAttemptNo: staleCancelSnapshot.attemptNo,
+    now: await getDatabaseTime(db)
+  });
+  const taskAfterStaleCancel = await repository.findTaskById(taskId);
+
+  assert.equal(staleCancelResult, undefined);
+  assert.equal(taskAfterStaleCancel.status, "PENDING");
+  assert.equal(taskAfterStaleCancel.attemptNo, staleCancelSnapshot.attemptNo + 1);
+});
+
 serialTest("query batch transient failure persists retry checkpoint and completes on the next poll", async (t) => {
   const db = await createTestDatabase(t);
   const { taskCode, subsystemCode, runId } = await seedRegistry(db, { concurrencyLimit: 1 });
