@@ -405,7 +405,7 @@ async function renderFileBody(input: {
       now: input.now,
       checkpoint: {
         errorCode: "EXPORT_RENDER_ERROR",
-        failureReason: sanitizeFailureReason(renderError.message),
+        failureReason: "export render error",
         renderInputSummary: input.summary
       }
     });
@@ -502,13 +502,9 @@ function fileError(code: string, message: string): Error {
 }
 
 function toFileVerifyError(error: unknown, fallbackMessage: string): Error {
-  if (error instanceof Error && error.name === "FILE_VERIFY_ERROR") {
-    return error;
-  }
-  return fileError(
-    "FILE_VERIFY_ERROR",
-    error instanceof Error ? error.message : fallbackMessage
-  );
+  void error;
+  void fallbackMessage;
+  return fileError("FILE_VERIFY_ERROR", "file verification failed");
 }
 
 function toExportRenderError(error: unknown, fallbackMessage: string): Error {
@@ -519,8 +515,4 @@ function toExportRenderError(error: unknown, fallbackMessage: string): Error {
     "EXPORT_RENDER_ERROR",
     error instanceof Error ? error.message : fallbackMessage
   );
-}
-
-function sanitizeFailureReason(message: string): string {
-  return message.replace(/\s+/g, " ").trim().slice(0, 500);
 }

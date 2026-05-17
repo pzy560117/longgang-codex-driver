@@ -415,7 +415,7 @@ function resolveTaskFailure(
       {
         occurredAt: event.occurredAt,
         errorCode,
-        errorMessage: readNonEmptyString(checkpoint?.errorMessage) ?? responseCodeMessage(errorCode)
+        errorMessage: responseCodeMessage(errorCode)
       }
     ];
   });
@@ -452,7 +452,6 @@ function publicBatchCheckpoint(value: string | null | undefined): Record<string,
     "batchSize",
     "batchRowCount",
     "backoffMs",
-    "failureReason",
     "renderInputSummary",
     "attemptNo",
     "lockOwner",

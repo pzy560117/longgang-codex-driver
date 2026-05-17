@@ -291,14 +291,26 @@ test("public BatchCheckpoint schema exposes progress fields without internal err
     "batchSize",
     "batchRowCount",
     "backoffMs",
-    "renderInputSummary",
-    "failureReason"
+    "renderInputSummary"
   ]) {
     assert.match(checkpointSchema, new RegExp(`\\n\\s{8}${field}:\\n`), `${field} must be a public property`);
   }
 
   assert.doesNotMatch(checkpointSchema, /\n\s{8}errorCode:\n/);
   assert.doesNotMatch(checkpointSchema, /\n\s{8}errorMessage:\n/);
+  assert.doesNotMatch(checkpointSchema, /\n\s{8}failureReason:\n/);
+});
+
+test("public error messages are documented and implemented as code-derived safe summaries", () => {
+  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const respondSource = readFileSync("src/routes/respond.ts", "utf8");
+  const taskServiceSource = readFileSync("src/task-api/service.ts", "utf8");
+
+  assert.match(openapi, /Public-safe message derived from `code`/);
+  assert.match(openapi, /Public-safe failure summary derived from `errorCode`/);
+  assert.doesNotMatch(respondSource, /message:\s*error\.message/);
+  assert.doesNotMatch(respondSource, /message:\s*error\s+instanceof\s+Error\s*\?\s*error\.message/);
+  assert.doesNotMatch(taskServiceSource, /errorMessage:\s*readNonEmptyString\(checkpoint\?\.errorMessage\)/);
 });
 
 test("registry dataScopeTemplate example includes all auth scope placeholders", () => {

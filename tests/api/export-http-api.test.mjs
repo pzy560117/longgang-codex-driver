@@ -7,7 +7,9 @@ import mysql from "mysql2";
 import mysqlPromise from "mysql2/promise";
 import { Kysely, MysqlDialect, sql } from "kysely";
 import { createExportPlatformServer } from "../../src/server.ts";
+import { ApiError } from "../../src/audit-log/auth-context.ts";
 import { runMigrations } from "../../src/db/migrator.ts";
+import { sendError } from "../../src/routes/respond.ts";
 import {
   createCheckpointRepository,
   createExportAuditRepository,
@@ -290,6 +292,29 @@ function createTaskPayload(taskCode, clientRequestId = "client-001") {
     queryParams: {
       createdAtFrom: "2026-05-01T00:00:00+08:00",
       createdAtTo: "2026-05-13T23:59:59+08:00"
+    }
+  };
+}
+
+function createReplyRecorder() {
+  const state = {
+    statusCode: null,
+    contentType: null,
+    payload: null
+  };
+  return {
+    state,
+    code(statusCode) {
+      state.statusCode = statusCode;
+      return this;
+    },
+    type(contentType) {
+      state.contentType = contentType;
+      return this;
+    },
+    send(payload) {
+      state.payload = payload;
+      return this;
     }
   };
 }
@@ -615,6 +640,35 @@ test("HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL", () => {
       process.env.EXPORT_PLATFORM_DATABASE_URL = previousDatabaseUrl;
     }
   }
+});
+
+test("public HTTP errors use safe messages instead of underlying Error.message", async () => {
+  const datasourceReply = createReplyRecorder();
+  await sendError(
+    datasourceReply,
+    new ApiError(
+      500,
+      "DATASOURCE_UNAVAILABLE",
+      "mysql://user:secret@db.internal failed near SELECT * FROM purchase_orders",
+      { datasourceCode: "purchase-ro" }
+    )
+  );
+
+  assert.equal(datasourceReply.state.statusCode, 500);
+  assert.equal(datasourceReply.state.payload.code, "DATASOURCE_UNAVAILABLE");
+  assert.equal(datasourceReply.state.payload.message, "datasource unavailable");
+  assert.doesNotMatch(JSON.stringify(datasourceReply.state.payload), /secret|SELECT \*/i);
+
+  const unknownReply = createReplyRecorder();
+  await sendError(
+    unknownReply,
+    new Error("object storage secret token leaked from oss://bucket/internal/path")
+  );
+
+  assert.equal(unknownReply.state.statusCode, 500);
+  assert.equal(unknownReply.state.payload.code, "INTERNAL_ERROR");
+  assert.equal(unknownReply.state.payload.message, "internal error");
+  assert.doesNotMatch(JSON.stringify(unknownReply.state.payload), /secret|oss:\/\/bucket/i);
 });
 
 test("registry/task HTTP flow persists through Fastify + MySQL production path", async (t) => {
@@ -1299,7 +1353,11 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(eventOnlyFailedDetailResponse.json().data.errorCode, "DATASOURCE_UNAVAILABLE");
   assert.equal(
     eventOnlyFailedDetailResponse.json().data.errorMessage,
-    "datasource credentials unavailable"
+    "datasource unavailable"
+  );
+  assert.doesNotMatch(
+    eventOnlyFailedDetailResponse.json().data.errorMessage,
+    /credential|secret|password/i
   );
   assert.equal(
     eventOnlyFailedDetailResponse.json().data.recentEvents[0].eventType,
@@ -1348,7 +1406,9 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     batchCheckpoint: JSON.stringify({
       processedCount: 1,
       totalCount: 4,
-      errorCode: "UnexpectedQueryVendorError"
+      errorCode: "UnexpectedQueryVendorError",
+      failureReason:
+        "renderer circular structure leaked with SQL SELECT * FROM purchase_orders password=secret oss://bucket/internal"
     }),
     occurredAt: new Date(internalFailureAt.getTime() + 1),
     now: new Date(internalFailureAt.getTime() + 1)
@@ -1391,7 +1451,11 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   );
   assert.doesNotMatch(
     JSON.stringify(internalFailureDetailResponse.json().data.recentEvents),
-    /UnexpectedQueryVendorError/
+    /UnexpectedQueryVendorError|circular|SELECT \*|password|secret|oss:\/\/bucket/i
+  );
+  assert.equal(
+    "failureReason" in internalFailureDetailResponse.json().data.recentEvents[0].batchCheckpoint,
+    false
   );
   assert.equal("events" in internalFailureDetailResponse.json().data, false);
 

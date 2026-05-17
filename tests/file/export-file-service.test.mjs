@@ -625,7 +625,12 @@ test("object storage put failure is mapped to FILE_VERIFY_ERROR and does not pub
         requestId: "req-file-put-failed",
         rows: [{ "Order No": "PO-001" }]
       }),
-    (error) => error.name === "FILE_VERIFY_ERROR"
+    (error) => {
+      assert.equal(error.name, "FILE_VERIFY_ERROR");
+      assert.equal(error.message, "FILE_VERIFY_ERROR: file verification failed");
+      assert.doesNotMatch(error.message, /object storage|unavailable|secret|bucket|oss/i);
+      return true;
+    }
   );
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
@@ -653,7 +658,12 @@ test("object storage read failure is mapped to FILE_VERIFY_ERROR and does not pu
         requestId: "req-file-read-failed",
         rows: [{ "Order No": "PO-001" }]
       }),
-    (error) => error.name === "FILE_VERIFY_ERROR"
+    (error) => {
+      assert.equal(error.name, "FILE_VERIFY_ERROR");
+      assert.equal(error.message, "FILE_VERIFY_ERROR: file verification failed");
+      assert.doesNotMatch(error.message, /object storage|unavailable|secret|bucket|oss/i);
+      return true;
+    }
   );
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
@@ -681,7 +691,12 @@ test("object storage publish failure is mapped to FILE_VERIFY_ERROR and keeps me
         requestId: "req-file-publish-failed",
         rows: [{ "Order No": "PO-001" }]
       }),
-    (error) => error.name === "FILE_VERIFY_ERROR"
+    (error) => {
+      assert.equal(error.name, "FILE_VERIFY_ERROR");
+      assert.equal(error.message, "FILE_VERIFY_ERROR: file verification failed");
+      assert.doesNotMatch(error.message, /object storage|unavailable|secret|bucket|oss/i);
+      return true;
+    }
   );
 
   const metadata = await createExportFileRepository(db).findFileMetadata(task.taskId, 0);
@@ -722,7 +737,8 @@ test("xlsx renderer failure is mapped to EXPORT_RENDER_ERROR before object stora
   assert.equal(storage.writes.length, 0);
   assert.equal(storage.publishes.length, 0);
   assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
-  assert.match(checkpoint.failureReason, /circular/i);
+  assert.equal(checkpoint.failureReason, "export render error");
+  assert.doesNotMatch(checkpoint.failureReason, /circular|secret|password|select|storage|oss/i);
   assert.deepEqual(checkpoint.renderInputSummary, {
     taskId: task.taskId,
     taskCode: task.taskCode,
@@ -771,7 +787,8 @@ test("zip renderer failure is mapped to EXPORT_RENDER_ERROR before object storag
   assert.equal(storage.writes.length, 0);
   assert.equal(storage.publishes.length, 0);
   assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
-  assert.match(checkpoint.failureReason, /circular/i);
+  assert.equal(checkpoint.failureReason, "export render error");
+  assert.doesNotMatch(checkpoint.failureReason, /circular|secret|password|select|storage|oss/i);
   assert.deepEqual(checkpoint.renderInputSummary, {
     taskId: task.taskId,
     taskCode: task.taskCode,
@@ -969,7 +986,8 @@ test("scheduler maps renderer failure to FAILED task with EXPORT_RENDER_ERROR au
   assert.equal(failed.status, "FAILED");
   assert.equal(storage.writes.length, 0);
   assert.equal(checkpoint.errorCode, "EXPORT_RENDER_ERROR");
-  assert.match(checkpoint.failureReason, /circular/i);
+  assert.equal(checkpoint.failureReason, "export render error");
+  assert.doesNotMatch(checkpoint.failureReason, /circular|secret|password|select|storage|oss/i);
   assert.equal(checkpoint.renderInputSummary.taskId, task.taskId);
   assert.equal(checkpoint.renderInputSummary.attemptNo, 0);
   assert.equal(checkpoint.renderInputSummary.totalRowCount, 1);

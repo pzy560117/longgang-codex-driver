@@ -688,6 +688,63 @@ serialTest("query executor maps invalid datasource URL failures to DATASOURCE_UN
   );
 });
 
+serialTest("query executor maps SQL adapter failures without leaking SQL text or secrets", async (t) => {
+  const db = await createTestDatabase(t);
+  const now = await getDatabaseTime(db);
+  const { taskCode, subsystemCode } = await seedRegistry(db, { runId: "adapter-sql-failure" });
+  const task = await seedTask(db, {
+    taskId: "exp-query-adapter-sql-failure",
+    taskCode,
+    subsystemCode
+  });
+  const processor = createQueryExecutorBatchProcessor({
+    datasourceAdapters: {
+      async resolveReadonlyAdapter() {
+        return {
+          async executeSelect() {
+            throw Object.assign(
+              new Error("SQL syntax error near SELECT * FROM purchase_orders password=secret"),
+              { code: "ER_PARSE_ERROR" }
+            );
+          }
+        };
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      processor({
+        db,
+        task: {
+          ...task,
+          status: "EXECUTING",
+          lockOwner: "worker-query",
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now
+        },
+        lease: {
+          taskId: task.taskId,
+          attemptNo: task.attemptNo,
+          lockOwner: "worker-query",
+          previousLockOwner: null,
+          lockExpireAt: new Date(now.getTime() + 300000),
+          leaseRenewedAt: now,
+          databaseTime: now,
+          takeoverRule: "PENDING_OR_EXPIRED_KEEP_ATTEMPT"
+        },
+        checkpoint: undefined,
+        requestId: "req-query-adapter-sql-failure"
+      }),
+    (error) => {
+      assert.equal(error.name, "QUERY_EXECUTION_ERROR");
+      assert.equal(error.message, "QUERY_EXECUTION_ERROR: query execution failed");
+      assert.doesNotMatch(error.message, /SELECT \*|password|secret|purchase_orders/i);
+      return true;
+    }
+  );
+});
+
 serialTest("query executor applies registry dataScopeTemplate with operatorId and roleCodes to block same org unauthorized rows", async (t) => {
   const db = await createTestDatabase(t);
   const now = await getDatabaseTime(db);

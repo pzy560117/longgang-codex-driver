@@ -1441,6 +1441,7 @@ components:
           $ref: "#/components/schemas/ResponseCode"
         message:
           type: string
+          description: Public-safe message derived from `code`; implementations must not echo underlying Error.message, SQL, datasource credentials, object-storage details, secrets or stack traces.
     ErrorEnvelope:
       allOf:
         - $ref: "#/components/schemas/Envelope"
@@ -1588,6 +1589,7 @@ components:
         errorMessage:
           type: string
           nullable: true
+          description: Public-safe failure summary derived from `errorCode`; must not expose datasource, SQL, object-storage, secret or stack-trace details.
         failureStage:
           type: string
         lastSuccessStage:
@@ -1951,9 +1953,6 @@ components:
           type: integer
         backoffMs:
           type: integer
-        failureReason:
-          type: string
-          description: Sanitized failure reason for failed file rendering or package generation.
         renderInputSummary:
           type: object
           description: Render input summary captured when XLSX/ZIP rendering fails.
