@@ -4,6 +4,7 @@ import { once } from "node:events";
 import http from "node:http";
 import test from "node:test";
 import mysql from "mysql2";
+import mysqlPromise from "mysql2/promise";
 import { Kysely, MysqlDialect, sql } from "kysely";
 import { createExportPlatformServer } from "../../src/server.ts";
 import { runMigrations } from "../../src/db/migrator.ts";
@@ -471,6 +472,124 @@ function signPlatformDownloadUrl({ taskId, storageKey, url, secret }) {
       url.searchParams.get("requestId")
     ].join("\n"))
     .digest("hex");
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findExportTaskLockWait(connection) {
+  try {
+    const [rows] = await connection.query(
+      `
+        SELECT
+          req.OBJECT_SCHEMA AS objectSchema,
+          req.OBJECT_NAME AS objectName,
+          req.LOCK_TYPE AS lockType,
+          req.LOCK_MODE AS lockMode,
+          req.LOCK_STATUS AS lockStatus,
+          threads.PROCESSLIST_ID AS waitingProcesslistId,
+          statements.SQL_TEXT AS waitingQuery
+        FROM performance_schema.data_lock_waits waits
+        INNER JOIN performance_schema.data_locks req
+          ON req.ENGINE_LOCK_ID = waits.REQUESTING_ENGINE_LOCK_ID
+        LEFT JOIN performance_schema.threads threads
+          ON threads.THREAD_ID = req.THREAD_ID
+        LEFT JOIN performance_schema.events_statements_current statements
+          ON statements.THREAD_ID = req.THREAD_ID
+        WHERE req.OBJECT_SCHEMA = DATABASE()
+          AND req.OBJECT_NAME = 'export_tasks'
+      `
+    );
+    const matchingRow = rows.find(
+      (row) =>
+        typeof row.waitingQuery === "string" &&
+        row.waitingQuery.toLowerCase().includes("update") &&
+        row.waitingQuery.toLowerCase().includes("export_tasks")
+    );
+    if (matchingRow) {
+      return {
+        source: "performance_schema.data_lock_waits",
+        row: matchingRow
+      };
+    }
+  } catch (error) {
+    if (
+      !["ER_NO_SUCH_TABLE", "ER_UNKNOWN_TABLE", "ER_TABLEACCESS_DENIED_ERROR"].includes(
+        error?.code
+      )
+    ) {
+      throw error;
+    }
+  }
+
+  try {
+    const [rows] = await connection.query(
+      `
+        SELECT
+          waiting.trx_mysql_thread_id AS waitingProcesslistId,
+          waiting.trx_query AS waitingQuery,
+          blocking.trx_mysql_thread_id AS blockingProcesslistId
+        FROM information_schema.INNODB_LOCK_WAITS waits
+        INNER JOIN information_schema.INNODB_TRX waiting
+          ON waiting.trx_id = waits.requesting_trx_id
+        INNER JOIN information_schema.INNODB_TRX blocking
+          ON blocking.trx_id = waits.blocking_trx_id
+        WHERE waiting.trx_query IS NOT NULL
+          AND waiting.trx_query LIKE '%export_tasks%'
+          AND waiting.trx_query LIKE 'update%'
+      `
+    );
+    if (rows[0]) {
+      return {
+        source: "information_schema.INNODB_LOCK_WAITS",
+        row: rows[0]
+      };
+    }
+  } catch (error) {
+    if (
+      !["ER_NO_SUCH_TABLE", "ER_UNKNOWN_TABLE", "ER_TABLEACCESS_DENIED_ERROR"].includes(
+        error?.code
+      )
+    ) {
+      throw error;
+    }
+  }
+
+  const [processRows] = await connection.query(
+    `
+      SELECT
+        ID AS waitingProcesslistId,
+        INFO AS waitingQuery,
+        STATE AS waitingState
+      FROM information_schema.PROCESSLIST
+      WHERE DB = DATABASE()
+        AND INFO IS NOT NULL
+        AND INFO LIKE '%export_tasks%'
+        AND INFO LIKE 'update%'
+    `
+  );
+  if (processRows[0]) {
+    return {
+      source: "information_schema.PROCESSLIST",
+      row: processRows[0]
+    };
+  }
+
+  return null;
+}
+
+async function waitForExportTaskLockWait(connection, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const lockWait = await findExportTaskLockWait(connection);
+    if (lockWait) {
+      return lockWait;
+    }
+    await delay(25);
+  }
+
+  throw new Error("timed out waiting for /cancel to block on export_tasks row lock");
 }
 
 test("HTTP API requires EXPORT_PLATFORM_TEST_DATABASE_URL", () => {
@@ -1393,6 +1512,99 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
   assert.equal(staleCancelResult, undefined);
   assert.equal(notOverwrittenTask.status, "EXECUTING");
   assert.equal(notOverwrittenTask.attemptNo, staleCancelSnapshot.attemptNo);
+
+  const concurrentCancelTaskId = `exp-concurrent-cancel-${runId}`;
+  await taskRepository.createPendingTask({
+    taskId: concurrentCancelTaskId,
+    taskCode,
+    subsystemCode: "purchase",
+    tenantId: "tenant-001",
+    createdBy: "u001",
+    fileFormat: "XLSX",
+    clientRequestId: null,
+    idempotencyScope: null,
+    requestDigest: `sha256:${concurrentCancelTaskId}`,
+    configSnapshotDigest: "sha256:config-v1",
+    requestPayload: JSON.stringify({
+      fileFormat: "XLSX",
+      queryParams: createTaskPayload(taskCode).queryParams
+    }),
+    authContextPayload: JSON.stringify({
+      operatorId: "u001",
+      tenantId: "tenant-001",
+      roleCodes: ["EXPORT_USER"],
+      orgScope: "ORG-001",
+      requestId: `req-concurrent-cancel-create-${runId}`
+    }),
+    now: await getDatabaseTime(db)
+  });
+
+  const lockerConnection = await mysqlPromise.createConnection(getTestDatabaseUrl());
+  const lockProbeConnection = await mysqlPromise.createConnection(getTestDatabaseUrl());
+  let lockerCommitted = false;
+  try {
+    await lockerConnection.beginTransaction();
+    await lockerConnection.query(
+      `
+        UPDATE export_tasks
+        SET
+          status = 'EXECUTING',
+          lock_owner = 'worker-concurrent-cancel',
+          lock_expire_at = DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 300 SECOND),
+          lease_renewed_at = CURRENT_TIMESTAMP(3),
+          updated_at = CURRENT_TIMESTAMP(3)
+        WHERE task_id = ?
+      `,
+      [concurrentCancelTaskId]
+    );
+
+    let cancelResolved = false;
+    const concurrentCancelResponsePromise = app
+      .inject({
+        method: "POST",
+        url: `/api/export/tasks/${concurrentCancelTaskId}/cancel`,
+        headers: createHeaders(`req-concurrent-cancel-${runId}`)
+      })
+      .then((response) => {
+        cancelResolved = true;
+        return response;
+      });
+
+    const lockWait = await waitForExportTaskLockWait(lockProbeConnection);
+    assert.equal(cancelResolved, false);
+    assert.match(lockWait.row.waitingQuery, /update/i);
+    assert.match(lockWait.row.waitingQuery, /export_tasks/i);
+
+    await lockerConnection.commit();
+    lockerCommitted = true;
+
+    const concurrentCancelResponse = await concurrentCancelResponsePromise;
+    const concurrentCancelTask = await taskRepository.findTaskById(concurrentCancelTaskId);
+    const concurrentCancelAudits = await auditRepository.listAuditLogsForTask(concurrentCancelTaskId);
+
+    assert.equal(concurrentCancelResponse.statusCode, 200);
+    assert.equal(concurrentCancelResponse.json().data.status, "EXECUTING");
+    assert.equal(concurrentCancelTask.status, "EXECUTING");
+    assert.equal(concurrentCancelTask.attemptNo, 0);
+    assert.ok(
+      concurrentCancelAudits.some(
+        (audit) =>
+          audit.action === "CANCEL_REQUEST" &&
+          audit.result === "ACCEPTED" &&
+          audit.attemptNo === concurrentCancelTask.attemptNo
+      )
+    );
+    assert.equal(
+      concurrentCancelAudits.some((audit) => audit.action === "CANCEL_DONE"),
+      false
+    );
+  } finally {
+    if (!lockerCommitted) {
+      await lockerConnection.rollback();
+    }
+    await lockProbeConnection.end();
+    await lockerConnection.end();
+  }
 
   const executingCancelTaskId = `exp-executing-cancel-${runId}`;
   await taskRepository.createPendingTask({
