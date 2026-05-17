@@ -999,6 +999,35 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
     now: new Date(failedDetailNow.getTime() + 1)
   });
 
+  const historyTotalSubsystemCode = `history-total-${runId}`;
+  const historyTotalFirstTaskCode = `${taskCode}-history-total-first`;
+  const historyTotalSecondTaskCode = `${taskCode}-history-total-second`;
+  const historyTotalTaskIds = [];
+  for (const historyTaskCode of [historyTotalFirstTaskCode, historyTotalSecondTaskCode]) {
+    const createHistoryTotalRegistryResponse = await app.inject({
+      method: "POST",
+      url: "/api/export/registries",
+      headers: createHeaders(`req-registry-${historyTaskCode}-${runId}`),
+      payload: {
+        ...createRegistryPayload(historyTaskCode),
+        subsystemCode: historyTotalSubsystemCode
+      }
+    });
+    assert.equal(createHistoryTotalRegistryResponse.statusCode, 201);
+
+    const createHistoryTotalTaskResponse = await app.inject({
+      method: "POST",
+      url: "/api/export/tasks",
+      headers: createHeaders(`req-create-${historyTaskCode}-${runId}`),
+      payload: {
+        ...createTaskPayload(historyTaskCode, `client-${historyTaskCode}`),
+        subsystemCode: historyTotalSubsystemCode
+      }
+    });
+    assert.equal(createHistoryTotalTaskResponse.statusCode, 201);
+    historyTotalTaskIds.push(createHistoryTotalTaskResponse.json().data.taskId);
+  }
+
   const otherSubsystemTaskCode = `${taskCode}-inventory`;
   const createOtherSubsystemRegistryResponse = await app.inject({
     method: "POST",
@@ -1025,18 +1054,20 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const statusSubsystemListResponse = await app.inject({
     method: "GET",
-    url: "/api/export/tasks?status=PENDING&subsystemCode=purchase",
+    url: `/api/export/tasks?status=PENDING&subsystemCode=${encodeURIComponent(historyTotalSubsystemCode)}`,
     headers: createHeaders(`req-list-status-subsystem-${runId}`)
   });
 
   assert.equal(statusSubsystemListResponse.statusCode, 200);
   assert.equal(statusSubsystemListResponse.json().data.total, 2);
   assert.ok(
-    statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
+    historyTotalTaskIds.every((taskId) =>
+      statusSubsystemListResponse.json().data.items.some((item) => item.taskId === taskId)
+    )
   );
   assert.ok(
     statusSubsystemListResponse.json().data.items.every(
-      (item) => item.status === "PENDING" && item.subsystemCode === "purchase"
+      (item) => item.status === "PENDING" && item.subsystemCode === historyTotalSubsystemCode
     )
   );
   assert.equal(
@@ -1046,7 +1077,7 @@ test("registry/task HTTP flow persists through Fastify + MySQL production path",
 
   const pagedStatusSubsystemListResponse = await app.inject({
     method: "GET",
-    url: "/api/export/tasks?status=PENDING&subsystemCode=purchase&page=1&pageSize=1",
+    url: `/api/export/tasks?status=PENDING&subsystemCode=${encodeURIComponent(historyTotalSubsystemCode)}&page=1&pageSize=1`,
     headers: createHeaders(`req-list-status-subsystem-paged-${runId}`)
   });
 

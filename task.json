@@ -2560,7 +2560,7 @@
                                     "补 API 回归断言 total 不等于当前页数量且符合筛选条件真实总量",
                                     "同步 verify-matrix 记录 HISTORY-PAGINATION-TOTAL-001 evidence"
                                 ],
-                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md",
+                      "test_command":  "npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; powershell -NoProfile -ExecutionPolicy Bypass -Command '. .\\scripts\\docker-test-env.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:api'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json src/task-api src/repositories tests/api docs/testing/verify-matrix.md",
                       "acceptance":  [
                                          "历史任务列表 total 返回符合当前筛选条件和权限边界的真实总量",
                                          "分页 limit/offset 不影响 total，仅影响 items",
