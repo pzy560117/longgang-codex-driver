@@ -94,6 +94,67 @@ Stop-Process -Id $conn.OwningProcess
 
 ## 常见问题
 
+### test:api 提示缺少 EXPORT_PLATFORM_TEST_DATABASE_URL
+
+`.env.local` 不会被 `npm run test:api` 自动加载。API 测试读取的是当前 PowerShell 进程里的 `EXPORT_PLATFORM_TEST_DATABASE_URL`。
+
+如果已经有本地或 Docker MySQL 监听在 `127.0.0.1:33306`，可以直接设置：
+
+```powershell
+cd E:\2026\alpha-project\longgang-codex-driver
+
+$env:EXPORT_PLATFORM_TEST_DATABASE_URL = 'mysql://root@127.0.0.1:33306/export_platform_test'
+
+npm run test:api
+```
+
+也可以从 `.env.local` 读取：
+
+```powershell
+cd E:\2026\alpha-project\longgang-codex-driver
+
+$env:EXPORT_PLATFORM_TEST_DATABASE_URL = (Get-Content .env.local | Where-Object { $_ -match '^EXPORT_PLATFORM_TEST_DATABASE_URL=' }) -replace '^EXPORT_PLATFORM_TEST_DATABASE_URL=', ''
+
+npm run test:api
+```
+
+如果 MySQL 没有运行，设置变量也不能让测试通过；需要先启动本地 MySQL 或使用 `demo:local` / Docker 流程拉起测试依赖。
+
+### demo:local 提示 Docker daemon 不可用
+
+`npm run demo:local` 会通过 Docker 拉起本地依赖。如果 Docker Desktop 没有启动，会出现类似错误：
+
+```text
+BLOCKED - 需要人工介入: demo:local requires a running Docker daemon.
+```
+
+先启动 Docker Desktop：
+
+```powershell
+Start-Process 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
+```
+
+等待 Docker daemon 可用：
+
+```powershell
+docker info
+```
+
+确认可用后重新执行：
+
+```powershell
+npm run demo:local
+```
+
+如果 3000 端口已有手动启动的服务，建议先停止，避免 demo 过程端口冲突：
+
+```powershell
+$conn = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
+if ($conn) {
+  Stop-Process -Id $conn.OwningProcess -Force
+}
+```
+
 ### 端口 3000 已被占用
 
 检查占用进程：
