@@ -120,6 +120,42 @@ npm run test:api
 
 如果 MySQL 没有运行，设置变量也不能让测试通过；需要先启动本地 MySQL 或使用 `demo:local` / Docker 流程拉起测试依赖。
 
+### test:api 是否会请求 demo:local 的 3000 服务
+
+不会。
+
+`demo:local` 和 `test:api` 的运行路径不同：
+
+| 命令 | HTTP 服务来源 | MySQL 来源 | 是否占用 3000 端口 |
+| --- | --- | --- | --- |
+| `npm run demo:local` | 启动真实本地 HTTP 服务，监听 `http://127.0.0.1:3000` | Docker MySQL `127.0.0.1:33306/export_platform_test` | 是 |
+| `npm run test:api` | 测试进程内部创建 Fastify 实例，并用 `app.inject()` 调用 | `EXPORT_PLATFORM_TEST_DATABASE_URL` 指向的本地或 Docker MySQL | 否 |
+
+因此：
+
+- `test:api` 不会请求 `http://127.0.0.1:3000`。
+- `test:api` 不需要 `demo:local` 的 HTTP 服务正在运行。
+- `test:api` 可以复用 `demo:local` 拉起的 Docker MySQL。
+- 如果只跑 `test:api`，只要 MySQL 和 `EXPORT_PLATFORM_TEST_DATABASE_URL` 正确即可。
+
+典型流程是开两个 PowerShell 窗口：
+
+第一个窗口启动 demo，保留前台运行：
+
+```powershell
+npm run demo:local
+```
+
+第二个窗口复用 demo 拉起的 Docker MySQL 跑 API 测试：
+
+```powershell
+cd E:\2026\alpha-project\longgang-codex-driver
+
+$env:EXPORT_PLATFORM_TEST_DATABASE_URL = 'mysql://root@127.0.0.1:33306/export_platform_test'
+
+npm run test:api
+```
+
 ### demo:local 提示 Docker daemon 不可用
 
 `npm run demo:local` 会通过 Docker 拉起本地依赖。如果 Docker Desktop 没有启动，会出现类似错误：
