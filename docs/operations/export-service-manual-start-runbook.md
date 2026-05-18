@@ -156,6 +156,51 @@ $env:EXPORT_PLATFORM_TEST_DATABASE_URL = 'mysql://root@127.0.0.1:33306/export_pl
 npm run test:api
 ```
 
+### 为什么 test:api 只有 7 个用例
+
+`npm run test:api` 只跑 `tests/api/*.test.mjs`，当前 API 测试文件里定义的是 7 个聚合场景，不代表整个项目只有 7 个测试。
+
+这些 API 用例内部会执行多次 `app.inject()` 请求，例如注册、创建、幂等、历史、详情、失败、权限、下载、取消、重试等流程会被放在同一个聚合场景里验证。
+
+项目完整测试按边界拆分：
+
+| 命令 | 覆盖边界 |
+| --- | --- |
+| `npm run test:api` | API / auth / audit / history / state machine |
+| `npm run test:db` | DB schema / repositories / durable evidence |
+| `npm run test:worker` | scheduler / locks / retry / cleanup polling |
+| `npm run test:query` | query executor / datasource adapter / data scope / masking |
+| `npm run test:file` | file service / signed download / cleanup / render failures |
+| `npm run test:sample` | purchase-order sample / row boundaries / masked output |
+| `npm run test:acceptance` | acceptance matrix and API smoke |
+| `npm run test:mock-local` | mock/local evidence guards |
+| `npm run test:contract` | OpenAPI and route contract drift |
+| `npm test` | 基础单测和 contract 子集 |
+
+如果 Docker demo 的 MySQL 已经在运行，可以在另一个 PowerShell 窗口执行更完整的本地验证：
+
+```powershell
+cd E:\2026\alpha-project\longgang-codex-driver
+
+$env:EXPORT_PLATFORM_TEST_DATABASE_URL = 'mysql://root@127.0.0.1:33306/export_platform_test'
+
+npm run test:db
+npm run test:worker
+npm run test:query
+npm run test:file
+npm run test:sample
+npm run test:acceptance
+npm run test:mock-local
+```
+
+完整验收报告入口是：
+
+```powershell
+npm run test:acceptance:full-report
+```
+
+这个命令覆盖范围更大、运行时间更长，并依赖 Docker / mock 本地环境。
+
 ### demo:local 提示 Docker daemon 不可用
 
 `npm run demo:local` 会通过 Docker 拉起本地依赖。如果 Docker Desktop 没有启动，会出现类似错误：
