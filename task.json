@@ -3071,6 +3071,99 @@
                                          "full-coverage-matrix.test.mjs 验证 task、package script 和 verify-matrix 不遗漏全量验收入口",
                                          "报告明确 docker/mock evidence 边界，不声明外部 live 依赖已验证"
                                      ]
+                  },
+                  {
+                      "id":  "PROD-CONFIG-GOVERNANCE-001",
+                      "description":  "收口生产配置统一入口、部署配置文档和 live 集成证据边界",
+                      "task_kind":  "feature_impl",
+                      "phase":  "production-config-governance",
+                      "gate_profile":  "spec_required",
+                      "required_truth_sources":  [
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing",
+                                                     "operations"
+                                                 ],
+                      "priority":  97,
+                      "dependencies":  [
+                                           "FULL-REQUIREMENTS-ACCEPTANCE-REPORT-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "delivery_shape=independent_microservice",
+                                                       "生产依赖必须通过统一配置入口加载，业务模块不得继续散落读取 process.env 或硬编码 URL、bucket、tenant、secret",
+                                                       "配置契约必须区分 local/docker/mock evidence 与 staging/pre-prod/production live evidence",
+                                                       "生产模式必须 fail fast：缺少必填 secret、使用 localhost/example endpoint、未显式允许 smoke writes 时必须阻塞",
+                                                       "真实生产依赖不可用时必须输出 BLOCKED - 需要人工介入，不得用本地 mock 或 Docker 证据冒充 live evidence"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止只新增文档而不收口 src/ 生产路径中的散落环境变量读取",
+                                                        "禁止把 .env.local、测试库、Docker MySQL 或本地 object storage mock 写成生产配置样例",
+                                                        "禁止提交真实 token、cookie、私钥、密码、数据库连接串或生产数据样本",
+                                                        "禁止把 native OSS/S3、外部网关、真实业务只读源标记为已验证，除非本任务产生对应 live evidence"
+                                                    ],
+                      "context_files":  [
+                                            "docs/architecture/constraints.md",
+                                            "docs/operations/production-data-integration-runbook.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "agent/docs/codex-harness-engineering/practices/production-config-governance.md",
+                                            "src/config/env.ts",
+                                            "src/datasource-adapters/index.ts",
+                                            "src/file-service/index.ts",
+                                            "src/audit-log/auth-context.ts",
+                                            "src/task-api/service.ts",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          ".env.example",
+                                          "src/config/env.ts",
+                                          "src/datasource-adapters/index.ts",
+                                          "src/file-service/index.ts",
+                                          "src/audit-log/auth-context.ts",
+                                          "src/task-api/service.ts",
+                                          "tests/config-env.test.mjs",
+                                          "tests/contract/",
+                                          "docs/operations/production-data-integration-runbook.md",
+                                          "docs/operations/production-deployment-config-runbook.md",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-006",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 ".env.example",
+                                                 "docs/operations/production-deployment-config-runbook.md",
+                                                 "tests/config-env.test.mjs",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "扩展 src/config/env.ts，形成覆盖 HTTP、平台库、业务只读数据源、对象存储、认证签名、公开 base URL、worker 和 securityPolicy 的类型化配置对象",
+                                    "把 datasource adapter、file-service、auth-context 和 task-api 中散落的 process.env 读取迁移到统一配置入口或显式 provider 注入",
+                                    "新增 .env.example 和生产部署配置 runbook，说明每个变量的用途、来源、配置原因、secret 分类、部署方式和配置后验证",
+                                    "补配置守护测试，覆盖 production 模式必填项、localhost/example endpoint 拒绝、secret 缺失、mock/local/live evidence 边界和向后兼容读取",
+                                    "同步 production-data-integration-runbook 与 verify-matrix，明确本任务只收口配置治理；真实 staging/pre-prod/production live 验证需另开 PRODUCTION-LIVE-INTEGRATION-001 或在获得依赖后记录 live evidence"
+                                ],
+                      "test_command":  "npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run arch:check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node --import tsx --test tests/config-env.test.mjs; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:contract; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json .env.example src/config/env.ts src/datasource-adapters/index.ts src/file-service/index.ts src/audit-log/auth-context.ts src/task-api/service.ts tests/config-env.test.mjs tests/contract docs/operations docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "生产配置均通过统一 loadConfig/config provider 进入生产路径，新增测试能阻止关键模块继续散落读取 process.env",
+                                         ".env.example 和 production-deployment-config-runbook 覆盖变量清单、用途、格式、必填环境、secret 来源和配置后验证步骤",
+                                         "production 模式缺少必填 secret、使用 localhost/example endpoint 或未显式允许 smoke writes 时 fail fast",
+                                         "verify-matrix 和 runbook 明确 local/docker/mock evidence 不能替代 staging/pre-prod/production live evidence",
+                                         "若真实外部依赖不可用，任务必须记录 BLOCKED - 需要人工介入，不能声明 live MySQL、live OSS/S3、真实业务只读源或外部网关已完成"
+                                     ]
                   }
               ]
 }
