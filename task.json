@@ -3173,6 +3173,185 @@
                                          "verify-matrix 和 runbook 明确 local/docker/mock evidence 不能替代 staging/pre-prod/production live evidence",
                                          "若真实外部依赖不可用，任务必须记录 BLOCKED - 需要人工介入，不能声明 live MySQL、live OSS/S3、真实业务只读源或外部网关已完成"
                                      ]
+                  },
+                  {
+                      "id":  "PRODUCTION-HANDOFF-PACKAGE-001",
+                      "description":  "补齐交给接手研发接入 staging/pre-prod/production 的生产接入交接包",
+                      "task_kind":  "feature_plan",
+                      "phase":  "production-handoff",
+                      "gate_profile":  "verification_required",
+                      "required_truth_sources":  [
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing",
+                                                     "operations"
+                                                 ],
+                      "priority":  98,
+                      "dependencies":  [
+                                           "PROD-CONFIG-GOVERNANCE-001"
+                                       ],
+                      "passes":  true,
+                      "architecture_constraints":  [
+                                                       "交接包只能声明 production handoff readiness，不能声明 staging/pre-prod/production live evidence 已完成",
+                                                       "交接文档必须告诉接手研发需要向 DBA、运维、网关、对象存储、业务系统负责人收集哪些配置和证据",
+                                                       "migration 必须走受控流程；当前仓库没有 db:migrate 生产脚本时，不能建议研发手工直连生产库随意执行",
+                                                       "真实链接、token、cookie、私钥、密码、完整连接串和生产样本数据不得写入仓库"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 .env.example、Docker MySQL、本地 object storage mock、local rehearsal 或 demo 写成生产 live evidence",
+                                                        "禁止把真实生产链接、secret、账号密码或生产数据样本写入交接文档",
+                                                        "禁止要求接手研发跳过 DBA 审核、备份、变更窗口和失败回滚直接做生产 migration",
+                                                        "禁止把只读业务数据源、对象存储、网关认证或失败态验证留成未说明的口头交接"
+                                                    ],
+                      "context_files":  [
+                                            "AGENTS.md",
+                                            "docs/harness/task-session-strategy.md",
+                                            "docs/harness/regression-rules.md",
+                                            "docs/architecture/constraints.md",
+                                            "docs/operations/production-deployment-config-runbook.md",
+                                            "docs/operations/production-data-integration-runbook.md",
+                                            ".env.example",
+                                            "src/db/migrator.ts",
+                                            "package.json",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "docs/operations/production-handoff-guide.md",
+                                          "docs/operations/production-config-questionnaire.md",
+                                          "docs/operations/production-migration-runbook.md",
+                                          "docs/operations/production-live-evidence-template.md",
+                                          "docs/testing/verify-matrix.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docs/operations/production-handoff-guide.md",
+                                                 "docs/operations/production-config-questionnaire.md",
+                                                 "docs/operations/production-migration-runbook.md",
+                                                 "docs/operations/production-live-evidence-template.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "新增生产接入交接指南，明确当前交付是接入准备而非真实生产已验证",
+                                    "新增配置收集问卷，列出公开 base URL、平台库、业务只读源、对象存储、签名 secret、registry 配置和负责人",
+                                    "新增生产平台库 migration runbook，说明当前只有 src/db/migrator.ts 而没有 db:migrate 生产脚本时应通过受控 migration job 或 DBA 变更执行",
+                                    "新增 live evidence 模板，要求记录真实环境、依赖摘要、migration、registry、成功态、失败态和未覆盖项",
+                                    "同步 verify-matrix，明确交接包只声明 handoff-ready，不声明 live dependency connected"
+                                ],
+                      "test_command":  "powershell -NoProfile -Command \"Get-Content -Raw task.json | ConvertFrom-Json | Out-Null\"; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/operations/production-handoff-guide.md docs/operations/production-config-questionnaire.md docs/operations/production-migration-runbook.md docs/operations/production-live-evidence-template.md docs/testing/verify-matrix.md",
+                      "acceptance":  [
+                                         "交接指南能让接手研发知道先收集哪些生产链接、secret、账号、负责人和验证窗口，而不是猜配置",
+                                         "配置问卷覆盖 DBA、运维、网关、对象存储、业务只读源和 registry 配置责任人",
+                                         "migration runbook 明确当前没有 db:migrate 生产脚本，生产迁移必须走受控 migration job 或 DBA 变更流程",
+                                         "live evidence 模板同时覆盖成功态和失败态，并要求记录未覆盖项",
+                                         "verify-matrix 明确本任务只提供生产接入交接准备，不声明真实 staging/pre-prod/production live evidence"
+                                     ]
+                  },
+                  {
+                      "id":  "PRODUCTION-LIVE-INTEGRATION-001",
+                      "description":  "由接手研发在 staging/pre-prod/production 真实依赖上执行 live 接入验证并归档证据",
+                      "task_kind":  "integration",
+                      "phase":  "production-live-integration",
+                      "gate_profile":  "verification_required",
+                      "required_truth_sources":  [
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing",
+                                                     "operations"
+                                                 ],
+                      "priority":  99,
+                      "dependencies":  [
+                                           "PRODUCTION-HANDOFF-PACKAGE-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "必须在 staging、pre-prod 或 production 真实依赖上执行，不能用 Docker/mock/local rehearsal 替代",
+                                                       "完成声明必须同时包含真实依赖接入、真实请求走通、成功态证据和失败态证据",
+                                                       "平台库 migration 必须有受控执行记录、备份或 DBA 工单，并记录 migration 版本",
+                                                       "所有证据必须脱敏，不得包含 token、cookie、私钥、密码、完整连接串或生产样本数据"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止把 RELEASE-001、FULL-REQUIREMENTS-ACCEPTANCE-REPORT-001、Docker MySQL、本地 object storage mock 或 demo 升级成 live evidence",
+                                                        "禁止在缺少业务只读源、对象存储、网关认证或失败态证据时把 passes 标成 true",
+                                                        "禁止直接提交真实生产链接、secret、账号密码或生产数据样本",
+                                                        "禁止绕过 migration 审批、备份、变更窗口和回滚计划"
+                                                    ],
+                      "context_files":  [
+                                            "docs/operations/production-handoff-guide.md",
+                                            "docs/operations/production-config-questionnaire.md",
+                                            "docs/operations/production-migration-runbook.md",
+                                            "docs/operations/production-live-evidence-template.md",
+                                            "docs/operations/production-deployment-config-runbook.md",
+                                            "docs/operations/production-data-integration-runbook.md",
+                                            "contracts/openapi.yaml",
+                                            "docs/testing/verify-matrix.md",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "docs/testing/verify-matrix.md",
+                                          "docs/operations/production-live-evidence-template.md",
+                                          "docs/operations/production-live-evidence-report.md"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docs/operations/production-live-evidence-report.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "按 production-config-questionnaire 收集并确认真实环境、负责人、变更窗口、平台库、业务只读源、对象存储、网关和 registry 配置",
+                                    "按 production-migration-runbook 完成平台库 migration 或 DBA 变更，并记录备份、migration 版本和执行结果",
+                                    "启动 HTTP 服务、scheduler worker 和 cleanup job，使用真实网关或等价签名客户端注册配置并创建小范围导出任务",
+                                    "记录成功态证据：任务创建、worker 完成、文件发布、下载验签、审计追踪和脱敏检查",
+                                    "记录失败态证据：缺签名、无权限、未注册任务、参数不合法、数据源不可用、对象存储失败或等价受控失败",
+                                    "把 production-live-evidence-template 填写为 production-live-evidence-report，并同步 verify-matrix 的 live evidence 区块"
+                                ],
+                      "test_command":  "echo \"BLOCKED - 需要人工介入: 该任务必须由接手研发在 staging/pre-prod/production 真实依赖、真实网关和受控变更窗口中执行；不能在本地用 Docker/mock 自动通过。\"; exit 1",
+                      "acceptance":  [
+                                         "live 报告明确环境类型、部署 commit、执行时间、执行人和结论",
+                                         "live 报告包含平台库、业务只读源、对象存储、网关、HTTP、worker 和 cleanup 的脱敏依赖摘要",
+                                         "migration 证据包含执行方式、migration 版本、备份 ID 或 DBA 工单、执行结果和失败摘要",
+                                         "成功态证据覆盖 registry、create task、worker complete、file publish、download verify、audit trace 和 masking check",
+                                         "失败态证据覆盖缺签名、无权限、未注册任务、参数不合法、数据源不可用、对象存储失败或等价受控失败",
+                                         "verify-matrix 同步 live evidence 结论并明确未覆盖项；没有真实依赖和证据时必须保持 BLOCKED"
+                                     ]
                   }
               ]
 }
