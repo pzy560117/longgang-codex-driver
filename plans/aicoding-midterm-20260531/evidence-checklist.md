@@ -8,9 +8,9 @@
 | 架构约束 | 说明交付形态、边界和禁止实现 | `docs/architecture/constraints.md` | 已有 |
 | 开发计划 | 说明任务拆分、模块和验证顺序 | `plans/features/export-platform.dev-plan.md` | 已有 |
 | 需求追溯 | 说明 FR 到测试和证据路径 | `docs/testing/TRACEABILITY_MATRIX.md` | 已有 |
-| 全量验收报告 | 说明本地受控验收结果 | `docs/testing/full-acceptance-test-report.md` | 已有，需确认是否为最新 |
-| API 验收报告 | 说明 API smoke 和手工验收路径 | `docs/testing/api-acceptance-test-report.md` | 已有，需确认是否为最新 |
-| 执行轨迹 | 说明任务执行和 review 过程 | `traces/` | 已有，需筛选代表性样例 |
+| 全量验收报告 | 说明本地受控验收结果 | `docs/testing/full-acceptance-test-report.md` | 已有，2026-05-18 报告为 PASS；评审前建议重跑 |
+| API 验收报告 | 说明 API smoke 和手工验收路径 | `docs/testing/api-acceptance-test-report.md` | 已有，2026-05-18 报告为 PASS；评审前建议重跑 |
+| 执行轨迹 | 说明任务执行和 review 过程 | `traces/` | 已有，已筛选代表性样例 |
 | 运行脚本 | 说明可复现演示和验证命令 | `package.json`、`scripts/` | 已有 |
 
 ## 2. 评审可用证据
@@ -37,14 +37,46 @@
 
 ### 2.3 需要人工确认的证据
 
-- 最新 full acceptance report 是否为 2026-05-31 评审前重新生成。
-- 当前 trace 中哪些任务最适合作为演示样例。
+- 最新 full acceptance report 是否要在 2026-05-31 评审前重新生成并固化。
 - 客户样本代码和文档是否允许进入评审材料。
 - 是否已有客户服务器多 Agent 环境的可展示日志。
 - OpenAI API 转发服务器是否可展示成本、稳定性或调用记录。
 - OpenClaw 日志归集是否已有截图或查询样例。
 
-## 3. 缺口清单
+## 3. 代表性证据包
+
+### 3.1 需求与架构证据
+
+| 证据 | 路径 | 可讲内容 |
+| --- | --- | --- |
+| 产品需求 | `docs/product/prd-lite.md` | FR-001 至 FR-014，覆盖创建、查询、调度、文件、审计、清理、样板 |
+| 架构约束 | `docs/architecture/constraints.md` | independent microservice、HTTP、worker、MySQL、测试替身和禁止实现 |
+| 架构 brief | `docs/context/architecture-brief.md` | 模块边界、数据流、FR 落点、技术栈和架构检查 |
+| 开发计划 | `plans/features/export-platform.dev-plan.md` | 任务拆分、owned paths、验证顺序和证据路径 |
+| 需求追溯 | `docs/testing/TRACEABILITY_MATRIX.md` | FR 到 API、测试层、证据路径和风险的映射 |
+
+### 3.2 验收与测试证据
+
+| 证据 | 路径 / 命令 | 当前可引用结论 |
+| --- | --- | --- |
+| 全量验收 | `docs/testing/full-acceptance-test-report.md` | 2026-05-18 PASS，覆盖 FR-001 至 FR-014 |
+| API 验收 | `docs/testing/api-acceptance-test-report.md` | 2026-05-18 PASS，覆盖创建、幂等、详情、历史、取消、认证拒绝 |
+| 架构检查 | `npm run arch:check` | 检查生产入口、route manifest、migration、禁止替身等架构门禁 |
+| 接受度测试 | `npm run test:acceptance` | 轻量校验 API 验收流和 full acceptance report 任务覆盖 |
+| 完整受控验收 | `npm run test:acceptance:full-report` | 可在评审前重跑，生成新的全量报告 |
+
+### 3.3 代表性 trace 样例
+
+| Trace | 状态 | 适合展示的点 |
+| --- | --- | --- |
+| `traces/REQUIREMENTS-COMPLETE-REVIEW-001-20260517-101311.json` | passed | 需求完整性复审，说明不是只靠实现自证 |
+| `traces/PUBLIC-ERROR-REDACTION-001-20260517-100346.json` | passed | 公开错误脱敏，说明安全和错误边界被测试约束 |
+| `traces/DEFAULT-QUERY-RETRY-ALIGNMENT-001-20260517-093622.json` | passed | 查询重试和 worker 行为，说明异步执行不是演示假流程 |
+| `traces/TASK-CANCEL-ATOMICITY-001-20260517-092918.json` | passed | 取消原子性，说明状态机和并发边界有验证 |
+
+这些 trace 可作为评审演示中的“过程可追踪”证据。演示时不需要展开完整 JSON，只展示 `task_id`、`status`、`test_command` 和关联任务即可。
+
+## 4. 缺口清单
 
 | 缺口 | 影响 | 建议处理 |
 | --- | --- | --- |
@@ -55,7 +87,17 @@
 | 过程可观测性仍分散 | 复盘成本高 | 接入日志归集和 trace 索引 |
 | 经验回流机制待补 | 难以复制到其他业务 | 建立知识条目和模板任务 |
 
-## 4. 建议评审前补跑命令
+## 5. 评审证据使用口径
+
+| 场景 | 可以说 | 不要说 |
+| --- | --- | --- |
+| 本地受控验收 | FR-001 至 FR-014 已在 Docker/local MySQL + 本地 object storage mock 下完成受控验收 | 已完成生产上线验收 |
+| 对象存储 | 已有本地 object storage mock smoke，能验证文件发布、下载和清理链路 | live OSS/S3 已验证 |
+| 业务数据源 | 平台具备只读数据源和数据中台接入边界 | 已接入客户真实业务数据源 |
+| AI Coding | Harness 能把任务、执行、验证和 trace 串成工程闭环 | AI 自动完成全部工程交付 |
+| 团队推广 | 已有方法和样板，下一阶段补团队协作和环境迁移 | 已是成熟企业团队级方案 |
+
+## 6. 建议评审前补跑命令
 
 最低口径：
 
@@ -78,7 +120,14 @@ npm run demo:local:smoke
 npm run test:acceptance:full-report
 ```
 
-## 5. 完成声明模板
+补跑后需要检查：
+
+- `docs/testing/full-acceptance-test-report.md` 结论为 PASS。
+- `docs/testing/api-acceptance-test-report.md` 如被重跑，结论为 PASS。
+- 报告没有写入 secret、password、token、真实连接串。
+- `git diff --check -- docs/testing plans/aicoding-midterm-20260531` 通过。
+
+## 7. 完成声明模板
 
 建议使用：
 
