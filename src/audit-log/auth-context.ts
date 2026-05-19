@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest } from "fastify";
+import { loadConfig } from "../config/index.ts";
 import { createDatabase } from "../db/kysely.ts";
 import { getDatabaseTime } from "../repositories/index.ts";
 import { appendAudit } from "./service.ts";
@@ -35,16 +36,13 @@ export function isExportAdmin(auth: AuthContext): boolean {
 }
 
 export function isTrustedRegistryAdminTenant(auth: AuthContext): boolean {
-  const raw = process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
-  if (!raw || raw.trim() === "*") {
-    return !process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET || raw?.trim() === "*";
+  const security = loadConfig().security;
+  if (security.registryAdminTenantIds.length === 0) {
+    return !security.authContextSigningSecret;
   }
 
-  return raw
-    .split(",")
-    .map((tenantId) => tenantId.trim())
-    .filter(Boolean)
-    .includes(auth.tenantId);
+  return security.registryAdminTenantIds.includes("*") ||
+    security.registryAdminTenantIds.includes(auth.tenantId);
 }
 
 export function assertExportPermission(auth: AuthContext, allowedRoles: string[]): void {
@@ -77,7 +75,7 @@ function readOptionalHeader(request: FastifyRequest, name: string): string | und
 }
 
 function requireAuthContextSigningSecret(): string {
-  const secret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
+  const secret = loadConfig().security.authContextSigningSecret;
   if (!secret) {
     throw new ApiError(401, "AUTH_CONTEXT_MISSING", "auth context missing");
   }

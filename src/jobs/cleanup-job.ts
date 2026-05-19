@@ -17,11 +17,12 @@ export function createCleanupJobRuntime(): CleanupJobRuntime {
 }
 
 export function startCleanupJob(): NodeJS.Timeout {
+  const config = loadConfig();
   const runtime = createCleanupJobRuntime();
   const db = createDatabase();
   const job = createCleanupJob({
     db,
-    workerId: process.env.EXPORT_PLATFORM_CLEANUP_WORKER_ID ?? `cleanup-${process.pid}`
+    workerId: config.worker.cleanupWorkerId
   });
   let polling = false;
 

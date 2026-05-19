@@ -4,7 +4,7 @@
 
 ## 接入范围
 
-生产接入分成五条边界，不能混在一起验收：
+生产接入分成五条边界，不能混在一起验收。所有运行配置先进入 `src/config/env.ts` 的 `loadConfig()`，再由具体模块消费配置对象；业务模块不得新增散落的环境变量读取。
 
 | 边界 | 用途 | 当前代码入口 | 生产接入要求 |
 | --- | --- | --- | --- |
@@ -32,8 +32,10 @@
 
 ```powershell
 # HTTP
+$env:EXPORT_PLATFORM_ENVIRONMENT = "production"
 $env:EXPORT_PLATFORM_HOST = "0.0.0.0"
 $env:EXPORT_PLATFORM_PORT = "3000"
+$env:EXPORT_PLATFORM_PUBLIC_BASE_URL = "https://<export-platform-public-host>"
 
 # 平台库：二选一，优先 DATABASE_URL
 $env:EXPORT_PLATFORM_DATABASE_URL = "mysql://<platform_user>:<platform_password>@<platform_host>:3306/<platform_db>?ssl=true"
@@ -54,6 +56,9 @@ $env:EXPORT_PLATFORM_DATASOURCES_JSON = '{"purchase-ro":{"url":"mysql://<readonl
 # 对象存储。当前实现要求 endpoint/bucket 支持 HTTP PUT、read、publish copy 和下载 URL 访问语义。
 $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = "https://<object-storage-gateway>"
 $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = "<bucket>"
+$env:EXPORT_PLATFORM_OBJECT_STORAGE_SMOKE_PREFIX = "release-smoke"
+$env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES = "true"
+$env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE = "false"
 $env:EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = "<download-url-signing-secret>"
 
 # 认证网关签名
@@ -62,9 +67,12 @@ $env:EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS = "<tenant-001,tenant-002>"
 
 # Worker / cleanup
 $env:EXPORT_PLATFORM_WORKER_ID = "export-worker-prod-001"
+$env:EXPORT_PLATFORM_CLEANUP_WORKER_ID = "export-cleanup-prod-001"
 $env:EXPORT_PLATFORM_SCHEDULER_POLL_MS = "5000"
 $env:EXPORT_PLATFORM_CLEANUP_POLL_MS = "60000"
 ```
+
+`EXPORT_PLATFORM_ENVIRONMENT=production` 会启用 fail-fast：缺少必填 secret、对象存储 endpoint/bucket、公开 base URL、平台库 URL或完整拆分 MySQL 配置，或使用 localhost / `.local` / `.test` / `.invalid` endpoint 时会直接阻塞。生产 smoke 写入必须显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true`，并使用独立 smoke prefix。
 
 ## 对象存储适配说明
 
@@ -202,6 +210,8 @@ npm run job:cleanup
 | L6 边界压测 | 空数据、1 行、阈值边界、超过上限、数据源不可用 | 对齐 `docs/product/acceptance-criteria.md` 的 P0/P1 场景 |
 
 当前已有命令中，`npm run test:acceptance:full-report` 仍是 docker/mock 全量验收，不会自动证明外部生产依赖通过。接入生产依赖后，应新增专项 task，例如 `PRODUCTION-LIVE-INTEGRATION-001`，把 live 环境、命令、退出码、时间、证据边界写入 `docs/testing/verify-matrix.md` 或新的 live 报告。
+
+生产部署变量清单、secret 分类和配置后验证步骤见 `docs/operations/production-deployment-config-runbook.md`。
 
 ## 手动验收清单
 

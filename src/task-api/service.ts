@@ -17,6 +17,7 @@ import {
   type TaskEventRecord
 } from "../repositories/index.ts";
 import { appendAudit } from "../audit-log/service.ts";
+import { loadConfig } from "../config/index.ts";
 import {
   isPublicTaskEventType,
   normalizePublicResponseCode
@@ -580,7 +581,7 @@ function toDownloadMetadata(
 }
 
 function requireDownloadSigningSecret(): string {
-  const secret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  const secret = loadConfig().security.downloadUrlSigningSecret;
   if (!secret) {
     throw new ApiError(
       500,
@@ -634,7 +635,7 @@ function createPlatformSignedDownloadUrl(input: {
   auth: AuthContext;
   secret: string;
 }): string {
-  const baseUrl = process.env.EXPORT_PLATFORM_PUBLIC_BASE_URL ?? "http://export-platform.local";
+  const baseUrl = loadConfig().security.publicBaseUrl;
   const url = new URL(`/api/export/tasks/${encodeURIComponent(input.taskId)}/download`, baseUrl);
   const roleCodes = input.auth.roleCodes.join(",");
   url.searchParams.set("mode", "SIGNED_URL");

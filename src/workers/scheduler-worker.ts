@@ -17,11 +17,12 @@ export function createSchedulerWorkerRuntime(): SchedulerWorkerRuntime {
 }
 
 export function startSchedulerWorker(): NodeJS.Timeout {
+  const config = loadConfig();
   const runtime = createSchedulerWorkerRuntime();
   const db = createDatabase();
   const worker = createSchedulerWorker({
     db,
-    workerId: process.env.EXPORT_PLATFORM_WORKER_ID ?? `scheduler-${process.pid}`,
+    workerId: config.worker.schedulerWorkerId,
     leaseDurationSeconds: 300,
     maxTasksPerPoll: 1
   });

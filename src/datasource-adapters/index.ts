@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import { loadConfig, type DatasourceConfig } from "../config/index.ts";
 
 export type ReadonlyDatasourceAdapter = {
   executeSelect(
@@ -13,15 +14,14 @@ export type ReadonlyDatasourceAdapterProvider = {
   ): Promise<ReadonlyDatasourceAdapter | undefined>;
 };
 
-type DatasourceUrlMap = Record<string, string | { url?: string }>;
-
 export function createEnvReadonlyDatasourceAdapterProvider(input?: {
   env?: NodeJS.ProcessEnv;
+  datasource?: DatasourceConfig;
 }): ReadonlyDatasourceAdapterProvider {
-  const env = input?.env ?? process.env;
+  const datasource = input?.datasource ?? loadConfig(input?.env).datasource;
   return {
     async resolveReadonlyAdapter(datasourceCode) {
-      const datasourceUrl = resolveDatasourceUrl(env, datasourceCode);
+      const datasourceUrl = resolveDatasourceUrl(datasource, datasourceCode);
       if (!datasourceUrl) {
         return undefined;
       }
@@ -57,47 +57,16 @@ export function createMysqlReadonlyDatasourceAdapter(
 }
 
 function resolveDatasourceUrl(
-  env: NodeJS.ProcessEnv,
+  datasource: DatasourceConfig,
   datasourceCode: string
 ): string | undefined {
-  const directKey = `EXPORT_PLATFORM_DATASOURCE_${toEnvKey(datasourceCode)}_URL`;
-  const direct = env[directKey];
-  if (direct) {
-    return direct;
-  }
-
-  const mapped = resolveDatasourceUrlFromMap(env.EXPORT_PLATFORM_DATASOURCES_JSON, datasourceCode);
-  if (mapped) {
-    return mapped;
-  }
-
-  return undefined;
-}
-
-function resolveDatasourceUrlFromMap(
-  payload: string | undefined,
-  datasourceCode: string
-): string | undefined {
-  if (!payload) {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(payload) as DatasourceUrlMap;
-    const value = parsed[datasourceCode];
-    if (typeof value === "string") {
-      return value;
-    }
-    return typeof value?.url === "string" ? value.url : undefined;
-  } catch {
-    return undefined;
-  }
+  return datasource.urlsByCode[datasourceCode] ?? datasource.urlsByCode[toEnvKey(datasourceCode)];
 }
 
 function toEnvKey(datasourceCode: string): string {
   return datasourceCode
     .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }

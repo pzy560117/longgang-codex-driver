@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
+import { loadConfig, type ObjectStorageConfig } from "../config/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
   createExportAuditRepository,
@@ -130,8 +131,14 @@ export function createCleanupJob(options: CleanupJobOptions) {
 }
 
 export function createCleanupObjectStorageFromEnv(): CleanupObjectStorage {
-  const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
-  const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  return createCleanupObjectStorageFromConfig(loadConfig().objectStorage);
+}
+
+export function createCleanupObjectStorageFromConfig(
+  objectStorage: ObjectStorageConfig
+): CleanupObjectStorage {
+  const endpoint = objectStorage.endpoint;
+  const bucket = objectStorage.bucket;
 
   if (!endpoint || !bucket) {
     throw new Error(

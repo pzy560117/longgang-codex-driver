@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { type Kysely } from "kysely";
+import { loadConfig, type ObjectStorageConfig, type SecurityConfig } from "../config/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
   createExportFileRepository,
@@ -80,9 +81,17 @@ const checksumAlgorithm = "SHA-256";
 const signedUrlExpiresMinutes = 10;
 
 export function createObjectStorageFromEnv(): ObjectStorage {
-  const endpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
-  const bucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
-  const downloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  const config = loadConfig();
+  return createObjectStorageFromConfig(config.objectStorage, config.security);
+}
+
+export function createObjectStorageFromConfig(
+  objectStorage: ObjectStorageConfig,
+  security: SecurityConfig
+): ObjectStorage {
+  const endpoint = objectStorage.endpoint;
+  const bucket = objectStorage.bucket;
+  const downloadSigningSecret = security.downloadUrlSigningSecret;
 
   if (!endpoint || !bucket) {
     throw new Error(
