@@ -1,0 +1,143 @@
+# PRD-Lite：统一导出平台
+
+> 仓库正式入口真相源之一。本文将归档中的后端统一导出需求收敛为本仓库的统一产品口径，默认面向后端平台能力，不引入前端页面设计。
+
+## 1. 基本信息
+
+- Feature ID: `FEAT-EXPORT-PLATFORM-001`
+- Feature 名称: 统一导出平台
+- 当前状态: `Review`
+- 最后更新: `2026-05-12`
+
+## 2. 目标
+
+- 统一采购、销售、物流、仓储等子系统的导出入口。
+- 导出从同步下载改为异步任务，避免长请求超时。
+- 平台统一负责任务、调度、操作权限、下载保护、审计、清理和导出结果校验。
+- 子系统负责数据查询、数据范围控制、字段脱敏执行、字段映射和自定义渲染。(子系统不负责数据查询，查询、字段映射等全部由导出服务提供，子系统只负责提交导出任务。)
+
+## 3. 默认决策
+
+- 平台以独立微服务形态交付，子系统独立部署。平台不直接面向用户，是作为采购等子系统的后台微服务存在的，因此不提供用户认证相关的功能，只保存由子系统传递的用户ID等信息，方便查询个人导出记录。
+- 子系统接入方式采用 `HTTP/Feign`。
+- 平台通过服务发现 / 路由 + provider 契约调用子系统，不直接依赖业务子系统 JAR。（理论上，不存在平台调用子系统的情况。平台只是作为被调用方。）
+- Provider 契约顺序已由 `CONTRACT-001` 锁定为 `metadata -> count -> query -> render`。
+- 调度方式采用 `MySQL 轮询 + DB 抢锁`。
+- 下载方式默认采用 `签名 URL`，同时支持 `stream`。
+- 多格式支持 `Word / PDF / CUSTOM` 子系统自定义渲染。（目前只支持excel格式，子系统不负责渲染）
+- Excel/ZIP 主路径默认由平台渲染，不调用子系统自定义 `render`；Word/PDF/CUSTOM 或复杂模板场景才进入 `render`。
+- 空数据导出生成仅表头文件，任务仍然完成。
+- 一期不做审批。
+- 平台正式对外任务状态限定为 `PENDING`、`EXECUTING`、`COMPLETED`、`FAILED`、`CANCELED`、`EXPIRED`。
+- `provider_gap`、`renderer_failure` 仅作为测试/分析标签，`cancel_requested` 仅作为内部执行控制标记，三者均不作为 API 状态或用户可见错误码。
+- 历史任务查询正式筛选维度为 `taskCode`、`status`、`createdBy`、`createdAtRange`、`fileFormat`、`subsystemCode`；普通用户默认只能看本人任务，管理员可按权限查看全局。
+- 注册与配置能力覆盖注册创建/更新/查询、启停、并发上限、保留期、单文件行数阈值、最大导出量和支持格式策略。
+- 下载响应必须显式表达交付方式：签名 URL 返回 `downloadUrl`、`expiresAt`、`fileName`、`fileSize`，流式下载返回文件流和等价文件元信息。
+- 统一认证上下文最小字段为 `operatorId`、`tenantId`、`roleCodes`、`orgScope`、`requestId`；平台负责操作权限和任务可见性，子系统按上下文执行数据范围控制。
+- 对象存储文件路径默认按 `exports/{subsystemCode}/{taskCode}/{yyyyMMdd}/{taskId}/{attemptNo}/{fileName}` 组织；签名 URL 默认有效期为 10 分钟；文件校验值默认使用 `SHA-256`。
+- 创建任务接口支持 `clientRequestId` 幂等键，幂等范围为 `tenantId + operatorId + taskCode + clientRequestId`。
+- 任务创建时固化注册配置快照和执行参数摘要；后续执行、取消、重试、下载和审计均引用同一任务快照。
+- 执行尝试统一使用 `attemptNo` 标识；每次失败重试递增 `attemptNo`，同一任务同一时刻只允许一个活跃执行尝试。
+- DB 抢锁默认使用 `lockOwner + lockExpireAt` 租约模型；默认租约 5 分钟，worker 在批次边界续租，租约过期后可由其他实例重新抢锁。
+- 锁租约过期后的实例接管延续当前 `attemptNo`，并记录接管审计；只有用户或系统发起 FAILED 重试时才递增 `attemptNo`。
+- 大数据查询默认使用稳定游标分页，不以 offset 分页作为主路径；游标字段必须来自 provider `metadata` 或注册配置。
+- 创建请求 `queryParams` 默认最大 32KB；单文件默认最大 20000 行；单任务默认最大导出量 100000 行，具体可由注册配置收紧。
+- Provider 单次调用默认超时 30 秒；`query` 批次失败默认最多重试 3 次并指数退避，`render` 仅在 provider 声明可安全重试时重试。
+- 注册配置变更只影响变更后创建的新任务；已创建任务和失败重试默认沿用原任务快照，避免执行口径漂移。
+- Provider 请求必须携带任务快照中的 `taskId`、`taskCode`、`subsystemCode`、`attemptNo`、`tenantId`、`operatorId`、`orgScope`、`requestId`、`queryParamsDigest` 和当前批次游标；子系统不得依赖平台未声明的隐式上下文。
+- Provider 响应必须携带 `providerTraceId` 或等价追踪标识；平台在审计、任务日志和失败证据中记录该标识，便于跨服务排查。
+- 平台执行链路必须持久化阶段事件，阶段至少包括 `METADATA_READY`、`COUNT_READY`、`QUERY_BATCH_DONE`、`FILE_PART_WRITTEN`、`PACKAGE_DONE`、`FILE_VERIFIED`、`DELIVERY_READY`。
+- 文件生成采用“先写临时对象、校验通过后发布”的交付模型；未发布对象不得被下载接口返回。
+- 采购订单导出作为一期样板模块，覆盖查询条件、字段表头、游标分页、敏感字段、空数据、分片、权限、审计、下载和 10 万行压测证据。
+
+## 4. 范围
+
+### In Scope
+
+- 创建导出任务、查询进度、查询历史、下载文件、取消、重试。
+- 导出任务注册、子系统并发控制、文件过期清理。
+- Excel/ZIP 主路径，以及 Word/PDF/CUSTOM 扩展路径。
+- 平台认证、操作权限、下载签名保护、审计日志和导出结果脱敏校验。
+- 子系统数据范围、字段脱敏执行和模板渲染。
+
+### Out of Scope
+
+- 新前端页面、弹窗、任务中心 UI。
+- 一期审批流。
+- 一期全量接入所有子系统。
+- 把子系统导出实现类直接打包进平台服务进程。
+
+## 5. 关键需求
+
+| 需求 ID | 需求描述 | 优先级 |
+| --- | --- | --- |
+| FR-001 | 创建导出任务并立即返回 `taskId` | P0 |
+| FR-002 | 查询任务进度和状态 | P0 |
+| FR-003 | 下载导出文件，支持签名 URL 或流式下载 | P0 |
+| FR-004 | 查询任务历史 | P0 |
+| FR-005 | 按子系统限制并发并调度执行 | P0 |
+| FR-006 | 大数据量导出自动分片并打包 | P0 |
+| FR-007 | 注册导出任务并启停 | P0 |
+| FR-008 | 提供统一接入接口/契约 | P0 |
+| FR-009 | 权限校验、字段脱敏、下载签名 | P0 |
+| FR-010 | 记录任务日志、下载日志、失败原因 | P0 |
+| FR-011 | 文件过期清理 | P1 |
+| FR-012 | 取消和重试任务 | P1 |
+| FR-013 | 创建幂等、执行尝试、DB 锁租约和任务配置快照 | P0 |
+| FR-014 | 采购订单导出样板形成可执行接入合同 | P0 |
+
+## 6. 业务规则
+
+- 仅允许已注册且启用的 `taskCode` 创建任务。
+- 创建任务前必须通过平台操作权限校验。
+- 下载前必须再次校验权限和文件有效期。
+- 单文件默认最大 `20000` 行。
+- 文件默认保留 `15` 天，任务历史默认保留 `30` 天。
+- PENDING 可取消；FAILED 可重试；COMPLETED、CANCELED、EXPIRED 不允许直接重试为同一任务。
+- FAILED 任务重试必须保留原 `taskId` 的审计链路并递增执行尝试次数；同一任务同一时刻只能有一个活跃执行尝试。
+- PENDING/EXECUTING 任务收到重试请求时返回非法状态错误，且不得重复派发执行。
+- EXECUTING 取消采用批次边界收口：平台记录取消意图，worker 在批次边界停止并最终置为 `CANCELED`。
+- 敏感字段由子系统按规则脱敏或剔除，平台负责校验导出结果不包含未脱敏敏感信息。
+- 子系统不支持精确 `count` 时必须显式返回降级原因，平台只展示已处理数和执行状态，不伪造百分比。
+- `count` 不支持精确统计时，`progressPercent` 必须为空或缺省，不得使用估算值伪装精确百分比。
+- 审计日志至少记录 `taskId`、`taskCode`、`subsystemCode`、`operatorId`、`action`、`result`、`errorCode`、`requestId` 和发生时间。
+- 审计动作至少覆盖 `CREATE`、`DISPATCH`、`EXECUTE_START`、`EXECUTE_SUCCESS`、`EXECUTE_FAILED`、`CANCEL_REQUEST`、`CANCEL_DONE`、`RETRY_REQUEST`、`DOWNLOAD`、`EXPIRE_MARK`、`CLEANUP_FAILED`。
+- 文件过期清理先标记任务或文件引用为不可下载，再删除对象存储文件；清理失败必须保留可重试记录。
+- 平台生成文件后必须记录 `fileName`、`fileSize`、`contentType`、`storageKey`、`checksum`、`checksumAlgorithm`、`expiresAt` 和 `attemptNo`。
+- 子系统 `metadata` 返回的字段定义必须包含字段编码、表头、类型、顺序、是否敏感、是否导出和脱敏策略；平台不得导出未在 `metadata` 中声明为可导出的字段。
+- 调用方提供 `clientRequestId` 时，相同幂等范围和相同参数摘要必须返回原 `taskId`；相同幂等范围但参数摘要不同必须返回 `IDEMPOTENCY_CONFLICT`。
+- DB 锁的时间判断以数据库时间为准，避免多实例机器时钟漂移影响抢锁和租约过期判断。
+- 执行尝试输出必须按 `attemptNo` 隔离存储，新的成功尝试不得覆盖历史失败尝试的审计证据。
+- 锁接管必须从已持久化的批次检查点继续，批次检查点至少包含 `lastCursor`、`processedCount`、`filePartNo` 和当前 `attemptNo`。
+- Worker 只能在批次边界响应执行中取消；已写入文件片段必须进入当前 `attemptNo` 的失败或取消处置链路。
+- Provider `query` 必须返回下一游标、是否还有更多、批次行数和脱敏完成标记；缺少任一关键字段时按 provider 契约错误收口。
+- Provider `metadata` 与注册快照冲突时，以任务创建时固化的注册快照作为平台执行上限；冲突必须记录为 provider 契约错误或配置不一致证据，不得静默放宽格式、阈值或字段范围。
+- Provider `count` 返回总量超过任务快照允许上限时，平台必须在拉取数据前停止执行或转入更严格控制流，并记录 count 证据。
+- 每个 `query` 批次写入文件片段前必须完成字段白名单、字段顺序和敏感字段脱敏完成标记校验；校验失败不得继续写入后续批次。
+- 文件发布前必须校验文件元信息和内容校验值；校验失败时不得生成下载地址，任务进入失败处置并保留临时对象定位或清理记录。
+- 采购订单样板默认查询条件包括创建时间范围、订单状态、供应商、采购组织和关键词；默认游标字段为稳定递增的 `orderId` 或等价唯一排序键。
+- 采购订单样板默认 `taskCode` 为 `purchase-order-export`，`subsystemCode` 为 `purchase`，默认支持 `XLSX` 和超过单文件阈值后的 `ZIP` 打包；如需 Word/PDF/CUSTOM，必须由子系统在 `metadata` 中声明需要自定义 `render`。
+- 采购订单样板字段顺序固定为订单号、订单状态、供应商、采购组织、采购员、创建时间、总金额、币种、联系人姓名、联系人手机号；联系人姓名和联系人手机号必须标记为敏感字段并由子系统完成脱敏后再返回。
+- 采购订单样板 `query` 返回的每一批数据必须按 `orderId` 或等价唯一排序键稳定递增，禁止使用非稳定排序导致锁接管或重试后重复/漏导。
+- 采购订单样板测试数据必须覆盖 `0/1/20000/20001/100000/100001` 行边界；`100001` 行在默认配置下应触发超过最大导出量处置。
+- 采购订单样板验收证据必须能串联创建请求、provider `metadata/count/query` 调用、批次检查点、分片文件、ZIP 文件、审计日志、下载记录和 10 万行压测记录。
+
+## 7. 风险与假设
+
+- 子系统查询性能决定导出吞吐。
+- Word/PDF 模板复杂度高，建议由子系统自定义渲染。
+- 多实例重复执行必须靠 DB 原子抢锁避免。
+- 需要统一认证上下文、角色编码、组织/数据范围字段。
+- 微服务环境下需要锁定服务发现、请求头透传、超时/重试和契约版本管理策略。
+- Provider 阶段失败统一映射到 `FAILED` 和明确错误码，例如 `PROVIDER_METADATA_ERROR`、`PROVIDER_CONTRACT_INVALID`、`PROVIDER_COUNT_ERROR`、`PROVIDER_QUERY_ERROR`、`PROVIDER_RENDER_ERROR`。
+- 对象存储 bucket 名称由环境配置决定，但 path、签名有效期默认值和校验算法必须符合本文件默认决策；如需调整，只能通过注册/配置或环境配置覆盖，并保留审计证据。
+- 过期锁重抢可能造成重复批次风险，因此文件写入、对象存储路径和审计记录必须以 `attemptNo` 和批次边界隔离。
+- Provider 超时和批次重试会影响总耗时，10 万行压测证据必须记录批大小、重试次数、锁续租次数和总耗时。
+
+## 8. 关联入口
+
+- 验收标准: `docs/product/acceptance-criteria.md`
+- 需求追溯矩阵: `docs/product/requirement-interface-matrix.md`
+- 状态矩阵: `docs/product/state-matrix.yaml`
+- 难点研究: `docs/product/difficulty-research.md`
+- 能力清单: `docs/product/page-inventory.md`
