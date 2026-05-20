@@ -2,6 +2,8 @@
 
 本文说明统一导出平台后续接入生产依赖时应该怎么接。当前已通过的验收报告只覆盖本机 Docker MySQL、本地 object storage mock、受控测试数据和 production-equivalent adapter；接入真实生产 MySQL、业务只读数据源、对象存储和网关认证时，必须单独形成 live evidence。
 
+如果需要把这些依赖按上线顺序一步步部署到 staging、pre-prod 或 production，先执行 `docs/operations/production-deployment-tutorial.md`；本文只解释各依赖边界和接入要求。
+
 ## 接入范围
 
 生产接入分成五条边界，不能混在一起验收。所有运行配置先进入 `src/config/env.ts` 的 `loadConfig()`，再由具体模块消费配置对象；业务模块不得新增散落的环境变量读取。

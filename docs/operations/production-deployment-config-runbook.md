@@ -2,6 +2,8 @@
 
 本文是 `PROD-CONFIG-GOVERNANCE-001` 的配置契约。它只说明统一配置入口、部署变量和验证边界；不声明 staging、pre-prod 或 production live 依赖已经接通。
 
+如果需要从零执行到生产环境，先按 `docs/operations/production-deployment-tutorial.md` 走完整上线步骤；本文只作为配置项解释和配置后验证参考。
+
 ## 配置入口
 
 生产代码统一通过 `src/config/env.ts` 的 `loadConfig()` 读取配置，配置对象包含：
