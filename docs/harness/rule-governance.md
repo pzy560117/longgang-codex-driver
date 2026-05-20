@@ -67,9 +67,10 @@
 
 1. 先确认触发来源：trace、review finding、失败日志、用户明确要求或文档分析。
 2. 选择最小生效层级，不把深文档内容直接搬进 `AGENTS.md`。
-3. 如果改动影响模板或镜像，按 `harness-surface-sync` 同步 canonical source 和 mirrors。
-4. 运行最小验证：文档至少 `git diff --check`，JSON 需要 `ConvertFrom-Json`，PowerShell 需要 parser 检查。
-5. 提交前确认没有把 token、cookie、私钥、密码写入规则或 trace。
+3. 修正文档歧义时，优先重构现有主入口、合并重复段落、删除过期引用；不要默认新增平行文档来解释另一个文档。
+4. 如果改动影响模板或镜像，按 `harness-surface-sync` 同步 canonical source 和 mirrors。
+5. 运行最小验证：文档至少 `git diff --check`，JSON 需要 `ConvertFrom-Json`，PowerShell 需要 parser 检查。
+6. 提交前确认没有把 token、cookie、私钥、密码写入规则或 trace。
 
 ## 定期治理
 

@@ -9,8 +9,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | `.env.example` | 环境变量占位示例，不包含真实 secret。 |
-| `docs/operations/install-integration-quickstart.md` | 面向首次接手者的安装与接入快速手册，说明先跑什么、找谁要什么、怎么判断安装成功和接入成功。 |
-| `docs/operations/production-deployment-tutorial.md` | 从锁定 commit、安装依赖、注入配置、执行 migration、启动三类进程到 live evidence 的原子化上线步骤。 |
+| `docs/operations/production-deployment-tutorial.md` | 唯一安装与生产部署主入口：说明先跑什么、找谁要什么、怎么判断安装成功和接入成功，并给出从锁定 commit 到 live evidence 的原子化上线步骤。 |
 | `docs/operations/production-deployment-config-runbook.md` | 每个配置项的用途、必填环境、secret 分类和 fail-fast 边界。 |
 | `docs/operations/production-data-integration-runbook.md` | 平台库、业务只读源、对象存储、网关、worker 的接入边界。 |
 | `docs/operations/production-config-questionnaire.md` | 交给 DBA、运维、网关、业务系统负责人填写的信息收集表。 |
@@ -55,7 +54,7 @@
 
 ## 推荐接入顺序
 
-如果接手方还不清楚安装和接入的基本概念，先读 `docs/operations/install-integration-quickstart.md`。如果需要按上线工单逐步执行，再使用 `docs/operations/production-deployment-tutorial.md`。下面列表只保留高层接入顺序。
+接手方先读 `docs/operations/production-deployment-tutorial.md`，该文件是安装、接入和上线工单的统一入口。下面列表只保留高层接入顺序。
 
 1. 填完 `docs/operations/production-config-questionnaire.md`，确认没有空白的 P0/P1 项。
 2. 在 staging 或 pre-prod 配置环境变量和 secret，先不要接全量生产数据。
