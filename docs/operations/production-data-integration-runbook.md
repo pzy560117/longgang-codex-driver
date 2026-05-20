@@ -175,7 +175,13 @@ $env:EXPORT_PLATFORM_CLEANUP_POLL_MS = "60000"
 
 ## 启动顺序
 
-1. 在生产平台库执行 migration。当前仓库提供 `src/db/migrator.ts`，生产部署应提供受控 migration job 或一次性初始化任务。
+1. 在生产平台库执行 migration。使用受控 migration job 或 DBA 变更窗口运行：
+
+```powershell
+npm run db:migrate -- list
+npm run db:migrate
+```
+
 2. 配置环境变量和 secret。
 3. 启动 HTTP 服务：
 

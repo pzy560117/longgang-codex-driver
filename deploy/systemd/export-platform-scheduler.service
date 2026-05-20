@@ -1,0 +1,18 @@
+[Unit]
+Description=Export Platform scheduler worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/export-platform-service
+EnvironmentFile=/etc/export-platform/export-platform.env
+ExecStart=/usr/bin/npm run worker:scheduler
+Restart=always
+RestartSec=5
+User=export-platform
+Group=export-platform
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -45,12 +45,14 @@
 
 ## 直接迁移怎么做
 
-不要让研发手动复制 SQL 到生产库直接执行。当前仓库有 `src/db/migrator.ts` 的 Kysely migration runner，但 `package.json` 尚未提供 `db:migrate` 生产脚本。因此生产迁移需要二选一：
+不要让研发手动复制 SQL 到生产库直接执行。当前仓库提供 `npm run db:migrate -- list` 和 `npm run db:migrate`，生产迁移必须作为受控 migration job 或 DBA 变更窗口命令执行：
 
-1. 推荐：由接手方新增受控 migration job 或一次性初始化命令，接入部署平台审批、备份、dry run 和回滚流程后执行。
-2. 临时：由 DBA 在变更窗口按 `migrations/` 中的 SQL/TS migration 逐项审核和执行，并把执行记录写入 live evidence。
+```powershell
+npm run db:migrate -- list
+npm run db:migrate
+```
 
-无论哪种方式，都必须先读 `docs/operations/production-migration-runbook.md`，并在 `docs/operations/production-live-evidence-template.md` 填写 migration 版本、执行人、时间、退出码或 DBA 工单号。
+执行前必须先读 `docs/operations/production-migration-runbook.md`，确认备份、回滚、权限和变更窗口，并在 `docs/operations/production-live-evidence-template.md` 填写 migration 版本、执行人、时间、退出码或 DBA 工单号。
 
 ## 推荐接入顺序
 

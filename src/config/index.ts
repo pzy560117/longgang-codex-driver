@@ -1,6 +1,7 @@
-export { loadConfig } from "./env.ts";
+export { loadConfig, loadDatabaseConfig } from "./env.ts";
 export type {
   CleanupConfig,
+  DatabaseRuntimeConfig,
   DatasourceConfig,
   ExportPlatformConfig,
   HttpConfig,

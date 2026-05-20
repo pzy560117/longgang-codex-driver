@@ -13,24 +13,28 @@ import {
 } from "../scripts/arch-check.ts";
 
 const packageJson = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+  readText(new URL("../package.json", import.meta.url))
 );
 const verifyMatrix = readFileSync(
   new URL("../docs/testing/verify-matrix.md", import.meta.url),
   "utf8"
 );
-const schemaSource = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+const schemaSource = readText(new URL("../src/db/schema.ts", import.meta.url));
 const migrationsUrl = new URL("../migrations/", import.meta.url);
 const tsMigrationSource = readdirSync(migrationsUrl)
   .filter((fileName) => fileName.endsWith(".ts"))
   .sort()
-  .map((fileName) => readFileSync(new URL(fileName, migrationsUrl), "utf8"))
+  .map((fileName) => readText(new URL(fileName, migrationsUrl)))
   .join("\n");
 const sqlMigrationSource = readdirSync(migrationsUrl)
   .filter((fileName) => fileName.endsWith(".sql"))
   .sort()
-  .map((fileName) => readFileSync(new URL(fileName, migrationsUrl), "utf8"))
+  .map((fileName) => readText(new URL(fileName, migrationsUrl)))
   .join("\n");
+
+function readText(path) {
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+}
 
 function collectMatches(source, regex) {
   return [...source.matchAll(regex)].map((match) => match[1]).sort();
@@ -118,6 +122,29 @@ function collectSqlMigrationColumns(source) {
 
 test("arch:check is declared as the scaffold gate", () => {
   assert.equal(packageJson.scripts?.["arch:check"], "tsx scripts/arch-check.ts");
+});
+
+test("production migration command is available as an explicit deployment gate", () => {
+  assert.equal(packageJson.scripts?.["db:migrate"], "tsx scripts/db-migrate.ts");
+  assert.match(
+    readText(new URL("../scripts/db-migrate.ts", import.meta.url)),
+    /export-platform\.db-migration\.completed/
+  );
+});
+
+test("systemd deployment templates keep HTTP, scheduler, and cleanup as separate processes", () => {
+  const templates = {
+    "deploy/systemd/export-platform-http.service": "npm run start",
+    "deploy/systemd/export-platform-scheduler.service": "npm run worker:scheduler",
+    "deploy/systemd/export-platform-cleanup.service": "npm run job:cleanup"
+  };
+
+  for (const [path, command] of Object.entries(templates)) {
+    const source = readText(new URL(`../${path}`, import.meta.url));
+    assert.match(source, new RegExp(`ExecStart=/usr/bin/${command.replaceAll(" ", "\\s+")}`));
+    assert.match(source, /EnvironmentFile=\/etc\/export-platform\/export-platform\.env/);
+    assert.match(source, /Restart=always/);
+  }
 });
 
 test("verify matrix marks API and DB repository boundaries as available while STACK-ADR-001 is recorded as the current design baseline", () => {

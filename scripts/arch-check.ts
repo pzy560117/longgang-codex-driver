@@ -18,6 +18,10 @@ const requiredFiles = [
   "src/routes/register-routes.ts",
   "src/routes/route-manifest.ts",
   "src/db/migrator.ts",
+  "scripts/db-migrate.ts",
+  "deploy/systemd/export-platform-http.service",
+  "deploy/systemd/export-platform-scheduler.service",
+  "deploy/systemd/export-platform-cleanup.service",
   "src/repositories/index.ts",
   "migrations/001_initial_export_platform_schema.sql"
 ];
@@ -26,6 +30,7 @@ const requiredScripts = [
   "start",
   "worker:scheduler",
   "job:cleanup",
+  "db:migrate",
   "arch:check",
   "typecheck",
   "test",

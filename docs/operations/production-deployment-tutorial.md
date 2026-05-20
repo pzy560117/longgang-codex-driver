@@ -2,7 +2,7 @@
 
 本文是统一导出平台安装、接入和生产上线的唯一主入口。它同时回答“怎么把服务跑起来”和“怎么接真实生产依赖”，再把细节链接到配置、数据接入、migration 和 live evidence 附录。
 
-当前仓库状态：已提供 HTTP 服务、scheduler worker、cleanup job 三个运行入口和统一配置入口；尚未提供生产 `Dockerfile`、`db:migrate` 脚本、进程守护模板或部署平台流水线。因此本文默认采用“部署平台拉取源码 + Node.js 22 + `npm ci` + 三个独立进程”的可运行路径。若目标环境强制要求镜像、systemd、PM2、Kubernetes 或受控 migration job，必须先完成对应硬化任务，再继续 production 放量。
+当前仓库状态：已提供 HTTP 服务、scheduler worker、cleanup job 三个运行入口、统一配置入口、`db:migrate` 迁移命令和 systemd 三进程模板；尚未提供生产 `Dockerfile`、构建产物脚本或部署平台流水线。因此本文默认采用“部署平台拉取源码 + Node.js 22 + `npm ci` + 受控 migration + 三个独立进程”的可运行路径。若目标环境强制要求镜像、PM2、Kubernetes 或禁止 devDependencies 上生产，必须先完成对应硬化任务，再继续 production 放量。
 
 ## 0. 先理解要安装什么
 
@@ -123,8 +123,8 @@ git tag --points-at HEAD
 | 依赖安装 | 有 `package-lock.json` | 使用 `npm ci`，不要用 `npm install` 改锁文件。 |
 | 构建产物 | 未提供 `build` 脚本 | 当前可运行路径依赖 `tsx`，需要安装 devDependencies；若禁止 devDependencies 上生产，先新增 build 任务。 |
 | 镜像部署 | 未提供 `Dockerfile` | 若平台只接受镜像，先新增并验证 Dockerfile，不要临时手写镜像声明已上线。 |
-| migration job | 未提供 `db:migrate` 脚本 | 按 `production-migration-runbook.md` 走 DBA 变更或新增受控 migration job。 |
-| 进程守护 | 未提供 systemd / PM2 / K8s 模板 | 运维必须在部署平台配置三个独立进程和重启策略。 |
+| migration job | 已提供 `npm run db:migrate -- list` 和 `npm run db:migrate` | 按 `production-migration-runbook.md` 在受控变更窗口执行，不能绑定到 HTTP 服务启动。 |
+| 进程守护 | 已提供 systemd 三进程模板 | 模板在 `deploy/systemd/`；若使用 PM2 / K8s / 平台进程组，必须等价配置三个独立进程和重启策略。 |
 | 外部依赖 | 未声明 live 接通 | 必须形成 live evidence 后才能声明接入完成。 |
 
 通过标准：
@@ -278,10 +278,14 @@ git diff --check
 
 输入：部署 commit、`migrations/`、平台库连接、DBA 变更窗口。
 
-动作：按 `docs/operations/production-migration-runbook.md` 执行。当前二选一：
+动作：按 `docs/operations/production-migration-runbook.md` 执行：
 
-1. 推荐：先落地受控 migration job，再由部署平台执行。
-2. 临时：DBA 审核 `migrations/` 后在变更窗口执行，并记录工单。
+```powershell
+npm run db:migrate -- list
+npm run db:migrate
+```
+
+`list` 用于输出待执行 migration 列表；不带参数默认执行到 latest。生产必须在 DBA 备份或快照完成后、变更窗口内执行。
 
 通过标准：
 

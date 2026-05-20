@@ -1,5 +1,11 @@
 import type { Kysely } from "kysely";
-import { Migrator, type Migration, type MigrationProvider } from "kysely/migration";
+import {
+  Migrator,
+  type Migration,
+  type MigrationInfo,
+  type MigrationProvider,
+  type MigrationResult
+} from "kysely/migration";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -33,6 +39,16 @@ class FileUrlMigrationProvider implements MigrationProvider {
   }
 }
 
+export type MigrationPlanItem = {
+  name: string;
+  executedAt?: Date;
+  pending: boolean;
+};
+
+export type MigrationRunResult = {
+  results: readonly MigrationResult[];
+};
+
 function isExecutableMigrationFile(fileName: string): boolean {
   return (
     fileName.endsWith(".js") ||
@@ -52,11 +68,21 @@ function isMigration(value: unknown): value is Migration {
 }
 
 export async function runMigrations(db: Kysely<ExportPlatformDatabase>): Promise<void> {
-  const migrator = new Migrator({
-    db,
-    provider: new FileUrlMigrationProvider()
-  });
+  await migrateToLatest(db);
+}
 
+export async function listMigrations(
+  db: Kysely<ExportPlatformDatabase>
+): Promise<MigrationPlanItem[]> {
+  const migrator = createMigrator(db);
+  const migrations = await migrator.getMigrations();
+  return migrations.map(toMigrationPlanItem);
+}
+
+export async function migrateToLatest(
+  db: Kysely<ExportPlatformDatabase>
+): Promise<MigrationRunResult> {
+  const migrator = createMigrator(db);
   const { error, results } = await migrator.migrateToLatest();
 
   if (error) {
@@ -68,4 +94,25 @@ export async function runMigrations(db: Kysely<ExportPlatformDatabase>): Promise
       throw new Error(`Migration ${result.migrationName} failed`);
     }
   }
+
+  return {
+    results: results ?? []
+  };
+}
+
+function createMigrator(db: Kysely<ExportPlatformDatabase>): Migrator {
+  const migrator = new Migrator({
+    db,
+    provider: new FileUrlMigrationProvider()
+  });
+
+  return migrator;
+}
+
+function toMigrationPlanItem(migration: MigrationInfo): MigrationPlanItem {
+  return {
+    name: migration.name,
+    executedAt: migration.executedAt,
+    pending: migration.executedAt === undefined
+  };
 }

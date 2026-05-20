@@ -1,2 +1,2 @@
-export { createDatabase } from "./kysely.ts";
+export { createDatabase, createMigrationDatabase } from "./kysely.ts";
 export type { ExportPlatformDatabase } from "./schema.ts";

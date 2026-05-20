@@ -75,6 +75,12 @@ export type ExportPlatformConfig = {
   securityPolicy: SecurityPolicyConfig;
 };
 
+export type DatabaseRuntimeConfig = {
+  environment: RuntimeEnvironment;
+  databaseUrl?: string;
+  mysql: MysqlConfig;
+};
+
 function readInt(value: string | undefined, fallback: number): number {
   if (!value) {
     return fallback;
@@ -267,7 +273,10 @@ function assertSafeProductionHost(name: string, hostValue: string | undefined, r
   }
 }
 
-function assertProductionMysqlConfig(config: ExportPlatformConfig, env: ConfigEnv): void {
+function assertProductionMysqlConfig(
+  config: Pick<ExportPlatformConfig, "databaseUrl" | "mysql">,
+  env: ConfigEnv
+): void {
   if (config.databaseUrl) {
     assertSafeProductionEndpoint("EXPORT_PLATFORM_DATABASE_URL", config.databaseUrl);
     return;
@@ -318,6 +327,22 @@ function assertProductionConfig(config: ExportPlatformConfig, env: ConfigEnv): v
       "Production object storage smoke requires EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true"
     );
   }
+}
+
+export function loadDatabaseConfig(env: ConfigEnv = process.env): DatabaseRuntimeConfig {
+  const environment = readEnvironment(env.EXPORT_PLATFORM_ENVIRONMENT);
+  const mysql = loadMysqlConfig(env);
+  const config = {
+    environment,
+    databaseUrl: env.EXPORT_PLATFORM_DATABASE_URL,
+    mysql
+  };
+
+  if (environment === "production") {
+    assertProductionMysqlConfig(config, env);
+  }
+
+  return config;
 }
 
 export function loadConfig(env: ConfigEnv = process.env): ExportPlatformConfig {

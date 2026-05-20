@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createEnvReadonlyDatasourceAdapterProvider } from "../src/datasource-adapters/index.ts";
-import { loadConfig } from "../src/config/env.ts";
+import { loadConfig, loadDatabaseConfig } from "../src/config/env.ts";
 
 test("loadConfig prefers EXPORT_PLATFORM_DATABASE_URL over split MySQL settings and decodes credentials", () => {
   const config = loadConfig({
@@ -160,6 +160,18 @@ test("loadConfig allows complete split MySQL settings in production", () => {
   assert.equal(config.mysql.host, "mysql.internal");
   assert.equal(config.mysql.password, "platform_password");
   assert.equal(config.mysql.source, "split");
+});
+
+test("loadDatabaseConfig allows production migration job with only platform database settings", () => {
+  const config = loadDatabaseConfig({
+    EXPORT_PLATFORM_ENVIRONMENT: "production",
+    EXPORT_PLATFORM_DATABASE_URL: "mysql://platform_user:platform_password@mysql.internal:3306/export_platform?ssl=true"
+  });
+
+  assert.equal(config.environment, "production");
+  assert.equal(config.mysql.host, "mysql.internal");
+  assert.equal(config.mysql.database, "export_platform");
+  assert.equal(config.mysql.source, "database-url");
 });
 
 test("loadConfig rejects incomplete split MySQL settings in production", () => {
