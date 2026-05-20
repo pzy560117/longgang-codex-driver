@@ -2,6 +2,8 @@
 
 本文把统一导出平台从仓库交付到 production 的操作拆成原子步骤。每一步只做一件事，并给出输入、动作、通过标准和失败处理。执行人可以把本文作为上线工单检查表使用。
 
+如果你还不清楚“要安装什么、要接哪些系统、先跑哪个命令”，先读 `docs/operations/install-integration-quickstart.md`。本文默认读者已经知道统一导出平台由 HTTP 服务、scheduler worker、cleanup job、平台库、业务只读源、对象存储和认证网关组成。
+
 当前仓库状态：已提供 HTTP 服务、scheduler worker、cleanup job 三个运行入口和统一配置入口；尚未提供生产 `Dockerfile`、`db:migrate` 脚本、进程守护模板或部署平台流水线。因此本文默认采用“部署平台拉取源码 + Node.js 22 + `npm ci` + 三个独立进程”的可运行路径。若目标环境强制要求镜像、systemd、PM2、Kubernetes 或受控 migration job，必须先完成对应硬化任务，再继续 production 放量。
 
 ## 0. 术语和边界
