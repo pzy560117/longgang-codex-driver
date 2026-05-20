@@ -2,65 +2,69 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+function readText(path) {
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+}
+
 function parseOpenApiOperationIds() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   return [...openapi.matchAll(/operationId:\s*([A-Za-z0-9_]+)/g)].map((match) => match[1]);
 }
 
 function parseRouteManifestOperationIds() {
-  const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  const manifest = readText("src/routes/route-manifest.ts");
   return [...manifest.matchAll(/operationId:\s*"([A-Za-z0-9_]+)"/g)].map((match) => match[1]);
 }
 
 function parseHandlerPaths() {
-  const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  const manifest = readText("src/routes/route-manifest.ts");
   return [...manifest.matchAll(/handlerPath:\s*"([^"]+)"/g)].map((match) => match[1]);
 }
 
 function parseAuditActionEnum() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/action:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{8}result:/) ?? [];
   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
 }
 
 function parseAuditResultEnum() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, values] = openapi.match(/result:\s*\n\s+type:\s+string\s*\n\s+enum:\s+\[([^\]]+)\]/) ?? [];
   return new Set(values.split(",").map((value) => value.trim()));
 }
 
 function parseResponseCodeEnum() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/ResponseCode:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{4}TaskStatus:/) ?? [];
   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
 }
 
 function parseTaskEventTypeEnum() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/eventType:\s*\n\s+type:\s+string\s*\n\s+enum:\s*\n([\s\S]*?)\n\s{8}requestId:/) ?? [];
   return new Set([...block.matchAll(/-\s+([A-Z_]+)/g)].map((match) => match[1]));
 }
 
 function parseExportTaskDetailSchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/ExportTaskDetail:\s*\n([\s\S]*?)\n\s{4}ExportTaskPageEnvelope:/) ?? [];
   return block;
 }
 
 function parseBatchCheckpointSchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/BatchCheckpoint:\s*\n([\s\S]*?)\n\s{4}AuditEvent:/) ?? [];
   return block;
 }
 
 function parseCreateExportTaskOperationBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/operationId: createExportTask\n([\s\S]*?)\n\s{4}get:/) ?? [];
   return block;
 }
 
 function parseCreateExportTaskServiceBlock() {
-  const taskServiceSource = readFileSync("src/task-api/service.ts", "utf8");
+  const taskServiceSource = readText("src/task-api/service.ts");
   const [, block] =
     taskServiceSource.match(
       /(export async function createExportTask[\s\S]*?)\nexport async function listExportTasks/
@@ -69,7 +73,7 @@ function parseCreateExportTaskServiceBlock() {
 }
 
 function parseExportRegistryUpsertSchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] =
     openapi.match(/ExportRegistryUpsertRequest:\s*\n([\s\S]*?)\n\s{4}ExportRegistryEnvelope:/) ??
     [];
@@ -77,19 +81,19 @@ function parseExportRegistryUpsertSchemaBlock() {
 }
 
 function parseQueryTemplateContractSchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/QueryTemplateContract:\s*\n([\s\S]*?)\n\s{4}FieldMapping:/) ?? [];
   return block;
 }
 
 function parseFieldMappingSchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/FieldMapping:\s*\n([\s\S]*?)\n\s{4}OrderBy:/) ?? [];
   return block;
 }
 
 function parseOrderBySchemaBlock() {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, block] = openapi.match(/OrderBy:\s*\n([\s\S]*?)\n\s{4}BatchCheckpoint:/) ?? [];
   return block;
 }
@@ -156,7 +160,7 @@ function sourceAuditLiterals() {
     "src/registry-config/service.ts",
     "src/scheduler/worker.ts",
     "src/cleanup-job/index.ts"
-  ].map((path) => readFileSync(path, "utf8"));
+  ].map((path) => readText(path));
 
   return {
     actions: new Set(
@@ -188,15 +192,15 @@ test("OpenAPI operationIds are represented by route manifest entries", () => {
 
 test("OpenAPI handlers are production handlers with service and DB repository evidence", () => {
   for (const handlerPath of parseHandlerPaths()) {
-    const handler = readFileSync(handlerPath, "utf8");
+    const handler = readText(handlerPath);
     assert.doesNotMatch(handler, /createScaffoldHandler|createNotImplementedHandler/);
     assert.match(handler, /requireAuthContext/);
     assert.match(handler, /sendSuccess/);
   }
 
-  const taskService = readFileSync("src/task-api/service.ts", "utf8");
-  const registryService = readFileSync("src/registry-config/service.ts", "utf8");
-  const auditService = readFileSync("src/audit-log/service.ts", "utf8");
+  const taskService = readText("src/task-api/service.ts");
+  const registryService = readText("src/registry-config/service.ts");
+  const auditService = readText("src/audit-log/service.ts");
 
   assert.match(taskService, /createExportTaskRepository/);
   assert.match(taskService, /createExportRegistryRepository/);
@@ -208,7 +212,7 @@ test("OpenAPI handlers are production handlers with service and DB repository ev
 });
 
 test("route manifest maps operations to HTTP API integration evidence", () => {
-  const manifest = readFileSync("src/routes/route-manifest.ts", "utf8");
+  const manifest = readText("src/routes/route-manifest.ts");
   assert.match(manifest, /const httpApiTest = "tests\/api\/export-http-api\.test\.mjs"/);
 
   const apiEvidenceCount = [...manifest.matchAll(/tests:\s*\[routeContractTest, httpApiTest\]/g)]
@@ -238,7 +242,7 @@ test("audit action, result, and errorCode literals written by production code st
 });
 
 test("cleanup failure audit errorCode is a public ResponseCode literal, not raw Error.name", () => {
-  const cleanupJob = readFileSync("src/cleanup-job/index.ts", "utf8");
+  const cleanupJob = readText("src/cleanup-job/index.ts");
   assert.doesNotMatch(cleanupJob, /errorCode:\s*[\s\S]{0,120}\.name/);
   assert.match(cleanupJob, /errorCode:\s*"FILE_CLEANUP_DELETE_ERROR"/);
 });
@@ -263,7 +267,7 @@ test("task detail schema requires public progress, error, and recentEvents field
 });
 
 test("runtime public response and task event allow-lists match OpenAPI enums", () => {
-  const publicEnums = readFileSync("src/contracts/public-enums.ts", "utf8");
+  const publicEnums = readText("src/contracts/public-enums.ts");
   const sourceResponseCodes = new Set(
     [...publicEnums.matchAll(/"([A-Z_]+)"/g)].map((match) => match[1])
   );
@@ -302,9 +306,9 @@ test("public BatchCheckpoint schema exposes progress fields without internal err
 });
 
 test("public error messages are documented and implemented as code-derived safe summaries", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
-  const respondSource = readFileSync("src/routes/respond.ts", "utf8");
-  const taskServiceSource = readFileSync("src/task-api/service.ts", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
+  const respondSource = readText("src/routes/respond.ts");
+  const taskServiceSource = readText("src/task-api/service.ts");
 
   assert.match(openapi, /Public-safe message derived from `code`/);
   assert.match(openapi, /Public-safe failure summary derived from `errorCode`/);
@@ -314,7 +318,7 @@ test("public error messages are documented and implemented as code-derived safe 
 });
 
 test("registry dataScopeTemplate example includes all auth scope placeholders", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const [, example] =
     openapi.match(/dataScopeTemplate:\s+"([^"]+)"/) ??
     openapi.match(/dataScopeTemplate:\s*'([^']+)'/) ??
@@ -326,7 +330,7 @@ test("registry dataScopeTemplate example includes all auth scope placeholders", 
 });
 
 test("download operation declares signed URL callback parameters and signature failures", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
 
   for (const parameter of [
     "expiresAt",
@@ -346,7 +350,7 @@ test("download operation declares signed URL callback parameters and signature f
 });
 
 test("protected operations declare trusted auth context signature proof", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const operationIds = parseOpenApiOperationIds();
   const signatureRefCount = [...openapi.matchAll(/#\/components\/parameters\/XAuthContextSignature"/g)]
     .length;
@@ -371,7 +375,7 @@ test("protected operations declare trusted auth context signature proof", () => 
 });
 
 test("create task contract declares 32768-byte canonical queryParams limit and error response", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const operationBlock = parseCreateExportTaskOperationBlock();
 
   assert.match(openapi, /description: Must match registry parameter schema and must not exceed 32768 bytes after canonical JSON serialization\./);
@@ -382,7 +386,7 @@ test("create task contract declares 32768-byte canonical queryParams limit and e
 });
 
 test("create task contract guard is implemented before PENDING enqueue", () => {
-  const openapi = readFileSync("contracts/openapi.yaml", "utf8");
+  const openapi = readText("contracts/openapi.yaml");
   const operationBlock = parseCreateExportTaskOperationBlock();
   const createTaskServiceBlock = parseCreateExportTaskServiceBlock();
 
@@ -405,7 +409,7 @@ test("create task contract guard is implemented before PENDING enqueue", () => {
 });
 
 test("registry required fields and nested registry contract required fields stay aligned with production validation", () => {
-  const registryContractSource = readFileSync("src/registry-config/contract.ts", "utf8");
+  const registryContractSource = readText("src/registry-config/contract.ts");
 
   assert.deepEqual(
     parseTypescriptStringArray(registryContractSource, "REGISTRY_REQUIRED_FIELDS"),
@@ -426,8 +430,8 @@ test("registry required fields and nested registry contract required fields stay
 });
 
 test("registry validation keeps public error-code mapping and forbids empty fallback defaults for required contract fields", () => {
-  const registryContractSource = readFileSync("src/registry-config/contract.ts", "utf8");
-  const registryServiceSource = readFileSync("src/registry-config/service.ts", "utf8");
+  const registryContractSource = readText("src/registry-config/contract.ts");
+  const registryServiceSource = readText("src/registry-config/service.ts");
   const errorCodes = parseTypescriptStringMap(
     registryContractSource,
     "REGISTRY_REQUIRED_FIELD_ERROR_CODES"
