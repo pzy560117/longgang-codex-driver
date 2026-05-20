@@ -54,7 +54,22 @@ npm run demo:local:smoke
 
 本地试跑会自动准备 Docker MySQL、本地 object storage mock、本地 HTTP 服务和演示测试数据。它只能证明开发链路能跑，不能当作生产接入证据。
 
-## 0.2 术语和边界
+## 0.2 最短生产安装路径
+
+如果接手方只需要按源码部署方式把服务装到一台 Linux 主机，最短路径是：
+
+1. 准备 Node.js 22+、npm、Git、MySQL 网络访问、对象存储 HTTP gateway、认证网关签名 secret。
+2. 按第 1 步锁定部署 commit。
+3. 按第 4 步克隆代码并执行 `npm ci`。
+4. 按第 5 步配置环境变量和 secret。
+5. 按第 6 步执行静态验证。
+6. 按第 7 步执行 `npm run db:migrate -- list` 和 `npm run db:migrate`。
+7. 按第 8 步启动 HTTP、scheduler、cleanup 三个独立进程。
+8. 按第 9 至第 15 步完成健康检查、对象存储 smoke、小范围导出、失败态和 live evidence。
+
+这条路径仍然不是“只复制命令就能生产上线”。第 3 步的配置收集、第 7 步的 DBA 备份、第 14 步的失败态证据都必须有负责人和记录。
+
+## 0.3 术语和边界
 
 | 项 | 本教程中的含义 |
 | --- | --- |
@@ -64,7 +79,7 @@ npm run demo:local:smoke
 | 对象存储 | 当前代码使用 HTTP object storage gateway 语义，不等同于原生 OSS/S3 SDK。 |
 | live evidence | 接入真实依赖后的成功态和失败态证据，不包括 Docker/mock、本地 demo 或 rehearsal。 |
 
-## 0.3 安装成功和接入成功的区别
+## 0.4 安装成功和接入成功的区别
 
 安装成功只需要满足：
 
@@ -243,6 +258,7 @@ EXPORT_PLATFORM_CLEANUP_POLL_MS=60000
 
 - Secret 由部署平台或 secret manager 注入。
 - 生产值不包含 localhost、`127.0.0.1`、`.local`、`.test`、`.invalid` 或 example 域名。
+- 普通 HTTP / worker / cleanup 运行期使用 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=false`。
 - `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE=false`。
 
 失败处理：
@@ -287,6 +303,12 @@ npm run db:migrate
 
 `list` 用于输出待执行 migration 列表；不带参数默认执行到 latest。生产必须在 DBA 备份或快照完成后、变更窗口内执行。
 
+注意：
+
+- `db:migrate` 只读取平台库配置，不能要求对象存储、业务只读源或网关 secret 先可用。
+- `db:migrate` 不能放进 HTTP、scheduler 或 cleanup 的启动命令里。
+- `npm run db:migrate -- list` 第二次应显示 `pending=0`，或者受控工单里必须解释为什么还有 pending。
+
 通过标准：
 
 - 有备份 ID 或快照 ID。
@@ -309,6 +331,20 @@ npm run db:migrate
 | HTTP 服务 | `npm run start` | `GET /health` 返回 `status=ok`。 |
 | Scheduler worker | `npm run worker:scheduler` | 日志出现 `export-platform.scheduler.started`，持续 poll。 |
 | Cleanup job | `npm run job:cleanup` | 日志出现 `export-platform.cleanup.started`，持续 poll。 |
+
+如果使用 systemd，可从仓库模板安装：
+
+```bash
+sudo install -d -o root -g root /etc/export-platform
+sudo install -d -o export-platform -g export-platform /opt/export-platform-service
+sudo cp deploy/systemd/export-platform-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable export-platform-http export-platform-scheduler export-platform-cleanup
+sudo systemctl start export-platform-http export-platform-scheduler export-platform-cleanup
+sudo systemctl status export-platform-http export-platform-scheduler export-platform-cleanup
+```
+
+模板默认读取 `/etc/export-platform/export-platform.env`，工作目录为 `/opt/export-platform-service`，运行用户为 `export-platform`。如果目标主机路径、用户或 `npm` 绝对路径不同，先改模板再安装。真实 secret 只能进入环境变量文件、secret manager 或部署平台配置，不能提交到仓库。
 
 通过标准：
 

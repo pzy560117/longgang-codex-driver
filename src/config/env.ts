@@ -322,11 +322,6 @@ function assertProductionConfig(config: ExportPlatformConfig, env: ConfigEnv): v
     assertSafeProductionEndpoint(`EXPORT_PLATFORM_DATASOURCE(${code})`, url);
   }
 
-  if (!config.objectStorage.allowSmokeWrites) {
-    throw new Error(
-      "Production object storage smoke requires EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true"
-    );
-  }
 }
 
 export function loadDatabaseConfig(env: ConfigEnv = process.env): DatabaseRuntimeConfig {

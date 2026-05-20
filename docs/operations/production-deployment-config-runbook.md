@@ -49,7 +49,8 @@
 
 - 缺少 `EXPORT_PLATFORM_DATABASE_URL` 或完整拆分 MySQL 配置、对象存储 endpoint/bucket、公开 base URL 或必填签名密钥。
 - 平台库、业务数据源、对象存储或公开 base URL 使用 `localhost`、`127.0.0.1`、`.local`、`.test`、`.invalid` 等不安全 endpoint。
-- 未显式设置 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true` 却尝试进入 production smoke 配置。
+
+普通 HTTP、scheduler worker 和 cleanup job 的运行期建议保持 `EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=false`。只有执行 `npm run test:object-storage-live` 的 smoke 窗口才临时设置为 `true`；该 smoke 脚本会独立阻塞未显式开启写入的情况。
 
 这些阻塞只证明配置治理生效，不等同于真实依赖可用。真实 live 验证必须另开 `PRODUCTION-LIVE-INTEGRATION-001` 或等价任务。
 

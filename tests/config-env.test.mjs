@@ -128,15 +128,25 @@ test("loadConfig fails fast for unsafe production dependency configuration", () 
       "example public base URL",
       { EXPORT_PLATFORM_PUBLIC_BASE_URL: "https://exports.example.test" },
       /Unsafe production endpoint/
-    ],
-    [
-      "missing smoke write guard",
-      { EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "" },
-      /EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES=true/
     ]
   ]) {
     assert.throws(() => loadConfig({ ...productionBase, ...overrides }), message, name);
   }
+});
+
+test("loadConfig allows production runtime with smoke writes disabled", () => {
+  const config = loadConfig({
+    EXPORT_PLATFORM_ENVIRONMENT: "production",
+    EXPORT_PLATFORM_DATABASE_URL: "mysql://platform_user:platform_password@mysql.internal:3306/export_platform?ssl=true",
+    EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "https://object-storage.internal",
+    EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-prod",
+    EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "false",
+    EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET: "download-signing-secret",
+    EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET: "auth-context-signing-secret",
+    EXPORT_PLATFORM_PUBLIC_BASE_URL: "https://exports.platform.internal"
+  });
+
+  assert.equal(config.objectStorage.allowSmokeWrites, false);
 });
 
 test("loadConfig allows complete split MySQL settings in production", () => {
