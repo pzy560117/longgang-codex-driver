@@ -99,6 +99,26 @@ npm run test:integration-live
   - `integration stack completes export task end-to-end`
   - `integration stack rejects unsigned requests`
 
+本次完整重跑（fresh rerun）结果：
+
+- 重新执行了：
+
+```powershell
+npm run stack:integration:down
+npm run stack:integration
+node --import tsx scripts/integration-seed.mjs
+npm run test:integration-live
+```
+
+- fresh 结果：
+  - `integration stack completes export task end-to-end`: `23.10s`
+  - `integration stack rejects unsigned requests`: `PASS`
+
+说明：
+
+- 这组结果对应“发起导出 -> worker 执行 -> MinIO 落盘 -> 下载表格”的完整功能链路；
+- 本次 fresh rerun 证明完整 Docker 集成环境在清场后可重复通过，而不是仅依赖之前的残留状态。
+
 实际导出产物证据：
 
 - `task_id`: `exp_2058531a-9e37-4483-b72c-cbfb6a385d58`
