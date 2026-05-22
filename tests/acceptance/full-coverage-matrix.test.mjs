@@ -28,7 +28,9 @@ const fullAcceptanceCommands = [
   "npm run test:contract",
   "npm test",
   "npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml",
-  "npm run test:mock-local",
+  "npm run stack:integration:down",
+  "npm run stack:integration",
+  "scripts/integration-seed.mjs",
   "npm run test:api",
   "npm run test:db",
   "npm run test:worker",
@@ -37,7 +39,8 @@ const fullAcceptanceCommands = [
   "npm run test:sample",
   "npm run test:acceptance",
   "npm run test:acceptance:report",
-  "npm run test:object-storage-live",
+  "npm run test:integration-live",
+  "npm run test:integration-performance",
   "git diff --check"
 ];
 
@@ -70,8 +73,8 @@ test("full acceptance report command includes all critical verification layers",
     );
   }
 
-  assert.match(taskText, /Docker MySQL/u);
-  assert.match(taskText, /本地 object storage mock/u);
+  assert.match(taskText, /Docker 集成栈/u);
+  assert.match(taskText, /Docker MinIO|完整 Docker 集成环境/u);
   assert.doesNotMatch(taskText, /live OSS\/S3 已验证/u);
 });
 

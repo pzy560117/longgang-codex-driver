@@ -3003,13 +3003,13 @@
                       "passes":  true,
                       "architecture_constraints":  [
                                                        "全量验收必须覆盖 FR-001 至 FR-014，不能只以 API smoke 或手工 curl 示例作为完成证据",
-                                                       "全量验收必须使用本机 Docker MySQL、本地 object storage mock、受控测试数据和 production-equivalent adapter",
+                                                        "全量验收必须使用完整 Docker 集成栈：平台 MySQL、业务只读 MySQL、Docker MinIO、HTTP、scheduler、cleanup 和受控测试数据",
                                                        "报告必须明确外部生产 MySQL、真实业务数据源、live OSS/S3、外部网关和 nonce 防重放不属于当前 evidence"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把 AUTO-CREATE-TASK-API-REPORT-001 的 2 个 smoke 用例冒充全量需求验收",
                                                         "禁止跳过 API / DB / worker / query / file / sample 任一生产边界测试后仍声明 FR-001 至 FR-014 全量通过",
-                                                        "禁止在报告中写入 secret、password、token、真实连接串或把本地 mock 写成 live 证据"
+                                                         "禁止在报告中写入 secret、password、token、真实连接串或把完整 Docker 集成环境写成外部 live 证据"
                                                     ],
                       "context_files":  [
                                             "docs/product/acceptance-criteria.md",
@@ -3062,15 +3062,15 @@
                       "steps":  [
                                     "重读 docs/product/acceptance-criteria.md、test-matrix、verify-matrix 和近期已通过任务，明确 FR-001 至 FR-014 对应测试层",
                                     "新增 full-coverage-matrix 测试，防止全量报告缺 FR 或缺关键验证命令",
-                                    "新增 full-acceptance-report 脚本，按 release gate 范围执行 audit、arch、typecheck、contract、OpenAPI lint、base、mock-local、API、DB、worker、query、file、sample、acceptance、object-storage smoke 和 diff check",
+                                      "新增 full-acceptance-report 脚本，按完整 Docker 集成栈范围执行 audit、arch、typecheck、contract、OpenAPI lint、base、integration stack、integration seed、API、DB、worker、query、file、sample、acceptance、integration-live、integration-performance 和 diff check",
                                     "生成 docs/testing/full-acceptance-test-report.md 并同步 verify-matrix evidence 行"
                                 ],
                       "test_command":  "npm run test:acceptance:full-report; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- contracts task.json package.json tests/acceptance tests/arch-check.test.mjs tests/sample scripts docs/testing",
                       "acceptance":  [
                                          "full-acceptance-test-report.md 结论为 PASS，且覆盖 FR-001 至 FR-014",
-                                         "报告逐项记录 audit、arch、typecheck、contract、OpenAPI lint、base、mock-local、API、DB、worker、query、file、sample、acceptance、object-storage smoke 和 diff check 的退出码",
-                                         "full-coverage-matrix.test.mjs 验证 task、package script 和 verify-matrix 不遗漏全量验收入口",
-                                         "报告明确 docker/mock evidence 边界，不声明外部 live 依赖已验证"
+                                           "报告逐项记录 audit、arch、typecheck、contract、OpenAPI lint、base、integration stack、integration seed、API、DB、worker、query、file、sample、acceptance、integration-live、integration-performance 和 diff check 的退出码",
+                                           "full-coverage-matrix.test.mjs 验证 task、package script 和 verify-matrix 不遗漏全量验收入口",
+                                           "报告明确完整 Docker 集成环境证据边界，不声明外部 live 依赖已验证"
                                      ]
                   },
                   {
