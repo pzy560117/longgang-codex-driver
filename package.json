@@ -44,6 +44,9 @@
     "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
     "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
     "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly",
-    "stack:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-stack.ps1"
+    "stack:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-stack.ps1",
+    "stack:integration": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\integration-stack.ps1 -Up",
+    "stack:integration:down": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\integration-stack.ps1 -Down",
+    "test:integration-live": "node --import tsx scripts/integration-smoke.mjs"
   }
 }

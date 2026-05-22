@@ -1,0 +1,124 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: export-platform-integration-mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: export_platform_integration
+    ports:
+      - "127.0.0.1:43306:3306"
+
+  business-mysql:
+    image: mysql:8.4
+    container_name: export-platform-business-mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: purchase_readonly
+    ports:
+      - "127.0.0.1:43307:3306"
+
+  minio:
+    image: minio/minio:latest
+    container_name: export-platform-integration-minio
+    environment:
+      MINIO_ROOT_USER: export-platform
+      MINIO_ROOT_PASSWORD: export-platform-secret
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:49000:9000"
+      - "127.0.0.1:49001:9001"
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: export-platform-integration-minio-init
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until /usr/bin/mc alias set local http://minio:9000 export-platform export-platform-secret; do
+          sleep 1
+        done
+        /usr/bin/mc mb --ignore-existing local/export-platform-integration
+        /usr/bin/mc anonymous set none local/export-platform-integration
+    restart: "no"
+
+  http:
+    build:
+      context: .
+      dockerfile: docker/integration/http.Dockerfile
+    container_name: export-platform-integration-http
+    depends_on:
+      - mysql
+      - business-mysql
+      - minio
+      - minio-init
+    environment:
+      EXPORT_PLATFORM_ENVIRONMENT: local
+      EXPORT_PLATFORM_HOST: 0.0.0.0
+      EXPORT_PLATFORM_PORT: 3000
+      EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration
+      EXPORT_PLATFORM_DATASOURCE_PURCHASE_RO_URL: mysql://root@business-mysql:3306/purchase_readonly
+      EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: s3
+      EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: export-platform-integration
+      EXPORT_PLATFORM_OBJECT_STORAGE_REGION: us-east-1
+      EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID: export-platform
+      EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY: export-platform-secret
+      EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET: integration-download-signing-secret
+      EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET: integration-auth-signing-secret
+      EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS: tenant-001
+    ports:
+      - "127.0.0.1:43000:3000"
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/integration/worker.Dockerfile
+    container_name: export-platform-integration-scheduler
+    depends_on:
+      - mysql
+      - business-mysql
+      - minio
+      - minio-init
+    environment:
+      EXPORT_PLATFORM_ENVIRONMENT: local
+      EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration
+      EXPORT_PLATFORM_DATASOURCE_PURCHASE_RO_URL: mysql://root@business-mysql:3306/purchase_readonly
+      EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: s3
+      EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: export-platform-integration
+      EXPORT_PLATFORM_OBJECT_STORAGE_REGION: us-east-1
+      EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID: export-platform
+      EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY: export-platform-secret
+      EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET: integration-download-signing-secret
+      EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET: integration-auth-signing-secret
+      EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS: tenant-001
+      EXPORT_PLATFORM_WORKER_ID: integration-worker-001
+
+  cleanup:
+    build:
+      context: .
+      dockerfile: docker/integration/cleanup.Dockerfile
+    container_name: export-platform-integration-cleanup
+    depends_on:
+      - mysql
+      - minio
+      - minio-init
+    environment:
+      EXPORT_PLATFORM_ENVIRONMENT: local
+      EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration
+      EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: s3
+      EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: export-platform-integration
+      EXPORT_PLATFORM_OBJECT_STORAGE_REGION: us-east-1
+      EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID: export-platform
+      EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY: export-platform-secret
+      EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET: integration-download-signing-secret
+      EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET: integration-auth-signing-secret
+      EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS: tenant-001
+      EXPORT_PLATFORM_CLEANUP_WORKER_ID: integration-cleanup-001
