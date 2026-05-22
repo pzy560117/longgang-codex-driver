@@ -28,22 +28,6 @@ services:
       - "127.0.0.1:49000:9000"
       - "127.0.0.1:49001:9001"
 
-  minio-init:
-    image: minio/mc:latest
-    container_name: export-platform-integration-minio-init
-    depends_on:
-      - minio
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        until /usr/bin/mc alias set local http://minio:9000 export-platform export-platform-secret; do
-          sleep 1
-        done
-        /usr/bin/mc mb --ignore-existing local/export-platform-integration
-        /usr/bin/mc anonymous set none local/export-platform-integration
-    restart: "no"
-
   http:
     build:
       context: .
@@ -53,13 +37,13 @@ services:
       - mysql
       - business-mysql
       - minio
-      - minio-init
     environment:
       EXPORT_PLATFORM_ENVIRONMENT: local
       EXPORT_PLATFORM_HOST: 0.0.0.0
       EXPORT_PLATFORM_PORT: 3000
       EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration
       EXPORT_PLATFORM_DATASOURCE_PURCHASE_RO_URL: mysql://root@business-mysql:3306/purchase_readonly
+      EXPORT_PLATFORM_PUBLIC_BASE_URL: http://127.0.0.1:43000
       EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: s3
       EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: http://minio:9000
       EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: export-platform-integration
@@ -82,7 +66,6 @@ services:
       - mysql
       - business-mysql
       - minio
-      - minio-init
     environment:
       EXPORT_PLATFORM_ENVIRONMENT: local
       EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration
@@ -107,7 +90,6 @@ services:
     depends_on:
       - mysql
       - minio
-      - minio-init
     environment:
       EXPORT_PLATFORM_ENVIRONMENT: local
       EXPORT_PLATFORM_DATABASE_URL: mysql://root@mysql:3306/export_platform_integration

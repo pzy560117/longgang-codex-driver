@@ -3268,6 +3268,98 @@
                                      ]
                   },
                   {
+                      "id":  "DOCKER-INTEGRATION-STACK-001",
+                      "description":  "通过完整 Docker 集成栈验证 HTTP、scheduler、cleanup、MySQL、MinIO 和业务只读数据源链路",
+                      "task_kind":  "integration",
+                      "phase":  "integration",
+                      "gate_profile":  "verification_required",
+                      "required_truth_sources":  [
+                                                     "architecture",
+                                                     "contract",
+                                                     "testing",
+                                                     "operations"
+                                                 ],
+                      "priority":  98,
+                      "dependencies":  [
+                                           "PRODUCTION-HANDOFF-PACKAGE-001"
+                                       ],
+                      "passes":  false,
+                      "architecture_constraints":  [
+                                                       "必须以独立 Docker 容器运行 HTTP、scheduler、cleanup，不得退回单进程 mock",
+                                                       "必须使用真实 MySQL、真实 MinIO、真实只读 datasource 协议，不得用内存替身冒充",
+                                                       "必须覆盖成功态和失败态"
+                                                   ],
+                      "forbidden_implementations":  [
+                                                        "禁止使用内存 datasource、内存对象存储或测试替身冒充完整 Docker 集成环境",
+                                                        "禁止把 demo:local、test:docker-local 或本地单测结果直接升级成完整集成链路证据",
+                                                        "禁止只启动 HTTP 而跳过 scheduler 或 cleanup 仍声明链路通过"
+                                                    ],
+                      "context_files":  [
+                                            "docs/architecture/constraints.md",
+                                            "docs/context/architecture-brief.md",
+                                            "docs/testing/verify-matrix.md",
+                                            "docs/testing/integration-stack-runbook.md",
+                                            "docs/operations/production-deployment-tutorial.md",
+                                            "contracts/openapi.yaml",
+                                            "task.json"
+                                        ],
+                      "owned_paths":  [
+                                          "task.json",
+                                          "docker-compose.integration.yml",
+                                          "docker/integration/",
+                                          "scripts/integration-stack.ps1",
+                                          "scripts/integration-seed.mjs",
+                                          "scripts/integration-auth-client.mjs",
+                                          "scripts/integration-smoke.mjs",
+                                          "tests/integration/",
+                                          "docs/testing/integration-stack-runbook.md",
+                                          "docs/testing/verify-matrix.md",
+                                          "docs/operations/production-deployment-tutorial.md",
+                                          "package.json"
+                                      ],
+                      "requirement_ids":  [
+                                              "FR-001",
+                                              "FR-002",
+                                              "FR-003",
+                                              "FR-004",
+                                              "FR-005",
+                                              "FR-006",
+                                              "FR-007",
+                                              "FR-008",
+                                              "FR-009",
+                                              "FR-010",
+                                              "FR-011",
+                                              "FR-012",
+                                              "FR-013",
+                                              "FR-014"
+                                          ],
+                      "produces_artifacts":  [
+                                                 "docker-compose.integration.yml",
+                                                 "scripts/integration-stack.ps1",
+                                                 "scripts/integration-seed.mjs",
+                                                 "scripts/integration-auth-client.mjs",
+                                                 "scripts/integration-smoke.mjs",
+                                                 "tests/integration/export-platform.integration.test.mjs",
+                                                 "docs/testing/integration-stack-runbook.md",
+                                                 "docs/testing/verify-matrix.md"
+                                             ],
+                      "execution":  {
+                                        "mode":  "single"
+                                    },
+                      "steps":  [
+                                    "提供完整 Docker 集成栈，独立运行 HTTP、scheduler、cleanup、平台 MySQL、业务只读 MySQL 和 MinIO",
+                                    "提供 integration-seed 和 integration-auth-client，初始化真实协议数据源和签名请求",
+                                    "提供 integration-smoke 与 test:integration-live，验证创建任务、执行完成、下载成功和失败态拒绝",
+                                    "同步 runbook、verify-matrix 和生产部署教程，明确这是完整 Docker 集成环境而不是外部 live evidence"
+                                ],
+                      "test_command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\integration-stack.ps1 -Up; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node --import tsx scripts/integration-seed.mjs; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:integration-live; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check -- task.json docs/testing docs/operations scripts tests/integration docker-compose.integration.yml docker/integration package.json",
+                      "acceptance":  [
+                                         "完整 Docker 栈可启动并通过 /health 检查",
+                                         "黑盒链路能验证 create -> execute -> download 全流程",
+                                         "未签名请求会被拒绝，且该环境不被误写成外部 live evidence"
+                                     ]
+                  },
+                  {
                       "id":  "PRODUCTION-LIVE-INTEGRATION-001",
                       "description":  "由接手研发在 staging/pre-prod/production 真实依赖上执行 live 接入验证并归档证据",
                       "task_kind":  "integration",
