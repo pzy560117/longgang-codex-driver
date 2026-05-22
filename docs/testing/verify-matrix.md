@@ -181,3 +181,4 @@
 - 没有本机/Docker MySQL、本地 object storage mock 或任务声明依赖时必须记录 `BLOCKED - 需要人工介入`，不得用内存替身绕过。
 - `STACK-ADR-001` 当前是 design-baseline；后续 `feature_impl` 不得只靠文档和 `git diff --check` 通过，必须先具备 `npm run arch:check` 所需的入口、路由映射和 migration 证据。
 - `LOCAL-RELEASE-REHEARSAL-001` 的结果只能算 mock/local rehearsal evidence；`RELEASE-001` 的正式 release evidence 来自 `release-verify.ps1` 自举本机 Docker MySQL 与本地 object storage mock 的完整 docker/mock release gate。
+- `integration-stack-runbook.md` 只负责说明 Docker 集成栈的层级定位和证据边界，不替代 `verify-matrix`、`TRACEABILITY_MATRIX.md` 或 `TEST_DATA_MATRIX.md`。
