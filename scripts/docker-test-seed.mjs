@@ -231,7 +231,7 @@ async function registerPurchaseOrderExport() {
         "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
       cursorField: contract.cursorField,
       orderBy: contract.orderBy.map((item) => ({ ...item })),
-      batchSize: 500
+      batchSize: contract.batchSize
     }
   );
 }

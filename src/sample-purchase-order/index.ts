@@ -5,6 +5,7 @@ export const SAMPLE_PURCHASE_ORDER_SUBSYSTEM = "purchase";
 export const SAMPLE_PURCHASE_ORDER_CURSOR_FIELD = "orderId";
 export const SAMPLE_PURCHASE_ORDER_SINGLE_FILE_MAX_ROWS = 20000;
 export const SAMPLE_PURCHASE_ORDER_EXPORT_MAX_ROWS = 100000;
+export const SAMPLE_PURCHASE_ORDER_BATCH_SIZE = 5000;
 
 export const SAMPLE_PURCHASE_ORDER_SUPPORTED_FORMATS = ["XLSX", "ZIP"] as const;
 
@@ -168,6 +169,7 @@ type SamplePurchaseOrderContract = {
   orderBy: typeof SAMPLE_PURCHASE_ORDER_ORDER_BY;
   singleFileMaxRows: number;
   exportMaxRows: number;
+  batchSize: number;
 };
 
 export function createSamplePurchaseOrderRegistryContract(): SamplePurchaseOrderContract {
@@ -184,7 +186,8 @@ export function createSamplePurchaseOrderRegistryContract(): SamplePurchaseOrder
     cursorField: SAMPLE_PURCHASE_ORDER_CURSOR_FIELD,
     orderBy: SAMPLE_PURCHASE_ORDER_ORDER_BY,
     singleFileMaxRows: SAMPLE_PURCHASE_ORDER_SINGLE_FILE_MAX_ROWS,
-    exportMaxRows: SAMPLE_PURCHASE_ORDER_EXPORT_MAX_ROWS
+    exportMaxRows: SAMPLE_PURCHASE_ORDER_EXPORT_MAX_ROWS,
+    batchSize: SAMPLE_PURCHASE_ORDER_BATCH_SIZE
   };
 }
 

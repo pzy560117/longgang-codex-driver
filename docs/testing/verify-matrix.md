@@ -42,7 +42,7 @@
 | 平台库与业务只读库初始化 | FR-001 / FR-005 / FR-007 / FR-014 | PASS / docker-integration | `node --import tsx scripts/integration-seed.mjs` 已通过，完成 migration、业务只读表/视图初始化、`purchase-order-export` registry 注册和 `10,000` 条样例数据 seed。 |
 | 黑盒端到端链路 | FR-001 / FR-002 / FR-003 / FR-005 / FR-006 / FR-008 / FR-009 / FR-010 / FR-012 / FR-013 / FR-014 | PASS / docker-integration | `npm run test:integration-live` 已通过，覆盖 `create -> execute -> download` 全链路，以及未签名请求返回 `401` 的失败态。 |
 | 实际导出产物落盘 | FR-003 / FR-006 / FR-014 | PASS / docker-integration | 已从 `task_id=exp_2058531a-9e37-4483-b72c-cbfb6a385d58` 下载真实导出样本，MinIO `published_storage_key=exports/purchase/purchase-order-export/20260522/exp_2058531a-9e37-4483-b72c-cbfb6a385d58/0/purchase-order-export-exp_2058531a-9e37-4483-b72c-cbfb6a385d58-attempt-0.xlsx`，本地样本文件见 `docs/testing/artifacts/`。 |
-| 导出性能基线 | FR-006 / FR-014 | PASS / docker-integration | `npm run test:integration-performance` 已产出 `1000`、`10000`、`50000`、`100000` 行基线结果并写入 `docs/testing/integration-performance-report.md`。当前基线显示 `10000` 行约 `95.07s`，`50000` 行约 `499.81s`，`100000` 行约 `494.35s`；后续若要做优化，应继续拆分查询、渲染、ZIP 和对象存储阶段耗时。 |
+| 导出性能基线 | FR-006 / FR-014 | PASS / docker-integration | `npm run test:integration-performance` 已产出 `1000`、`10000`、`50000`、`100000` 行基线结果并写入 `docs/testing/integration-performance-report.md`。A/B 结论显示仅将 `batchSize` 从 `500` 提升到 `5000`，`10000` 行耗时即可从约 `95.07s` 降到约 `8.25s`；当前默认值已调整为 `5000`，后续若要继续优化，应拆分查询、渲染、ZIP 和对象存储阶段耗时。 |
 
 > 结论：`DOCKER-INTEGRATION-STACK-001` 已通过本机完整 Docker 集成验证。该结论高于 `test:docker-local` 的单命令聚合验证，但仍不是外部 live evidence，不声明外部生产 MySQL、外部 OSS/S3 或外部网关已验证。
 

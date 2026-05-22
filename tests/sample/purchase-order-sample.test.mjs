@@ -225,7 +225,7 @@ function createSampleRegistryPayload(overrides = {}) {
       "tenantId = :tenantId AND operatorId = :operatorId AND roleCode IN (:roleCodes) AND orgId IN (:orgScope)",
     cursorField: contract.cursorField,
     orderBy: contract.orderBy.map((item) => ({ ...item })),
-    batchSize: overrides.batchSize ?? 500
+    batchSize: overrides.batchSize ?? contract.batchSize
   };
 }
 

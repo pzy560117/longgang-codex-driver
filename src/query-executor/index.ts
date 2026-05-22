@@ -156,7 +156,7 @@ export function createQueryExecutorBatchProcessor(options: QueryExecutorOptions 
     const fieldMappings = parseFieldMappings(registry.fieldMappings);
     const maskingPolicy = parseJson<MaskingPolicy>(registry.maskingPolicy, "MASKING_RULE_ERROR");
     validateMaskingRules(fieldMappings, maskingPolicy);
-    const batchSize = positiveInteger(registry.batchSize, 500);
+    const batchSize = positiveInteger(registry.batchSize, 5000);
     const cursorField = requireText(registry.cursorField, "QUERY_TEMPLATE_INVALID");
     const orderBy = parseOrderBy(registry.orderBy, cursorField);
     const scope = buildDataScope(authSnapshot);
