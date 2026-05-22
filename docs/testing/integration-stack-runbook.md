@@ -49,6 +49,24 @@ npm run test:docker-local
 
 该入口通常由本机 Docker MySQL、Docker MinIO、受控种子数据和一组联动测试组成。实际执行内容以仓库脚本和测试命令为准。
 
+### 3.3 完整 Docker 集成栈入口
+
+当需要以真实进程边界运行 `HTTP + scheduler + cleanup + 平台 MySQL + 业务只读 MySQL + MinIO` 时，使用：
+
+```powershell
+npm run stack:integration
+node --import tsx scripts/integration-seed.mjs
+npm run test:integration-live
+```
+
+该入口要求：
+
+- `docker-compose.integration.yml` 可解析并成功启动；
+- 平台库与业务只读库都能连通；
+- MinIO bucket 可初始化并可读写；
+- 黑盒链路可以完成 `create -> execute -> download`；
+- 未签名请求返回 `401`。
+
 ## 4. 证据边界
 
 - `docker/mock` 证据只能证明本机容器化环境下的集成链路。
@@ -63,9 +81,31 @@ npm run test:docker-local
 - 如果目标是生产接入，只能把 Docker 集成栈作为前置验证，不可当作最终结论。
 - 如果某个依赖不可用，应记录 `BLOCKED - 需要人工介入`，不要用更低层的替身冒充通过。
 
-## 6. 相关文档
+## 6. Fresh Evidence（2026-05-22）
+
+本轮已在本机执行并通过以下命令：
+
+```powershell
+npm run stack:integration
+node --import tsx scripts/integration-seed.mjs
+npm run test:integration-live
+```
+
+结果摘要：
+
+- `stack:integration`：PASS，完整 Docker 栈成功启动
+- `integration-seed.mjs`：PASS，平台库、业务只读库、registry 与 `10,000` 条样例数据初始化成功
+- `test:integration-live`：PASS
+  - `integration stack completes export task end-to-end`
+  - `integration stack rejects unsigned requests`
+
+证据边界：
+
+- 该结果证明本机完整 Docker 集成栈可运行，且高于 `test:docker-local` 的单命令聚合验证。
+- 该结果仍然不是外部生产 live evidence，不声明外部生产 MySQL、外部 OSS/S3 或外部网关已验证。
+
+## 7. 相关文档
 
 - [验证矩阵](./verify-matrix.md)
 - [生产部署教程](../operations/production-deployment-tutorial.md)
 - [Docker 测试数据运行手册](./docker-test-data-runbook.md)
-
