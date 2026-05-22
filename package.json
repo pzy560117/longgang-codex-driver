@@ -47,6 +47,7 @@
     "stack:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-stack.ps1",
     "stack:integration": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\integration-stack.ps1 -Up",
     "stack:integration:down": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\integration-stack.ps1 -Down",
-    "test:integration-live": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.mjs"
+    "test:integration-live": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.mjs",
+    "test:integration-performance": "node --import tsx scripts/integration-performance.mjs"
   }
 }
