@@ -99,6 +99,15 @@ npm run test:integration-live
   - `integration stack completes export task end-to-end`
   - `integration stack rejects unsigned requests`
 
+实际导出产物证据：
+
+- `task_id`: `exp_2058531a-9e37-4483-b72c-cbfb6a385d58`
+- `file_name`: `purchase-order-export-exp_2058531a-9e37-4483-b72c-cbfb6a385d58-attempt-0.xlsx`
+- `published_storage_key`: `exports/purchase/purchase-order-export/20260522/exp_2058531a-9e37-4483-b72c-cbfb6a385d58/0/purchase-order-export-exp_2058531a-9e37-4483-b72c-cbfb6a385d58-attempt-0.xlsx`
+- MinIO bucket: `export-platform-integration`
+- MinIO 控制台: `http://127.0.0.1:49001`
+- 本地样本文件: [purchase-order-export-exp_2058531a-9e37-4483-b72c-cbfb6a385d58-attempt-0.xlsx](/E:/2026/alpha-project/longgang-codex-driver/docs/testing/artifacts/purchase-order-export-exp_2058531a-9e37-4483-b72c-cbfb6a385d58-attempt-0.xlsx)
+
 证据边界：
 
 - 该结果证明本机完整 Docker 集成栈可运行，且高于 `test:docker-local` 的单命令聚合验证。
