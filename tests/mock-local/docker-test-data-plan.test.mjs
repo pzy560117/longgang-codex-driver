@@ -24,8 +24,9 @@ test("docker test data task is queued after release with executable guardrails",
   assert.deepEqual(task.dependencies, ["RELEASE-001"]);
   assert.match(task.test_command, /npm run test:docker-local/u);
   assert.match(task.architecture_constraints.join("\n"), /Docker MySQL/u);
+  assert.match(task.architecture_constraints.join("\n"), /MinIO/u);
   assert.match(task.architecture_constraints.join("\n"), /不产出外部 live evidence/u);
-  assert.match(task.forbidden_implementations.join("\n"), /禁止把本地 object storage mock 写成 live OSS\/S3 证据/u);
+  assert.match(task.forbidden_implementations.join("\n"), /禁止把本地 MinIO 写成 live OSS\/S3 证据/u);
 });
 
 test("docker local test command wires environment setup, seed and validation", () => {
@@ -43,7 +44,8 @@ test("docker local test command wires environment setup, seed and validation", (
 
   assert.match(envScript, /Start-DockerDesktopIfNeeded/u);
   assert.match(envScript, /Ensure-DockerMysql/u);
-  assert.match(envScript, /Start-LocalObjectStorage/u);
+  assert.match(envScript, /Ensure-DockerMinio/u);
+  assert.match(envScript, /EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = "s3"/u);
   assert.match(envScript, /docker-test-seed\.mjs/u);
   assert.match(envScript, /npm run test:api/u);
   assert.match(envScript, /npm run test:db/u);
@@ -56,11 +58,13 @@ test("docker local test command wires environment setup, seed and validation", (
   assert.match(seedScript, /runMigrations/u);
   assert.match(seedScript, /purchase_orders_sample/u);
   assert.match(seedScript, /seededRows/u);
+  assert.match(seedScript, /EXPORT_PLATFORM_SEED_ROW_COUNT/u);
   assert.match(seedScript, /refuses non-local MySQL URLs/u);
   assert.match(seedScript, /purchase-order-export/u);
 
   assert.match(runbook, /npm run test:docker-local/u);
   assert.match(runbook, /docker\/mock/u);
+  assert.match(runbook, /Docker MinIO/u);
   assert.match(runbook, /不是 live OSS\/S3/u);
   assert.match(runbook, /Docker Desktop/u);
 });
@@ -72,6 +76,6 @@ test("verify matrix records docker test data evidence without promoting live val
 
   assert.match(row, /DOCKER-TEST-DATA-AUTOMATION-001/u);
   assert.match(row, /npm run test:docker-local/u);
-  assert.match(row, /本机 Docker MySQL \+ 本地 object storage mock/u);
+  assert.match(row, /本机 Docker MySQL \+ Docker MinIO/u);
   assert.match(row, /不是 live evidence/u);
 });

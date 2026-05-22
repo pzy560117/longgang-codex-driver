@@ -16,6 +16,7 @@ const db = new Kysely({
     pool: mysql.createPool(databaseUrl)
   })
 });
+const seedRowCount = readSeedRowCount(process.env.EXPORT_PLATFORM_SEED_ROW_COUNT);
 
 try {
   await runMigrations(db);
@@ -60,6 +61,19 @@ function assertLocalTestDatabaseUrl(value) {
   }
 
   return value;
+}
+
+function readSeedRowCount(value) {
+  if (!value) {
+    return 10000;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      `BLOCKED - 需要人工介入: invalid EXPORT_PLATFORM_SEED_ROW_COUNT value ${value}.`
+    );
+  }
+  return parsed;
 }
 
 async function ensurePurchaseOrderSeedTable(database) {
@@ -134,19 +148,33 @@ async function seedPurchaseOrderRows(database) {
     .where("order_id", "like", "docker-test-%")
     .execute();
 
-  const rows = [
-    createPurchaseOrderRow(1, "APPROVED", "SUP-DOCKER-001", "Docker Supplies", "ORG-001"),
-    createPurchaseOrderRow(2, "APPROVED", "SUP-DOCKER-001", "Docker Supplies", "ORG-002"),
-    createPurchaseOrderRow(3, "PENDING", "SUP-DOCKER-002", "Local Parts", "ORG-001"),
-    createPurchaseOrderRow(4, "REJECTED", "SUP-DOCKER-003", "Rejected Vendor", "ORG-003")
-  ];
+  const chunkSize = 1000;
+  let inserted = 0;
+  while (inserted < seedRowCount) {
+    const rows = [];
+    const limit = Math.min(seedRowCount - inserted, chunkSize);
+    for (let index = 0; index < limit; index += 1) {
+      const sequence = inserted + index + 1;
+      rows.push(
+        createPurchaseOrderRow(
+          sequence,
+          sequence % 17 === 0 ? "REJECTED" : sequence % 5 === 0 ? "PENDING" : "APPROVED",
+          `SUP-DOCKER-${String((sequence % 12) + 1).padStart(3, "0")}`,
+          `Docker Supplier ${(sequence % 12) + 1}`,
+          `ORG-${String((sequence % 3) + 1).padStart(3, "0")}`
+        )
+      );
+    }
+    await database.insertInto("purchase_orders_sample").values(rows).execute();
+    inserted += rows.length;
+  }
 
-  await database.insertInto("purchase_orders_sample").values(rows).execute();
-  return rows.length;
+  return inserted;
 }
 
 function createPurchaseOrderRow(sequence, status, supplierId, supplierName, orgId) {
   const suffix = String(sequence).padStart(6, "0");
+  const dayOfMonth = ((sequence - 1) % 28) + 1;
   return {
     order_id: `docker-test-order-${suffix}`,
     tenant_id: "tenant-001",
@@ -165,7 +193,7 @@ function createPurchaseOrderRow(sequence, status, supplierId, supplierName, orgI
     keyword_text: `docker-test DOCKER-PO-${suffix}`,
     total_amount: String(2000 + sequence),
     currency_code: "CNY",
-    created_at: new Date(`2026-05-${String(10 + sequence).padStart(2, "0")}T00:00:00.000Z`)
+    created_at: new Date(`2026-05-${String(dayOfMonth).padStart(2, "0")}T00:00:00.000Z`)
   };
 }
 

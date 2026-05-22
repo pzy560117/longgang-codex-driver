@@ -7,6 +7,8 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.821.0",
+    "@aws-sdk/s3-request-presigner": "^3.821.0",
     "fastify": "^5.8.5",
     "jszip": "^3.10.1",
     "kysely": "^0.29.0",
@@ -38,8 +40,10 @@
     "test:sample": "node -e \"if (!process.env.EXPORT_PLATFORM_TEST_DATABASE_URL) { console.error('BLOCKED - 需要人工介入: tests/sample requires a local or Docker MySQL URL in EXPORT_PLATFORM_TEST_DATABASE_URL.'); process.exit(1); }\" && node --import tsx --test --test-concurrency=1 tests/sample/*.test.mjs",
     "test:object-storage-live": "node --import tsx scripts/object-storage-live-smoke.mjs",
     "test:docker-local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1 -RunValidation",
+    "env:local:minio": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\docker-test-env.ps1",
     "release:local-rehearsal": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-release-rehearsal.ps1 -StartLocalObjectStorageMock",
     "demo:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1",
-    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly"
+    "demo:local:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-demo.ps1 -SmokeOnly",
+    "stack:local": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\local-stack.ps1"
   }
 }

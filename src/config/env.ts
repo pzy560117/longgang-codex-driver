@@ -30,8 +30,13 @@ export type DatasourceConfig = {
 };
 
 export type ObjectStorageConfig = {
+  driver: "http" | "s3";
   endpoint?: string;
   bucket?: string;
+  region: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  forcePathStyle: boolean;
   allowLocalSmoke: boolean;
   allowSmokeWrites: boolean;
   smokePrefix: string;
@@ -185,9 +190,21 @@ function readDatasourceConfig(env: ConfigEnv): DatasourceConfig {
 }
 
 function readObjectStorageConfig(env: ConfigEnv): ObjectStorageConfig {
+  const driver = (env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER ?? "http").trim().toLowerCase();
+  if (driver !== "http" && driver !== "s3") {
+    throw new Error(
+      `Invalid object storage driver configuration value: ${env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER}`
+    );
+  }
+
   return {
+    driver,
     endpoint: env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT,
     bucket: env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET,
+    region: env.EXPORT_PLATFORM_OBJECT_STORAGE_REGION ?? "us-east-1",
+    accessKeyId: env.EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID,
+    secretAccessKey: env.EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY,
+    forcePathStyle: readBoolean(env.EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE, true),
     allowLocalSmoke: readBoolean(env.EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE, false),
     allowSmokeWrites: readBoolean(env.EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES, false),
     smokePrefix: (env.EXPORT_PLATFORM_OBJECT_STORAGE_SMOKE_PREFIX ?? "release-smoke")
@@ -308,6 +325,16 @@ function assertProductionConfig(config: ExportPlatformConfig, env: ConfigEnv): v
     config.objectStorage.endpoint
   );
   assertRequiredProductionValue("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", config.objectStorage.bucket);
+  if (config.objectStorage.driver === "s3") {
+    assertRequiredProductionValue(
+      "EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID",
+      config.objectStorage.accessKeyId
+    );
+    assertRequiredProductionSecret(
+      "EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY",
+      config.objectStorage.secretAccessKey
+    );
+  }
   assertSafeProductionEndpoint("EXPORT_PLATFORM_PUBLIC_BASE_URL", config.security.publicBaseUrl);
   assertRequiredProductionSecret(
     "EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET",

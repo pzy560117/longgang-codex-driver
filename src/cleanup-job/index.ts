@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
-import { loadConfig, type ObjectStorageConfig } from "../config/index.ts";
+import { loadConfig } from "../config/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
 import {
   createExportAuditRepository,
@@ -8,6 +8,10 @@ import {
   createExportTaskEventRepository,
   getDatabaseTime
 } from "../repositories/index.ts";
+import {
+  createObjectStorageDepsFromConfig,
+  type CleanupObjectStorage
+} from "../object-storage/index.ts";
 
 export type CleanupJobOptions = {
   db: Kysely<ExportPlatformDatabase>;
@@ -20,10 +24,6 @@ export type CleanupPollResult = {
   scanned: number;
   deleted: number;
   retried: number;
-};
-
-export type CleanupObjectStorage = {
-  deleteObject(storageKey: string): Promise<void>;
 };
 
 export function createCleanupJob(options: CleanupJobOptions) {
@@ -131,38 +131,8 @@ export function createCleanupJob(options: CleanupJobOptions) {
 }
 
 export function createCleanupObjectStorageFromEnv(): CleanupObjectStorage {
-  return createCleanupObjectStorageFromConfig(loadConfig().objectStorage);
-}
-
-export function createCleanupObjectStorageFromConfig(
-  objectStorage: ObjectStorageConfig
-): CleanupObjectStorage {
-  const endpoint = objectStorage.endpoint;
-  const bucket = objectStorage.bucket;
-
-  if (!endpoint || !bucket) {
-    throw new Error(
-      "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for cleanup."
-    );
-  }
-
-  const normalizedEndpoint = endpoint.replace(/\/+$/, "");
-
-  return {
-    async deleteObject(storageKey) {
-      const response = await fetch(
-        `${normalizedEndpoint}/${encodeURIComponent(bucket)}/${encodeStorageKey(storageKey)}`,
-        {
-          method: "DELETE"
-        }
-      );
-      if (!response.ok && response.status !== 404) {
-        const error = new Error(`object storage delete failed: ${response.status}`);
-        error.name = "FILE_CLEANUP_DELETE_ERROR";
-        throw error;
-      }
-    }
-  };
+  const config = loadConfig();
+  return createObjectStorageDepsFromConfig(config.objectStorage, config.security).cleanupStorage;
 }
 
 async function appendCleanupEvent(input: {
@@ -193,8 +163,4 @@ async function appendCleanupEvent(input: {
 
 function cleanupRequestId(workerId: string): string {
   return `cleanup:${workerId}`;
-}
-
-function encodeStorageKey(storageKey: string): string {
-  return storageKey.split("/").map(encodeURIComponent).join("/");
 }

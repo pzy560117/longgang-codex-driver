@@ -3,7 +3,13 @@ param(
   [string]$MysqlContainerName = "export-platform-mysql-local",
   [int]$MysqlPort = 33306,
   [string]$MysqlDatabase = "export_platform_test",
-  [string]$ObjectStorageBucket = "export-platform-docker-test",
+  [string]$MinioContainerName = "export-platform-minio-local",
+  [int]$MinioApiPort = 39000,
+  [int]$MinioConsolePort = 39001,
+  [string]$ObjectStorageBucket = "export-platform-local-demo",
+  [string]$MinioAccessKey = "export-platform",
+  [string]$MinioSecretKey = "export-platform-secret",
+  [int]$SeedRowCount = 10000,
   [string]$NodePath = "node",
   [switch]$RunValidation
 )
@@ -17,10 +23,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $SeedScript = Join-Path $ProjectRoot "scripts\docker-test-seed.mjs"
-$LocalObjectStorageScript = Join-Path $ProjectRoot "scripts\local-object-storage-server.mjs"
-$ObjectStorageProcess = $null
-$ObjectStorageLog = $null
-$ObjectStorageErrorLog = $null
+$MinioSmokeScript = Join-Path $ProjectRoot "scripts\minio-live-smoke.mjs"
 
 function Invoke-Native {
   param(
@@ -184,48 +187,71 @@ function Ensure-DockerMysql {
   throw "BLOCKED - 需要人工介入: Docker MySQL container $ContainerName did not become ready within 60 seconds."
 }
 
-function Start-LocalObjectStorage {
+function Ensure-DockerMinio {
   param(
-    [string]$Root,
+    [string]$ContainerName,
+    [int]$ApiPort,
+    [int]$ConsolePort,
+    [string]$AccessKey,
+    [string]$SecretKey,
     [string]$Bucket,
     [string]$NodeExecutable
   )
 
-  if (-not (Test-Path -LiteralPath $LocalObjectStorageScript -PathType Leaf)) {
-    throw "Missing local object storage mock script: $LocalObjectStorageScript"
+  $container = Get-DockerContainerInspect -ContainerName $ContainerName
+  if ($null -eq $container) {
+    Invoke-Docker -Arguments @(
+      "run",
+      "-d",
+      "--name",
+      $ContainerName,
+      "-e",
+      "MINIO_ROOT_USER=$AccessKey",
+      "-e",
+      "MINIO_ROOT_PASSWORD=$SecretKey",
+      "-p",
+      "127.0.0.1:${ApiPort}:9000",
+      "-p",
+      "127.0.0.1:${ConsolePort}:9001",
+      "minio/minio:latest",
+      "server",
+      "/data",
+      "--console-address",
+      ":9001"
+    ) | Out-Null
+  }
+  elseif ([string]$container.State.Running -ne "true") {
+    Invoke-Docker -Arguments @("start", $ContainerName) | Out-Null
   }
 
-  $logPath = Join-Path ([System.IO.Path]::GetTempPath()) ("export-platform-docker-test-object-storage-" + [System.Guid]::NewGuid().ToString("N") + ".log")
-  $errorLogPath = Join-Path ([System.IO.Path]::GetTempPath()) ("export-platform-docker-test-object-storage-" + [System.Guid]::NewGuid().ToString("N") + ".err.log")
-  $process = Start-Process -FilePath $NodeExecutable -ArgumentList @($LocalObjectStorageScript, "--bucket", $Bucket) -WorkingDirectory $Root -RedirectStandardOutput $logPath -RedirectStandardError $errorLogPath -PassThru -WindowStyle Hidden
-  $deadline = (Get-Date).AddSeconds(15)
-
+  $endpoint = "http://127.0.0.1:$ApiPort"
+  $deadline = (Get-Date).AddSeconds(60)
   while ((Get-Date) -lt $deadline) {
-    if ($process.HasExited) {
-      $logText = if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Raw } else { "" }
-      $errorText = if (Test-Path -LiteralPath $errorLogPath) { Get-Content -LiteralPath $errorLogPath -Raw } else { "" }
-      throw "docker test object storage mock exited early. $logText $errorText"
-    }
+    try {
+      Invoke-WebRequest -UseBasicParsing -Uri "$endpoint/minio/health/live" | Out-Null
 
-    if (Test-Path -LiteralPath $logPath) {
-      $readyLine = Get-Content -LiteralPath $logPath | Where-Object { $_ -like "LOCAL_OBJECT_STORAGE_READY *" } | Select-Object -First 1
-      if ($readyLine) {
-        $json = $readyLine.Substring("LOCAL_OBJECT_STORAGE_READY ".Length) | ConvertFrom-Json
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = $endpoint
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = $Bucket
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = "s3"
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_REGION = "us-east-1"
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID = $AccessKey
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY = $SecretKey
+      $env:EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE = "true"
+      & $NodeExecutable --import tsx $MinioSmokeScript | Out-Null
+      if ($LASTEXITCODE -eq 0) {
         return [pscustomobject]@{
-          Process = $process
-          LogPath = $logPath
-          ErrorLogPath = $errorLogPath
-          Endpoint = [string]$json.endpoint
-          Bucket = [string]$json.bucket
+          Endpoint = $endpoint
+          Bucket = $Bucket
+          ConsoleUrl = "http://127.0.0.1:$ConsolePort"
         }
       }
     }
-
-    Start-Sleep -Milliseconds 200
+    catch {
+    }
+    Start-Sleep -Seconds 2
   }
 
-  Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-  throw "BLOCKED - 需要人工介入: local object storage mock did not become ready within 15 seconds."
+  throw "BLOCKED - 需要人工介入: Docker MinIO container $ContainerName did not become ready within 60 seconds."
 }
 
 function Invoke-CheckedCommand {
@@ -240,18 +266,17 @@ function Invoke-CheckedCommand {
 
 try {
   $databaseUrl = Ensure-DockerMysql -ContainerName $MysqlContainerName -Port $MysqlPort -Database $MysqlDatabase
-  $started = Start-LocalObjectStorage -Root $ProjectRoot -Bucket $ObjectStorageBucket -NodeExecutable $NodePath
-  $ObjectStorageProcess = $started.Process
-  $ObjectStorageLog = $started.LogPath
-  $ObjectStorageErrorLog = $started.ErrorLogPath
+  $started = Ensure-DockerMinio -ContainerName $MinioContainerName -ApiPort $MinioApiPort -ConsolePort $MinioConsolePort -AccessKey $MinioAccessKey -SecretKey $MinioSecretKey -Bucket $ObjectStorageBucket -NodeExecutable $NodePath
 
   $env:EXPORT_PLATFORM_TEST_DATABASE_URL = $databaseUrl
   $env:EXPORT_PLATFORM_DATABASE_URL = $databaseUrl
   $env:EXPORT_PLATFORM_DOCKER_TEST_DATABASE_NAME = $MysqlDatabase
+  $env:EXPORT_PLATFORM_SEED_ROW_COUNT = [string]$SeedRowCount
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = $started.Endpoint
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = $started.Bucket
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES = "true"
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_LOCAL_SMOKE = "true"
+  $env:EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET = "local-minio-download-signing-secret"
 
   Push-Location $ProjectRoot
   try {
@@ -262,7 +287,9 @@ try {
 
     Write-Output "docker test environment ready."
     Write-Output "MySQL: $MysqlContainerName at 127.0.0.1:$MysqlPort/$MysqlDatabase"
-    Write-Output "Object storage mock: $($started.Endpoint) bucket=$($started.Bucket)"
+    Write-Output "MinIO: $($started.Endpoint) bucket=$($started.Bucket)"
+    Write-Output "MinIO console: $($started.ConsoleUrl)"
+    Write-Output "Seed rows: $SeedRowCount"
 
     if ($RunValidation) {
       foreach ($command in @(
@@ -285,12 +312,4 @@ try {
   }
 }
 finally {
-  if ($null -ne $ObjectStorageProcess -and -not $ObjectStorageProcess.HasExited) {
-    Stop-Process -Id $ObjectStorageProcess.Id -Force -ErrorAction SilentlyContinue
-  }
-  foreach ($logPath in @($ObjectStorageLog, $ObjectStorageErrorLog)) {
-    if ($null -ne $logPath -and (Test-Path -LiteralPath $logPath)) {
-      Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
-    }
-  }
 }

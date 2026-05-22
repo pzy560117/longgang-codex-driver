@@ -52,6 +52,7 @@ test("local/dev object storage smoke exercises env-backed adapter without live O
 test("local/dev object storage smoke keeps live object storage preflight blocked without env", () => {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const originalDriver = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
 
   delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
@@ -64,6 +65,7 @@ test("local/dev object storage smoke keeps live object storage preflight blocked
   } finally {
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT", originalEndpoint);
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", originalBucket);
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER", originalDriver);
   }
 });
 
@@ -174,7 +176,9 @@ async function withObjectStorageEnv(config, callback) {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   const originalSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  const originalDriver = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
 
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = "http";
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
   process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
@@ -185,6 +189,7 @@ async function withObjectStorageEnv(config, callback) {
   } finally {
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT", originalEndpoint);
     restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET", originalBucket);
+    restoreEnv("EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER", originalDriver);
     restoreEnv("EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET", originalSigningSecret);
   }
 }

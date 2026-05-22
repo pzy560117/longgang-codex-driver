@@ -1404,11 +1404,12 @@
                                                        "runtime=http_service+worker+scheduled_job",
                                                        "测试环境必须使用本机 Docker MySQL 或显式本机测试 MySQL URL",
                                                        "测试数据 seed 必须拒绝非本机/非测试数据库 URL",
-                                                       "本任务产出 docker/mock 或 local demo evidence，不产出外部 live evidence"
+                                                       "本任务产出 docker/mock 或 local demo evidence，不产出外部 live evidence",
+                                                       "对象存储依赖使用本机 Docker MinIO，本地 smoke 与 seed 只能作为本机验证，不得升级成外部 live OSS/S3 证据"
                                                    ],
                       "forbidden_implementations":  [
                                                         "禁止把本地 Docker MySQL 写成外部生产 MySQL 证据",
-                                                        "禁止把本地 object storage mock 写成 live OSS/S3 证据",
+                                                        "禁止把本地 MinIO 写成 live OSS/S3 证据",
                                                         "禁止用内存 repository 或 fixture repository 替代 MySQL 验证",
                                                         "禁止绕过现有 migration/repository/service 直接伪造完成状态"
                                                     ],
@@ -1456,7 +1457,7 @@
                                         "mode":  "single"
                                     },
                       "steps":  [
-                                    "提供 test:docker-local，一键检查或启动 Docker Desktop、复用或创建本机 Docker MySQL，并启动本地 object storage mock",
+                                    "提供 test:docker-local，一键检查或启动 Docker Desktop、复用或创建本机 Docker MySQL，并启动本机 Docker MinIO",
                                     "提供 docker-test-seed.mjs，复用现有 migration 和 registry service seed purchase-order-export 测试数据，并拒绝非本机/非测试数据库 URL",
                                     "把 docker/local evidence 边界同步到 verify-matrix 和 runbook，明确不是 live evidence",
                                     "新增 mock-local 守护测试，防止 package script、task、runbook 和 evidence 映射漂移"

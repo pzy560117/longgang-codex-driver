@@ -37,12 +37,14 @@ function getTestDatabaseUrl() {
 function withTestDatabaseEnv(objectStorageConfig = {}) {
   const databaseUrl = getTestDatabaseUrl();
   const previousDatabaseUrl = process.env.EXPORT_PLATFORM_DATABASE_URL;
+  const previousObjectStorageDriver = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
   const previousObjectStorageEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const previousObjectStorageBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   const previousDownloadSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
   const previousAuthContextSigningSecret = process.env.EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET;
   const previousRegistryAdminTenantIds = process.env.EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS;
   process.env.EXPORT_PLATFORM_DATABASE_URL = databaseUrl;
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = "http";
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT =
     objectStorageConfig.endpoint ?? "https://oss.example.test";
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET =
@@ -65,6 +67,12 @@ function withTestDatabaseEnv(objectStorageConfig = {}) {
       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
     } else {
       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = previousObjectStorageEndpoint;
+    }
+
+    if (previousObjectStorageDriver === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = previousObjectStorageDriver;
     }
 
     if (previousObjectStorageBucket === undefined) {

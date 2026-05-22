@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type Kysely } from "kysely";
 import { loadConfig, type ObjectStorageConfig, type SecurityConfig } from "../config/index.ts";
 import type { ExportPlatformDatabase } from "../db/schema.ts";
@@ -10,24 +10,10 @@ import {
   type ExportTaskRecord
 } from "../repositories/index.ts";
 import { renderExportPackage } from "./xlsx-package.ts";
-
-export type ObjectStoragePutInput = {
-  storageKey: string;
-  body: Buffer;
-  contentType: string;
-};
-
-export type ObjectStoragePublishInput = {
-  tempStorageKey: string;
-  publishedStorageKey: string;
-};
-
-export type ObjectStorage = {
-  putObject(input: ObjectStoragePutInput): Promise<void>;
-  readObject(storageKey: string): Promise<Buffer>;
-  publishObject(input: ObjectStoragePublishInput): Promise<void>;
-  createDownloadUrl(storageKey: string, expiresAt: Date): Promise<string>;
-};
+import {
+  createObjectStorageDepsFromConfig,
+  type ObjectStorage
+} from "../object-storage/index.ts";
 
 export type PublishRowsInput = {
   task: ExportTaskRecord;
@@ -89,72 +75,7 @@ export function createObjectStorageFromConfig(
   objectStorage: ObjectStorageConfig,
   security: SecurityConfig
 ): ObjectStorage {
-  const endpoint = objectStorage.endpoint;
-  const bucket = objectStorage.bucket;
-  const downloadSigningSecret = security.downloadUrlSigningSecret;
-
-  if (!endpoint || !bucket) {
-    throw new Error(
-      "BLOCKED - 需要人工介入: object storage endpoint and bucket must be configured for file publishing."
-    );
-  }
-  if (!downloadSigningSecret) {
-    throw new Error(
-      "BLOCKED - 需要人工介入: download URL signing secret must be configured for signed downloads."
-    );
-  }
-
-  const baseUrl = `${endpoint.replace(/\/+$/, "")}/${encodeURIComponent(bucket)}`;
-  return {
-    async putObject(input) {
-      const response = await fetch(`${baseUrl}/${encodeStorageKey(input.storageKey)}`, {
-        method: "PUT",
-        headers: { "content-type": input.contentType },
-        body: toArrayBuffer(input.body)
-      });
-      if (!response.ok) {
-        throw fileError("FILE_VERIFY_ERROR", `object storage put failed: ${response.status}`);
-      }
-    },
-    async readObject(storageKey) {
-      const response = await fetch(`${baseUrl}/${encodeStorageKey(storageKey)}`, {
-        headers: {
-          "x-export-internal-object-read": "true"
-        }
-      });
-      if (!response.ok) {
-        throw fileError("FILE_VERIFY_ERROR", `object storage read failed: ${response.status}`);
-      }
-      return Buffer.from(await response.arrayBuffer());
-    },
-    async publishObject(input) {
-      const response = await fetch(`${baseUrl}/${encodeStorageKey(input.publishedStorageKey)}`, {
-        method: "PUT",
-        headers: {
-          "x-export-copy-source": `${bucket}/${input.tempStorageKey}`
-        }
-      });
-      if (!response.ok) {
-        throw fileError("FILE_VERIFY_ERROR", `object storage publish failed: ${response.status}`);
-      }
-    },
-    async createDownloadUrl(storageKey, expiresAt) {
-      const url = new URL(`${baseUrl}/${encodeStorageKey(storageKey)}`);
-      const expiresAtIso = expiresAt.toISOString();
-      url.searchParams.set("expiresAt", expiresAtIso);
-      url.searchParams.set("signatureAlgorithm", "HMAC-SHA256");
-      url.searchParams.set(
-        "signature",
-        createDownloadUrlSignature({
-          bucket,
-          storageKey,
-          expiresAt: expiresAtIso,
-          secret: downloadSigningSecret
-        })
-      );
-      return url.toString();
-    }
-  };
+  return createObjectStorageDepsFromConfig(objectStorage, security).objectStorage;
 }
 
 export function createExportFileService(options: ExportFileServiceOptions) {
@@ -480,28 +401,6 @@ function parseFieldHeaders(registry: ExportRegistryRecord): string[] {
 
 function positiveInteger(value: number | null | undefined, fallback: number): number {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : fallback;
-}
-
-function encodeStorageKey(storageKey: string): string {
-  return storageKey.split("/").map(encodeURIComponent).join("/");
-}
-
-function createDownloadUrlSignature(input: {
-  bucket: string;
-  storageKey: string;
-  expiresAt: string;
-  secret: string;
-}): string {
-  return createHmac("sha256", input.secret)
-    .update(["GET", input.bucket, input.storageKey, input.expiresAt].join("\n"))
-    .digest("hex");
-}
-
-function toArrayBuffer(body: Buffer): ArrayBuffer {
-  return body.buffer.slice(
-    body.byteOffset,
-    body.byteOffset + body.byteLength
-  ) as ArrayBuffer;
 }
 
 function fileError(code: string, message: string): Error {

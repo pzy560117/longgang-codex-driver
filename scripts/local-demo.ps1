@@ -3,7 +3,13 @@ param(
   [string]$MysqlContainerName = "export-platform-mysql-local",
   [int]$MysqlPort = 33306,
   [string]$MysqlDatabase = "export_platform_test",
+  [string]$MinioContainerName = "export-platform-minio-local",
+  [int]$MinioApiPort = 39000,
+  [int]$MinioConsolePort = 39001,
   [string]$ObjectStorageBucket = "export-platform-local-demo",
+  [string]$MinioAccessKey = "export-platform",
+  [string]$MinioSecretKey = "export-platform-secret",
+  [int]$SeedRowCount = 10000,
   [string]$NodePath = "node",
   [string]$HostName = "127.0.0.1",
   [int]$Port = 3000,
@@ -18,12 +24,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$LocalObjectStorageScript = Join-Path $ProjectRoot "scripts\local-object-storage-server.mjs"
-$LocalDemoSetupScript = Join-Path $ProjectRoot "scripts\local-demo-setup.mjs"
+$EnvScript = Join-Path $ProjectRoot "scripts\docker-test-env.ps1"
 $ServerScript = Join-Path $ProjectRoot "src\server.ts"
-$ObjectStorageProcess = $null
-$ObjectStorageLog = $null
-$ObjectStorageErrorLog = $null
 $ServerProcess = $null
 $ServerLog = $null
 $ServerErrorLog = $null
@@ -193,50 +195,6 @@ function Ensure-DockerMysql {
   throw "BLOCKED - 需要人工介入: Docker MySQL container $ContainerName did not become ready within 60 seconds."
 }
 
-function Start-LocalObjectStorage {
-  param(
-    [string]$Root,
-    [string]$Bucket,
-    [string]$NodeExecutable
-  )
-
-  if (-not (Test-Path -LiteralPath $LocalObjectStorageScript -PathType Leaf)) {
-    throw "Missing local object storage mock script: $LocalObjectStorageScript"
-  }
-
-  $logPath = Join-Path ([System.IO.Path]::GetTempPath()) ("export-platform-local-demo-object-storage-" + [System.Guid]::NewGuid().ToString("N") + ".log")
-  $errorLogPath = Join-Path ([System.IO.Path]::GetTempPath()) ("export-platform-local-demo-object-storage-" + [System.Guid]::NewGuid().ToString("N") + ".err.log")
-  $process = Start-Process -FilePath $NodeExecutable -ArgumentList (Join-ProcessArguments -Arguments @($LocalObjectStorageScript, "--bucket", $Bucket)) -WorkingDirectory $Root -RedirectStandardOutput $logPath -RedirectStandardError $errorLogPath -PassThru -WindowStyle Hidden
-  $deadline = (Get-Date).AddSeconds(15)
-
-  while ((Get-Date) -lt $deadline) {
-    if ($process.HasExited) {
-      $logText = if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Raw } else { "" }
-      $errorText = if (Test-Path -LiteralPath $errorLogPath) { Get-Content -LiteralPath $errorLogPath -Raw } else { "" }
-      throw "demo:local object storage mock exited early. $logText $errorText"
-    }
-
-    if (Test-Path -LiteralPath $logPath) {
-      $readyLine = Get-Content -LiteralPath $logPath | Where-Object { $_ -like "LOCAL_OBJECT_STORAGE_READY *" } | Select-Object -First 1
-      if ($readyLine) {
-        $json = $readyLine.Substring("LOCAL_OBJECT_STORAGE_READY ".Length) | ConvertFrom-Json
-        return [pscustomobject]@{
-          Process = $process
-          LogPath = $logPath
-          ErrorLogPath = $errorLogPath
-          Endpoint = [string]$json.endpoint
-          Bucket = [string]$json.bucket
-        }
-      }
-    }
-
-    Start-Sleep -Milliseconds 200
-  }
-
-  Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-  throw "demo:local object storage mock did not become ready within 15 seconds."
-}
-
 function Start-DemoServer {
   param(
     [string]$Root,
@@ -291,34 +249,25 @@ function Write-ApiExamples {
 }
 
 try {
-  $databaseUrl = Ensure-DockerMysql -ContainerName $MysqlContainerName -Port $MysqlPort -Database $MysqlDatabase
-  $started = Start-LocalObjectStorage -Root $ProjectRoot -Bucket $ObjectStorageBucket -NodeExecutable $NodePath
-  $ObjectStorageProcess = $started.Process
-  $ObjectStorageLog = $started.LogPath
-  $ObjectStorageErrorLog = $started.ErrorLogPath
+  . $EnvScript `
+    -MysqlContainerName $MysqlContainerName `
+    -MysqlPort $MysqlPort `
+    -MysqlDatabase $MysqlDatabase `
+    -MinioContainerName $MinioContainerName `
+    -MinioApiPort $MinioApiPort `
+    -MinioConsolePort $MinioConsolePort `
+    -ObjectStorageBucket $ObjectStorageBucket `
+    -MinioAccessKey $MinioAccessKey `
+    -MinioSecretKey $MinioSecretKey `
+    -SeedRowCount $SeedRowCount `
+    -NodePath $NodePath
 
-  $env:EXPORT_PLATFORM_TEST_DATABASE_URL = $databaseUrl
-  $env:EXPORT_PLATFORM_DATABASE_URL = $databaseUrl
-  $env:EXPORT_PLATFORM_LOCAL_DEMO_DATABASE_NAME = $MysqlDatabase
-  $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = $started.Endpoint
-  $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = $started.Bucket
   $env:EXPORT_PLATFORM_HOST = $HostName
   $env:EXPORT_PLATFORM_PORT = [string]$Port
 
-  Push-Location $ProjectRoot
-  try {
-    & $NodePath --import tsx $LocalDemoSetupScript
-    if ($LASTEXITCODE -ne 0) {
-      throw "local-demo-setup.mjs failed with exit code $LASTEXITCODE"
-    }
-  }
-  finally {
-    Pop-Location
-  }
-
   Write-Output "demo:local ready."
   Write-Output "MySQL: $MysqlContainerName at 127.0.0.1:$MysqlPort/$MysqlDatabase"
-  Write-Output "Object storage mock: $($started.Endpoint) bucket=$($started.Bucket)"
+  Write-Output "MinIO: $($env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT) bucket=$($env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET)"
 
   if ($SmokeOnly) {
     $server = Start-DemoServer -Root $ProjectRoot -NodeExecutable $NodePath -ScriptPath $ServerScript
@@ -350,10 +299,7 @@ finally {
   if ($null -ne $ServerProcess -and -not $ServerProcess.HasExited) {
     Stop-Process -Id $ServerProcess.Id -Force -ErrorAction SilentlyContinue
   }
-  if ($null -ne $ObjectStorageProcess -and -not $ObjectStorageProcess.HasExited) {
-    Stop-Process -Id $ObjectStorageProcess.Id -Force -ErrorAction SilentlyContinue
-  }
-  foreach ($logPath in @($ObjectStorageLog, $ObjectStorageErrorLog, $ServerLog, $ServerErrorLog)) {
+  foreach ($logPath in @($ServerLog, $ServerErrorLog)) {
     if ($null -ne $logPath -and (Test-Path -LiteralPath $logPath)) {
       Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
     }

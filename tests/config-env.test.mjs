@@ -83,8 +83,13 @@ test("loadConfig reads production dependency, security, datasource, and worker s
     "inventory-ro": "mysql://readonly_user:readonly_password@inventory.internal:3306/inventory?ssl=true"
   });
   assert.deepEqual(config.objectStorage, {
+    driver: "http",
     endpoint: "https://object-storage.internal",
     bucket: "export-platform-prod",
+    region: "us-east-1",
+    accessKeyId: undefined,
+    secretAccessKey: undefined,
+    forcePathStyle: true,
     allowLocalSmoke: false,
     allowSmokeWrites: true,
     smokePrefix: "release-smoke/prod"
@@ -105,6 +110,7 @@ test("loadConfig fails fast for unsafe production dependency configuration", () 
   const productionBase = {
     EXPORT_PLATFORM_ENVIRONMENT: "production",
     EXPORT_PLATFORM_DATABASE_URL: "mysql://platform_user:platform_password@mysql.internal:3306/export_platform?ssl=true",
+    EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: "http",
     EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "https://object-storage.internal",
     EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-prod",
     EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "true",
@@ -138,6 +144,7 @@ test("loadConfig allows production runtime with smoke writes disabled", () => {
   const config = loadConfig({
     EXPORT_PLATFORM_ENVIRONMENT: "production",
     EXPORT_PLATFORM_DATABASE_URL: "mysql://platform_user:platform_password@mysql.internal:3306/export_platform?ssl=true",
+    EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: "http",
     EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "https://object-storage.internal",
     EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-prod",
     EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "false",
@@ -158,6 +165,7 @@ test("loadConfig allows complete split MySQL settings in production", () => {
     EXPORT_PLATFORM_MYSQL_USER: "platform_user",
     EXPORT_PLATFORM_MYSQL_PASSWORD: "platform_password",
     EXPORT_PLATFORM_MYSQL_SSL: "true",
+    EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: "http",
     EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "https://object-storage.internal",
     EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-prod",
     EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "true",
@@ -193,6 +201,7 @@ test("loadConfig rejects incomplete split MySQL settings in production", () => {
     EXPORT_PLATFORM_MYSQL_USER: "platform_user",
     EXPORT_PLATFORM_MYSQL_PASSWORD: "platform_password",
     EXPORT_PLATFORM_MYSQL_SSL: "true",
+    EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: "http",
     EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "https://object-storage.internal",
     EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-prod",
     EXPORT_PLATFORM_OBJECT_STORAGE_ALLOW_SMOKE_WRITES: "true",
@@ -283,4 +292,24 @@ test("loadConfig rejects invalid boolean settings", () => {
       }),
     /Invalid boolean configuration value/
   );
+});
+
+test("loadConfig reads s3 driver configuration for MinIO-compatible storage", () => {
+  const config = loadConfig({
+    EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER: "s3",
+    EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:39000",
+    EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET: "export-platform-local-demo",
+    EXPORT_PLATFORM_OBJECT_STORAGE_REGION: "us-east-1",
+    EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID: "export-platform",
+    EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY: "export-platform-secret",
+    EXPORT_PLATFORM_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+  });
+
+  assert.equal(config.objectStorage.driver, "s3");
+  assert.equal(config.objectStorage.endpoint, "http://127.0.0.1:39000");
+  assert.equal(config.objectStorage.bucket, "export-platform-local-demo");
+  assert.equal(config.objectStorage.region, "us-east-1");
+  assert.equal(config.objectStorage.accessKeyId, "export-platform");
+  assert.equal(config.objectStorage.secretAccessKey, "export-platform-secret");
+  assert.equal(config.objectStorage.forcePathStyle, true);
 });

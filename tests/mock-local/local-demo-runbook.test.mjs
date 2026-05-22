@@ -26,13 +26,11 @@ test("local demo entrypoint provisions local dependencies and starts the HTTP se
   const script = readFileSync(demoScriptUrl, "utf8");
   assert.match(script, /Ensure-DockerMysql/u);
   assert.match(script, /mysql:8\.4/u);
-  assert.match(script, /Start-LocalObjectStorage/u);
-  assert.match(script, /LOCAL_OBJECT_STORAGE_READY/u);
+  assert.match(script, /MinioContainerName/u);
+  assert.match(script, /docker-test-env\.ps1/u);
   assert.match(script, /EXPORT_PLATFORM_TEST_DATABASE_URL/u);
-  assert.match(script, /EXPORT_PLATFORM_DATABASE_URL/u);
-  assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT/u);
-  assert.match(script, /EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET/u);
-  assert.match(script, /local-demo-setup\.mjs/u);
+  assert.match(script, /ObjectStorageBucket/u);
+  assert.match(script, /docker-test-env\.ps1/u);
   assert.match(script, /src\\server\.ts/u);
   assert.match(script, /Invoke-WebRequest/u);
   assert.match(script, /\/health/u);
@@ -42,21 +40,10 @@ test("local demo entrypoint provisions local dependencies and starts the HTTP se
   assert.match(script, /MYSQL_DATABASE/u);
 });
 
-test("local demo setup runs migrations and seeds purchase-order demo data", () => {
+test("local demo setup delegates to shared docker/minio seed flow", () => {
   const setupScript = readFileSync(setupScriptUrl, "utf8");
-
-  assert.match(setupScript, /assertLocalDemoDatabaseUrl/u);
-  assert.match(setupScript, /127\.0\.0\.1/u);
-  assert.match(setupScript, /localhost/u);
-  assert.match(setupScript, /EXPORT_PLATFORM_LOCAL_DEMO_DATABASE_NAME/u);
-  assert.match(setupScript, /export_platform_test/u);
-  assert.match(setupScript, /refuses non-demo MySQL databases/u);
   assert.match(setupScript, /runMigrations/u);
-  assert.match(setupScript, /createSamplePurchaseOrderRegistryContract/u);
-  assert.match(setupScript, /upsertExportRegistry/u);
   assert.match(setupScript, /purchase_orders_sample/u);
-  assert.match(setupScript, /purchase_orders_view/u);
-  assert.match(setupScript, /local-demo/u);
   assert.match(setupScript, /seededRows/u);
 });
 
@@ -95,8 +82,9 @@ test("local demo runbook is explicit about local-only dependencies and API examp
 
   assert.match(runbook, /npm run demo:local/u);
   assert.match(runbook, /npm run demo:local:smoke/u);
+  assert.match(runbook, /npm run stack:local/u);
   assert.match(runbook, /Docker MySQL/u);
-  assert.match(runbook, /本地 object storage mock/u);
+  assert.match(runbook, /Docker MinIO/u);
   assert.match(runbook, /不需要外部 MySQL/u);
   assert.match(runbook, /不需要外部 OSS\/S3/u);
   assert.match(runbook, /自动 migration/u);

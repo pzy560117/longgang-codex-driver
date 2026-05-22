@@ -69,6 +69,7 @@ test("file tests require an explicit test database URL", () => {
 test("production object storage config is required outside injected test adapters", () => {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
+  const originalDriver = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
 
   delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
@@ -89,6 +90,11 @@ test("production object storage config is required outside injected test adapter
       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
     } else {
       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = originalBucket;
+    }
+    if (originalDriver === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = originalDriver;
     }
   }
 });
@@ -308,7 +314,9 @@ async function withObjectStorageEnv(config, callback) {
   const originalEndpoint = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT;
   const originalBucket = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
   const originalSigningSecret = process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET;
+  const originalDriver = process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
 
+  process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = "http";
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = config.endpoint;
   process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = config.bucket;
   process.env.EXPORT_PLATFORM_DOWNLOAD_URL_SIGNING_SECRET =
@@ -327,6 +335,11 @@ async function withObjectStorageEnv(config, callback) {
       delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET;
     } else {
       process.env.EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = originalBucket;
+    }
+    if (originalDriver === undefined) {
+      delete process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER;
+    } else {
+      process.env.EXPORT_PLATFORM_OBJECT_STORAGE_DRIVER = originalDriver;
     }
 
     if (originalSigningSecret === undefined) {
