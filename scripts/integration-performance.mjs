@@ -121,16 +121,21 @@ async function runScenario(input) {
       status: detailPayload?.data?.status ?? "TIMEOUT",
       durationMs: null,
       durationSec: null,
+      completeDurationMs: null,
+      completeDurationSec: null,
+      downloadMetadataDurationMs: null,
+      downloadBodyDurationMs: null,
       fileName: null,
       fileSize: null,
       partCount: null,
       throughputRowsPerSec: null,
+      endToEndThroughputRowsPerSec: null,
       publishedStorageKey: null,
       timeout: true
     };
   }
 
-  const finishedAt = Date.now();
+  const completedAt = Date.now();
   const [rows] = await input.platform.execute(
     "SELECT file_name, file_size, published_storage_key FROM export_task_files WHERE task_id = ? AND attempt_no = 0",
     [taskId]
@@ -140,11 +145,38 @@ async function runScenario(input) {
     throw new Error(`missing file metadata for ${taskId}`);
   }
 
+  const downloadMetaStartedAt = Date.now();
+  const downloadResp = await fetch(`${input.baseUrl}/api/export/tasks/${taskId}/download`, {
+    headers
+  });
+  if (!downloadResp.ok) {
+    throw new Error(`download metadata failed for ${taskId}: ${downloadResp.status}`);
+  }
+  const downloadPayload = await downloadResp.json();
+  const downloadUrl = downloadPayload?.data?.downloadUrl;
+  if (!downloadUrl) {
+    throw new Error(`missing download url for ${taskId}`);
+  }
+  const downloadMetaFinishedAt = Date.now();
+
+  const downloadBodyStartedAt = Date.now();
+  const fileResp = await fetch(downloadUrl);
+  if (!fileResp.ok) {
+    throw new Error(`download body failed for ${taskId}: ${fileResp.status}`);
+  }
+  const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
+  if (fileBuffer.byteLength === 0) {
+    throw new Error(`downloaded file is empty for ${taskId}`);
+  }
+  const finishedAt = Date.now();
+
   const partCount = String(metadata.file_name).endsWith(".zip")
     ? Math.ceil(input.rowCount / 20000)
     : 1;
+  const completeDurationMs = completedAt - startedAt;
   const durationMs = finishedAt - startedAt;
-  const throughputRowsPerSec = Number((input.rowCount / (durationMs / 1000)).toFixed(2));
+  const throughputRowsPerSec = Number((input.rowCount / (completeDurationMs / 1000)).toFixed(2));
+  const endToEndThroughputRowsPerSec = Number((input.rowCount / (durationMs / 1000)).toFixed(2));
 
   return {
     rowCount: input.rowCount,
@@ -152,10 +184,15 @@ async function runScenario(input) {
     status: "COMPLETED",
     durationMs,
     durationSec: Number((durationMs / 1000).toFixed(2)),
+    completeDurationMs,
+    completeDurationSec: Number((completeDurationMs / 1000).toFixed(2)),
+    downloadMetadataDurationMs: downloadMetaFinishedAt - downloadMetaStartedAt,
+    downloadBodyDurationMs: finishedAt - downloadBodyStartedAt,
     fileName: metadata.file_name,
     fileSize: Number(metadata.file_size),
     partCount,
     throughputRowsPerSec,
+    endToEndThroughputRowsPerSec,
     publishedStorageKey: metadata.published_storage_key
   };
 }

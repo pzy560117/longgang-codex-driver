@@ -60,3 +60,19 @@
 - 代码入口：
   - [src/sample-purchase-order/index.ts](/E:/2026/alpha-project/longgang-codex-driver/src/sample-purchase-order/index.ts)
   - [src/query-executor/index.ts](/E:/2026/alpha-project/longgang-codex-driver/src/query-executor/index.ts)
+
+## 完整链路口径（create -> execute -> MinIO -> download）
+
+以下结果按完整链路口径统计，不是只算到 `COMPLETED`：
+
+| 行数 | create->COMPLETED | 下载元数据 | 实际下载 | 端到端总耗时 | 分片数 | 端到端吞吐量(rows/s) | task_id |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 10000 | 10.23s | 21ms | 39ms | 10.29s | 1 | 971.53 | `exp_769f765f-ff16-4d72-80fe-2ab7e122fc92` |
+| 50000 | 46.70s | 20ms | 41ms | 46.77s | 3 | 1069.08 | `exp_bc4a1b5f-1512-4678-93bc-963572f26b4a` |
+| 100000 | 99.95s | 29ms | 51ms | 100.03s | 5 | 999.66 | `exp_8c93559b-2585-41d8-906e-562dcfa574b8` |
+
+说明：
+
+- 在当前 Docker integration stack 下，下载阶段本身很轻，主要耗时仍集中在查询、执行、渲染、打包和对象存储发布阶段。
+- 以完整链路口径看，`10000` 行约 `10.29s`、`50000` 行约 `46.77s`、`100000` 行约 `100.03s`。
+- 这组数据比优化前的 `batchSize=500` 结果明显改善，说明默认批次提升已经实际反映到端到端性能上。
