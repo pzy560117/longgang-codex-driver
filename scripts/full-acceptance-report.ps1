@@ -49,6 +49,31 @@ function Assert-DockerReady {
   }
 }
 
+function Wait-IntegrationMysqlReady {
+  param(
+    [string]$ContainerName,
+    [string]$Database
+  )
+
+  $deadline = (Get-Date).AddMinutes(2)
+  while ((Get-Date) -lt $deadline) {
+    $result = Invoke-Native -FilePath "docker" -Arguments @(
+      "exec",
+      $ContainerName,
+      "mysqladmin",
+      "ping",
+      "-uroot",
+      "--silent"
+    )
+    if ($result.ExitCode -eq 0) {
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  throw "BLOCKED - 需要人工介入: integration MySQL $Database in container $ContainerName did not become ready within 2 minutes."
+}
+
 function Invoke-ReportCommand {
   param(
     [string]$Label,
@@ -63,7 +88,7 @@ function Invoke-ReportCommand {
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-      $output = powershell -NoProfile -Command $Command 2>&1
+      $output = Invoke-Expression $Command 2>&1
       $exitCode = $LASTEXITCODE
     }
     finally {
@@ -97,6 +122,29 @@ function Invoke-ReportCommand {
 
   if ($exitCode -ne 0) {
     throw "Verification command failed with exit code ${exitCode}: $Command"
+  }
+}
+
+function Invoke-ReportCommandWithRetry {
+  param(
+    [string]$Label,
+    [string]$RequirementIds,
+    [string]$Command,
+    [int]$MaxAttempts = 3,
+    [int]$SleepSeconds = 5
+  )
+
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt += 1) {
+    try {
+      Invoke-ReportCommand -Label $Label -RequirementIds $RequirementIds -Command $Command
+      return
+    }
+    catch {
+      if ($attempt -ge $MaxAttempts) {
+        throw
+      }
+      Start-Sleep -Seconds $SleepSeconds
+    }
   }
 }
 
@@ -246,6 +294,7 @@ try {
   $databaseUrl = "mysql://root@127.0.0.1:43306/export_platform_integration"
   $objectStorageEndpoint = "http://127.0.0.1:49000"
   $env:EXPORT_PLATFORM_DATABASE_URL = $databaseUrl
+  $env:EXPORT_PLATFORM_TEST_DATABASE_URL = $databaseUrl
   $env:EXPORT_PLATFORM_DATASOURCE_PURCHASE_RO_URL = "mysql://root@127.0.0.1:43307/purchase_readonly"
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ENDPOINT = $objectStorageEndpoint
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_BUCKET = "export-platform-integration"
@@ -253,6 +302,7 @@ try {
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_ACCESS_KEY_ID = "export-platform"
   $env:EXPORT_PLATFORM_OBJECT_STORAGE_SECRET_ACCESS_KEY = "export-platform-secret"
   $env:EXPORT_PLATFORM_AUTH_CONTEXT_SIGNING_SECRET = "integration-auth-signing-secret"
+  $env:EXPORT_PLATFORM_REGISTRY_ADMIN_TENANT_IDS = "tenant-001"
   $env:EXPORT_PLATFORM_PERF_ROW_COUNTS = "10000"
 
   Invoke-ReportCommand -Label "NPM high audit" -RequirementIds "FR-001 - FR-014" -Command "npm audit --audit-level=high --registry=https://registry.npmjs.org --fetch-retries=3 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=10000"
@@ -263,7 +313,9 @@ try {
   Invoke-ReportCommand -Label "OpenAPI lint" -RequirementIds "FR-001 - FR-014" -Command "npx --yes @redocly/cli@2.30.6 lint contracts/openapi.yaml"
   Invoke-ReportCommand -Label "Docker integration stack down" -RequirementIds "FR-001 - FR-014" -Command "npm run stack:integration:down"
   Invoke-ReportCommand -Label "Docker integration stack up" -RequirementIds "FR-001 - FR-014" -Command "npm run stack:integration"
-  Invoke-ReportCommand -Label "Docker integration seed" -RequirementIds "FR-001 / FR-005 / FR-007 / FR-014" -Command "node --import tsx scripts/integration-seed.mjs"
+  Wait-IntegrationMysqlReady -ContainerName "export-platform-integration-mysql" -Database "export_platform_integration"
+  Wait-IntegrationMysqlReady -ContainerName "export-platform-business-mysql" -Database "purchase_readonly"
+  Invoke-ReportCommandWithRetry -Label "Docker integration seed" -RequirementIds "FR-001 / FR-005 / FR-007 / FR-014" -Command "node --import tsx scripts/integration-seed.mjs"
   Invoke-ReportCommand -Label "API integration" -RequirementIds "FR-001 / FR-002 / FR-003 / FR-004 / FR-007 / FR-009 / FR-010 / FR-012 / FR-013" -Command "npm run test:api"
   Invoke-ReportCommand -Label "DB integration" -RequirementIds "FR-001 / FR-005 / FR-007 / FR-010 / FR-013" -Command "npm run test:db"
   Invoke-ReportCommand -Label "Worker integration" -RequirementIds "FR-005 / FR-010 / FR-012 / FR-013" -Command "npm run test:worker"
