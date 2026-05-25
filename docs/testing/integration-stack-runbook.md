@@ -67,6 +67,132 @@ npm run test:integration-live
 - 黑盒链路可以完成 `create -> execute -> download`；
 - 未签名请求返回 `401`。
 
+### 3.4 手动测试完整链路
+
+当需要人工完整验证“发起导出 -> worker 执行 -> MinIO 落盘 -> 下载表格”时，按下面顺序执行。
+
+#### Step 1. 启动完整环境
+
+```powershell
+npm run stack:integration
+node --import tsx scripts/integration-seed.mjs
+```
+
+期望：
+
+- `http://127.0.0.1:43000/health` 返回 `status=ok`
+- `http://127.0.0.1:49001` 的 MinIO 控制台可打开
+
+#### Step 2. 生成认证头
+
+```powershell
+node --import tsx scripts/integration-auth-client.mjs
+```
+
+脚本会输出一组请求头，手动测试时需要带上：
+
+- `x-operator-id`
+- `x-tenant-id`
+- `x-role-codes`
+- `x-org-scope`
+- `x-request-id`
+- `x-auth-context-issued-at`
+- `x-auth-context-signature-algorithm`
+- `x-auth-context-signature`
+
+#### Step 3. 发起导出任务
+
+```powershell
+$headers = @{
+  "x-operator-id" = "u001"
+  "x-tenant-id" = "tenant-001"
+  "x-role-codes" = "EXPORT_USER"
+  "x-org-scope" = "ORG-001,ORG-002"
+  "x-request-id" = "req-manual-001"
+  "x-auth-context-issued-at" = "<integration-auth-client 输出值>"
+  "x-auth-context-signature-algorithm" = "HMAC-SHA256"
+  "x-auth-context-signature" = "<integration-auth-client 输出值>"
+  "content-type" = "application/json"
+}
+
+$body = @{
+  taskCode = "purchase-order-export"
+  subsystemCode = "purchase"
+  fileFormat = "XLSX"
+  clientRequestId = "manual-001"
+  queryParams = @{
+    createdAtFrom = "2026-05-01T00:00:00.000Z"
+    createdAtTo   = "2026-05-31T23:59:59.000Z"
+  }
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:43000/api/export/tasks" -Headers $headers -Body $body
+```
+
+期望：
+
+- 返回 `PENDING`
+- 记录 `taskId`
+
+#### Step 4. 轮询任务状态
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:43000/api/export/tasks/<taskId>" -Headers $headers
+```
+
+期望：
+
+- 状态从 `PENDING -> EXECUTING -> COMPLETED`
+
+若长时间未完成，查看：
+
+```powershell
+docker logs export-platform-integration-scheduler --tail 200
+```
+
+#### Step 5. 获取下载地址并下载表格
+
+```powershell
+$meta = Invoke-RestMethod -Uri "http://127.0.0.1:43000/api/export/tasks/<taskId>/download" -Headers $headers
+$meta.data.downloadUrl
+Invoke-WebRequest -Uri $meta.data.downloadUrl -OutFile "manual-export.xlsx"
+```
+
+期望：
+
+- 能拿到 `downloadUrl`
+- 文件下载成功
+- 文件非空
+
+#### Step 6. 在 MinIO 中核对对象
+
+- MinIO 控制台：`http://127.0.0.1:49001`
+- 用户名：`export-platform`
+- 密码：`export-platform-secret`
+- bucket：`export-platform-integration`
+
+期望：
+
+- 能看到 `exports/purchase/purchase-order-export/...` 下的对象
+
+#### Step 7. 在平台库核对文件元数据
+
+```powershell
+docker exec export-platform-integration-mysql mysql -uroot -D export_platform_integration -e "SELECT task_id, file_name, published_storage_key, published_at FROM export_task_files ORDER BY created_at DESC LIMIT 10;"
+```
+
+期望：
+
+- 能看到刚才任务的 `published_storage_key`
+
+#### Step 8. 失败态最少手工测一条
+
+不带任何 `x-auth-context-*` 头重新发起导出：
+
+期望：
+
+- 返回 `401`
+
 ## 4. 证据边界
 
 - `docker/mock` 证据只能证明本机容器化环境下的集成链路。
