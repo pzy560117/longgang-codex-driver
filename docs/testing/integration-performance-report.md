@@ -31,6 +31,7 @@
 - 该报告不声明外部生产 live evidence。
 - 当前已拿到 `1000`、`10000`、`50000`、`100000` 四档基线结果。
 - `50000` 与 `100000` 行场景都会输出 ZIP；当前观测分片数分别为 `3` 和 `5`。
+- 自动性能测试过程中，真实下载文件会保存到 [tests/integration/artifacts](/E:/2026/alpha-project/longgang-codex-driver/tests/integration/artifacts)。
 - 当前基线显示：
   - `1000` 行吞吐量最高，但文件体量最小，固定开销占比明显
   - `10000` 行总耗时约 `95s`

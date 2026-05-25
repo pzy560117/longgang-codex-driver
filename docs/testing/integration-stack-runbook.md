@@ -164,6 +164,17 @@ Invoke-WebRequest -Uri $meta.data.downloadUrl -OutFile "manual-export.xlsx"
 - 文件下载成功
 - 文件非空
 
+自动化链路默认把下载样本保存到：
+
+- [tests/integration/artifacts](/E:/2026/alpha-project/longgang-codex-driver/tests/integration/artifacts)
+
+也就是说：
+
+- `npm run test:integration-live`
+- `npm run test:integration-performance`
+
+都会把真实下载到的导出文件自动落到这个目录。
+
 #### Step 6. 在 MinIO 中核对对象
 
 - MinIO 控制台：`http://127.0.0.1:49001`
@@ -264,3 +275,4 @@ npm run test:integration-live
 - [验证矩阵](./verify-matrix.md)
 - [生产部署教程](../operations/production-deployment-tutorial.md)
 - [Docker 测试数据运行手册](./docker-test-data-runbook.md)
+- [测试数据矩阵](./TEST_DATA_MATRIX.md)

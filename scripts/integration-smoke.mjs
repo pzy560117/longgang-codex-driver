@@ -1,6 +1,11 @@
 import { execFileSync } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = process.env.EXPORT_PLATFORM_INTEGRATION_BASE_URL ?? "http://127.0.0.1:43000";
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const artifactDir = resolve(projectRoot, "tests", "integration", "artifacts");
 
 const headers = JSON.parse(
   execFileSync(process.execPath, ["--import", "tsx", "scripts/integration-auth-client.mjs"], {
@@ -87,6 +92,8 @@ const fileBuffer = Buffer.from(await fileResp.arrayBuffer());
 if (fileBuffer.byteLength === 0) {
   throw new Error("downloaded file is empty");
 }
+await mkdir(artifactDir, { recursive: true });
+await writeFile(resolve(artifactDir, downloadPayload.data.fileName), fileBuffer);
 
 const unauthResp = await fetch(`${baseUrl}/api/export/tasks`, {
   method: "POST",
@@ -105,7 +112,7 @@ if (unauthResp.status !== 401) {
   throw new Error(`expected 401 for missing signature, received ${unauthResp.status}`);
 }
 
-console.log("integration smoke passed");
+console.log(`integration smoke passed: ${downloadPayload.data.fileName}`);
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

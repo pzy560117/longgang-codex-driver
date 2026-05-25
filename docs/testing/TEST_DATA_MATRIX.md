@@ -34,3 +34,38 @@
 - 破坏性场景必须定义重置或隔离策略。
 - 历史基线说明仅作追溯用途，不再表示当前仓库状态。
 - 任何 live object storage smoke 相关 fixture 仅用于外部生产/live 验证，不属于本机受控 release gate。
+
+## Docker integration stack 测试数据与下载产物
+
+当前完整 Docker 集成环境中，测试数据与导出产物约定如下：
+
+- 平台库：
+  - `export_platform_integration`
+- 业务只读库：
+  - `purchase_readonly`
+- 业务数据表：
+  - `purchase_orders_sample`
+- 业务视图：
+  - `purchase_orders_view`
+- 对象存储 bucket：
+  - `export-platform-integration`
+
+`integration-seed.mjs` 会初始化：
+
+- 平台 migration
+- `purchase-order-export` registry
+- 默认 `10,000` 条样例采购订单数据
+
+自动测试下载产物默认保存到：
+
+- [tests/integration/artifacts](/E:/2026/alpha-project/longgang-codex-driver/tests/integration/artifacts)
+
+适用入口：
+
+- `npm run test:integration-live`
+- `npm run test:integration-performance`
+
+说明：
+
+- 这里保存的是自动测试运行时真实从平台下载下来的样本文件，不是伪造 fixture。
+- 如果目录中存在多次测试留下的同名文件，后一次会覆盖前一次。

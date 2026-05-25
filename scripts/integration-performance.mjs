@@ -1,7 +1,12 @@
 import { createHmac } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import mysql from "mysql2/promise";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const baseUrl = process.env.EXPORT_PLATFORM_INTEGRATION_BASE_URL ?? "http://127.0.0.1:43000";
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const artifactDir = resolve(projectRoot, "tests", "integration", "artifacts");
 const platformUrl =
   process.env.EXPORT_PLATFORM_DATABASE_URL ??
   "mysql://root@127.0.0.1:43306/export_platform_integration";
@@ -168,6 +173,8 @@ async function runScenario(input) {
   if (fileBuffer.byteLength === 0) {
     throw new Error(`downloaded file is empty for ${taskId}`);
   }
+  await mkdir(artifactDir, { recursive: true });
+  await writeFile(resolve(artifactDir, metadata.file_name), fileBuffer);
   const finishedAt = Date.now();
 
   const partCount = String(metadata.file_name).endsWith(".zip")
